@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk '/AI_RECOMMENDATIONS/,/^\\\\]/' src/app/data/idxData.ts)",
+      "Bash(python3 -c \"import json;d=json.load\\(open\\('backend/api/seed/signals.json'\\)\\);print\\(len\\(d\\),'signals'\\);print\\(list\\(d[0].keys\\(\\)\\)\\)\")",
+      "Bash(docker info *)"
+    ]
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "weights": [
+    {
+      "symbol": "BBCA",
+      "name": "Bank Central Asia",
+      "weight": 0.2241,
+      "weightPct": 22.41,
+      "expectedReturn": 14.8,
+      "currentValue": 2796528000,
+      "lots": 1149
+    },
+    {
+      "symbol": "BBRI",
+      "name": "Bank Rakyat Indonesia",
+      "weight": 0.1687,
+      "weightPct": 16.87,
+      "expectedReturn": 18.3,
+      "currentValue": 2104896000,
+      "lots": 5135
+    },
+    {
+      "symbol": "TLKM",
+      "name": "Telkom Indonesia",
+      "weight": 0.1423,
+      "weightPct": 14.23,
+      "expectedReturn": 9.2,
+      "currentValue": 1775904000,
+      "lots": 4988
+    },
+    {
+      "symbol": "BMRI",
+      "name": "Bank Mandiri",
+      "weight": 0.1289,
+      "weightPct": 12.89,
+      "expectedReturn": 16.1,
+      "currentValue": 1608672000,
+      "lots": 2718
+    },
+    {
+      "symbol": "ASII",
+      "name": "Astra International",
+      "weight": 0.0978,
+      "weightPct": 9.78,
+      "expectedReturn": 11.5,
+      "currentValue": 1220544000,
+      "lots": 2080
+    },
+    {
+      "symbol": "ADRO",
+      "name": "Adaro Energy Indonesia",
+      "weight": 0.0812,
+      "weightPct": 8.12,
+      "expectedReturn": 22.7,
+      "currentValue": 1013376000,
+      "lots": 3812
+    },
+    {
+      "symbol": "BREN",
+      "name": "Barito Renewables Energy",
+      "weight": 0.0641,
+      "weightPct": 6.41,
+      "expectedReturn": 28.4,
+      "currentValue": 799968000,
+      "lots": 981
+    },
+    {
+      "symbol": "ANTM",
+      "name": "Aneka Tambang",
+      "weight": 0.0521,
+      "weightPct": 5.21,
+      "expectedReturn": 19.6,
+      "currentValue": 650208000,
+      "lots": 3661
+    },
+    {
+      "symbol": "GOTO",
+      "name": "GoTo Gojek Tokopedia",
+      "weight": 0.0408,
+      "weightPct": 4.08,
+      "expectedReturn": 7.3,
+      "currentValue": 508704000,
+      "lots": 29346
+    }
+  ],
+  "metrics": {
+    "expectedReturn": 15.62,
+    "expectedVolatility": 18.41,
+    "sharpeRatio": 1.24,
+    "diversificationRatio": 1.87,
+    "method": "black-litterman"
+  },
+  "blView": {
+    "BBCA": 14.8,
+    "BBRI": 18.3,
+    "TLKM": 9.2,
+    "BMRI": 16.1,
+    "ASII": 11.5,
+    "ADRO": 22.7,
+    "BREN": 28.4,
+    "ANTM": 19.6,
+    "GOTO": 7.3
+  },
+  "computedAt": "2026-08-01T07:00:00+00:00",
+  "source": "mock",
+  "disclaimer": "Alokasi ini adalah output model kuantitatif — bukan saran investasi OJK. Keputusan investasi sepenuhnya tanggung jawab pengguna."
+}

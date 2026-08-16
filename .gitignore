@@ -1,0 +1,53 @@
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules
+.pnpm-store
+
+# Python virtualenv. Never commit this: it is ~419 MB of platform-specific
+# binaries that will not work on anyone else's machine anyway.
+backend/.venv
+.venv
+venv
+ENV
+
+# ── Build output ──────────────────────────────────────────────────────────────
+dist
+build
+*.tsbuildinfo
+
+# ── Python bytecode / caches ──────────────────────────────────────────────────
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+# .env holds ANTHROPIC_API_KEY, database credentials and any licensed feed key.
+# .env.example is committed as the documented template.
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ── ML artefacts ──────────────────────────────────────────────────────────────
+# Trained models are large and reproducible from ml/training/. MLflow tracks
+# the ones that matter.
+backend/models/*.pkl
+backend/mlruns
+backend/mlartifacts
+
+# ── Editor / OS ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea
+*.swp
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# ── Local scratch ─────────────────────────────────────────────────────────────
+*.log
+.scratch

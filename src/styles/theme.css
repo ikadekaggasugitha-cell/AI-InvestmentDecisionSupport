@@ -1,0 +1,209 @@
+@custom-variant dark (&:is(.dark *));
+
+/* ─── Light Mode (default) ───────────────────────────────────────────────── */
+:root {
+  --font-size: 14px;
+  --background: #f6f8fa;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #0b7c5e;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #374151;
+  --muted: #f1f5f9;
+  --muted-foreground: #6b7280;
+  --accent: #e0f7f2;
+  --accent-foreground: #0b7c5e;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0, 0, 0, 0.08);
+  --input: transparent;
+  --input-background: #f9fafb;
+  --switch-background: #d1d5db;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #0b7c5e;
+  --chart-1: #0b7c5e;
+  --chart-2: #2563eb;
+  --chart-3: #d97706;
+  --chart-4: #7c3aed;
+  --chart-5: #dc2626;
+  --radius: 0.375rem;
+
+  /* Financial semantic tokens — light mode */
+  --gain: #059669;
+  --loss: #dc2626;
+  --gain-bg: rgba(5, 150, 105, 0.08);
+  --loss-bg: rgba(220, 38, 38, 0.08);
+  --warning: #d97706;
+  --neutral: #2563eb;
+  --neutral-bg: rgba(37, 99, 235, 0.08);
+
+  /* Sidebar — always dark regardless of theme */
+  --sidebar: #050810;
+  --sidebar-foreground: #6b8ba8;
+  --sidebar-primary: #00d4aa;
+  --sidebar-primary-foreground: #060a0f;
+  --sidebar-accent: #0d1520;
+  --sidebar-accent-foreground: #c8d6e5;
+  --sidebar-border: rgba(255, 255, 255, 0.05);
+  --sidebar-ring: #00d4aa;
+}
+
+/* ─── Dark Mode ──────────────────────────────────────────────────────────── */
+.dark {
+  --background: #060a0f;
+  --foreground: #c8d6e5;
+  --card: #0b1118;
+  --card-foreground: #c8d6e5;
+  --popover: #0d1520;
+  --popover-foreground: #c8d6e5;
+  --primary: #00d4aa;
+  --primary-foreground: #060a0f;
+  --secondary: #101b27;
+  --secondary-foreground: #8ba3be;
+  --muted: #0d1520;
+  --muted-foreground: #5a7a9a;
+  --accent: #0f2a45;
+  --accent-foreground: #4da6ff;
+  --destructive: #ff4757;
+  --destructive-foreground: #ffffff;
+  --border: rgba(255, 255, 255, 0.07);
+  --input: transparent;
+  --input-background: #0d1520;
+  --switch-background: #1a2d40;
+  --ring: #00d4aa;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: #00d4aa;
+  --chart-2: #4da6ff;
+  --chart-3: #f59e0b;
+  --chart-4: #a78bfa;
+  --chart-5: #ff4757;
+
+  /* Financial semantic tokens — dark mode */
+  --gain: #00d4aa;
+  --loss: #ff4757;
+  --gain-bg: rgba(0, 212, 170, 0.08);
+  --loss-bg: rgba(255, 71, 87, 0.08);
+  --warning: #f59e0b;
+  --neutral: #4da6ff;
+  --neutral-bg: rgba(77, 166, 255, 0.08);
+
+  /* Sidebar — always dark regardless of theme */
+  --sidebar: #050810;
+  --sidebar-foreground: #6b8ba8;
+  --sidebar-primary: #00d4aa;
+  --sidebar-primary-foreground: #060a0f;
+  --sidebar-accent: #0d1520;
+  --sidebar-accent-foreground: #c8d6e5;
+  --sidebar-border: rgba(255, 255, 255, 0.05);
+  --sidebar-ring: #00d4aa;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-gain: var(--gain);
+  --color-loss: var(--loss);
+  --color-gain-bg: var(--gain-bg);
+  --color-loss-bg: var(--loss-bg);
+  --color-warning: var(--warning);
+  --color-neutral: var(--neutral);
+  --color-neutral-bg: var(--neutral-bg);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+}

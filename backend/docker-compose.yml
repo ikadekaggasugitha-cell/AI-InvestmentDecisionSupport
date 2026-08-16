@@ -1,0 +1,119 @@
+version: "3.9"
+
+services:
+  # ── FastAPI application ─────────────────────────────────────────────────────
+  api:
+    build: .
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - .:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Celery worker (signal + risk tasks) ────────────────────────────────────
+  worker:
+    build: .
+    command: celery -A workers.celery_app worker --loglevel=info --concurrency=4
+    env_file: .env
+    volumes:
+      - .:/app
+      - model_artifacts:/app/models
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # ── Celery beat scheduler ──────────────────────────────────────────────────
+  beat:
+    build: .
+    command: celery -A workers.celery_app beat --loglevel=info
+    env_file: .env
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # ── Celery Flower monitoring ───────────────────────────────────────────────
+  flower:
+    build: .
+    command: celery -A workers.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    env_file: .env
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # ── TimescaleDB ────────────────────────────────────────────────────────────
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: aidss
+      POSTGRES_USER: aidss
+      POSTGRES_PASSWORD: aidss
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aidss"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # ── Redpanda (Kafka-compatible) — Phase 2 ─────────────────────────────────
+  redpanda:
+    image: redpandadata/redpanda:v24.1.1
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --mode dev-container
+      - --smp 1
+      - --memory 512M
+    ports:
+      - "9092:9092"
+      - "19092:19092"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    restart: unless-stopped
+
+  # ── MLflow tracking server — Phase 3+ ─────────────────────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.0
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlruns
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlruns
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  timescale_data:
+  redpanda_data:
+  mlflow_data:
+  model_artifacts:

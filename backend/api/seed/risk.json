@@ -1,0 +1,107 @@
+{
+  "risk": {
+    "overallRisk": 44,
+    "marketRisk": 58,
+    "concentrationRisk": 52,
+    "liquidityRisk": 22,
+    "currencyRisk": 31,
+    "creditRisk": 12,
+    "var95": -384720000,
+    "cvar95": -562480000,
+    "volatility": 14.8,
+    "maxDrawdown": -9.6,
+    "beta": 0.94,
+    "sharpe": 1.71,
+    "sortino": 2.18,
+    "alpha": 3.1,
+    "informationRatio": 0.82
+  },
+  "stressTests": [
+    {
+      "scenario": "Krisis Keuangan 2008",
+      "scenarioEn": "2008 Financial Crisis",
+      "impact": -34.2,
+      "probability": 2.8
+    },
+    {
+      "scenario": "Pandemi COVID-19",
+      "scenarioEn": "COVID-19 Pandemic",
+      "impact": -26.8,
+      "probability": 4.1
+    },
+    {
+      "scenario": "Krisis Rupiah 1998",
+      "scenarioEn": "1998 Rupiah Crisis",
+      "impact": -41.5,
+      "probability": 1.4
+    },
+    {
+      "scenario": "Siklus Kenaikan BI Rate",
+      "scenarioEn": "BI Rate Hike Cycle",
+      "impact": -14.3,
+      "probability": 18.6
+    },
+    {
+      "scenario": "Koreksi Komoditas -30%",
+      "scenarioEn": "Commodity Correction -30%",
+      "impact": -8.7,
+      "probability": 21.4
+    },
+    {
+      "scenario": "Resesi Ringan",
+      "scenarioEn": "Mild Recession",
+      "impact": -11.2,
+      "probability": 26.8
+    },
+    {
+      "scenario": "Guncangan Geopolitik",
+      "scenarioEn": "Geopolitical Shock",
+      "impact": -10.4,
+      "probability": 24.9
+    }
+  ],
+  "sectorExposure": [
+    {
+      "sector": "Keuangan",
+      "sectorEn": "Financials",
+      "weight": 40.2,
+      "benchmark": 34.2,
+      "overUnder": 6.0
+    },
+    {
+      "sector": "Energi",
+      "sectorEn": "Energy",
+      "weight": 16.8,
+      "benchmark": 12.4,
+      "overUnder": 4.4
+    },
+    {
+      "sector": "Konsumer",
+      "sectorEn": "Consumer",
+      "weight": 14.0,
+      "benchmark": 16.8,
+      "overUnder": -2.8
+    },
+    {
+      "sector": "Telekomunikasi",
+      "sectorEn": "Telecom",
+      "weight": 11.4,
+      "benchmark": 10.3,
+      "overUnder": 1.1
+    },
+    {
+      "sector": "Konglomerasi",
+      "sectorEn": "Conglomerate",
+      "weight": 10.4,
+      "benchmark": 11.6,
+      "overUnder": -1.2
+    },
+    {
+      "sector": "Material",
+      "sectorEn": "Materials",
+      "weight": 7.2,
+      "benchmark": 6.2,
+      "overUnder": 1.0
+    }
+  ]
+}
