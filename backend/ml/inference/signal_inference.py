@@ -24,34 +24,68 @@ from ml.inference.trade_plan import _build_technical_note, _compute_trade_plan
 
 logger = logging.getLogger(__name__)
 
-# Action mapping: uprob → action label
-def _uprob_to_action(uprob: int) -> str:
-    if uprob >= 80:
+def _uprob_to_action(uprob: int, base_rate: float = 0.5) -> str:
+    """
+    Map a probability to a label, RELATIVE to the model's own base rate.
+
+    Fixed thresholds (>=65 BUY, >=40 HOLD) assume predictions centre on 50%.
+    They do not. This model trained on a sample where only 38.65% of 5-day
+    windows were up, so its probabilities centre near that — and every single
+    output landed under 40, labelling all fifteen tracked symbols SELL
+    permanently.
+
+    A probability is informative relative to what the model considers typical.
+    Sitting at the base rate is HOLD; the buy and sell bands are scaled from
+    the headroom on either side, so the labels stay meaningful whatever the
+    sample's up-rate happens to be.
+    """
+    base = max(0.05, min(0.95, base_rate)) * 100
+    p = float(uprob)
+
+    # Headroom above and below the base rate, split into bands.
+    up_room = 100 - base
+    down_room = base
+
+    if p >= base + 0.60 * up_room:
         return "STRONG BUY"
-    if uprob >= 65:
+    if p >= base + 0.25 * up_room:
         return "BUY"
-    if uprob >= 40:
+    if p >= base - 0.35 * down_room:
         return "HOLD"
     return "SELL"
 
 
-# SHAP factor name mapping (model feature → bilingual display name)
+# SHAP factor name mapping (model feature → bilingual display name).
+#
+# Keys must match ml/features/point_in_time.FEATURE_COLUMNS. An unmapped
+# feature falls back to its raw column name, which surfaces on the card as
+# something like "xs_turnover_rank" — visible, so a drifted mapping shows up
+# rather than silently dropping a factor's contribution.
 SHAP_DISPLAY: dict[str, tuple[str, str]] = {
-    "rsi_14":            ("Teknikal",       "Technical"),
-    "macd_delta":        ("Teknikal",       "Technical"),
-    "bb_position":       ("Teknikal",       "Technical"),
-    "bb_width":          ("Volatilitas",    "Volatility"),
-    "ret_5d":            ("Momentum",       "Momentum"),
-    "ret_20d":           ("Momentum",       "Momentum"),
-    "ret_60d":           ("Fundamental",    "Fundamentals"),
-    "vol_ratio_5_20":    ("Volume",         "Volume"),
-    "foreign_net_5d":    ("Foreign Flow",   "Foreign Flow"),
-    "foreign_net_20d":   ("Foreign Flow",   "Foreign Flow"),
-    "foreign_flow_signal":("Foreign Flow",  "Foreign Flow"),
-    "pe_sector_pct":     ("Fundamental",    "Fundamentals"),
-    "bi_rate_change":    ("Makro",          "Macro"),
-    "usdidr_vol_30d":    ("Makro",          "Macro"),
-    "sentiment_5d":      ("Sentimen",       "Sentiment"),  # Phase 5 feature
+    # Momentum
+    "ret_1d":                ("Momentum",     "Momentum"),
+    "ret_5d":                ("Momentum",     "Momentum"),
+    "ret_20d":               ("Momentum",     "Momentum"),
+    "ret_60d":               ("Momentum",     "Momentum"),
+    # Trend / mean reversion
+    "rsi_14":                ("Teknikal",     "Technical"),
+    "ema_ratio_9_21":        ("Teknikal",     "Technical"),
+    "dist_from_high_60d":    ("Teknikal",     "Technical"),
+    "dist_from_low_60d":     ("Teknikal",     "Technical"),
+    # Volatility
+    "vol_20d":               ("Volatilitas",  "Volatility"),
+    "vol_ratio_5_20":        ("Volatilitas",  "Volatility"),
+    # Liquidity
+    "turnover_ratio_20d":    ("Likuiditas",   "Liquidity"),
+    "volume_ratio_5_20":     ("Volume",       "Volume"),
+    "frequency_ratio_5_20":  ("Likuiditas",   "Liquidity"),
+    # Foreign participation — IDX first-party
+    "foreign_net_ratio_1d":  ("Foreign Flow", "Foreign Flow"),
+    "foreign_net_ratio_5d":  ("Foreign Flow", "Foreign Flow"),
+    "foreign_net_ratio_20d": ("Foreign Flow", "Foreign Flow"),
+    # Cross-sectional position
+    "xs_ret_20d_rank":       ("Relatif Pasar", "Relative to Market"),
+    "xs_turnover_rank":      ("Relatif Pasar", "Relative to Market"),
 }
 
 
@@ -104,7 +138,26 @@ class SignalInference:
         self.model = model_bundle["model"]
         self.features = model_bundle["features"]
         self.version = model_bundle.get("version", "unknown")
+        self.report = model_bundle.get("report", {})
         self._explainer = shap.TreeExplainer(self.model)
+
+    def _predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        """
+        P(up) for each row, whichever LightGBM API produced the model.
+
+        `lgb.train()` returns a Booster whose `predict()` already yields the
+        positive-class probability for a binary objective. The sklearn wrapper
+        returns a two-column array from `predict_proba()`. Supporting only the
+        latter is what would have broken serving: train_signals_v2 uses
+        `lgb.train`, so the saved artefact is a Booster and `predict_proba`
+        does not exist on it.
+        """
+        if hasattr(self.model, "predict_proba"):
+            return np.asarray(self.model.predict_proba(X))[:, 1]
+
+        raw = np.asarray(self.model.predict(X))
+        # A multiclass Booster returns one column per class.
+        return raw[:, 1] if raw.ndim == 2 and raw.shape[1] > 1 else raw.ravel()
 
     @classmethod
     def load(cls, model_path: str | Path | None = None) -> "SignalInference":
@@ -144,10 +197,21 @@ class SignalInference:
         technicals = technicals or {}
         broksum = broksum or {}
         settings = get_settings()
+        # The label distribution the model was fitted on. Action bands are
+        # scaled around it — see _uprob_to_action.
+        base_rate = float(self.report.get("base_rate", 0.5) or 0.5)
         max_stop_pct = settings.ta_max_stop_loss_pct
         min_stop_pct = settings.ta_min_stop_loss_pct
-        X = features_df[self.features].fillna(0)
-        probas = self.model.predict_proba(X)[:, 1]  # P(up)
+        # NaN is passed through, not filled.
+        #
+        # The model was trained with NaN present and LightGBM learns a split
+        # direction for it. A missing foreign-flow reading means "IDX did not
+        # report", which is a different state from zero net flow — filling it
+        # with 0 at serving time while training saw NaN is train/serve skew, and
+        # it silently shifts every prediction on any symbol with a gap.
+        X = features_df[self.features]
+
+        probas = self._predict_proba(X)
         shap_vals = self._explainer.shap_values(X)
         if isinstance(shap_vals, list):
             shap_vals = shap_vals[1]  # binary: take positive class
@@ -155,7 +219,7 @@ class SignalInference:
         signals: list[AISignal] = []
         for i, symbol in enumerate(features_df.index):
             uprob = int(probas[i] * 100)
-            action = _uprob_to_action(uprob)
+            action = _uprob_to_action(uprob, base_rate)
             current = market_prices.get(symbol, 0)
             target = _target_price(current, uprob)
             upside = round((target - current) / current * 100, 1) if current else 0

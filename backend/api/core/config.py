@@ -56,15 +56,21 @@ class Settings(BaseSettings):
 
     # ── Feature flags ─────────────────────────────────────────────────────────
     #
-    # `use_mock_market=False` is the default: quotes and daily bars come from
-    # the real IDX feed. The others stay mocked because they depend on artefacts
-    # that do not exist in a fresh checkout — a trained LightGBM model, a fitted
-    # GARCH, and a real portfolio ledger. Flipping those on without the
-    # artefacts produces errors, not better data.
-    use_mock_signals: bool = True
-    use_mock_risk: bool = True
+    # Market, signals and risk all default to REAL.
+    #
+    # Signals need two things present or they fall back to clearly-labelled
+    # seed data: a trained model in backend/models/ (build one with
+    # `python -m ml.training.train_signals_v2`) and a populated `ohlcv` table.
+    # The table is required because the model uses cross-sectional rank
+    # features that cannot be reproduced from the fifteen displayed symbols
+    # alone — they were fitted against the whole board.
+    #
+    # Portfolio stays mocked: it is not a data-source problem. No feed knows
+    # your positions, so it needs an input path rather than an integration.
+    use_mock_signals: bool = False    # REAL LightGBM inference when a model exists
+    use_mock_risk: bool = False       # REAL GARCH / CVaR on live returns
     use_mock_market: bool = False     # REAL IDX prices (delayed — see idx_feed_vendor)
-    use_mock_portfolio: bool = True   # Phase 6
+    use_mock_portfolio: bool = True   # needs your actual holdings
 
     # Broker Summary scraping — Phase 10
     #

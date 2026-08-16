@@ -41,58 +41,20 @@ def refresh_signals(self) -> dict:
         return {"status": "skipped", "reason": "use_mock_signals=true"}
 
     try:
-        # ── Phase 3 live inference block ──────────────────────────────────────
         import asyncio
-        import pandas as pd
         import asyncpg
-        from ml.inference.signal_inference import SignalInference
-        from ml.features.engineer import build_features
         import redis as sync_redis
 
-        # 1. Load features from TimescaleDB (synchronous context inside Celery)
-        async def _fetch_features():
-            conn = await asyncpg.connect(
-                settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
-            )
-            rows = await conn.fetch(
-                """
-                SELECT symbol, time::date as date, open, high, low, close,
-                       volume, foreign_net
-                FROM ohlcv
-                WHERE time >= NOW() - INTERVAL '120 days'
-                ORDER BY symbol, time
-                """
-            )
-            await conn.close()
-            return pd.DataFrame([dict(r) for r in rows])
+        from api.services.signal_service import _compute_live_signals
 
-        ohlcv = asyncio.run(_fetch_features())
+        # Reuse the API's scoring path rather than a parallel implementation.
+        # The worker previously built features with ml.features.engineer while
+        # the model is trained on ml.features.point_in_time — two builders for
+        # one model is how a worker starts serving quietly different numbers
+        # from the endpoint beside it.
+        response = asyncio.run(_compute_live_signals())
 
-        # Minimal universe and macro stubs — replace with real tables in production
-        universe = ohlcv[["date", "symbol"]].copy()
-        universe["sector"] = "Unknown"
-        universe["pe"] = float("nan")
-        macro = pd.DataFrame({
-            "date":    pd.date_range(ohlcv["date"].min(), ohlcv["date"].max(), freq="B"),
-            "bi_rate": 5.75, "usdidr": 16_200.0,
-        })
-
-        features_df = build_features(ohlcv, universe, macro)
-        # Keep only the latest row per symbol
-        latest = features_df.groupby(level="symbol").tail(1)
-        latest.index = latest.index.get_level_values("symbol")
-
-        # 2. Market prices from Redis
         r = sync_redis.from_url(settings.redis_url, decode_responses=True)
-        prices = {}
-        snapshot = r.hgetall("market:snapshot")
-        for sym, tick_json in snapshot.items():
-            tick = json.loads(tick_json)
-            prices[sym] = tick.get("price", 0)
-
-        # 3. Run inference
-        engine = SignalInference.load()
-        response = engine.run(latest, prices)
 
         # 4. Write to Redis
         r.setex(REDIS_KEYS["signals_latest"], 900, response.model_dump_json())
