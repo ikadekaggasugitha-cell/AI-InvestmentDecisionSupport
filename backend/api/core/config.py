@@ -1,5 +1,18 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+from typing import Annotated
+
+from pydantic import field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+# List settings that accept a comma-separated string as well as JSON.
+#
+# NoDecode is required, not cosmetic: pydantic-settings JSON-decodes complex
+# fields inside EnvSettingsSource, BEFORE any validator runs. Without it,
+# CORS_ORIGINS=https://aidss.example.com raised SettingsError at import and a
+# `mode="before"` validator never got the chance to see the value.
+CommaList = Annotated[list[str], NoDecode]
+
+DEV_JWT_SECRET = "dev-secret-change-in-production"
 
 
 class Settings(BaseSettings):
@@ -9,13 +22,18 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_debug: bool = True
     app_port: int = 8000
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    # Accepts either a comma-separated string or a JSON array — see the
+    # validator below for why the plain form had to be supported.
+    cors_origins: CommaList = ["http://localhost:5173", "http://localhost:3000"]
 
     # Auth
-    jwt_secret_key: str = "dev-secret-change-in-production"
+    jwt_secret_key: str = DEV_JWT_SECRET
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
-    auth_bypass: bool = True  # Disable JWT in dev
+    # Convenience for local work ONLY. api/core/auth.py short-circuits
+    # get_current_user for EVERY route when this is true, so it must never
+    # survive into production — enforced by _reject_unsafe_production below.
+    auth_bypass: bool = True
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
@@ -85,7 +103,7 @@ class Settings(BaseSettings):
     broksum_scrape_source: str = "idx"       # idx | rti | both
     broksum_request_delay_sec: float = 2.0   # polite fixed delay between symbols
     broksum_max_concurrency: int = 2         # keep load on the source trivial
-    broksum_user_agents: list[str] = [
+    broksum_user_agents: CommaList = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/123.0.0.0 Safari/537.36",
@@ -124,7 +142,7 @@ class Settings(BaseSettings):
     # thin to fit anything — roughly 6k rows against 15 features. IDX publishes
     # ~950 instruments per session with three years of history, so the model
     # trains on a real cross-section while the UI stays focused.
-    tracked_symbols: list[str] = [
+    tracked_symbols: CommaList = [
         "BBCA", "BBRI", "BMRI", "TLKM", "ASII", "GOTO", "BREN", "ADRO",
         "UNVR", "ICBP", "ANTM", "PTBA", "KLBF", "SMGR", "EMTK",
     ]
@@ -143,7 +161,7 @@ class Settings(BaseSettings):
     model_universe_min_value_idr: float = 5_000_000_000.0
     # Used when model_universe_mode="static". Kept empty rather than filled with
     # a snapshot of LQ45 that would rot; set it explicitly if you want a fixed list.
-    model_universe_static: list[str] = []
+    model_universe_static: CommaList = []
 
     # ── Macro inputs ──────────────────────────────────────────────────────────
     #
@@ -154,7 +172,7 @@ class Settings(BaseSettings):
     # without anyone noticing.
     #
     # Format: "YYYY-MM-DD:rate", effective-date ascending. Update after each RDG.
-    bi_rate_schedule: list[str] = [
+    bi_rate_schedule: CommaList = [
         "2024-01-17:6.00",
         "2024-04-24:6.25",
         "2024-09-18:6.00",
@@ -176,6 +194,78 @@ class Settings(BaseSettings):
     # Observability — Phase 8
     metrics_enabled: bool = True
     sentry_dsn: str = ""
+
+    # ── Validators ────────────────────────────────────────────────────────────
+
+    @field_validator("cors_origins", "tracked_symbols", "model_universe_static",
+                     "bi_rate_schedule", "broksum_user_agents", mode="before")
+    @classmethod
+    def _split_comma_list(cls, value: object) -> object:
+        """
+        Accept `A,B,C` as well as `["A","B","C"]` for list settings.
+
+        pydantic-settings parses list fields as JSON, so the intuitive
+        `CORS_ORIGINS=https://aidss.example.com` raised SettingsError and the
+        application refused to start — with no hint that a JSON array was
+        required, and the field absent from .env.example entirely. An operator
+        deploying the frontend anywhere other than localhost hit this first.
+        """
+        if not isinstance(value, str):
+            return value
+        text = value.strip()
+        if not text:
+            return []
+
+        # NoDecode disabled pydantic's own JSON handling, so this validator owns
+        # both forms. Handing a JSON string back for pydantic to parse fails with
+        # "Input should be a valid list".
+        if text[0] == "[":
+            import json
+
+            try:
+                parsed = json.loads(text)
+            except ValueError:
+                pass
+            else:
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed]
+
+        return [part.strip() for part in text.split(",") if part.strip()]
+
+    @model_validator(mode="after")
+    def _reject_unsafe_production(self) -> "Settings":
+        """
+        Refuse to boot with development credentials in production.
+
+        `APP_ENV=production` previously only hid /docs and /redoc, which reads
+        like a hardening step while `AUTH_BYPASS=true` — the default — left
+        every endpoint open, and the JWT secret stayed at its published literal.
+        Failing at startup is the point: an unauthenticated financial API that
+        starts successfully is worse than one that refuses to.
+        """
+        if self.app_env != "production":
+            return self
+
+        problems: list[str] = []
+        if self.auth_bypass:
+            problems.append(
+                "AUTH_BYPASS=true — every endpoint would accept unauthenticated "
+                "requests as 'dev-user'. Set AUTH_BYPASS=false."
+            )
+        if self.jwt_secret_key == DEV_JWT_SECRET:
+            problems.append(
+                "JWT_SECRET_KEY is still the published development default, so "
+                "anyone can mint a valid token. Set a random secret."
+            )
+        if self.app_debug:
+            problems.append("APP_DEBUG=true leaks internals in error responses.")
+
+        if problems:
+            raise ValueError(
+                "refusing to start with APP_ENV=production:\n  - "
+                + "\n  - ".join(problems)
+            )
+        return self
 
     # Derived
     @property

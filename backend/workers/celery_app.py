@@ -13,7 +13,20 @@ during IDX market hours. The two Phase 10 tasks run once per session after the
 close: both produce daily aggregates, so intraday polling would re-fetch
 unchanged data.
 
-Times are given in UTC. IDX trades 09:00–16:00 WIB = 02:00–09:00 UTC.
+ALL SCHEDULE HOURS BELOW ARE WIB (Asia/Jakarta), NOT UTC.
+------------------------------------------------------------------------------
+Celery evaluates `crontab` against `app.conf.timezone`, which is set to
+Asia/Jakarta. `enable_utc` governs message timestamps, not schedule matching —
+verified: `crontab.now()` returns UTC+7 here.
+
+The schedules were previously written as UTC hours under a comment claiming so,
+which put every task 7 hours early. `refresh-ohlcv-eod` at hour=9 was documented
+as "16:15 WIB, after the close" and actually fired at 09:15 WIB — fifteen
+minutes after the OPEN, writing a bar for a session that had barely started, and
+never running again that day. The market-hours tasks (hour="2-9") ran from
+02:00 WIB, covering the night and only the first hour of trading.
+
+IDX sessions: 09:00–12:00 and 13:30–16:00 WIB, Monday to Friday.
 """
 
 from celery import Celery
@@ -49,31 +62,31 @@ celery_app.conf.update(
     imports=celery_app.conf.get("include", []) + ["workers.sentiment_worker"],
 
     beat_schedule={
-        # Signal refresh every 15 min Mon–Fri 09:00–16:30 WIB
+        # Signal refresh every 15 min during trading, Mon–Fri.
         "refresh-signals-market-hours": {
             "task": "workers.signal_worker.refresh_signals",
             "schedule": crontab(
                 minute="*/15",
-                hour="2-9",      # 09:00–16:30 WIB = 02:00–09:30 UTC
-                day_of_week="1-5",
+                hour="9-16",     # 09:00–16:59 WIB
+                day_of_week="mon-fri",
             ),
         },
-        # Risk refresh every hour Mon–Fri
+        # Risk refresh hourly during trading.
         "refresh-risk-market-hours": {
             "task": "workers.risk_worker.refresh_risk",
             "schedule": crontab(
                 minute="5",
-                hour="2-9",
-                day_of_week="1-5",
+                hour="9-16",     # WIB
+                day_of_week="mon-fri",
             ),
         },
-        # BEI disclosures fetch every 30 min during market hours (Phase 5)
+        # BEI disclosures every 30 min during trading (Phase 5).
         "fetch-bei-disclosures": {
             "task": "workers.sentiment_worker.fetch_bei_disclosures",
             "schedule": crontab(
                 minute="*/30",
-                hour="2-9",
-                day_of_week="1-5",
+                hour="9-16",     # WIB
+                day_of_week="mon-fri",
             ),
         },
         # ── Phase 10 — once per session, after the close ──────────────────────
@@ -83,8 +96,8 @@ celery_app.conf.update(
             "task": "workers.ohlcv_worker.refresh_ohlcv_daily",
             "schedule": crontab(
                 minute="15",
-                hour="9",        # 16:15 WIB — 15 min after the IDX close
-                day_of_week="1-5",
+                hour="16",       # 16:15 WIB — 15 min after the close
+                day_of_week="mon-fri",
             ),
         },
         # Broker summary is an end-of-day publication. One fetch per symbol per
@@ -94,8 +107,8 @@ celery_app.conf.update(
             "task": "workers.broksum_worker.refresh_broksum",
             "schedule": crontab(
                 minute="30",
-                hour="9",        # 16:30 WIB — after the OHLCV refresh lands
-                day_of_week="1-5",
+                hour="16",       # 16:30 WIB — after the OHLCV refresh lands
+                day_of_week="mon-fri",
             ),
         },
     },

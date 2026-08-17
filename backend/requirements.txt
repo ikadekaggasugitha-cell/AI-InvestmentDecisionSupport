@@ -1,37 +1,62 @@
+# AIDSS backend dependencies.
+#
+# VALIDATION STATUS
+# -----------------
+# Most pins below were reconciled against the environment the test suite
+# actually passes in. Before that reconciliation, NONE of the 42 pins matched
+# it, and nine diverged by a major version — pandas 2 vs 3 and numpy 1 vs 2
+# among them. `docker build` was therefore installing a dependency set nobody
+# had ever run this code against, while the passing tests were evidence about a
+# different one entirely.
+#
+# Pins marked UNVERIFIED are for packages not installed in that environment, so
+# their versions are inherited rather than tested. Install the full set and run
+# `pytest tests/` before trusting them:
+#   transformers, torch, sentencepiece, mlflow, confluent-kafka,
+#   PyPortfolioOpt, cvxpy, tiktoken, sentry-sdk, prometheus-client,
+#   prometheus-fastapi-instrumentator, flower, passlib, sqlalchemy, alembic
+#
 # ── Core API ────────────────────────────────────────────────────────────────
-fastapi==0.111.0
-uvicorn[standard]==0.29.0
-pydantic==2.7.1
-pydantic-settings==2.2.1
+fastapi==0.141.1
+uvicorn[standard]==0.52.3
+pydantic==2.13.4
+pydantic-settings==2.15.0
 
 # ── Auth ────────────────────────────────────────────────────────────────────
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 
 # ── Cache / Pub-Sub ─────────────────────────────────────────────────────────
-redis[hiredis]==5.0.4
+redis[hiredis]==8.1.0
 
 # ── Task Queue ──────────────────────────────────────────────────────────────
-celery==5.4.0
-celery[redis]==5.4.0
+celery==5.6.3
+celery[redis]==5.6.3
 flower==2.0.1          # Celery monitoring UI
 
 # ── Database ────────────────────────────────────────────────────────────────
-asyncpg==0.29.0        # Async PostgreSQL / TimescaleDB driver
-sqlalchemy[asyncio]==2.0.30
-alembic==1.13.1
+asyncpg==0.31.0        # Async PostgreSQL / TimescaleDB driver (API + workers)
+# Synchronous driver, required by the training entrypoints: pandas.read_sql in
+# ml/training/train_signals_v2.py runs outside an event loop. It was imported
+# there and in train_signals.py but absent from this file, so
+# `python -m ml.training.train_signals_v2` — the command config.py and
+# signal_service.py both tell operators to run — died at import in any
+# environment built from requirements.txt.
+psycopg2-binary==2.9.12
+sqlalchemy[asyncio]==2.0.30   # UNVERIFIED — not imported anywhere; see header
+alembic==1.13.1               # UNVERIFIED — no migrations exist yet
 
 # ── ML — Phase 3 ────────────────────────────────────────────────────────────
-lightgbm==4.3.0
-shap==0.45.0
-scikit-learn==1.4.2
-pandas==2.2.2
-numpy==1.26.4
-joblib==1.4.0
+lightgbm==4.7.0
+shap==0.52.0
+scikit-learn==1.9.0
+pandas==3.0.5
+numpy==2.5.2
+joblib==1.5.3
 
 # ── ML — Phase 4 (Risk) ─────────────────────────────────────────────────────
-arch==6.3.0            # GARCH models
-scipy==1.13.0
+arch==8.0.0            # GARCH models
+scipy==1.18.0
 
 # ── ML — Phase 5 (Sentiment) ────────────────────────────────────────────────
 transformers==4.41.0
@@ -40,16 +65,16 @@ sentencepiece==0.2.0
 mlflow==2.13.0
 
 # ── Data feed — Phase 2 ─────────────────────────────────────────────────────
-websockets==12.0       # Broker WebSocket feed client
+websockets==17.0.1     # Broker WebSocket feed client
 confluent-kafka==2.4.0 # Kafka producer/consumer
-httpx==0.27.0          # Async HTTP for REST feeds
+httpx==0.28.1          # Async HTTP for REST feeds
 
 # ── Portfolio Optimisation — Phase 6 ────────────────────────────────────────
 PyPortfolioOpt==1.5.5      # Black-Litterman + HRP + MVO
 cvxpy==1.5.0               # Convex optimisation solver for MVO fallback
 
 # ── Claude API + RAG — Phase 7 ──────────────────────────────────────────────
-anthropic==0.30.0          # Claude API SDK (supports streaming)
+anthropic==0.122.0     # Claude API SDK (supports streaming)
 tiktoken==0.7.0            # Token counting for context management
 
 # ── Observability — Phase 8 ─────────────────────────────────────────────────
@@ -57,23 +82,23 @@ prometheus-client==0.20.0
 sentry-sdk[fastapi]==2.6.0
 
 # ── Testing — Phase 8 ────────────────────────────────────────────────────────
-pytest==8.2.2
-pytest-asyncio==0.23.7
+pytest==9.1.1
+pytest-asyncio==1.4.0
 pytest-mock==3.14.0
-httpx==0.27.0              # Also used as AsyncClient in tests
+httpx==0.28.1          # Also used as AsyncClient in tests
 
 # ── Utilities ───────────────────────────────────────────────────────────────
-python-dotenv==1.0.1
-structlog==24.1.0
+python-dotenv==1.2.2
+structlog==26.1.0
 prometheus-fastapi-instrumentator==7.0.0
 
 # ── Scraping / Technical Analysis — Phase 10 ────────────────────────────────
-beautifulsoup4==4.12.3     # HTML parsing for IDX.co.id broker summary
-lxml==5.2.2                # Fast HTML/XML parser backend for bs4
+beautifulsoup4==4.15.0 # HTML parsing for IDX.co.id broker summary
+lxml==6.1.1            # Fast HTML/XML parser backend for bs4
 
 # ── Real IDX market data feed ───────────────────────────────────────────────
 # curl_cffi is REQUIRED, not optional. Yahoo fingerprints the TLS handshake and
 # answers plain httpx/requests clients with HTTP 429 regardless of request rate.
 # This library replays a real Chrome handshake, which is the only reason the
 # quote and chart endpoints respond at all.
-curl_cffi==0.7.4
+curl_cffi==0.16.0

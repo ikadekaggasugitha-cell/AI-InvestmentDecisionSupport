@@ -7,8 +7,27 @@ from fastapi.testclient import TestClient
 
 
 class TestHealthEndpoint:
-    def test_health_returns_ok(self, client):
+    def test_health_reports_dependency_state(self, client):
+        """
+        /health is a readiness probe, not a literal. It reports "degraded" when
+        an optional dependency is down — which is the case in CI, where there is
+        no Redis and no database — and 503 only when a hard one is missing.
+
+        This test previously asserted status == "ok" against a hardcoded
+        response, so it passed while every dependency was unreachable.
+        """
         resp = client.get("/health")
+        assert resp.status_code in (200, 503)
+
+        body = resp.json()
+        assert body["status"] in ("ok", "degraded", "unhealthy")
+        # The point of the endpoint: name what was checked.
+        assert "checks" in body
+        assert {"redis", "database", "model"} <= set(body["checks"])
+
+    def test_livez_is_unconditional(self, client):
+        """Liveness must not fail on a dependency outage, or restarts thrash."""
+        resp = client.get("/livez")
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 

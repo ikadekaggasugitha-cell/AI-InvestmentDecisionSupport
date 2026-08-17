@@ -13,9 +13,10 @@ Exposes endpoints consumed by the React frontend:
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.core.config import get_settings
@@ -176,10 +177,100 @@ Set `AUTH_BYPASS=true` in `.env` for development.
         from prometheus_fastapi_instrumentator import Instrumentator
         Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
-    # Health check
-    @app.get("/health", tags=["ops"], summary="Health check")
-    async def health() -> dict[str, str]:
+    # ── Health ────────────────────────────────────────────────────────────────
+
+    @app.get("/livez", tags=["ops"], summary="Liveness — is the process up")
+    async def livez() -> dict[str, str]:
+        """
+        Process liveness only. Never fails while the event loop runs, so a
+        restart policy driven by this will not thrash during a dependency
+        outage — use /health for that.
+        """
         return {"status": "ok", "version": "1.0.0"}
+
+    @app.get("/health", tags=["ops"], summary="Readiness — are dependencies usable")
+    async def health(response: Response) -> dict[str, object]:
+        """
+        Checks the dependencies the API actually needs, and returns 503 when a
+        hard one is down.
+
+        This used to be a static literal: it answered `{"status":"ok"}` while
+        the database was unreachable, every endpoint 500'd and the market poller
+        had never succeeded. Any load balancer or orchestrator reading it kept
+        routing traffic to a service that could not serve a request.
+
+        Redis is SOFT — it is a cache, and the services degrade to uncached
+        reads. The database is HARD for signals and risk. A stale market feed is
+        reported but does not fail the check, because it is legitimately stale
+        outside trading hours.
+        """
+        from api.core.redis_client import get_redis
+        from api.services.market_service import generate_snapshot
+
+        checks: dict[str, object] = {}
+        degraded = False
+        unhealthy = False
+
+        # Redis — soft.
+        try:
+            async with get_redis() as r:
+                await r.ping()
+            checks["redis"] = "ok"
+        except Exception as exc:  # noqa: BLE001
+            checks["redis"] = f"unavailable: {type(exc).__name__}"
+            degraded = True
+
+        # Database — hard whenever real signals or risk are expected.
+        db_required = not (settings.use_mock_signals and settings.use_mock_risk)
+        try:
+            import asyncpg
+
+            conn = await asyncpg.connect(
+                settings.database_url.replace("postgresql+asyncpg://", "postgresql://"),
+                timeout=4,
+            )
+            try:
+                bars = await conn.fetchval("SELECT count(*) FROM ohlcv")
+            finally:
+                await conn.close()
+            checks["database"] = "ok"
+            checks["ohlcv_rows"] = int(bars or 0)
+            if not bars and db_required:
+                checks["database"] = "reachable but `ohlcv` is empty — run backfill_ohlcv"
+                degraded = True
+        except Exception as exc:  # noqa: BLE001
+            checks["database"] = f"unavailable: {type(exc).__name__}"
+            if db_required:
+                unhealthy = True
+            else:
+                degraded = True
+
+        # Trained model — required only when serving real signals.
+        model_dir = Path(__file__).parent.parent / "models"
+        models = sorted(model_dir.glob("lgbm_signals_*.pkl")) if model_dir.is_dir() else []
+        checks["model"] = models[-1].name if models else "absent"
+        if not models and not settings.use_mock_signals:
+            checks["model"] = "absent — run `python -m ml.training.train_signals_v2`"
+            degraded = True
+
+        # Market feed freshness — reported, never fatal.
+        try:
+            snap = generate_snapshot()
+            checks["market_source"] = snap.dataSource
+            checks["market_age_seconds"] = snap.dataAgeSeconds
+            if snap.dataSource == "placeholder":
+                degraded = True
+        except Exception as exc:  # noqa: BLE001
+            checks["market_source"] = f"error: {type(exc).__name__}"
+            degraded = True
+
+        # Not named `status`: that shadows the imported fastapi.status module
+        # and the next line then raises AttributeError on a str.
+        overall = "unhealthy" if unhealthy else ("degraded" if degraded else "ok")
+        if unhealthy:
+            response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+        return {"status": overall, "version": "1.0.0", "checks": checks}
 
     return app
 

@@ -1,61 +1,152 @@
-version: "3.9"
+# AIDSS local stack.
+#
+#   docker compose up -d
+#
+# No `.env` file is required. Service-to-service addresses are set below via
+# `environment:`, which takes precedence over `env_file`, so an operator's own
+# .env cannot accidentally point a container at localhost. Previously every
+# service declared `env_file: .env` as a hard requirement while the only
+# committed template (.env.example) set REDIS_URL and DATABASE_URL to
+# localhost — so `docker compose up` aborted on the missing file, and copying
+# the template made each container resolve localhost to itself.
+#
+# Put secrets (ANTHROPIC_API_KEY, a real JWT_SECRET_KEY) in .env; it is
+# optional here and gitignored.
+#
+# HOST PORTS are overridable because 5432 and 6379 are the most contended
+# ports on a developer machine — any other Postgres or Redis already running
+# makes `docker compose up` fail with "port is already allocated". Services
+# reach each other over the compose network regardless of these:
+#
+#   AIDSS_DB_PORT=55432 AIDSS_REDIS_PORT=56379 docker compose up -d
+
+x-app-env: &app-env
+  # Container-network addresses. These override anything in .env.
+  REDIS_URL: redis://redis:6379/0
+  DATABASE_URL: postgresql+asyncpg://aidss:aidss@timescaledb:5432/aidss
+  KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+
+x-app-base: &app-base
+  build: .
+  env_file:
+    # Optional: compose does not fail when this is absent.
+    - path: .env
+      required: false
+  restart: unless-stopped
 
 services:
   # ── FastAPI application ─────────────────────────────────────────────────────
   api:
-    build: .
+    <<: *app-base
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
-      - "8000:8000"
-    env_file: .env
+      - "${AIDSS_API_PORT:-8000}:8000"
+    environment:
+      <<: *app-env
     volumes:
       - .:/app
+      # Bind-mounted so the API and the worker read the SAME trained models.
+      # A named volume here shadowed the directory in one service only, and the
+      # two disagreed about which artefacts existed.
+      - ./models:/app/models
     depends_on:
       redis:
         condition: service_healthy
       timescaledb:
         condition: service_healthy
-    restart: unless-stopped
+      db-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=4).status==200 else 1)\""]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 40s
+
+  # ── Schema bootstrap ────────────────────────────────────────────────────────
+  # Runs once per `up` and applies db/schema.sql. Every statement is
+  # IF NOT EXISTS / if_not_exists, so re-running is safe and an existing
+  # database gains newly added tables and columns.
+  #
+  # This exists because nothing applied the schema before: a fresh stack came up
+  # with an empty database and the first query raised
+  # `relation "ohlcv" does not exist`.
+  db-init:
+    image: timescale/timescaledb:latest-pg15
+    # List form for entrypoint AND command: a folded YAML scalar wrapped in
+    # quotes passes the quote characters through to sh, which then reports
+    # `syntax error: unexpected "&&"`.
+    #
+    # pg_isready reports the server up slightly before it accepts connections
+    # over TCP from another container, so retry briefly rather than racing it.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        for i in $$(seq 1 30); do
+          if psql "$$PGURL" -c 'SELECT 1' >/dev/null 2>&1; then break; fi
+          echo "waiting for timescaledb ($$i/30)..."
+          sleep 2
+        done
+        psql "$$PGURL" -v ON_ERROR_STOP=1 -f /schema/schema.sql
+        echo "schema applied"
+    environment:
+      PGURL: postgresql://aidss:aidss@timescaledb:5432/aidss
+    volumes:
+      - ./db/schema.sql:/schema/schema.sql:ro
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: "no"
 
   # ── Celery worker (signal + risk tasks) ────────────────────────────────────
   worker:
-    build: .
+    <<: *app-base
     command: celery -A workers.celery_app worker --loglevel=info --concurrency=4
-    env_file: .env
+    environment:
+      <<: *app-env
     volumes:
       - .:/app
-      - model_artifacts:/app/models
+      - ./models:/app/models
     depends_on:
-      - redis
-    restart: unless-stopped
+      redis:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
 
   # ── Celery beat scheduler ──────────────────────────────────────────────────
   beat:
-    build: .
+    <<: *app-base
     command: celery -A workers.celery_app beat --loglevel=info
-    env_file: .env
+    environment:
+      <<: *app-env
     volumes:
       - .:/app
     depends_on:
-      - redis
-    restart: unless-stopped
+      redis:
+        condition: service_healthy
 
   # ── Celery Flower monitoring ───────────────────────────────────────────────
   flower:
-    build: .
+    <<: *app-base
     command: celery -A workers.celery_app flower --port=5555
     ports:
-      - "5555:5555"
-    env_file: .env
+      - "${AIDSS_FLOWER_PORT:-5555}:5555"
+    environment:
+      <<: *app-env
     depends_on:
-      - redis
-    restart: unless-stopped
+      redis:
+        condition: service_healthy
 
   # ── Redis ──────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${AIDSS_REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -69,13 +160,15 @@ services:
   timescaledb:
     image: timescale/timescaledb:latest-pg15
     ports:
-      - "5432:5432"
+      - "${AIDSS_DB_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: aidss
       POSTGRES_USER: aidss
       POSTGRES_PASSWORD: aidss
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aidss"]
+      # -d is required: without it pg_isready checks a database named after the
+      # user, which reports ready before `aidss` is accepting connections.
+      test: ["CMD-SHELL", "pg_isready -U aidss -d aidss"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -106,7 +199,7 @@ services:
     image: ghcr.io/mlflow/mlflow:v2.13.0
     command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlruns
     ports:
-      - "5000:5000"
+      - "${AIDSS_MLFLOW_PORT:-5000}:5000"
     volumes:
       - mlflow_data:/mlruns
     restart: unless-stopped
@@ -116,4 +209,3 @@ volumes:
   timescale_data:
   redpanda_data:
   mlflow_data:
-  model_artifacts:
