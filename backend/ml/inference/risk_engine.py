@@ -26,6 +26,13 @@ from api.models.risk import (
 logger = logging.getLogger(__name__)
 
 # ── IHSG sector benchmark weights (IDX composition, July 2026) ───────────────
+#
+# HAND-MAINTAINED and therefore rots silently: IDX re-weights as constituents
+# move, but nothing here recomputes it, so a stale table quietly biases every
+# sector over/under-weight figure without erroring. Refresh from the IDX sector
+# index factsheets (roughly quarterly) and bump the date above. A future
+# improvement is to derive these from `ohlcv` market-cap sums rather than typing
+# them in — the same reasoning that made the model universe liquidity-derived.
 IHSG_SECTOR_WEIGHTS: dict[str, tuple[str, str, float]] = {
     # sector_id: (name_id, name_en, benchmark_weight%)
     "Keuangan":       ("Keuangan",       "Financials",   34.2),

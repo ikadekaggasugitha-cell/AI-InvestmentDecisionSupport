@@ -1,0 +1,34 @@
+# Keep the build context — and therefore `COPY . .` — free of secrets, host
+# artefacts, and dead weight. Without this file the image baked in whatever the
+# developer had locally: a real `.env` (leaking secrets into every layer) and
+# `.venv` (gigabytes of wrong-architecture binaries that also shadow the image's
+# own site-packages).
+
+# Secrets — never in an image layer.
+.env
+.env.*
+!.env.example
+
+# Local virtualenv — host-built, wrong platform, and huge.
+.venv/
+venv/
+ENV/
+
+# Python caches / build junk
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Tests are not needed at runtime.
+tests/
+
+# VCS / editor
+.git/
+.gitignore
+*.md
+.DS_Store

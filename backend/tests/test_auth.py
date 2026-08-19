@@ -56,6 +56,25 @@ class TestGuardApplied:
     def test_liveness_is_public(self, secure_client):
         assert secure_client.get("/livez").status_code == 200
 
+    def test_token_without_exp_is_rejected(self, secure_client, mock_redis):
+        # A forged/malformed token that omits `exp` would otherwise be treated
+        # as never-expiring. verify_token now requires the claim.
+        from jose import jwt
+
+        settings = get_settings()
+        no_exp = jwt.encode(
+            {"sub": "operator"}, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+        )
+        resp = secure_client.get(
+            "/v1/signals", headers={"Authorization": f"Bearer {no_exp}"}
+        )
+        assert resp.status_code == 401
+
+    def test_ws_stats_requires_auth_when_enforced(self, secure_client):
+        # The WS router is unguarded (the handshake can't carry a bearer header),
+        # but the plain-HTTP stats route must still be protected.
+        assert secure_client.get("/v1/ws/market/stats").status_code == 401
+
 
 class TestLogin:
     def test_valid_credentials_return_token(self, secure_client):

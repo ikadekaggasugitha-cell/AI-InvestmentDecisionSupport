@@ -35,10 +35,13 @@ MAX_TOOL_ITERATIONS = 3     # prevent infinite tool loops
 SESSION_TTL = 3600          # 1 hour chat history TTL
 
 # ── Whitelisted IDX symbols for tool inputs (Phase 9B security) ──────────────
-_VALID_SYMBOLS = {
-    "BBCA", "BBRI", "BMRI", "TLKM", "ASII",
-    "ADRO", "BREN", "GOTO", "ANTM", "UNVR",
-}
+#
+# Derived from the configured UI universe, not a second hardcoded list. The
+# hardcoded set had drifted from settings.tracked_symbols — it omitted ICBP,
+# PTBA, KLBF, SMGR and EMTK, so the advisor rejected five symbols the dashboard
+# happily displays. Deriving it keeps the two in lockstep automatically.
+def _valid_symbols() -> set[str]:
+    return {s.upper() for s in get_settings().tracked_symbols}
 
 # ── System prompts (Phase 9C: these receive cache_control) ───────────────────
 
@@ -158,6 +161,25 @@ _TOOLS: list[dict] = [
 
 # ── Phase 9A: Live Redis context assembly ─────────────────────────────────────
 
+def _normalise_signals(payload: object) -> tuple[list, str | None]:
+    """
+    Return (signals, computedAt) from either signal payload shape.
+
+    The live cache stores a SignalsResponse.model_dump() —
+    {"signals": [...], "computedAt": ..., "source": ...} — while the seed file
+    is a bare list. Reading the dict as a list (slicing it, iterating it) raised
+    inside a broad except, so every consumer silently fell back to seed while
+    reporting source="live". computedAt lives on the response, not the items,
+    so it is only recoverable from the dict shape.
+    """
+    computed_at: str | None = None
+    if isinstance(payload, dict):
+        computed_at = payload.get("computedAt")
+        payload = payload.get("signals", [])
+    signals = payload if isinstance(payload, list) else []
+    return signals, computed_at
+
+
 async def _load_live_context(uid: str) -> dict:
     """
     Gather live data from Redis in parallel.
@@ -165,17 +187,19 @@ async def _load_live_context(uid: str) -> dict:
     """
     redis = get_redis()
 
-    async def _get_signals() -> list:
+    async def _get_signals() -> tuple[list, str | None]:
         try:
             raw = await redis.get(REDIS_KEYS["signals_latest"])
             if raw:
-                return json.loads(raw)[:5]
+                signals, computed_at = _normalise_signals(json.loads(raw))
+                return signals[:5], computed_at
         except Exception as exc:
             logger.debug("context: signals Redis miss — %s", exc)
         try:
-            return json.loads(_SIGNALS_SEED.read_text())[:5]
+            signals, computed_at = _normalise_signals(json.loads(_SIGNALS_SEED.read_text()))
+            return signals[:5], computed_at
         except Exception:
-            return []
+            return [], None
 
     async def _get_risk(uid_: str) -> dict:
         try:
@@ -204,12 +228,13 @@ async def _load_live_context(uid: str) -> dict:
             logger.debug("context: news Redis miss — %s", exc)
             return []
 
-    signals, risk, portfolio, news = await asyncio.gather(
+    (signals, signals_computed_at), risk, portfolio, news = await asyncio.gather(
         _get_signals(), _get_risk(uid), _get_portfolio(), _get_news()
     )
 
-    # Tag freshness for context block
-    signals_age = _signals_age_minutes(signals)
+    # Tag freshness for context block. Prefer the response-level computedAt
+    # (the only place it exists); fall back to a per-item timestamp if present.
+    signals_age = _signals_age_minutes(signals, signals_computed_at)
 
     return {
         "signals": signals,
@@ -220,11 +245,12 @@ async def _load_live_context(uid: str) -> dict:
     }
 
 
-def _signals_age_minutes(signals: list) -> int | None:
+def _signals_age_minutes(signals: list, computed_at: str | None = None) -> int | None:
     """Return age in minutes of the signals batch, or None if unknown."""
     if not signals:
         return None
-    computed_at = signals[0].get("computedAt") if isinstance(signals[0], dict) else None
+    if not computed_at:
+        computed_at = signals[0].get("computedAt") if isinstance(signals[0], dict) else None
     if not computed_at:
         return None
     try:
@@ -287,7 +313,18 @@ def _build_context_block(ctx: dict) -> str:
             symbol_tag = f" [{item.get('symbol')}]" if item.get("symbol") else ""
             lines.append(f"- {item.get('headline', '')}{symbol_tag}")
 
-    return "\n".join(lines)
+    block = "\n".join(lines)
+
+    # Enforce the budget the docstring promises. Sections are appended in
+    # priority order (portfolio → signals → risk → news), so trimming the tail
+    # drops the lowest-value context first. The estimate is ~4 chars/token —
+    # deliberately rough, since this is a cost/size guardrail on a prompt sent
+    # to Claude, not an exact accounting. Previously nothing capped this and a
+    # large portfolio + full news list could balloon the per-request token cost.
+    budget_chars = MAX_CONTEXT_TOKENS * 4
+    if len(block) > budget_chars:
+        block = block[:budget_chars].rstrip() + "\n  …(context truncated to stay within budget)"
+    return block
 
 
 # ── Phase 9B: Tool execution ──────────────────────────────────────────────────
@@ -301,7 +338,7 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
 
     if name == "get_stock_price":
         symbol = inputs.get("symbol", "").upper()
-        if symbol not in _VALID_SYMBOLS:
+        if symbol not in _valid_symbols():
             return {"error": f"Symbol {symbol!r} not in IDX universe"}
         try:
             raw = await redis.hget(REDIS_KEYS["market_snapshot"], symbol)
@@ -321,12 +358,12 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
 
     if name == "get_signal":
         symbol = inputs.get("symbol", "").upper()
-        if symbol not in _VALID_SYMBOLS:
+        if symbol not in _valid_symbols():
             return {"error": f"Symbol {symbol!r} not in IDX universe"}
         try:
             raw = await redis.get(REDIS_KEYS["signals_latest"])
             if raw:
-                signals = json.loads(raw)
+                signals, _ = _normalise_signals(json.loads(raw))
                 for sig in signals:
                     if sig.get("symbol") == symbol:
                         return {
@@ -342,7 +379,7 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
             logger.debug("tool get_signal Redis miss: %s", exc)
         # Seed fallback
         try:
-            signals = json.loads(_SIGNALS_SEED.read_text())
+            signals, _ = _normalise_signals(json.loads(_SIGNALS_SEED.read_text()))
             for sig in signals:
                 if sig.get("symbol") == symbol:
                     return {**sig, "source": "seed"}

@@ -100,22 +100,11 @@ async def _load_cross_section(days: int) -> "pd.DataFrame":
     """
     import pandas as pd
 
-    from api.core.config import get_settings
-
-    settings = get_settings()
+    from api.core.db import get_pool
 
     try:
-        import asyncpg
-
-        conn = await asyncpg.connect(
-            settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
-        )
-    except (ImportError, Exception) as exc:  # noqa: BLE001
-        logger.warning("signals: cross-section unavailable — %s", exc)
-        return pd.DataFrame()
-
-    try:
-        records = await conn.fetch(
+        pool = await get_pool()
+        records = await pool.fetch(
             """
             SELECT time::date AS date, symbol, open, high, low, close, volume,
                    foreign_net, value_idr, listed_shares, frequency
@@ -125,8 +114,9 @@ async def _load_cross_section(days: int) -> "pd.DataFrame":
             """,
             str(int(days * 1.6)),
         )
-    finally:
-        await conn.close()
+    except Exception as exc:  # noqa: BLE001 — degrade to seed when the DB is unusable
+        logger.warning("signals: cross-section unavailable — %s", exc)
+        return pd.DataFrame()
 
     if not records:
         return pd.DataFrame()

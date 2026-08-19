@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
+import { portfolioResponseSchema, parseOrThrow } from "../config/schemas";
 
 /**
  * Black-Litterman + HRP allocation weights from the backend.
@@ -67,11 +68,15 @@ export function usePortfolioOptimisation(uid = "default"): PortfolioOptimisation
         const data = await res.json();
         if (cancelled) return;
 
+        // Validate the weights and metrics before showing an allocation the
+        // user might act on. A malformed payload throws into the catch below
+        // and the view shows the empty/error state, not a broken weight.
+        const parsed = parseOrThrow(portfolioResponseSchema, data, "portfolio");
         setState({
-          weights: Array.isArray(data?.weights) ? data.weights : [],
-          metrics: data?.metrics ?? null,
-          source: data?.source ?? null,
-          disclaimer: data?.disclaimer ?? "",
+          weights: parsed.weights as AllocationWeight[],
+          metrics: (parsed.metrics ?? null) as OptimisationMetrics | null,
+          source: parsed.source ?? null,
+          disclaimer: parsed.disclaimer ?? "",
           loading: false,
           error: null,
         });

@@ -241,6 +241,30 @@ def check_gates(report: dict[str, Any]) -> tuple[bool, list[str]]:
     return not failures, failures
 
 
+BASELINE_SAMPLE_PER_FEATURE = 20_000
+
+
+def _build_feature_baseline(features: "pd.DataFrame") -> dict[str, list[float]]:
+    """
+    Per-feature reference sample for drift detection.
+
+    Stores up to BASELINE_SAMPLE_PER_FEATURE non-null values per feature (the
+    whole column when smaller). A fixed seed keeps the artefact reproducible for
+    a given training set. NaN is dropped — check_feature_drift drops it on the
+    current side too, so the two are compared on the same basis.
+    """
+    rng = np.random.default_rng(42)
+    baseline: dict[str, list[float]] = {}
+    for col in FEATURE_COLUMNS:
+        if col not in features.columns:
+            continue
+        vals = features[col].dropna().to_numpy(dtype=float)
+        if len(vals) > BASELINE_SAMPLE_PER_FEATURE:
+            vals = rng.choice(vals, BASELINE_SAMPLE_PER_FEATURE, replace=False)
+        baseline[col] = vals.tolist()
+    return baseline
+
+
 def train(min_sessions: int = 150, n_splits: int = 4) -> dict[str, Any]:
     import lightgbm as lgb
 
@@ -288,6 +312,12 @@ def train(min_sessions: int = 150, n_splits: int = 4) -> dict[str, Any]:
             "features": FEATURE_COLUMNS,
             "version": version,
             "report": report,
+            # Reference distribution for drift monitoring. Stored at training
+            # time because that is the only point the "expected" distribution
+            # exists — workers.monitoring_worker.check_drift compares live
+            # serving features against it (PSI). Sampled to bound the artefact
+            # size; a per-feature sample is all compute_psi needs to build bins.
+            "feature_baseline": _build_feature_baseline(features),
         },
         path,
     )

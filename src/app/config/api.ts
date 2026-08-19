@@ -93,10 +93,72 @@ export function authHeaders(base?: HeadersInit): Headers {
 }
 
 /**
+ * Auth-expiry signal.
+ *
+ * A 401 from any endpoint means the bearer token is missing, expired, or
+ * rejected. Without handling it here every hook simply threw and fell back to
+ * seed data — so an expired session showed simulated prices that looked live,
+ * which is the one failure this app must never present silently. `apiFetch`
+ * now clears the stored token and broadcasts a single event the app listens
+ * for (see App.tsx) to warn the operator and prompt a re-login.
+ */
+export const AUTH_EXPIRED_EVENT = "aidss:auth-expired";
+
+// Dedupe: many hooks fire concurrently, so a single expiry would otherwise
+// dispatch a dozen identical events. Latch on the first 401 and release once a
+// request succeeds again (a fresh token took effect).
+let authExpiredSignalled = false;
+
+function handleAuthFailure(): void {
+  // Only the localStorage token is ours to clear; a build-time VITE_API_TOKEN
+  // cannot be rotated at runtime, so leave it and let the banner surface.
+  try {
+    if (typeof localStorage !== "undefined") localStorage.removeItem("aidss_token");
+  } catch {
+    /* storage unavailable (private mode / SSR) — nothing to clear */
+  }
+  if (authExpiredSignalled) return;
+  authExpiredSignalled = true;
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+  }
+}
+
+/**
+ * Manually raise the auth-expiry signal. The WebSocket path uses this: a 1008
+ * "policy violation" close from the backend means the token was missing or
+ * rejected, but a socket never goes through apiFetch, so it must report expiry
+ * itself instead of reconnecting forever with a token the server won't accept.
+ */
+export function signalAuthExpired(): void {
+  handleAuthFailure();
+}
+
+/**
+ * Subscribe to auth-expiry. Returns an unsubscribe function for cleanup in a
+ * React effect. Safe to call in non-browser environments (returns a no-op).
+ */
+export function onAuthExpired(handler: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(AUTH_EXPIRED_EVENT, handler);
+  return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handler);
+}
+
+/**
  * fetch() with the bearer token attached. Every hook goes through this so
  * enabling auth on the backend needs zero per-hook changes. In bypass-mode dev
  * it is a plain fetch — no token, no header.
+ *
+ * A 401 is intercepted centrally: the stored token is cleared and an
+ * auth-expiry event is broadcast once. The response is still returned unchanged
+ * so each hook's existing error/fallback path runs as before.
  */
-export function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(input, { ...init, headers: authHeaders(init.headers) });
+export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const res = await fetch(input, { ...init, headers: authHeaders(init.headers) });
+  if (res.status === 401) {
+    handleAuthFailure();
+  } else if (res.ok) {
+    authExpiredSignalled = false; // recovered — allow a future expiry to signal again
+  }
+  return res;
 }

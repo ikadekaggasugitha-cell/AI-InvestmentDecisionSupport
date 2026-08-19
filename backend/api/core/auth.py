@@ -28,7 +28,15 @@ def create_access_token(subject: str) -> str:
 def verify_token(token: str) -> TokenPayload:
     settings = get_settings()
     try:
-        raw = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        # require_exp rejects a token with no expiry. Without it a token missing
+        # the `exp` claim is treated as never-expiring — and create_access_token
+        # always sets one, so a token lacking it is either malformed or forged.
+        raw = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+            options={"require_exp": True},
+        )
         return TokenPayload(**raw)
     except JWTError as exc:
         raise HTTPException(

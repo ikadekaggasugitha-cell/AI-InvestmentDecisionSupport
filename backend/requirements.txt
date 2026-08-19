@@ -14,7 +14,7 @@
 # `pytest tests/` before trusting them:
 #   transformers, torch, sentencepiece, mlflow, confluent-kafka,
 #   PyPortfolioOpt, cvxpy, tiktoken, sentry-sdk, prometheus-client,
-#   prometheus-fastapi-instrumentator, flower, passlib, sqlalchemy, alembic
+#   prometheus-fastapi-instrumentator, flower, passlib
 #
 # ── Core API ────────────────────────────────────────────────────────────────
 fastapi==0.141.1
@@ -44,8 +44,10 @@ asyncpg==0.31.0        # Async PostgreSQL / TimescaleDB driver (API + workers)
 # signal_service.py both tell operators to run — died at import in any
 # environment built from requirements.txt.
 psycopg2-binary==2.9.12
-sqlalchemy[asyncio]==2.0.30   # UNVERIFIED — not imported anywhere; see header
-alembic==1.13.1               # UNVERIFIED — no migrations exist yet
+# sqlalchemy / alembic removed: nothing imports them. The stack talks to
+# Postgres through asyncpg directly, and migrations are plain SQL applied by
+# db/migrate.py — no ORM, no Alembic env. They were pinned but unused, so they
+# only added install weight and a false signal that an ORM was in play.
 
 # ── ML — Phase 3 ────────────────────────────────────────────────────────────
 lightgbm==4.7.0

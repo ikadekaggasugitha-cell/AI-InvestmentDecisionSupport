@@ -45,6 +45,7 @@ celery_app = Celery(
         "workers.risk_worker",
         "workers.ohlcv_worker",
         "workers.broksum_worker",
+        "workers.monitoring_worker",
     ],
 )
 
@@ -109,6 +110,19 @@ celery_app.conf.update(
                 minute="30",
                 hour="16",       # 16:30 WIB — after the OHLCV refresh lands
                 day_of_week="mon-fri",
+            ),
+        },
+        # ── Model monitoring — weekly ─────────────────────────────────────────
+        # Feature-drift (PSI) of the live board against the training baseline.
+        # Weekly on Saturday morning, after the week's daily bars have landed:
+        # PSI barely moves day to day and the model does not retrain itself
+        # between runs, so a daily check would only re-report the same number.
+        "check-model-drift-weekly": {
+            "task": "workers.monitoring_worker.check_drift",
+            "schedule": crontab(
+                minute="0",
+                hour="8",
+                day_of_week="sat",   # WIB
             ),
         },
     },

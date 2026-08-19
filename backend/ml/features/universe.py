@@ -142,7 +142,7 @@ async def _query_liquidity(
         conn = await asyncpg.connect(
             settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
         )
-    except (ImportError, Exception) as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — driver missing or DB down → no universe
         logger.warning("universe: database unavailable — %s", exc)
         return []
 

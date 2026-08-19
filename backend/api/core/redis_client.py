@@ -125,4 +125,8 @@ REDIS_KEYS = {
     "broksum":         "broksum:{symbol}",          # STRING  snapshot dict  TTL 86400s
     "technicals":      "technicals:{symbol}",       # STRING  TA payload     TTL 86400s
     "ohlcv_series":    "ohlcv:{symbol}:{days}",     # STRING  OHLCVCandle[]  TTL 3600s
+    # Phase 5 monitoring: latest feature-drift (PSI) report, written weekly by
+    # workers.monitoring_worker.check_drift. No TTL — the last report stands
+    # until the next run, so /health and the operator always see current state.
+    "drift_latest":    "drift:latest",              # STRING  drift report dict
 }

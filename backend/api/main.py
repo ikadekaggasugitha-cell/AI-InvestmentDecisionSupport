@@ -13,6 +13,7 @@ Exposes endpoints consumed by the React frontend:
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 import structlog
@@ -112,6 +113,10 @@ async def lifespan(app: FastAPI):
     # Shared market-data providers hold HTTP sessions and cookie jars.
     from ingestor.providers import close_providers
     await close_providers()
+
+    # Shared DB pool (api/core/db.py). No-op if it was never created.
+    from api.core.db import close_pool
+    await close_pool()
 
     logger.info("aidss_api_shutdown")
 
@@ -274,13 +279,34 @@ Set `AUTH_BYPASS=true` in `.env` for development.
             else:
                 degraded = True
 
-        # Trained model — required only when serving real signals.
+        # Trained model — required only when serving real signals. Report its
+        # age and flag a stale one: the signal cache refreshes every 15 min but
+        # the model itself does not retrain, so an overdue retrain is otherwise
+        # invisible here.
         model_dir = Path(__file__).parent.parent / "models"
         models = sorted(model_dir.glob("lgbm_signals_*.pkl")) if model_dir.is_dir() else []
-        checks["model"] = models[-1].name if models else "absent"
-        if not models and not settings.use_mock_signals:
-            checks["model"] = "absent — run `python -m ml.training.train_signals_v2`"
-            degraded = True
+        if models:
+            from ml.inference.signal_inference import _parse_model_version
+
+            latest = models[-1]
+            checks["model"] = latest.name
+            version = latest.stem.replace("lgbm_signals_", "")
+            trained_at = _parse_model_version(version)
+            if trained_at is not None:
+                age_days = (datetime.now(timezone.utc) - trained_at).days
+                checks["model_age_days"] = age_days
+                if age_days > settings.model_max_age_days and not settings.use_mock_signals:
+                    checks["model"] = (
+                        f"{latest.name} — STALE ({age_days}d > "
+                        f"{settings.model_max_age_days}d); retrain with "
+                        "`python -m ml.training.train_signals_v2`"
+                    )
+                    degraded = True
+        else:
+            checks["model"] = "absent"
+            if not settings.use_mock_signals:
+                checks["model"] = "absent — run `python -m ml.training.train_signals_v2`"
+                degraded = True
 
         # Market feed freshness — reported, never fatal.
         try:

@@ -1,16 +1,21 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, lazy, Suspense } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar, type ViewType } from "./components/Sidebar";
 import { Header } from "./components/Header";
-import { DashboardView } from "./components/DashboardView";
-import { MarketsView } from "./components/MarketsView";
-import { PortfolioView } from "./components/PortfolioView";
-import { AIAdvisorView } from "./components/AIAdvisorView";
-import { RiskView } from "./components/RiskView";
-import { NewsView } from "./components/NewsView";
-import { SettingsView } from "./components/SettingsView";
-import { ReportsView } from "./components/ReportsView";
+import { ViewSkeleton } from "./components/ViewSkeleton";
+// Views are code-split: each is its own chunk, loaded on first navigation to
+// it. Only the shell (Sidebar/Header) and the initial dashboard cost anything
+// up front — the app previously bundled all eight views into one eager chunk,
+// which is why the build warned about a >500 kB bundle.
+const DashboardView = lazy(() => import("./components/DashboardView").then((m) => ({ default: m.DashboardView })));
+const MarketsView   = lazy(() => import("./components/MarketsView").then((m) => ({ default: m.MarketsView })));
+const PortfolioView = lazy(() => import("./components/PortfolioView").then((m) => ({ default: m.PortfolioView })));
+const AIAdvisorView = lazy(() => import("./components/AIAdvisorView").then((m) => ({ default: m.AIAdvisorView })));
+const RiskView      = lazy(() => import("./components/RiskView").then((m) => ({ default: m.RiskView })));
+const NewsView      = lazy(() => import("./components/NewsView").then((m) => ({ default: m.NewsView })));
+const SettingsView  = lazy(() => import("./components/SettingsView").then((m) => ({ default: m.SettingsView })));
+const ReportsView   = lazy(() => import("./components/ReportsView").then((m) => ({ default: m.ReportsView })));
 import { useLiveMarket } from "./hooks/useLiveMarket";
 import { useExchangeRate } from "./hooks/useExchangeRate";
 import { useNews } from "./hooks/useNews";
@@ -19,6 +24,9 @@ import { useWatchlist } from "./hooks/useWatchlist";
 import { useWindowWidth } from "./hooks/useWindowWidth";
 import { ALERTS_DATA } from "./data/idxData";
 import { useTranslation } from "./i18n/translations";
+import { Toaster } from "./components/ui/sonner";
+import { onAuthExpired } from "./config/api";
+import { toast } from "sonner";
 
 function formatDashboardSubtitle(locale: string): string {
   const now = new Date();
@@ -56,6 +64,18 @@ function AppInner() {
     if (!isMobile) setSidebarOpen(false);
   }, [isMobile]);
 
+  // Surface an expired/rejected session instead of letting hooks fall back to
+  // seed data silently. apiFetch clears the token and fires this on a 401.
+  useEffect(() => {
+    return onAuthExpired(() => {
+      toast.error(t("auth_expired_title"), {
+        description: t("auth_expired_desc"),
+        duration: Infinity,
+        id: "auth-expired", // one persistent toast, not one per failed request
+      });
+    });
+  }, [t]);
+
   const alertCount = ALERTS_DATA.filter((a) => a.severity === "high").length;
   const dashSubtitle = useMemo(() => formatDashboardSubtitle(locale), [locale]);
 
@@ -66,7 +86,7 @@ function AppInner() {
     advisor:   { title: t("nav_advisor"),   subtitle: t("ai_subtitle")   },
     risk:      { title: t("nav_risk"),      subtitle: t("risk_subtitle") },
     news:      { title: t("nav_news"),      subtitle: t("news_subtitle")    },
-    reports:   { title: t("nav_reports"),  subtitle: locale === "id" ? "Unduh laporan performa portofolio" : "Download portfolio performance reports" },
+    reports:   { title: t("nav_reports"),  subtitle: t("reports_subtitle") },
     settings:  { title: t("nav_settings"), subtitle: t("settings_sub")     },
   };
 
@@ -96,6 +116,7 @@ function AppInner() {
           isMobile={isMobile}
           onMenuToggle={() => setSidebarOpen(true)}
         />
+          <Suspense fallback={<ViewSkeleton />}>
           {view === "dashboard"  && (
             <ErrorBoundary key="dashboard" locale={locale}>
               <DashboardView
@@ -130,7 +151,9 @@ function AppInner() {
           {view === "news"       && <ErrorBoundary key="news"     locale={locale}><NewsView news={news} loading={newsLoading} /></ErrorBoundary>}
           {view === "reports"    && <ErrorBoundary key="reports"  locale={locale}><ReportsView /></ErrorBoundary>}
           {view === "settings"   && <ErrorBoundary key="settings" locale={locale}><SettingsView fx={fx} /></ErrorBoundary>}
+          </Suspense>
       </div>
+      <Toaster theme={isDark ? "dark" : "light"} position="top-right" richColors />
     </div>
   );
 }

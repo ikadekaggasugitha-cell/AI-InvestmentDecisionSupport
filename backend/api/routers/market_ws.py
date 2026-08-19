@@ -10,9 +10,11 @@ import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, WebSocketException, status
+from fastapi import (
+    APIRouter, Depends, WebSocket, WebSocketDisconnect, WebSocketException, status,
+)
 
-from api.core.auth import verify_token
+from api.core.auth import get_current_user, verify_token
 from api.core.config import get_settings
 from api.services.market_service import generate_snapshot
 
@@ -103,7 +105,18 @@ async def market_websocket(ws: WebSocket) -> None:
         manager.disconnect(ws)
 
 
-@router.get("/v1/ws/market/stats", summary="WebSocket connection stats")
+@router.get(
+    "/v1/ws/market/stats",
+    summary="WebSocket connection stats",
+    dependencies=[Depends(get_current_user)],
+)
 async def ws_stats() -> dict[str, int]:
-    """Returns current active WebSocket connection count. Used by Prometheus."""
+    """
+    Current active WebSocket connection count.
+
+    Guarded like every other data route (the surrounding router is not, because
+    it also hosts the WS handshake which cannot carry an HTTPBearer header). In
+    AUTH_BYPASS dev it stays open; in production it needs a token. Prometheus
+    should read connection metrics from /metrics rather than here.
+    """
     return {"active_connections": manager.connection_count}

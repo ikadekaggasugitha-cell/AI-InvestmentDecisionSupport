@@ -59,20 +59,12 @@ async def _load_rows(symbol: str, days: int) -> list[dict[str, Any]]:
         from ingestor.broksum_mock import generate_mock_broksum_history
         return generate_mock_broksum_history(symbol, days=days)
 
-    try:
-        # Imported inside the guard so a deployment without the driver degrades
-        # to "no rows" instead of failing the request.
-        import asyncpg
-
-        conn = await asyncpg.connect(
-            settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
-        )
-    except (ImportError, Exception) as exc:  # noqa: BLE001
-        logger.warning("broksum_service: database unavailable for %s — %s", symbol, exc)
-        return []
+    from api.core.db import get_pool
 
     try:
-        records = await conn.fetch(
+        # A DB failure degrades to "no rows" instead of failing the request.
+        pool = await get_pool()
+        records = await pool.fetch(
             """
             SELECT time, symbol, broker_code, buy_lot, sell_lot, buy_val, sell_val,
                    net_lot, net_val, avg_buy_price, avg_sell_price
@@ -82,9 +74,11 @@ async def _load_rows(symbol: str, days: int) -> list[dict[str, Any]]:
             """,
             symbol, str(days),
         )
-        return [dict(r) for r in records]
-    finally:
-        await conn.close()
+    except Exception as exc:  # noqa: BLE001 — degrade to no rows when the DB is unusable
+        logger.warning("broksum_service: database unavailable for %s — %s", symbol, exc)
+        return []
+
+    return [dict(r) for r in records]
 
 
 async def get_broker_summary(symbol: str) -> BrokerSummaryResponse:

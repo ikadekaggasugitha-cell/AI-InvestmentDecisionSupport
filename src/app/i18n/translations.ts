@@ -202,6 +202,13 @@ const translations = {
     common_dividend: "DIVIDEN",
     common_lots: "lot",
     common_shares: "saham",
+
+    /* Auth */
+    auth_expired_title: "Sesi berakhir",
+    auth_expired_desc: "Sesi Anda telah berakhir — data yang ditampilkan mungkin simulasi. Silakan masuk kembali.",
+
+    /* Reports */
+    reports_subtitle: "Unduh laporan performa portofolio",
   },
 
   en: {
@@ -405,6 +412,13 @@ const translations = {
     common_dividend: "DIVIDEND",
     common_lots: "lots",
     common_shares: "shares",
+
+    /* Auth */
+    auth_expired_title: "Session expired",
+    auth_expired_desc: "Your session has expired — displayed data may be simulated. Please sign in again.",
+
+    /* Reports */
+    reports_subtitle: "Download portfolio performance reports",
   },
 } as const;
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { authToken, authHeaders, apiFetch, ENDPOINTS } from './api'
+import { authToken, authHeaders, apiFetch, onAuthExpired, signalAuthExpired, AUTH_EXPIRED_EVENT, ENDPOINTS } from './api'
 
 describe('authToken', () => {
   beforeEach(() => {
@@ -75,5 +75,56 @@ describe('ENDPOINTS', () => {
     expect(ENDPOINTS.broksum('BBCA')).toContain('/v1/broksum/BBCA')
     expect(ENDPOINTS.news(5, 3)).toContain('limit=5')
     expect(ENDPOINTS.news(5, 3)).toContain('daysBack=3')
+  })
+})
+
+describe('apiFetch — 401 handling', () => {
+  const fetchMock = vi.fn()
+
+  beforeEach(() => {
+    localStorage.clear()
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('clears the stored token and fires auth-expired once on 401', async () => {
+    localStorage.setItem('aidss_token', 'expired')
+    const handler = vi.fn()
+    const off = onAuthExpired(handler)
+
+    // A recovering 200 first releases the dedupe latch from any prior test.
+    fetchMock.mockResolvedValue(new Response('{}', { status: 200 }))
+    await apiFetch(ENDPOINTS.signals)
+
+    fetchMock.mockResolvedValue(new Response('nope', { status: 401 }))
+    await apiFetch(ENDPOINTS.signals)
+    await apiFetch(ENDPOINTS.signals) // concurrent-style second 401
+
+    expect(localStorage.getItem('aidss_token')).toBeNull()
+    expect(handler).toHaveBeenCalledTimes(1) // deduped
+    off()
+  })
+
+  it('returns the response unchanged so hooks keep their fallback path', async () => {
+    fetchMock.mockResolvedValue(new Response('{}', { status: 401 }))
+    const res = await apiFetch(ENDPOINTS.signals)
+    expect(res.status).toBe(401)
+    expect(AUTH_EXPIRED_EVENT).toBe('aidss:auth-expired')
+  })
+
+  it('signalAuthExpired clears the token and fires the event (WS 1008 path)', async () => {
+    // Recover the dedupe latch first so this assertion is order-independent.
+    fetchMock.mockResolvedValue(new Response('{}', { status: 200 }))
+    await apiFetch(ENDPOINTS.signals)
+
+    localStorage.setItem('aidss_token', 'ws-token')
+    const handler = vi.fn()
+    const off = onAuthExpired(handler)
+    signalAuthExpired()
+    expect(localStorage.getItem('aidss_token')).toBeNull()
+    expect(handler).toHaveBeenCalledTimes(1)
+    off()
   })
 })

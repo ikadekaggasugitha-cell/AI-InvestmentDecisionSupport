@@ -113,19 +113,11 @@ async def _load_price_matrix(symbols: list[str], days: int) -> pd.DataFrame:
     Returns an empty frame when the database is unreachable or the table is
     empty, which the caller reads as "no history yet" and falls back to seed.
     """
-    settings = get_settings()
-    try:
-        import asyncpg
-
-        conn = await asyncpg.connect(
-            settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
-        )
-    except Exception as exc:  # noqa: BLE001 — driver missing or DB down → no history
-        logger.warning("portfolio_service: database unavailable — %s", exc)
-        return pd.DataFrame()
+    from api.core.db import get_pool
 
     try:
-        records = await conn.fetch(
+        pool = await get_pool()
+        records = await pool.fetch(
             """
             SELECT time::date AS d, symbol, close
             FROM ohlcv
@@ -135,8 +127,9 @@ async def _load_price_matrix(symbols: list[str], days: int) -> pd.DataFrame:
             """,
             symbols, str(int(days * 1.5)),  # calendar days ≈ 1.5× trading days
         )
-    finally:
-        await conn.close()
+    except Exception as exc:  # noqa: BLE001 — DB down → no history, fall back to seed
+        logger.warning("portfolio_service: database unavailable — %s", exc)
+        return pd.DataFrame()
 
     if not records:
         return pd.DataFrame()

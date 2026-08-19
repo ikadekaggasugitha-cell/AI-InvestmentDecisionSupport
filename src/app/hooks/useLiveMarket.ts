@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ENDPOINTS } from "../config/api";
+import { ENDPOINTS, authToken, signalAuthExpired } from "../config/api";
 import { IDX_STOCKS, PORTFOLIO_HOLDINGS } from "../data/idxData";
 import type { LiveFxRate } from "./useExchangeRate";
 
@@ -207,19 +207,44 @@ export function useLiveMarket(): LiveMarketData {
   useEffect(() => {
     let reconnectTimeout: ReturnType<typeof setTimeout>;
     let isUnmounted = false;
+    // Backoff so a downed backend is not hammered every 5s forever. Grows
+    // 1s→2s→4s… capped at 30s, with jitter to avoid a thundering herd of tabs
+    // reconnecting in lockstep. Reset to 0 on a successful open.
+    let attempt = 0;
+    const BASE_DELAY_MS = 1_000;
+    const MAX_DELAY_MS = 30_000;
+
+    function scheduleReconnect() {
+      if (isUnmounted) return;
+      const backoff = Math.min(BASE_DELAY_MS * 2 ** attempt, MAX_DELAY_MS);
+      const jitter = backoff * 0.25 * Math.random();
+      attempt += 1;
+      reconnectTimeout = setTimeout(connectWs, backoff + jitter);
+    }
 
     function connectWs() {
       if (isUnmounted) return;
       try {
         // From config, not hardcoded: a deployed frontend does not talk to
         // localhost, and wss:// is required from an https:// origin.
-        const wsUrl = ENDPOINTS.marketSocket;
+        //
+        // HTTPBearer cannot ride the WS upgrade handshake, so the backend reads
+        // the token from a query param (see api/routers/market_ws.py). Attach it
+        // when present; in bypass-mode dev there is none and the server allows
+        // the connection anyway.
+        const token = authToken();
+        const wsUrl = token
+          ? `${ENDPOINTS.marketSocket}?token=${encodeURIComponent(token)}`
+          : ENDPOINTS.marketSocket;
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
         ws.onopen = () => {
           isWsConnected.current = true;
-          console.log("[useLiveMarket] Connected to Backend WebSocket (Real IDX Feed)");
+          attempt = 0; // recovered — reset the backoff ramp
+          if (import.meta.env.DEV) {
+            console.log("[useLiveMarket] Connected to Backend WebSocket (Real IDX Feed)");
+          }
         };
 
         ws.onmessage = (event) => {
@@ -276,7 +301,9 @@ export function useLiveMarket(): LiveMarketData {
               });
             }
           } catch (e) {
-            console.error("[useLiveMarket] Error parsing WS message:", e);
+            if (import.meta.env.DEV) {
+              console.error("[useLiveMarket] Error parsing WS message:", e);
+            }
           }
         };
 
@@ -284,17 +311,20 @@ export function useLiveMarket(): LiveMarketData {
           isWsConnected.current = false;
         };
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
           isWsConnected.current = false;
-          if (!isUnmounted) {
-            reconnectTimeout = setTimeout(connectWs, 5000);
+          // 1008 = policy violation: the backend rejected the token. Retrying
+          // with the same credentials just loops, so surface it as an expired
+          // session (clears the token, raises the app-wide banner) and stop.
+          if (event.code === 1008) {
+            signalAuthExpired();
+            return;
           }
+          scheduleReconnect();
         };
-      } catch (err) {
+      } catch {
         isWsConnected.current = false;
-        if (!isUnmounted) {
-          reconnectTimeout = setTimeout(connectWs, 5000);
-        }
+        scheduleReconnect();
       }
     }
 

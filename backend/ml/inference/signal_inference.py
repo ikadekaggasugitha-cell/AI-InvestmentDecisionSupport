@@ -24,6 +24,22 @@ from ml.inference.trade_plan import _build_technical_note, _compute_trade_plan
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_model_version(version: str) -> datetime | None:
+    """
+    Recover the training timestamp from a version string.
+
+    Models are versioned `YYYYMMDD_HHMMSS` (see train_signals_v2). Parsing that
+    is more reliable than the file mtime, which a `cp`/deploy resets to now and
+    would make an old model look freshly trained. Returns None for the
+    "unknown" placeholder or any non-conforming version.
+    """
+    try:
+        return datetime.strptime(version, "%Y%m%d_%H%M%S").replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
 def _uprob_to_tier(uprob: int, base_rate: float = 0.5) -> str:
     """
     Map a probability to a tier token, RELATIVE to the model's own base rate.
@@ -143,7 +159,21 @@ class SignalInference:
         self.features = model_bundle["features"]
         self.version = model_bundle.get("version", "unknown")
         self.report = model_bundle.get("report", {})
+        self.trained_at = _parse_model_version(self.version)
         self._explainer = shap.TreeExplainer(self.model)
+
+    @property
+    def age_days(self) -> int | None:
+        """Age of the model in days, or None if its version is not a timestamp."""
+        if self.trained_at is None:
+            return None
+        return (datetime.now(timezone.utc) - self.trained_at).days
+
+    @property
+    def is_stale(self) -> bool:
+        """True once the model is older than settings.model_max_age_days."""
+        age = self.age_days
+        return age is not None and age > get_settings().model_max_age_days
 
     def _predict_proba(self, X: pd.DataFrame) -> np.ndarray:
         """
@@ -172,12 +202,24 @@ class SignalInference:
             if not pkls:
                 raise FileNotFoundError(
                     "No trained model found in models/. "
-                    "Run: python -m ml.training.train_signals"
+                    "Run: python -m ml.training.train_signals_v2"
                 )
             model_path = pkls[0]
         bundle = joblib.load(model_path)
-        logger.info("Loaded model: %s (version=%s)", model_path, bundle.get("version"))
-        return cls(bundle)
+        engine = cls(bundle)
+        if engine.is_stale:
+            logger.warning(
+                "Loaded STALE model: %s (version=%s, age=%sd > max %dd) — retrain "
+                "with `python -m ml.training.train_signals_v2`",
+                model_path, engine.version, engine.age_days,
+                get_settings().model_max_age_days,
+            )
+        else:
+            logger.info(
+                "Loaded model: %s (version=%s, age=%sd)",
+                model_path, engine.version, engine.age_days,
+            )
+        return engine
 
     def run(
         self,

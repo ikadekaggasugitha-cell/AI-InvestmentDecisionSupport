@@ -94,6 +94,13 @@ class Settings(BaseSettings):
     # only when its data source is genuinely absent (no trained model, empty
     # `ohlcv` table, feed down) — never silently, and never as the default.
     use_mock_signals: bool = False    # REAL LightGBM inference when a model exists
+    # A model keeps scoring indefinitely once trained, so nothing flagged one
+    # that had gone stale. The signal *cache* refreshes every 15 min, but the
+    # underlying model does not retrain itself — features drift and the fit ages.
+    # Past this many days the model still serves (a stale model beats none) but
+    # is reported stale in /health and logs a warning at load, so retraining is
+    # visible rather than silently overdue. See ml/monitoring/drift_detector.py.
+    model_max_age_days: int = 45
     use_mock_risk: bool = False       # REAL GARCH / CVaR on live returns
     use_mock_market: bool = False     # REAL IDX prices (delayed — see idx_feed_vendor)
     # REAL Black-Litterman + HRP over TimescaleDB price history + live signal

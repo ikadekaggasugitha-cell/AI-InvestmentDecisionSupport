@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
+import { signalsResponseSchema, parseOrThrow } from "../config/schemas";
 import { AI_RECOMMENDATIONS } from "../data/idxData";
 import { SEED_ENRICHMENT } from "../data/seedPhase10";
 
@@ -180,11 +181,11 @@ export function useAISignals(): AISignalsResult {
         const res = await apiFetch(ENDPOINTS.signals, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const signalList: AISignal[] = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.signals)
-          ? data.signals
-          : SEED_SIGNALS;
+        // Validate the core numeric fields before trusting the payload. A
+        // malformed response throws here and lands in the seed fallback below,
+        // rather than rendering `Rp undefined` on a signal card.
+        const parsed = parseOrThrow(signalsResponseSchema, data, "signals");
+        const signalList = (Array.isArray(parsed) ? parsed : parsed.signals) as AISignal[];
         if (!cancelled) {
           setSignals(signalList);
           setLastFetched(new Date().toISOString());

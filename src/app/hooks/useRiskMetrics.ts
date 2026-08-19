@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
+import { riskResponseSchema, parseOrThrow } from "../config/schemas";
 import { RISK_DATA, STRESS_TESTS, SECTOR_EXPOSURE } from "../data/idxData";
 
 /* ── Public types ────────────────────────────────────────────────────────── */
@@ -84,10 +85,14 @@ export function useRiskMetrics(): RiskMetricsResult {
         const res = await apiFetch(ENDPOINTS.riskMetrics, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (!cancelled && data) {
-          if (data.risk) setRisk(data.risk);
-          if (Array.isArray(data.stressTests)) setStressTests(data.stressTests);
-          if (Array.isArray(data.sectorExposure)) setSectorExposure(data.sectorExposure);
+        // Validate before use: a malformed metric would otherwise render as
+        // `undefined` in the risk tiles. On failure this throws and the seed
+        // values already in state stand.
+        const parsed = parseOrThrow(riskResponseSchema, data, "risk");
+        if (!cancelled) {
+          setRisk(parsed.risk as RiskMetrics);
+          setStressTests(parsed.stressTests as StressTest[]);
+          setSectorExposure(parsed.sectorExposure as SectorExposureItem[]);
         }
       } catch (err) {
         if (!cancelled) {

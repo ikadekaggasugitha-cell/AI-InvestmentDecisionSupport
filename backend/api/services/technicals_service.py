@@ -99,22 +99,13 @@ async def load_ohlcv(symbol: str, days: int = 260) -> tuple[pd.DataFrame, str]:
 
 async def _load_ohlcv_from_db(symbol: str, days: int) -> list[dict[str, Any]]:
     """Query daily bars, returning [] when the database is unreachable or empty."""
-    settings = get_settings()
-    try:
-        # Imported inside the guard: the driver is optional for deployments
-        # that run feed-only, and a missing module must degrade to "no rows"
-        # rather than 500 an endpoint that can answer from the live feed.
-        import asyncpg
-
-        conn = await asyncpg.connect(
-            settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
-        )
-    except (ImportError, Exception) as exc:  # noqa: BLE001
-        logger.warning("technicals_service: database unavailable — %s", exc)
-        return []
+    from api.core.db import get_pool
 
     try:
-        records = await conn.fetch(
+        # A DB failure must degrade to "no rows" rather than 500 an endpoint
+        # that can answer from the live feed.
+        pool = await get_pool()
+        records = await pool.fetch(
             """
             SELECT time, open, high, low, close, volume
             FROM ohlcv
@@ -123,19 +114,21 @@ async def _load_ohlcv_from_db(symbol: str, days: int) -> list[dict[str, Any]]:
             """,
             symbol, str(int(days * 1.5)),  # calendar days ≈ 1.5× trading days
         )
-        return [
-            {
-                "time": r["time"],
-                "open": float(r["open"]),
-                "high": float(r["high"]),
-                "low": float(r["low"]),
-                "close": float(r["close"]),
-                "volume": int(r["volume"] or 0),
-            }
-            for r in records
-        ]
-    finally:
-        await conn.close()
+    except Exception as exc:  # noqa: BLE001 — degrade to no rows when the DB is unusable
+        logger.warning("technicals_service: database unavailable — %s", exc)
+        return []
+
+    return [
+        {
+            "time": r["time"],
+            "open": float(r["open"]),
+            "high": float(r["high"]),
+            "low": float(r["low"]),
+            "close": float(r["close"]),
+            "volume": int(r["volume"] or 0),
+        }
+        for r in records
+    ]
 
 
 def analyse(ohlcv: pd.DataFrame) -> dict[str, Any]:
