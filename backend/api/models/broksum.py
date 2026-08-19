@@ -26,6 +26,20 @@ class BrokerSummarySnapshot(BaseModel):
     consistencyDays: int = 0
     concentration: float = Field(0.0, ge=0, le=1)
 
+    # ── Volume-flow analysis (populated when the snapshot is derived from
+    # OHLCV+volume rather than per-broker flow, i.e. method="volume"). The
+    # broker-flow path leaves these at their defaults. All optional so existing
+    # consumers keep working. ────────────────────────────────────────────────
+    method: str = "broker"          # "broker" (licensed feed) | "volume" (OHLCV)
+    strength: int = 0               # |score| rounded, 0..100
+    obvTrend: float = 0.0           # On-Balance-Volume slope, % of mean
+    cmf: float = 0.0                # Chaikin Money Flow (20)
+    mfi: float = 50.0               # Money Flow Index (14)
+    volumeRatio: float = 1.0        # 5d vs 20d average volume
+    volumeLevel: str = "normal"     # "high" | "normal" | "low"
+    signals: list[str] = []         # bilingual reasons — Indonesian
+    signalsEn: list[str] = []       # English
+
 
 class BrokerRow(BaseModel):
     """Single row of broker summary data."""
@@ -56,6 +70,12 @@ class BrokerSummaryDay(BaseModel):
     netVal: float = 0.0
     topBuyer: str = ""
     topSeller: str = ""
+    # Volume-flow history (method="volume"): per-day accumulation score and the
+    # session volume, so the UI can plot how buying pressure built up.
+    score: float = 0.0
+    phase: str = "neutral"
+    volume: int = 0
+    close: float = 0.0
 
 
 class BrokerSummaryHistoryResponse(BaseModel):

@@ -14,7 +14,7 @@ from typing import Sequence
 
 import numpy as np
 import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
+from transformers import pipeline
 
 logger = logging.getLogger(__name__)
 

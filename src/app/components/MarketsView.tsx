@@ -6,6 +6,8 @@ import { useApp } from "../context/AppContext";
 import { useTranslation } from "../i18n/translations";
 import type { LiveMarketData, StockTick } from "../hooks/useLiveMarket";
 import type { ExchangeRateData } from "../hooks/useExchangeRate";
+import { useAccumulationMap, type AccumulationBadgeData } from "../hooks/useAccumulationMap";
+import { AccumulationBadge } from "./AccumulationBadge";
 
 interface Props {
   market:            LiveMarketData;
@@ -66,10 +68,12 @@ interface MarketRowProps {
   isEven:    boolean;
   isWatched: boolean;
   onToggle:  (symbol: string) => void;
+  accum?:    AccumulationBadgeData;
+  accumLoading?: boolean;
 }
 
 const MarketRow = memo(
-  function MarketRow({ stock, fx, isId, isEven, isWatched, onToggle }: MarketRowProps) {
+  function MarketRow({ stock, fx, isId, isEven, isWatched, onToggle, accum, accumLoading }: MarketRowProps) {
     const pos        = stock.changePct >= 0;
     const foreignPos = stock.foreignNet >= 0;
     const tierCfg    = TIER_CONFIG[stock.tier] ?? TIER_FALLBACK;
@@ -122,6 +126,9 @@ const MarketRow = memo(
             {(stock.volume / 1e6).toFixed(1)}M
           </span>
         </td>
+        <td style={{ padding: "10px 12px", textAlign: "center" }}>
+          <AccumulationBadge data={accum} locale={isId ? "id" : "en"} loading={accumLoading} />
+        </td>
         <td style={{ padding: "10px 12px", textAlign: "right" }}>
           <span style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
             {stock.mktCap}
@@ -171,7 +178,10 @@ const MarketRow = memo(
     prev.fx.usdIdr            === next.fx.usdIdr            &&
     prev.isId                 === next.isId                 &&
     prev.isEven               === next.isEven               &&
-    prev.isWatched            === next.isWatched
+    prev.isWatched            === next.isWatched            &&
+    prev.accumLoading         === next.accumLoading         &&
+    prev.accum?.phase         === next.accum?.phase         &&
+    prev.accum?.score         === next.accum?.score
 );
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
@@ -192,7 +202,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 
 /* ── Main view ────────────────────────────────────────────────────────────── */
 
-const COL_COUNT = 11;
+const COL_COUNT = 12;
 const ROW_HEIGHT = 48;
 
 export function MarketsView({ market, fx, watchlist, onToggleWatchlist }: Props) {
@@ -213,6 +223,15 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist }: Props)
   );
 
   const stocks = useMemo(() => Object.values(market.stocks), [market.stocks]);
+
+  // One batched accumulation request for the whole board (capped server-side).
+  // Keyed by the joined symbol string inside the hook, so live price ticks that
+  // rebuild `stocks` do not trigger a refetch.
+  const accumSymbols = useMemo(
+    () => stocks.map((s) => s.symbol).sort().slice(0, 60),
+    [stocks],
+  );
+  const accumulation = useAccumulationMap(accumSymbols);
 
   const sectors = useMemo(() => {
     const seen = new Set<string>();
@@ -366,6 +385,14 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist }: Props)
                 <th style={thRight} onClick={() => handleSort("volume")}>
                   <span className="flex items-center justify-end gap-1">{t("mkt_col_volume")} <SortIcon active={sortKey === "volume"} dir={sortDir} /></span>
                 </th>
+                <th
+                  style={thCenter}
+                  title={isId
+                    ? "Akumulasi/distribusi dari analisis volume (OBV/CMF) — bukan data broker berlisensi"
+                    : "Accumulation/distribution from volume analysis (OBV/CMF) — not licensed broker data"}
+                >
+                  {isId ? "Akum" : "Accum"}
+                </th>
                 <th style={thRight} onClick={() => handleSort("mktCap")}>
                   <span className="flex items-center justify-end gap-1">{t("mkt_col_mktcap")} <SortIcon active={sortKey === "mktCap"} dir={sortDir} /></span>
                 </th>
@@ -390,6 +417,8 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist }: Props)
                     isEven={virtualRow.index % 2 === 0}
                     isWatched={watchlist.has(stock.symbol)}
                     onToggle={handleToggle}
+                    accum={accumulation.map.get(stock.symbol)}
+                    accumLoading={accumulation.loading}
                   />
                 );
               })}

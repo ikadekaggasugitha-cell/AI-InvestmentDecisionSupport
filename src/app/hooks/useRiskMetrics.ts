@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS } from "../config/api";
+import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
 import { RISK_DATA, STRESS_TESTS, SECTOR_EXPOSURE } from "../data/idxData";
 
 /* ── Public types ────────────────────────────────────────────────────────── */
@@ -81,7 +81,7 @@ export function useRiskMetrics(): RiskMetricsResult {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(ENDPOINTS.riskMetrics, { signal: controller.signal });
+        const res = await apiFetch(ENDPOINTS.riskMetrics, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!cancelled && data) {

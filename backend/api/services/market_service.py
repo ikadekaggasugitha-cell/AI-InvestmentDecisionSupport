@@ -8,6 +8,7 @@ rendered without its age reads as the current one.
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -229,7 +230,48 @@ async def fetch_yahoo_market_data() -> bool:
         "market feed refreshed: %d/%d symbols, delay=%ds, state=%s",
         applied, len(symbols), batch.delay_seconds, batch.market_state,
     )
+
+    # Publish the fresh snapshot to Redis so out-of-process consumers see it.
+    # Written last, after _feed_meta is set, so the published payload carries
+    # the correct provenance rather than the previous poll's.
+    await _publish_snapshot_to_redis()
     return True
+
+
+async def _publish_snapshot_to_redis() -> None:
+    """
+    Mirror the in-memory snapshot to Redis after each successful poll.
+
+    This is the fix for the disconnected data path: `tick_aggregator` was the
+    only writer of these keys and it is not a service in the default stack, so
+    the AI Advisor's `get_stock_price` tool (which reads the `market:snapshot`
+    hash) always answered "Price data unavailable", and `risk_worker` (which
+    reads `market:snapshot:json`) never saw a live portfolio value.
+
+    Two keys, matching the shapes those consumers already expect:
+      • `market:snapshot`       HASH   symbol → StockTick JSON (advisor tool)
+      • `market:snapshot:json`  STRING full snapshot, TTL 10s (risk_worker)
+
+    Redis is a cache, not the system of record (CON-07): the helpers here are
+    fail-open, so a cache outage degrades to the previous behaviour rather than
+    breaking the poll.
+    """
+    from api.core.redis_client import REDIS_KEYS, redis_hset, redis_set_json
+
+    try:
+        tick_hash = {
+            sym: json.dumps(tick.model_dump(), default=str)
+            for sym, tick in _current_stocks.items()
+        }
+        if tick_hash:
+            await redis_hset(REDIS_KEYS["market_snapshot"], tick_hash)
+
+        snapshot = generate_snapshot()
+        await redis_set_json(
+            "market:snapshot:json", snapshot.model_dump(), ttl=10
+        )
+    except Exception as exc:  # noqa: BLE001 — a cache write must never fail the poll
+        logger.warning("failed to publish market snapshot to redis: %s", exc)
 
 
 def generate_snapshot() -> MarketSnapshot:

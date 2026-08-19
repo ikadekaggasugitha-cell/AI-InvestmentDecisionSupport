@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  macOS launchd agent: run the AIDSS daily market-data update at 16:15 every
+  weekday (after the 16:00 WIB IDX close), on the host's local time.
+
+  Install:
+    cp backend/deploy/com.aidss.daily-update.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.aidss.daily-update.plist
+  Remove:
+    launchctl unload ~/Library/LaunchAgents/com.aidss.daily-update.plist
+
+  On Linux, use cron instead:
+    15 16 * * 1-5  /path/to/backend/scripts/daily_update.sh >> /var/log/aidss-daily.log 2>&1
+
+  Edit ProgramArguments path below to your checkout location.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.aidss.daily-update</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/backend/scripts/daily_update.sh</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>16</integer><key>Minute</key><integer>15</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>16</integer><key>Minute</key><integer>15</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>16</integer><key>Minute</key><integer>15</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>16</integer><key>Minute</key><integer>15</integer></dict>
+        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>16</integer><key>Minute</key><integer>15</integer></dict>
+    </array>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/aidss-daily-update.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/aidss-daily-update.err</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

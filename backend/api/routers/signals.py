@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from api.core.auth import CurrentUser
 from api.models.signals import SignalsResponse
 from api.services.signal_service import get_signals

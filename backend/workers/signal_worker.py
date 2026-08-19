@@ -60,24 +60,38 @@ def refresh_signals(self) -> dict:
         r.setex(REDIS_KEYS["signals_latest"], 900, response.model_dump_json())
 
         # 5. Persist to TimescaleDB audit log (fire-and-forget)
+        #
+        # One timestamp for the whole batch so (symbol, generated_at) is a stable
+        # key. ON CONFLICT DO NOTHING makes the write idempotent: acks_late plus
+        # retry can redeliver this task, and a retry must not double-insert the
+        # same batch. features_json is persisted alongside shap_json so a stored
+        # signal is fully reconstructable (BR-18, GAP-09).
+        generated_at = datetime.now(timezone.utc)
+        features_by_symbol = response._features_by_symbol
+
         async def _persist():
             conn = await asyncpg.connect(
                 settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
             )
-            for sig in response.signals:
-                await conn.execute(
-                    """
-                    INSERT INTO signals
-                        (generated_at, symbol, uprob, confidence, action, model_version, model_score, shap_json)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                    """,
-                    datetime.now(timezone.utc),
-                    sig.symbol, sig.uprob, sig.confidence,
-                    sig.action, response.modelVersion,
-                    sig.modelScore,
-                    json.dumps([s.model_dump() for s in sig.shap]),
-                )
-            await conn.close()
+            try:
+                for sig in response.signals:
+                    await conn.execute(
+                        """
+                        INSERT INTO signals
+                            (generated_at, symbol, uprob, confidence, probability_tier,
+                             model_version, model_score, shap_json, features_json)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                        ON CONFLICT (symbol, generated_at) DO NOTHING
+                        """,
+                        generated_at,
+                        sig.symbol, sig.uprob, sig.confidence,
+                        sig.probabilityTier, response.modelVersion,
+                        sig.modelScore,
+                        json.dumps([s.model_dump() for s in sig.shap]),
+                        json.dumps(features_by_symbol.get(sig.symbol)),
+                    )
+            finally:
+                await conn.close()
 
         asyncio.run(_persist())
 

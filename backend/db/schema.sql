@@ -66,21 +66,28 @@ SELECT add_continuous_aggregate_policy('ohlcv_daily',
 -- `id BIGSERIAL PRIMARY KEY` makes create_hypertable() fail and the table
 -- silently stays a plain Postgres table with no retention or compression.
 CREATE TABLE IF NOT EXISTS signals (
-    id            BIGSERIAL    NOT NULL,
-    generated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    symbol        TEXT         NOT NULL,
-    uprob         SMALLINT     CHECK (uprob BETWEEN 0 AND 100),
-    confidence    SMALLINT     CHECK (confidence BETWEEN 0 AND 100),
-    action        TEXT         CHECK (action IN ('STRONG BUY','BUY','HOLD','SELL')),
-    model_version TEXT         NOT NULL,
-    model_score   NUMERIC(5,2),
-    shap_json     JSONB,
-    features_json JSONB,       -- feature values used at inference time
+    id               BIGSERIAL    NOT NULL,
+    generated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    symbol           TEXT         NOT NULL,
+    uprob            SMALLINT     CHECK (uprob BETWEEN 0 AND 100),
+    confidence       SMALLINT     CHECK (confidence BETWEEN 0 AND 100),
+    -- Probability tier, not a trade instruction. The former values
+    -- ('STRONG BUY','BUY','HOLD','SELL') read as buy/sell commands to anyone
+    -- reading the schema, which conflicts with CMP-01 (GAP-01). See
+    -- db/migrations/0001_signals_probability_tier.sql for existing databases.
+    probability_tier TEXT         CHECK (probability_tier IN ('VERY_HIGH','HIGH','NEUTRAL','LOW')),
+    model_version    TEXT         NOT NULL,
+    model_score      NUMERIC(5,2),
+    shap_json        JSONB,
+    features_json    JSONB,       -- feature values used at inference time
     PRIMARY KEY (generated_at, id)
 );
 
 SELECT create_hypertable('signals', 'generated_at', if_not_exists => TRUE);
 CREATE INDEX IF NOT EXISTS idx_signals_symbol_time ON signals (symbol, generated_at DESC);
+-- Idempotent audit writes: the signal worker upserts one batch per run keyed on
+-- (symbol, generated_at); a Celery retry must not double-insert (GAP-09).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_signals_symbol_time ON signals (symbol, generated_at);
 
 -- ── Risk snapshots ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS risk_snapshots (

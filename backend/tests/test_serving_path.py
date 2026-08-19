@@ -10,36 +10,39 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ml.inference.signal_inference import SHAP_DISPLAY, _uprob_to_action
+from ml.inference.signal_inference import SHAP_DISPLAY, _uprob_to_tier
+
+# Tier order from least to most bullish, used to assert monotonicity.
+_TIER_ORDER = {"LOW": 0, "NEUTRAL": 1, "HIGH": 2, "VERY_HIGH": 3}
+_ALL_TIERS = set(_TIER_ORDER)
 
 
-class TestActionBands:
+class TestProbabilityTierBands:
     """
     Fixed thresholds assumed predictions centre on 50%. The trained model's
     base rate is 38.65%, its outputs clustered near 20%, and every one of the
-    fifteen tracked symbols came out SELL — permanently.
+    fifteen tracked symbols came out LOW — permanently.
     """
 
-    def test_base_rate_maps_to_hold(self):
+    def test_base_rate_maps_to_neutral(self):
         for base in (0.30, 0.3865, 0.50, 0.65):
-            assert _uprob_to_action(int(base * 100), base) == "HOLD", base
+            assert _uprob_to_tier(int(base * 100), base) == "NEUTRAL", base
 
-    def test_a_low_base_rate_model_can_still_signal_buy(self):
+    def test_a_low_base_rate_model_can_still_reach_high(self):
         """The regression: with base 0.3865 nothing reached the old 65 cutoff."""
-        assert _uprob_to_action(60, 0.3865) == "BUY"
-        assert _uprob_to_action(80, 0.3865) == "STRONG BUY"
+        assert _uprob_to_tier(60, 0.3865) == "HIGH"
+        assert _uprob_to_tier(80, 0.3865) == "VERY_HIGH"
 
     def test_bands_are_ordered(self):
         base = 0.3865
-        seen = [_uprob_to_action(p, base) for p in range(0, 101)]
-        order = {"SELL": 0, "HOLD": 1, "BUY": 2, "STRONG BUY": 3}
-        ranks = [order[a] for a in seen]
-        assert ranks == sorted(ranks), "action must not become less bullish as uprob rises"
+        seen = [_uprob_to_tier(p, base) for p in range(0, 101)]
+        ranks = [_TIER_ORDER[a] for a in seen]
+        assert ranks == sorted(ranks), "tier must not become less bullish as uprob rises"
 
-    def test_all_four_labels_are_reachable(self):
+    def test_all_four_tiers_are_reachable(self):
         for base in (0.30, 0.3865, 0.50, 0.60):
-            labels = {_uprob_to_action(p, base) for p in range(0, 101)}
-            assert labels == {"SELL", "HOLD", "BUY", "STRONG BUY"}, base
+            tiers = {_uprob_to_tier(p, base) for p in range(0, 101)}
+            assert tiers == _ALL_TIERS, base
 
     def test_band_boundaries_move_with_the_base_rate(self):
         """
@@ -47,29 +50,28 @@ class TestActionBands:
         point — a single probe can sit inside the same band for every base rate
         and pass while proving nothing.
 
-        Where SELL ends and where BUY begins must both rise as the market's
+        Where LOW ends and where HIGH begins must both rise as the market's
         up-rate rises: a 45% reading is encouraging in a market that rises 35%
         of the time and disappointing in one that rises 65% of the time.
         """
-        def first_uprob_reaching(label: str, base: float) -> int:
-            order = {"SELL": 0, "HOLD": 1, "BUY": 2, "STRONG BUY": 3}
+        def first_uprob_reaching(tier: str, base: float) -> int:
             for p in range(101):
-                if order[_uprob_to_action(p, base)] >= order[label]:
+                if _TIER_ORDER[_uprob_to_tier(p, base)] >= _TIER_ORDER[tier]:
                     return p
             return 101
 
-        for label in ("HOLD", "BUY", "STRONG BUY"):
-            low = first_uprob_reaching(label, 0.35)
-            mid = first_uprob_reaching(label, 0.50)
-            high = first_uprob_reaching(label, 0.65)
+        for tier in ("NEUTRAL", "HIGH", "VERY_HIGH"):
+            low = first_uprob_reaching(tier, 0.35)
+            mid = first_uprob_reaching(tier, 0.50)
+            high = first_uprob_reaching(tier, 0.65)
             assert low < mid < high, (
-                f"{label} boundary did not rise with the base rate: "
+                f"{tier} boundary did not rise with the base rate: "
                 f"{low} / {mid} / {high}"
             )
 
     def test_degenerate_base_rates_are_clamped(self):
         for base in (0.0, 1.0, -1.0, 2.0):
-            assert _uprob_to_action(50, base) in {"SELL", "HOLD", "BUY", "STRONG BUY"}
+            assert _uprob_to_tier(50, base) in _ALL_TIERS
 
 
 class TestBoosterCompatibility:

@@ -60,6 +60,43 @@ class TestTechnicalsEndpoint:
             assert gap["type"] in {"gap_up", "gap_down"}
             assert gap["top"] >= gap["bottom"]
 
+    def test_includes_volume_accumulation_and_entry(self, client, no_redis):
+        body = client.get("/v1/technicals/BBCA").json()
+        # Volume intensity
+        assert body["volume"]["level"] in {"high", "normal", "low"}
+        assert body["volume"]["trend"] in {"rising", "falling", "flat"}
+        # Volume-flow accumulation
+        assert body["accumulation"]["phase"] in {"accumulation", "distribution", "neutral"}
+        assert -100 <= body["accumulation"]["score"] <= 100
+        # Entry signal with a reason
+        assert body["entrySignal"]["signal"] in {"buy_watch", "wait", "avoid"}
+        assert isinstance(body["entrySignal"]["reason"], str)
+        # Trade plan shape (fields may be null when no support qualifies)
+        assert "stopLoss" in body["tradePlan"]
+
+
+class TestAccumulationBatchEndpoint:
+    def test_returns_one_entry_per_symbol(self, client, no_redis):
+        r = client.get("/v1/technicals/accumulation?symbols=BBCA,BBRI,TLKM")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["source"] == "volume"
+        symbols = {it["symbol"] for it in body["items"]}
+        assert symbols == {"BBCA", "BBRI", "TLKM"}
+        for it in body["items"]:
+            assert it["phase"] in {"accumulation", "distribution", "neutral"}
+            assert -100 <= it["score"] <= 100
+            assert 0 <= it["strength"] <= 100
+
+    def test_route_is_not_captured_as_a_symbol(self, client, no_redis):
+        # /accumulation must resolve to the batch route, not technicals/{symbol}.
+        body = client.get("/v1/technicals/accumulation?symbols=BBCA").json()
+        assert "items" in body and "trend" not in body
+
+    def test_defaults_to_tracked_universe(self, client, no_redis):
+        body = client.get("/v1/technicals/accumulation").json()
+        assert len(body["items"]) > 0
+
 
 class TestOHLCVEndpoint:
     def test_returns_requested_window(self, client, no_redis):

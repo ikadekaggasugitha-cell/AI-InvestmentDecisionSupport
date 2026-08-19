@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS } from "../config/api";
+import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
 import { SEED_ENRICHMENT } from "../data/seedPhase10";
 import type { BrokerSummarySnapshot } from "./useAISignals";
 
@@ -23,6 +23,11 @@ export type BrokerSummaryDay = {
   netVal: number;
   topBuyer: string;
   topSeller: string;
+  /** Volume-flow history (source="volume"): per-day accumulation score. */
+  score?: number;
+  phase?: "accumulation" | "distribution" | "neutral";
+  volume?: number;
+  close?: number;
 };
 
 export interface BrokerSummaryResult {
@@ -36,7 +41,7 @@ export interface BrokerSummaryResult {
    * label simulated flow as such. Presenting invented activity as observed
    * would misrepresent those firms' actual trading.
    */
-  source: "live" | "mock" | null;
+  source: "live" | "mock" | "volume" | null;
   loading: boolean;
   error: string | null;
 }
@@ -90,8 +95,8 @@ export function useBrokerSummary(
       setState((s) => ({ ...s, loading: true, error: null }));
       try {
         const [summaryRes, historyRes] = await Promise.all([
-          fetch(ENDPOINTS.broksum(symbol), { signal: controller.signal }),
-          fetch(ENDPOINTS.broksumHistory(symbol, historyDays), { signal: controller.signal }),
+          apiFetch(ENDPOINTS.broksum(symbol), { signal: controller.signal }),
+          apiFetch(ENDPOINTS.broksumHistory(symbol, historyDays), { signal: controller.signal }),
         ]);
         if (!summaryRes.ok) throw new Error(`broksum HTTP ${summaryRes.status}`);
         if (!historyRes.ok) throw new Error(`broksum history HTTP ${historyRes.status}`);

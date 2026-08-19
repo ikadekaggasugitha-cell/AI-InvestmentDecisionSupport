@@ -1,10 +1,39 @@
 from fastapi import APIRouter, Path, Query
 
 from api.core.auth import CurrentUser
-from api.models.technicals import OHLCVResponse, TechnicalAnalysisResponse
-from api.services.technicals_service import get_ohlcv_history, get_technical_analysis
+from api.models.technicals import (
+    AccumulationBatchResponse,
+    OHLCVResponse,
+    TechnicalAnalysisResponse,
+)
+from api.services.technicals_service import (
+    get_accumulation_batch,
+    get_ohlcv_history,
+    get_technical_analysis,
+)
 
 router = APIRouter(prefix="/v1/technicals", tags=["technicals"])
+
+
+@router.get(
+    "/accumulation",
+    response_model=AccumulationBatchResponse,
+    summary="Compact accumulation read for many symbols (table badges)",
+)
+async def accumulation_batch_endpoint(
+    _user: CurrentUser,
+    symbols: str | None = Query(
+        None,
+        description="Comma-separated tickers, e.g. BBCA,BBRI,TLKM. Omit for the tracked universe.",
+    ),
+) -> AccumulationBatchResponse:
+    """
+    Volume-flow accumulation (OBV/ADL/CMF/MFI) per symbol, in one round trip so
+    a list view can badge every row without a per-row request. Declared before
+    the `/{symbol}` route so `accumulation` is not read as a ticker.
+    """
+    parsed = [s for s in (symbols.split(",") if symbols else []) if s.strip()]
+    return await get_accumulation_batch(parsed or None)
 
 
 @router.get(

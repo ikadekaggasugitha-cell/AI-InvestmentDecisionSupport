@@ -101,13 +101,22 @@ async def get_broker_summary(symbol: str) -> BrokerSummaryResponse:
     source = "mock" if settings.use_mock_broksum else "live"
 
     if not rows:
-        return BrokerSummaryResponse(
+        # No per-broker flow (IDX's broker summary is a gated feed). Fall back to
+        # the real volume-based accumulation read from OHLCV rather than an empty
+        # neutral card, so "is this stock being accumulated?" still gets a real,
+        # daily-updated answer. Labelled source="volume" so it is never mistaken
+        # for licensed broker flow.
+        snapshot = await _volume_snapshot(symbol)
+        response = BrokerSummaryResponse(
             symbol=symbol,
             date=datetime.now(timezone.utc).date().isoformat(),
-            snapshot=BrokerSummarySnapshot(phase="neutral", phaseId="Netral", score=0.0),
+            snapshot=snapshot,
             brokers=[],
-            source=source,
+            source="volume" if snapshot.method == "volume" else source,
         )
+        if snapshot.method == "volume":
+            await redis_set_json(cache_key, response.model_dump(), ttl=BROKSUM_TTL)
+        return response
 
     import pandas as pd
     from ml.features.broksum_features import compute_accumulation_score
@@ -145,6 +154,32 @@ async def get_broker_summary(symbol: str) -> BrokerSummaryResponse:
     return response
 
 
+async def _volume_snapshot(symbol: str) -> BrokerSummarySnapshot:
+    """
+    Accumulation snapshot derived from OHLCV+volume (no broker feed needed).
+
+    Returns a neutral placeholder when there are not enough bars; otherwise a
+    real read with method="volume" so the caller can label the source honestly.
+    """
+    from api.services.technicals_service import load_ohlcv
+    from ml.features.volume_accumulation import analyse_accumulation
+
+    try:
+        frame, _src = await load_ohlcv(symbol, days=90)
+        r = analyse_accumulation(frame)
+    except Exception as exc:  # noqa: BLE001 — degrade to neutral, never 500
+        logger.warning("broksum_service: volume snapshot failed for %s — %s", symbol, exc)
+        return BrokerSummarySnapshot(phase="neutral", phaseId="Netral", score=0.0)
+
+    return BrokerSummarySnapshot(
+        phase=r["phase"], phaseId=r["phaseId"], score=r["score"],
+        consistencyDays=r["consistencyDays"],
+        method=r["method"], strength=r["strength"], obvTrend=r["obvTrend"],
+        cmf=r["cmf"], mfi=r["mfi"], volumeRatio=r["volumeRatio"],
+        volumeLevel=r["volumeLevel"], signals=r["signals"], signalsEn=r["signalsEn"],
+    )
+
+
 async def get_broker_summary_history(
     symbol: str, days: int = 20
 ) -> BrokerSummaryHistoryResponse:
@@ -155,8 +190,28 @@ async def get_broker_summary_history(
     source = "mock" if settings.use_mock_broksum else "live"
 
     if not rows:
+        # Volume-based accumulation history from OHLCV — the daily record of how
+        # buying/selling pressure built, without a broker feed.
+        from api.services.technicals_service import load_ohlcv
+        from ml.features.volume_accumulation import accumulation_history
+
+        try:
+            frame, _src = await load_ohlcv(symbol, days=max(days + 25, 60))
+            hist = accumulation_history(frame, days=days)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("broksum_service: volume history failed for %s — %s", symbol, exc)
+            hist = []
+
         return BrokerSummaryHistoryResponse(
-            symbol=symbol, days=days, history=[], source=source
+            symbol=symbol, days=days,
+            history=[
+                BrokerSummaryDay(
+                    date=h["date"], score=h["score"], phase=h["phase"],
+                    volume=h["volume"], close=h["close"],
+                )
+                for h in hist
+            ],
+            source="volume" if hist else source,
         )
 
     import pandas as pd

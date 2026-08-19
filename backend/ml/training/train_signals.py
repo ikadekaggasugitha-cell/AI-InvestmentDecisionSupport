@@ -119,7 +119,6 @@ def train(
 
     X = df[FEATURE_COLUMNS]
     y = df[LABEL_COLUMN]
-    dates = df.index.get_level_values("date")
 
     tscv = TimeSeriesSplit(n_splits=n_folds, gap=5)  # 5-day forward gap prevents leakage
     fold_aucs: list[float] = []

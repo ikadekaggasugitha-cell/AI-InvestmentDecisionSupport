@@ -31,7 +31,7 @@ import asyncio
 import logging
 import random
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from ingestor.providers.base import (

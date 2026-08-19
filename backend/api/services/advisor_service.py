@@ -14,7 +14,6 @@ Advisor Service — Phases 9A · 9B · 9C · 9D
 import asyncio
 import json
 import logging
-import time
 from pathlib import Path
 from typing import AsyncIterator
 
@@ -99,7 +98,8 @@ _TOOLS: list[dict] = [
         "name": "get_signal",
         "description": (
             "Get the LightGBM AI signal for a stock: uprob (upside probability 0–100), "
-            "action label (STRONG BUY / BUY / HOLD / SELL), and top SHAP factor explanations."
+            "probabilityTier (VERY_HIGH / HIGH / NEUTRAL / LOW), and top SHAP factor "
+            "explanations. The tier is a probability band, not a buy/sell instruction."
         ),
         "input_schema": {
             "type": "object",
@@ -263,12 +263,13 @@ def _build_context_block(ctx: dict) -> str:
         if age is not None and age > 30:
             lines.append("  ⚠ Signals are over 30 minutes old — warn user if quoting specific scores.")
         for sig in ctx["signals"]:
-            action = sig.get("action") or sig.get("signal", "")
+            # Legacy fallback in case a pre-migration payload is still cached.
+            tier = sig.get("probabilityTier") or sig.get("action") or sig.get("signal", "")
             lines.append(
-                f"- {sig.get('symbol')}: {action} | uprob={sig.get('uprob', 'N/A')}% "
+                f"- {sig.get('symbol')}: {tier} | uprob={sig.get('uprob', 'N/A')}% "
                 f"| target=Rp{sig.get('targetPrice', 'N/A'):,}"
                 if isinstance(sig.get("targetPrice"), (int, float))
-                else f"- {sig.get('symbol')}: {action} | uprob={sig.get('uprob', 'N/A')}%"
+                else f"- {sig.get('symbol')}: {tier} | uprob={sig.get('uprob', 'N/A')}%"
             )
 
     if ctx.get("risk"):
@@ -330,7 +331,7 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
                     if sig.get("symbol") == symbol:
                         return {
                             "symbol": symbol,
-                            "action": sig.get("action"),
+                            "probabilityTier": sig.get("probabilityTier") or sig.get("action"),
                             "uprob": sig.get("uprob"),
                             "confidence": sig.get("confidence"),
                             "targetPrice": sig.get("targetPrice"),
@@ -351,13 +352,21 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
 
     if name == "get_portfolio_summary":
         try:
-            data = json.loads(_PORTFOLIO_SEED.read_text())
+            # Use the real optimiser service, which runs Black-Litterman + HRP
+            # over live price history and degrades to seed weights on its own
+            # when the backfill is incomplete. Its `source` field ("live" vs
+            # "mock") is surfaced verbatim so the model can caveat accordingly.
+            from api.services.portfolio_service import get_portfolio_optimisation
+
+            result = await get_portfolio_optimisation(uid=uid)
+            data = result.model_dump()
             return {
                 "weights": data.get("weights", [])[:5],
                 "metrics": data.get("metrics", {}),
-                "source": "mock",
+                "source": data.get("source", "live"),
             }
-        except Exception:
+        except Exception as exc:
+            logger.debug("tool get_portfolio_summary failed: %s", exc)
             return {"error": "Portfolio data unavailable"}
 
     if name == "get_risk_metrics":

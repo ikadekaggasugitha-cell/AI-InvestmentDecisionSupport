@@ -17,7 +17,6 @@ Supported vendors (set IDX_FEED_VENDOR in .env):
 import asyncio
 import json
 import logging
-import time
 from datetime import datetime, timezone
 
 import websockets

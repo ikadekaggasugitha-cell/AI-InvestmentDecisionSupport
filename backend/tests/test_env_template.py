@@ -108,17 +108,25 @@ class TestMockFlagsDocumentedTruthfully:
 
     def test_real_data_flags_are_off_by_default(self):
         """
-        Guards the direction: market/signals/risk serve real data.
+        Guards the direction: every service serves real data by default.
 
         Asserts on the DECLARED default, not on `Settings()`. Instantiating
         reads the ambient environment — and conftest.py exports USE_MOCK_*=true
         for the suite — so an instance reflects the test harness rather than the
         code, and this test would have passed no matter what the code said.
+
+        Portfolio and broksum used to default to mock; they now run their real
+        paths (Black-Litterman over TimescaleDB, and the scraped broker_summary
+        table) and degrade to seed/empty only when the data source is absent.
         """
-        for name in ("use_mock_market", "use_mock_signals", "use_mock_risk"):
+        real_by_default = (
+            "use_mock_market",
+            "use_mock_signals",
+            "use_mock_risk",
+            "use_mock_portfolio",
+            "use_mock_broksum",
+        )
+        for name in real_by_default:
             assert Settings.model_fields[name].default is False, (
                 f"{name} should default to real data"
             )
-        assert Settings.model_fields["use_mock_portfolio"].default is True, (
-            "portfolio has no data source — it needs an input path"
-        )

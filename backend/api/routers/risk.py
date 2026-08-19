@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from api.core.auth import CurrentUser
 from api.models.risk import RiskMetricsResponse
 from api.services.risk_service import get_risk_metrics

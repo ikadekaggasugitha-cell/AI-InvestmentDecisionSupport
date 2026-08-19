@@ -8,7 +8,7 @@ GET /v1/portfolio/optimise
 
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 
 from api.core.auth import CurrentUser
 from api.models.portfolio import PortfolioOptimisationResponse

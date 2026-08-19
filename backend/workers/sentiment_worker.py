@@ -6,7 +6,6 @@ Batch-scores documents with IndoBERT, caches in Redis, and persists to Timescale
 The rolling 5-day sentiment score per symbol is then used as a feature in LightGBM.
 """
 
-import hashlib
 import logging
 from datetime import datetime, timezone
 from pathlib import Path

@@ -109,6 +109,11 @@ REDIS_KEYS = {
     "market_snapshot": "market:snapshot",          # HSET symbol → StockTick JSON
     "signals_latest":  "signals:latest",            # STRING  AISignal[]  TTL 900s
     "risk_portfolio":  "risk:portfolio:{uid}",      # STRING  RiskMetricsResult TTL 3600s
+    # Portfolio optimiser output — a DISTINCT key from risk_portfolio. The
+    # portfolio service used to reuse risk_portfolio, so once the risk endpoint
+    # populated risk:portfolio:default the optimiser read a RiskMetricsResult
+    # back and 500'd on validation. Separate namespaces keep them from colliding.
+    "portfolio_optimise": "portfolio:optimise:{uid}",  # STRING PortfolioOptimisationResponse TTL 3600s
     "sentiment":       "sentiment:{doc_hash}",      # STRING  float  TTL 86400s
     "intraday":        "market:intraday",            # STRING  IntradayPoint[]
     # Phase 9A: news retrieval for advisor RAG context

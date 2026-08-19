@@ -26,7 +26,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["vite/client", "node"]
+    "types": ["vite/client", "node", "vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src/app/**/*.ts", "src/app/**/*.tsx", "vite.config.ts"]
+  "include": ["src/app/**/*.ts", "src/app/**/*.tsx", "src/test/**/*.ts", "vite.config.ts"]
 }

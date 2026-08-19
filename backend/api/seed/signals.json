@@ -1,7 +1,7 @@
 [
   {
     "id": 1, "symbol": "BREN", "name": "Barito Renewables Energy",
-    "action": "STRONG BUY", "uprob": 88, "confidence": 88,
+    "probabilityTier": "VERY_HIGH", "uprob": 88, "confidence": 88,
     "targetPrice": 10200, "currentPrice": 8450, "upside": 20.7,
     "horizon": "6–12 bln", "horizonEn": "6–12 months",
     "risk": "Sedang-Tinggi", "riskEn": "Medium-High",
@@ -22,7 +22,7 @@
   },
   {
     "id": 2, "symbol": "BBCA", "name": "Bank Central Asia",
-    "action": "BUY", "uprob": 82, "confidence": 82,
+    "probabilityTier": "HIGH", "uprob": 82, "confidence": 82,
     "targetPrice": 11500, "currentPrice": 9850, "upside": 16.8,
     "horizon": "9–15 bln", "horizonEn": "9–15 months",
     "risk": "Rendah", "riskEn": "Low",
@@ -43,7 +43,7 @@
   },
   {
     "id": 3, "symbol": "ADRO", "name": "Adaro Energy Indonesia",
-    "action": "BUY", "uprob": 76, "confidence": 76,
+    "probabilityTier": "HIGH", "uprob": 76, "confidence": 76,
     "targetPrice": 3100, "currentPrice": 2520, "upside": 23.0,
     "horizon": "6–9 bln", "horizonEn": "6–9 months",
     "risk": "Sedang", "riskEn": "Medium",
@@ -64,7 +64,7 @@
   },
   {
     "id": 4, "symbol": "GOTO", "name": "GoTo Gojek Tokopedia",
-    "action": "HOLD", "uprob": 52, "confidence": 59,
+    "probabilityTier": "NEUTRAL", "uprob": 52, "confidence": 59,
     "targetPrice": 78, "currentPrice": 68, "upside": 14.7,
     "horizon": "12–18 bln", "horizonEn": "12–18 months",
     "risk": "Tinggi", "riskEn": "High",
@@ -85,7 +85,7 @@
   },
   {
     "id": 5, "symbol": "TLKM", "name": "Telkom Indonesia",
-    "action": "SELL", "uprob": 29, "confidence": 71,
+    "probabilityTier": "LOW", "uprob": 29, "confidence": 71,
     "targetPrice": 2400, "currentPrice": 2940, "upside": -18.4,
     "horizon": "3–6 bln", "horizonEn": "3–6 months",
     "risk": "Sedang", "riskEn": "Medium",

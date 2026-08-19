@@ -9,7 +9,7 @@ Tests for Advisor Service — Phases 9A · 9B · 9C · 9D
 
 import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # ── Phase 9A: Live context tests ──────────────────────────────────────────────
@@ -73,7 +73,7 @@ class TestLiveContext:
         """_build_context_block includes portfolio, signals, risk, and news sections."""
         from api.services.advisor_service import _build_context_block
         ctx = {
-            "signals": [{"symbol": "BBCA", "action": "STRONG BUY", "uprob": 82}],
+            "signals": [{"symbol": "BBCA", "probabilityTier": "VERY_HIGH", "uprob": 82}],
             "signals_age_min": 5,
             "risk": {"var95": -3.2, "cvar95": -4.8, "beta": 0.91, "sharpe": 1.24, "maxDrawdown": -18.5},
             "portfolio": {
@@ -93,7 +93,7 @@ class TestLiveContext:
         """Context block emits staleness warning when signals are >30 min old."""
         from api.services.advisor_service import _build_context_block
         ctx = {
-            "signals": [{"symbol": "BBCA", "action": "BUY", "uprob": 70}],
+            "signals": [{"symbol": "BBCA", "probabilityTier": "HIGH", "uprob": 70}],
             "signals_age_min": 45,
             "risk": {},
             "portfolio": {},

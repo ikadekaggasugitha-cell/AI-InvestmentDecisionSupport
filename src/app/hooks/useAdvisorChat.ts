@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { USE_LIVE_API, ENDPOINTS } from "../config/api";
+import { USE_LIVE_API, ENDPOINTS, apiFetch } from "../config/api";
 
 /**
  * Streaming Q&A against the backend advisor.
@@ -80,7 +80,7 @@ export function useAdvisorChat(locale: "id" | "en" = "id"): AdvisorChatResult {
       abortRef.current = controller;
 
       try {
-        const res = await fetch(ENDPOINTS.advisorChat, {
+        const res = await apiFetch(ENDPOINTS.advisorChat, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: trimmed, history, locale, uid: "default" }),

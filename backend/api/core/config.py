@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     # get_current_user for EVERY route when this is true, so it must never
     # survive into production — enforced by _reject_unsafe_production below.
     auth_bypass: bool = True
+    # Single-operator credential for the /v1/auth/token login endpoint. This is
+    # a personal decision-support tool, not a multi-tenant service, so there is
+    # no user store — one operator authenticates against these. Leave the
+    # password blank to disable login (only AUTH_BYPASS access remains). Set a
+    # strong AUTH_PASSWORD in any environment where AUTH_BYPASS=false.
+    auth_username: str = "operator"
+    auth_password: str = ""
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
@@ -83,12 +90,16 @@ class Settings(BaseSettings):
     # features that cannot be reproduced from the fifteen displayed symbols
     # alone — they were fitted against the whole board.
     #
-    # Portfolio stays mocked: it is not a data-source problem. No feed knows
-    # your positions, so it needs an input path rather than an integration.
+    # Every service now defaults to its REAL path and degrades to seed/empty
+    # only when its data source is genuinely absent (no trained model, empty
+    # `ohlcv` table, feed down) — never silently, and never as the default.
     use_mock_signals: bool = False    # REAL LightGBM inference when a model exists
     use_mock_risk: bool = False       # REAL GARCH / CVaR on live returns
     use_mock_market: bool = False     # REAL IDX prices (delayed — see idx_feed_vendor)
-    use_mock_portfolio: bool = True   # needs your actual holdings
+    # REAL Black-Litterman + HRP over TimescaleDB price history + live signal
+    # views. Falls back to the seed weights when `ohlcv` has < 120 trading days,
+    # so a fresh deployment still answers while the backfill runs.
+    use_mock_portfolio: bool = False
 
     # Broker Summary scraping — Phase 10
     #
@@ -97,7 +108,11 @@ class Settings(BaseSettings):
     # intraday polling would re-fetch an unchanged EOD publication ~78×/day and
     # buy nothing. At ~50 requests/day a proxy pool is unnecessary — it stays
     # supported for operators who need it, but is no longer required to run.
-    use_mock_broksum: bool = True
+    #
+    # REAL by default: reads the `broker_summary` table populated by
+    # workers.broksum_worker. Returns "no data" (not a 500, not synthetic rows)
+    # until the scraper has run, so the endpoint is safe before the first fetch.
+    use_mock_broksum: bool = False
     proxy_pool_api_key: str = ""             # optional; blank = direct requests
     proxy_pool_provider: str = "scraperapi"  # scraperapi | brightdata | smartproxy
     broksum_scrape_source: str = "idx"       # idx | rti | both
@@ -194,6 +209,20 @@ class Settings(BaseSettings):
     # Observability — Phase 8
     metrics_enabled: bool = True
     sentry_dsn: str = ""
+
+    # Rate limiting
+    #
+    # Closes the open-API abuse surface and, more importantly, caps the LLM cost
+    # exposure on the advisor endpoint. Keyed by client IP because there is no
+    # user store yet (see GAP-04); revisit once tokens carry a stable subject.
+    #
+    # Storage is in-process (memory://) so a Redis outage cannot start rejecting
+    # requests — the limiter fails open. This bounds a single API process; a
+    # multi-instance deployment must move to shared (Redis) storage to enforce a
+    # global budget.
+    rate_limit_enabled: bool = True
+    rate_limit_default: str = "120/minute"   # applied to every route
+    rate_limit_advisor: str = "10/minute"    # tighter — each call fans out to Claude
 
     # ── Validators ────────────────────────────────────────────────────────────
 

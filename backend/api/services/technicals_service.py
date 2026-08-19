@@ -11,6 +11,7 @@ historical training rows is what produced the look-ahead leakage documented in
 ml/features/engineer.py.
 """
 
+import asyncio
 import logging
 from typing import Any
 
@@ -19,13 +20,19 @@ import pandas as pd
 from api.core.config import get_settings
 from api.core.redis_client import REDIS_KEYS, redis_get_json, redis_set_json
 from api.models.technicals import (
+    AccumulationBadge,
+    AccumulationBatchResponse,
+    AccumulationInfo,
     CandlestickPattern,
+    EntrySignal,
     GapInfo,
     OHLCVCandle,
     OHLCVResponse,
     SRLevel,
     TechnicalAnalysisResponse,
+    TradePlanInfo,
     TrendInfo,
+    VolumeInfo,
 )
 from ml.features.price_action import PriceActionAnalyzer
 
@@ -154,8 +161,104 @@ def analyse(ohlcv: pd.DataFrame) -> dict[str, Any]:
     }
 
 
+def _volume_info(ohlcv: pd.DataFrame) -> VolumeInfo:
+    """Read trading intensity vs the stock's own 20-day baseline."""
+    if ohlcv.empty or len(ohlcv) < 21:
+        return VolumeInfo()
+
+    vol = pd.to_numeric(ohlcv["volume"], errors="coerce").fillna(0.0)
+    latest = int(vol.iloc[-1])
+    avg20 = float(vol.tail(20).mean()) or 1.0
+    ratio = float(vol.tail(5).mean() / avg20)
+    level = "high" if ratio >= 1.5 else "low" if ratio <= 0.6 else "normal"
+    spike = latest >= 2.0 * avg20
+
+    prior5 = float(vol.iloc[-10:-5].mean()) or 1.0
+    recent5 = float(vol.tail(5).mean())
+    if recent5 >= prior5 * 1.15:
+        trend = "rising"
+    elif recent5 <= prior5 * 0.85:
+        trend = "falling"
+    else:
+        trend = "flat"
+
+    note_map = {
+        "high": ("Volume ramai — minat pasar tinggi", "Heavy volume — strong market interest"),
+        "low": ("Volume sepi — minat pasar rendah", "Thin volume — weak market interest"),
+        "normal": ("Volume normal", "Normal volume"),
+    }
+    note, note_en = note_map[level]
+    if spike:
+        note = f"Lonjakan volume ({latest / avg20:.1f}× rata-rata) — {note.lower()}"
+        note_en = f"Volume spike ({latest / avg20:.1f}× average) — {note_en.lower()}"
+
+    return VolumeInfo(
+        level=level, ratio=round(ratio, 2), latest=latest,
+        average20d=int(avg20), trend=trend, spike=spike, note=note, noteEn=note_en,
+    )
+
+
+def _entry_signal(
+    trend: dict[str, Any] | None,
+    accumulation: dict[str, Any],
+    plan: Any,
+    volume: VolumeInfo,
+) -> EntrySignal:
+    """
+    When to enter and why. Combines trend direction, the volume-flow
+    accumulation read, and whether a usable stop exists into one call with a
+    plain-language reason — never a bare buy/sell instruction.
+    """
+    tdir = (trend or {}).get("trend", "sideways")
+    strength = int((trend or {}).get("strength", 0))
+    phase = accumulation.get("phase", "neutral")
+    has_stop = plan is not None and getattr(plan, "stopLoss", None) is not None
+
+    # Distribution or a broken downtrend → stay out.
+    if phase == "distribution" or (tdir == "downtrend" and strength >= 40):
+        reason = "Tren turun / distribusi terdeteksi — hindari entry sampai struktur membaik"
+        reason_en = "Downtrend / distribution detected — avoid entry until structure improves"
+        return EntrySignal(signal="avoid", signalId="Hindari", reason=reason, reasonEn=reason_en)
+
+    # Uptrend (or accumulation) with a definable risk level → a watch entry.
+    supportive = tdir == "uptrend" or phase == "accumulation"
+    if supportive and has_stop:
+        bits_id = [f"tren {tdir}" if tdir != "sideways" else "harga konsolidasi"]
+        bits_en = [f"{tdir}" if tdir != "sideways" else "price consolidating"]
+        if phase == "accumulation":
+            bits_id.append("terindikasi akumulasi volume")
+            bits_en.append("volume accumulation")
+        if volume.level == "high":
+            bits_id.append("didukung volume ramai")
+            bits_en.append("backed by heavy volume")
+        bits_id.append(
+            f"stop loss jelas di Rp {int(plan.stopLoss):,}".replace(",", ".")
+            + f" ({plan.stopLossPct:.1f}%)"
+        )
+        bits_en.append(f"clear stop at Rp {int(plan.stopLoss):,} ({plan.stopLossPct:.1f}%)")
+        reason = "Entry dipertimbangkan: " + ", ".join(bits_id) + "."
+        reason_en = "Entry candidate: " + ", ".join(bits_en) + "."
+        return EntrySignal(signal="buy_watch", signalId="Pantau Beli", reason=reason, reasonEn=reason_en)
+
+    # Otherwise wait — say what is missing.
+    if not has_stop:
+        reason = "Belum ada level support yang layak jadi stop loss — tunggu setup lebih jelas"
+        reason_en = "No support level fit for a stop yet — wait for a clearer setup"
+    else:
+        reason = "Struktur belum mendukung — tunggu konfirmasi tren atau akumulasi"
+        reason_en = "Structure not supportive yet — wait for trend or accumulation confirmation"
+    return EntrySignal(signal="wait", signalId="Tunggu", reason=reason, reasonEn=reason_en)
+
+
 async def get_technical_analysis(symbol: str) -> TechnicalAnalysisResponse:
-    """Trend, support/resistance, candlestick patterns and open gaps."""
+    """
+    Full chart read: trend, support/resistance, candlestick patterns, open gaps,
+    volume intensity, volume-flow accumulation, and an entry / stop-loss plan
+    with the reasoning behind it.
+    """
+    from ml.features.volume_accumulation import analyse_accumulation
+    from ml.inference.trade_plan import _build_technical_note, _compute_trade_plan
+
     settings = get_settings()
     symbol = symbol.upper()
     cache_key = REDIS_KEYS["technicals"].format(symbol=symbol)
@@ -168,6 +271,32 @@ async def get_technical_analysis(symbol: str) -> TechnicalAnalysisResponse:
     raw = analyse(ohlcv)
 
     trend_raw = raw["trend"]
+
+    # ── Volume, accumulation, entry/stop-loss plan ────────────────────────────
+    volume = _volume_info(ohlcv)
+    acc_raw = analyse_accumulation(ohlcv) if not ohlcv.empty else {}
+
+    current_price = float(ohlcv["close"].iloc[-1]) if not ohlcv.empty else 0.0
+    # Target for the risk/reward leg: the nearest resistance above price, or a
+    # modest +8% when structure offers none, so the plan still has a stop.
+    resistances = [
+        float(lvl["price"]) for lvl in raw["sr_levels"]
+        if lvl.get("type") == "resistance" and float(lvl["price"]) > current_price
+    ]
+    target_price = min(resistances) if resistances else current_price * 1.08
+    plan = _compute_trade_plan(
+        current_price=current_price,
+        target_price=target_price,
+        sr_levels=raw["sr_levels"],
+        max_stop_pct=settings.ta_max_stop_loss_pct,
+        min_stop_pct=settings.ta_min_stop_loss_pct,
+    ) if current_price > 0 else None
+
+    entry = _entry_signal(trend_raw, acc_raw or {}, plan, volume)
+    note_id, note_en = _build_technical_note(
+        trend_raw, plan, raw["patterns"], raw["gaps"], None,
+    )
+
     response = TechnicalAnalysisResponse(
         symbol=symbol,
         trend=TrendInfo(
@@ -210,6 +339,30 @@ async def get_technical_analysis(symbol: str) -> TechnicalAnalysisResponse:
             )
             for g in raw["gaps"]
         ],
+        volume=volume,
+        accumulation=AccumulationInfo(
+            phase=acc_raw.get("phase", "neutral"),
+            phaseId=acc_raw.get("phaseId", "Netral"),
+            score=acc_raw.get("score", 0.0),
+            strength=acc_raw.get("strength", 0),
+            obvTrend=acc_raw.get("obvTrend", 0.0),
+            cmf=acc_raw.get("cmf", 0.0),
+            mfi=acc_raw.get("mfi", 50.0),
+            consistencyDays=acc_raw.get("consistencyDays", 0),
+            signals=acc_raw.get("signals", []),
+            signalsEn=acc_raw.get("signalsEn", []),
+        ),
+        entrySignal=entry,
+        tradePlan=TradePlanInfo(
+            entryPrice=plan.entryPrice if plan else None,
+            stopLoss=plan.stopLoss if plan else None,
+            stopLossPct=plan.stopLossPct if plan else None,
+            stopLossReason=plan.stopLossReason if plan else "",
+            stopLossReasonEn=plan.stopLossReasonEn if plan else "",
+            riskRewardRatio=plan.riskRewardRatio if plan else None,
+        ),
+        technicalNote=note_id,
+        technicalNoteEn=note_en,
         source=source,
     )
 
@@ -243,3 +396,56 @@ async def get_ohlcv_history(symbol: str, days: int = 120) -> OHLCVResponse:
     response = OHLCVResponse(symbol=symbol, candles=candles, days=days)
     await redis_set_json(cache_key, response.model_dump(), ttl=OHLCV_TTL)
     return response
+
+
+async def _accumulation_badge(symbol: str) -> AccumulationBadge:
+    """Compact accumulation read for one symbol, cached a day (per-symbol)."""
+    from ml.features.volume_accumulation import analyse_accumulation
+
+    symbol = symbol.upper()
+    cache_key = f"technicals:acc:{symbol}"  # technicals:* → cleared by daily_update
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return AccumulationBadge(**cached)
+
+    try:
+        frame, _src = await load_ohlcv(symbol, days=90)
+        r = analyse_accumulation(frame)
+    except Exception as exc:  # noqa: BLE001 — one bad symbol must not fail the batch
+        logger.warning("technicals_service: accumulation badge failed for %s — %s", symbol, exc)
+        return AccumulationBadge(symbol=symbol)
+
+    badge = AccumulationBadge(
+        symbol=symbol,
+        phase=r["phase"],
+        phaseId=r["phaseId"],
+        score=r["score"],
+        strength=r["strength"],
+        consistencyDays=r["consistencyDays"],
+    )
+    await redis_set_json(cache_key, badge.model_dump(), ttl=TECHNICALS_TTL)
+    return badge
+
+
+async def get_accumulation_batch(symbols: list[str] | None = None) -> AccumulationBatchResponse:
+    """
+    Accumulation read for many symbols in ONE request — the batch behind the
+    MarketsView badge column. Fetching per-row would be a classic N-request
+    waterfall; this fans out concurrently instead and each symbol is cached, so
+    a warm board answers instantly.
+
+    Defaults to the tracked universe when no symbols are given.
+    """
+    settings = get_settings()
+    universe = symbols or list(settings.tracked_symbols)
+    # De-dup, cap, and normalise so an oversized query can't fan out unbounded.
+    seen: list[str] = []
+    for s in universe:
+        u = s.strip().upper()
+        if u and u not in seen:
+            seen.append(u)
+        if len(seen) >= 60:
+            break
+
+    items = await asyncio.gather(*(_accumulation_badge(s) for s in seen))
+    return AccumulationBatchResponse(items=list(items), source="volume")

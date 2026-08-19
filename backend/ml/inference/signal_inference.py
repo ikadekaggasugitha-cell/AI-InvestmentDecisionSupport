@@ -24,20 +24,24 @@ from ml.inference.trade_plan import _build_technical_note, _compute_trade_plan
 
 logger = logging.getLogger(__name__)
 
-def _uprob_to_action(uprob: int, base_rate: float = 0.5) -> str:
+def _uprob_to_tier(uprob: int, base_rate: float = 0.5) -> str:
     """
-    Map a probability to a label, RELATIVE to the model's own base rate.
+    Map a probability to a tier token, RELATIVE to the model's own base rate.
 
-    Fixed thresholds (>=65 BUY, >=40 HOLD) assume predictions centre on 50%.
+    Fixed thresholds (>=65 high, >=40 neutral) assume predictions centre on 50%.
     They do not. This model trained on a sample where only 38.65% of 5-day
     windows were up, so its probabilities centre near that — and every single
-    output landed under 40, labelling all fifteen tracked symbols SELL
-    permanently.
+    output landed under 40, tiering all fifteen tracked symbols LOW permanently.
 
     A probability is informative relative to what the model considers typical.
-    Sitting at the base rate is HOLD; the buy and sell bands are scaled from
-    the headroom on either side, so the labels stay meaningful whatever the
+    Sitting at the base rate is NEUTRAL; the high and low bands are scaled from
+    the headroom on either side, so the tiers stay meaningful whatever the
     sample's up-rate happens to be.
+
+    Returns a ProbabilityTier token (VERY_HIGH / HIGH / NEUTRAL / LOW). The
+    former STRONG BUY / BUY / HOLD / SELL labels were replaced because their
+    literal wording read as a trade instruction in the API and DB (CMP-01,
+    GAP-01); the mapping thresholds are unchanged.
     """
     base = max(0.05, min(0.95, base_rate)) * 100
     p = float(uprob)
@@ -47,12 +51,12 @@ def _uprob_to_action(uprob: int, base_rate: float = 0.5) -> str:
     down_room = base
 
     if p >= base + 0.60 * up_room:
-        return "STRONG BUY"
+        return "VERY_HIGH"
     if p >= base + 0.25 * up_room:
-        return "BUY"
+        return "HIGH"
     if p >= base - 0.35 * down_room:
-        return "HOLD"
-    return "SELL"
+        return "NEUTRAL"
+    return "LOW"
 
 
 # SHAP factor name mapping (model feature → bilingual display name).
@@ -198,7 +202,7 @@ class SignalInference:
         broksum = broksum or {}
         settings = get_settings()
         # The label distribution the model was fitted on. Action bands are
-        # scaled around it — see _uprob_to_action.
+        # scaled around it — see _uprob_to_tier.
         base_rate = float(self.report.get("base_rate", 0.5) or 0.5)
         max_stop_pct = settings.ta_max_stop_loss_pct
         min_stop_pct = settings.ta_min_stop_loss_pct
@@ -216,15 +220,26 @@ class SignalInference:
         if isinstance(shap_vals, list):
             shap_vals = shap_vals[1]  # binary: take positive class
 
+        # Feature vector per symbol, carried out-of-band for audit persistence
+        # (SignalsResponse._features_by_symbol → signals.features_json). NaN is
+        # mapped to None so the value is valid JSON for the JSONB column.
+        features_by_symbol: dict[str, dict] = {}
+
         signals: list[AISignal] = []
         for i, symbol in enumerate(features_df.index):
             uprob = int(probas[i] * 100)
-            action = _uprob_to_action(uprob, base_rate)
+            tier = _uprob_to_tier(uprob, base_rate)
             current = market_prices.get(symbol, 0)
             target = _target_price(current, uprob)
             upside = round((target - current) / current * 100, 1) if current else 0
 
             shap_factors = _aggregate_shap(shap_vals[i], self.features)
+
+            row = X.iloc[i]
+            features_by_symbol[symbol] = {
+                feat: (None if pd.isna(val) else float(val))
+                for feat, val in zip(self.features, row)
+            }
 
             # ── Phase 10 display enrichment (never model inputs) ──────────────
             ta = technicals.get(symbol, {})
@@ -245,14 +260,14 @@ class SignalInference:
                 id=i + 1,
                 symbol=symbol,
                 name=symbol,  # Phase 3: enrich from idx_universe table
-                action=action,
+                probabilityTier=tier,
                 uprob=uprob,
                 confidence=uprob,
                 targetPrice=target,
                 currentPrice=current,
                 upside=upside,
-                horizon="3–6 bln" if action in ("STRONG BUY", "SELL") else "6–12 bln",
-                horizonEn="3–6 months" if action in ("STRONG BUY", "SELL") else "6–12 months",
+                horizon="3–6 bln" if tier in ("VERY_HIGH", "LOW") else "6–12 bln",
+                horizonEn="3–6 months" if tier in ("VERY_HIGH", "LOW") else "6–12 months",
                 risk="Tinggi" if uprob < 40 or uprob > 85 else "Sedang",
                 riskEn="High" if uprob < 40 or uprob > 85 else "Medium",
                 thesis=f"Model score: {probas[i]:.3f}. SHAP-driven analysis.",
@@ -306,9 +321,11 @@ class SignalInference:
         # Sort by abs(uprob - 50) desc — most decisive signals first
         signals.sort(key=lambda s: abs(s.uprob - 50), reverse=True)
 
-        return SignalsResponse(
+        response = SignalsResponse(
             signals=signals,
             generatedAt=datetime.now(timezone.utc).isoformat(),
             modelVersion=self.version,
             source="live",
         )
+        response._features_by_symbol = features_by_symbol
+        return response

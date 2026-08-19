@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS } from "../config/api";
+import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
 import { SEED_ENRICHMENT } from "../data/seedPhase10";
 import type { GapInfo, SRLevel, TrendInfo } from "./useAISignals";
 
@@ -23,12 +23,62 @@ export type CandlestickPattern = {
   signal: number;
 };
 
+/** Trading intensity vs the stock's own 20-day baseline. */
+export type VolumeInfo = {
+  level: "high" | "normal" | "low";
+  ratio: number;
+  latest: number;
+  average20d: number;
+  trend: "rising" | "falling" | "flat";
+  spike: boolean;
+  note: string;
+  noteEn: string;
+};
+
+/** Volume-flow accumulation/distribution read (OBV/ADL/CMF/MFI). */
+export type AccumulationInfo = {
+  phase: "accumulation" | "distribution" | "neutral";
+  phaseId: string;
+  score: number;
+  strength: number;
+  obvTrend: number;
+  cmf: number;
+  mfi: number;
+  consistencyDays: number;
+  signals: string[];
+  signalsEn: string[];
+};
+
+/** When to enter and why. */
+export type EntrySignal = {
+  signal: "buy_watch" | "wait" | "avoid";
+  signalId: string;
+  reason: string;
+  reasonEn: string;
+};
+
+/** Entry / stop-loss derived from fractal S/R. */
+export type TradePlanInfo = {
+  entryPrice: number | null;
+  stopLoss: number | null;
+  stopLossPct: number | null;
+  stopLossReason: string;
+  stopLossReasonEn: string;
+  riskRewardRatio: number | null;
+};
+
 export interface TechnicalsResult {
   ohlcv: OHLCVCandle[];
   trend: TrendInfo | null;
   supportResistance: SRLevel[];
   patterns: CandlestickPattern[];
   gaps: GapInfo[];
+  volume: VolumeInfo | null;
+  accumulation: AccumulationInfo | null;
+  entrySignal: EntrySignal | null;
+  tradePlan: TradePlanInfo | null;
+  technicalNote: string;
+  technicalNoteEn: string;
   loading: boolean;
   error: string | null;
 }
@@ -39,6 +89,12 @@ const EMPTY: TechnicalsResult = {
   supportResistance: [],
   patterns: [],
   gaps: [],
+  volume: null,
+  accumulation: null,
+  entrySignal: null,
+  tradePlan: null,
+  technicalNote: "",
+  technicalNoteEn: "",
   loading: false,
   error: null,
 };
@@ -86,6 +142,12 @@ export function useTechnicals(
         supportResistance: seed.supportResistance,
         patterns: [],
         gaps: seed.openGaps,
+        volume: null,
+        accumulation: null,
+        entrySignal: null,
+        tradePlan: seed.tradePlan ?? null,
+        technicalNote: seed.technicalNote ?? "",
+        technicalNoteEn: seed.technicalNoteEn ?? "",
         loading: true,
         error: null,
       };
@@ -118,8 +180,8 @@ export function useTechnicals(
       setState((s) => ({ ...s, loading: true, error: null }));
       try {
         const [taRes, ohlcvRes] = await Promise.all([
-          fetch(ENDPOINTS.technicals(symbol), { signal: controller.signal }),
-          fetch(ENDPOINTS.ohlcv(symbol, days), { signal: controller.signal }),
+          apiFetch(ENDPOINTS.technicals(symbol), { signal: controller.signal }),
+          apiFetch(ENDPOINTS.ohlcv(symbol, days), { signal: controller.signal }),
         ]);
         if (!taRes.ok) throw new Error(`technicals HTTP ${taRes.status}`);
         if (!ohlcvRes.ok) throw new Error(`ohlcv HTTP ${ohlcvRes.status}`);
@@ -134,6 +196,12 @@ export function useTechnicals(
           supportResistance: Array.isArray(ta?.supportResistance) ? ta.supportResistance : [],
           patterns: Array.isArray(ta?.patterns) ? ta.patterns : [],
           gaps: Array.isArray(ta?.gaps) ? ta.gaps : [],
+          volume: ta?.volume ?? null,
+          accumulation: ta?.accumulation ?? null,
+          entrySignal: ta?.entrySignal ?? null,
+          tradePlan: ta?.tradePlan ?? null,
+          technicalNote: ta?.technicalNote ?? "",
+          technicalNoteEn: ta?.technicalNoteEn ?? "",
           loading: false,
           error: null,
         });

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS } from "../config/api";
+import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
 
 /**
  * Black-Litterman + HRP allocation weights from the backend.
@@ -62,7 +62,7 @@ export function usePortfolioOptimisation(uid = "default"): PortfolioOptimisation
     async function load() {
       setState((s) => ({ ...s, loading: true, error: null }));
       try {
-        const res = await fetch(ENDPOINTS.portfolio(uid), { signal: controller.signal });
+        const res = await apiFetch(ENDPOINTS.portfolio(uid), { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (cancelled) return;

@@ -12,7 +12,6 @@ IDX session clock, so anyone who edits an hour has to keep it correct.
 """
 
 import zoneinfo
-from datetime import datetime
 
 import pytest
 

@@ -2,9 +2,31 @@
 Shared pytest fixtures for the AIDSS backend test suite.
 """
 
+import os
+
+# Test environment defaults — MUST be applied at import time, before any test
+# module triggers the lru_cached get_settings(). The app used to set these
+# inside the session `app` fixture, which runs only when first requested; by
+# then another module's import had often already cached Settings with the
+# production defaults (metrics on, rate limiting on), so the app was built with
+# instrumentation active and the suite failed partway through. conftest.py is
+# imported before every test module, so setting them here wins the race.
+os.environ.setdefault("AUTH_BYPASS", "true")
+os.environ.setdefault("USE_MOCK_SIGNALS", "true")
+os.environ.setdefault("USE_MOCK_RISK", "true")
+os.environ.setdefault("USE_MOCK_MARKET", "true")
+os.environ.setdefault("USE_MOCK_PORTFOLIO", "true")
+os.environ.setdefault("USE_MOCK_BROKSUM", "true")
+os.environ.setdefault("METRICS_ENABLED", "false")
+os.environ.setdefault("SENTRY_DSN", "")
+# The suite fires hundreds of requests from one client IP; the default
+# 120/minute budget would start returning 429s partway through. Rate limiting
+# has its own dedicated tests — disable it everywhere else.
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from httpx import AsyncClient, ASGITransport
@@ -13,14 +35,10 @@ from httpx import AsyncClient, ASGITransport
 @pytest.fixture(scope="session")
 def app():
     """Create the FastAPI app once per test session with all mocks active."""
-    import os
-    os.environ.setdefault("AUTH_BYPASS", "true")
-    os.environ.setdefault("USE_MOCK_SIGNALS", "true")
-    os.environ.setdefault("USE_MOCK_RISK", "true")
-    os.environ.setdefault("USE_MOCK_MARKET", "true")
-    os.environ.setdefault("USE_MOCK_PORTFOLIO", "true")
-    os.environ.setdefault("METRICS_ENABLED", "false")
-    os.environ.setdefault("SENTRY_DSN", "")
+    from api.core.config import get_settings
+    # Defensive: if any earlier import cached Settings before the env above was
+    # visible, drop that cache so the app is built from the test environment.
+    get_settings.cache_clear()
 
     from api.main import create_app
     return create_app()

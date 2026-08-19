@@ -20,7 +20,7 @@ class TestSignalEndpoint:
     def test_signal_has_required_fields(self, client, mock_redis):
         resp = client.get("/v1/signals")
         signal = resp.json()["signals"][0]
-        required = {"symbol", "action", "uprob", "confidence", "targetPrice"}
+        required = {"symbol", "probabilityTier", "uprob", "confidence", "targetPrice"}
         assert required.issubset(set(signal.keys()))
 
     def test_signal_uprob_in_range(self, client, mock_redis):

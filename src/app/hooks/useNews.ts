@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS } from "../config/api";
+import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
 import { SEED_NEWS } from "../data/idxData";
 
 export interface NewsItem {
@@ -102,7 +102,7 @@ function minutesSince(iso: string): number {
 async function fetchIdxDisclosures(): Promise<NewsItem[]> {
   if (!USE_LIVE_API) return [];
   try {
-    const res = await fetch(ENDPOINTS.news(20), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    const res = await apiFetch(ENDPOINTS.news(20), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!res.ok) return [];
     const data = await res.json();
     if (data?.source !== "idx" || !Array.isArray(data?.items)) return [];

@@ -15,13 +15,11 @@ Run with:
 import asyncio
 import json
 import logging
-import math
-import random
 from datetime import datetime, timezone
 from typing import Any
 
 import redis.asyncio as aioredis
-from confluent_kafka import Consumer, KafkaError
+from confluent_kafka import Consumer
 
 from api.core.config import get_settings
 from api.core.redis_client import get_redis_pool

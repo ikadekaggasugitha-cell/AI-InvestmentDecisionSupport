@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS } from "../config/api";
+import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
 import { AI_RECOMMENDATIONS } from "../data/idxData";
 import { SEED_ENRICHMENT } from "../data/seedPhase10";
 
@@ -59,13 +59,32 @@ export type BrokerSummarySnapshot = {
   netLot20d: number;
   consistencyDays: number;
   concentration: number;
+
+  /* ── Volume-flow analysis (method="volume"): populated when the snapshot is
+   * derived from OHLCV+volume rather than licensed per-broker flow. Optional so
+   * broker-flow snapshots stay valid. ────────────────────────────────────── */
+  method?: "broker" | "volume";
+  strength?: number;
+  obvTrend?: number;
+  cmf?: number;
+  mfi?: number;
+  volumeRatio?: number;
+  volumeLevel?: "high" | "normal" | "low";
+  signals?: readonly string[];
+  signalsEn?: readonly string[];
 };
 
 export type AISignal = {
   id: number;
   symbol: string;
   name: string;
-  action: "STRONG BUY" | "BUY" | "HOLD" | "SELL";
+  /**
+   * Probability band, not a trade instruction. Replaces the former
+   * "STRONG BUY" | "BUY" | "HOLD" | "SELL" labels, whose wording read as a
+   * buy/sell command and conflicted with OJK rule CMP-01 (GAP-01). Human-facing
+   * bilingual wording lives in the i18n layer, keyed off this token.
+   */
+  probabilityTier: "VERY_HIGH" | "HIGH" | "NEUTRAL" | "LOW";
   uprob: number;
   confidence: number;
   targetPrice: number;
@@ -158,7 +177,7 @@ export function useAISignals(): AISignalsResult {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(ENDPOINTS.signals, { signal: controller.signal });
+        const res = await apiFetch(ENDPOINTS.signals, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const signalList: AISignal[] = Array.isArray(data)

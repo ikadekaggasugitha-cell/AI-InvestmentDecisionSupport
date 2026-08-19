@@ -16,12 +16,17 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import structlog
-from fastapi import FastAPI, Response, status
+from fastapi import Depends, FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
+from api.core.auth import get_current_user
 from api.core.config import get_settings
+from api.core.rate_limit import limiter
 from api.routers import (
-    advisor, broksum, market_ws, news, portfolio, risk, signals, technicals,
+    advisor, auth, broksum, market_ws, news, portfolio, risk, signals, technicals,
 )
 
 # ── Structured logging ────────────────────────────────────────────────────────
@@ -162,15 +167,37 @@ Set `AUTH_BYPASS=true` in `.env` for development.
         allow_headers=["Authorization", "Content-Type"],
     )
 
+    # ── Rate limiting ──────────────────────────────────────────────────────────
+    # A global default applies to every route via the middleware; the advisor
+    # endpoint adds a tighter per-route limit (see api/routers/advisor.py). The
+    # ops endpoints below are exempted so an orchestrator's health probes are
+    # never throttled. Limiter.enabled is driven by settings, so it can be
+    # switched off wholesale in an environment that fronts its own limiter.
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+
     # Routers
-    app.include_router(signals.router)
-    app.include_router(risk.router)
+    #
+    # Every HTTP data router is guarded by get_current_user. The dependency was
+    # defined but wired to nothing, so the API answered any caller regardless of
+    # AUTH_BYPASS — the flag only ever gated /docs. Applying it here means that
+    # with AUTH_BYPASS=false a valid bearer token is required; with the dev
+    # default (true) get_current_user short-circuits to a dev principal so local
+    # work and the mock-data tests are unaffected.
+    #
+    # market_ws is intentionally excluded: HTTPBearer cannot ride the WebSocket
+    # handshake, so it authenticates via its own query-parameter token path.
+    protected = [Depends(get_current_user)]
+    app.include_router(auth.router)  # public: this is where tokens are issued
+    app.include_router(signals.router, dependencies=protected)
+    app.include_router(risk.router, dependencies=protected)
     app.include_router(market_ws.router)
-    app.include_router(portfolio.router)
-    app.include_router(advisor.router)
-    app.include_router(broksum.router)
-    app.include_router(technicals.router)
-    app.include_router(news.router)
+    app.include_router(portfolio.router, dependencies=protected)
+    app.include_router(advisor.router, dependencies=protected)
+    app.include_router(broksum.router, dependencies=protected)
+    app.include_router(technicals.router, dependencies=protected)
+    app.include_router(news.router, dependencies=protected)
 
     # ── Prometheus metrics (Phase 8) ──────────────────────────────────────────
     if settings.metrics_enabled:
@@ -180,6 +207,7 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     # ── Health ────────────────────────────────────────────────────────────────
 
     @app.get("/livez", tags=["ops"], summary="Liveness — is the process up")
+    @limiter.exempt
     async def livez() -> dict[str, str]:
         """
         Process liveness only. Never fails while the event loop runs, so a
@@ -189,6 +217,7 @@ Set `AUTH_BYPASS=true` in `.env` for development.
         return {"status": "ok", "version": "1.0.0"}
 
     @app.get("/health", tags=["ops"], summary="Readiness — are dependencies usable")
+    @limiter.exempt
     async def health(response: Response) -> dict[str, object]:
         """
         Checks the dependencies the API actually needs, and returns 503 when a

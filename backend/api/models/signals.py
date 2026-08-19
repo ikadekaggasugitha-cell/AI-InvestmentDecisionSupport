@@ -1,5 +1,14 @@
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
+
+# Probability tier replaces the former STRONG BUY / BUY / HOLD / SELL labels.
+# Those literal values sat in the public OpenAPI schema and the database CHECK
+# constraint, where an auditor reads them as trade instructions regardless of
+# how the underlying number is derived (CMP-01, GAP-01). The tokens below are a
+# probabilistic position relative to the model's own base rate; the human-facing
+# bilingual wording ("Probabilitas Sangat Tinggi" / "Very High Probability")
+# lives in the frontend i18n layer, not in the contract.
+ProbabilityTier = Literal["VERY_HIGH", "HIGH", "NEUTRAL", "LOW"]
 
 from api.models.broksum import BrokerSummarySnapshot
 from api.models.technicals import GapInfo, SRLevel, TrendInfo
@@ -39,7 +48,7 @@ class AISignal(BaseModel):
     id: int
     symbol: str
     name: str
-    action: Literal["STRONG BUY", "BUY", "HOLD", "SELL"]
+    probabilityTier: ProbabilityTier
     uprob: int = Field(..., ge=0, le=100, description="Probability of upside move, 0–100")
     confidence: int = Field(..., ge=0, le=100)
     targetPrice: float
@@ -90,3 +99,10 @@ class SignalsResponse(BaseModel):
     generatedAt: str   # ISO timestamp
     modelVersion: str
     source: Literal["live", "mock"] = "mock"
+
+    # Point-in-time feature vector per symbol, as scored. A PrivateAttr so it is
+    # excluded from model_dump()/model_dump_json() — it must never reach the API
+    # response, the frontend contract, or the Redis cache. Its sole consumer is
+    # the signal worker's audit persistence (features_json), which needs it to
+    # make a stored signal reconstructable (BR-18, GAP-09).
+    _features_by_symbol: dict[str, dict] = PrivateAttr(default_factory=dict)

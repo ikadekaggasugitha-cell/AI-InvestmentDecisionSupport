@@ -2,8 +2,6 @@
 Tests for the market WebSocket endpoint and health check.
 """
 
-import pytest
-from fastapi.testclient import TestClient
 
 
 class TestHealthEndpoint:

@@ -1,7 +1,7 @@
 import { Suspense, lazy, useState, type ElementType } from "react";
 import {
   Brain, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp,
-  Target, Clock, AlertTriangle, BarChart2, ShieldCheck, X, MoveRight,
+  Clock, AlertTriangle, BarChart2, ShieldCheck, X, MoveRight,
 } from "lucide-react";
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { useApp } from "../context/AppContext";
@@ -11,6 +11,8 @@ import { useBrokerSummary } from "../hooks/useBrokerSummary";
 import { useTechnicals } from "../hooks/useTechnicals";
 import { AdvisorChat } from "./AdvisorChat";
 import { BrokerSummaryPanel } from "./BrokerSummaryPanel";
+import { EntrySignalCard } from "./EntrySignalCard";
+import { VolumeAccumulationPanel } from "./VolumeAccumulationPanel";
 import { ViewSkeleton } from "./ViewSkeleton";
 import { ViewError } from "./ViewError";
 
@@ -20,28 +22,61 @@ const CandlestickChart = lazy(() =>
   import("./CandlestickChart").then((m) => ({ default: m.CandlestickChart })),
 );
 
-type Action = "STRONG BUY" | "BUY" | "HOLD" | "SELL";
+// ── OJK disclaimer gate persistence (GAP-16) ──────────────────────────────────
+// The acceptance is remembered across reloads so the modal does not reappear on
+// every mount. localStorage access is wrapped because it throws in private-mode
+// Safari and when storage is disabled; a failure degrades to "not accepted"
+// (re-prompt), which is the safe direction for a compliance gate.
+const DISCLAIMER_KEY = "aidss.disclaimerAcceptedAt";
 
-const ACTION_CFG: Record<Action, { color: string; bg: string; icon: ElementType }> = {
-  "STRONG BUY": { color: "var(--gain)",    bg: "var(--gain-bg)",           icon: TrendingUp   },
-  "BUY":        { color: "var(--gain)",    bg: "var(--gain-bg)",           icon: TrendingUp   },
-  "HOLD":       { color: "var(--warning)", bg: "rgba(245,158,11,0.08)",   icon: Minus        },
-  "SELL":       { color: "var(--loss)",    bg: "var(--loss-bg)",           icon: TrendingDown },
+function readDisclaimerAccepted(): boolean {
+  try {
+    return !!window.localStorage.getItem(DISCLAIMER_KEY);
+  } catch {
+    return false;
+  }
+}
+
+function writeDisclaimerAccepted(): void {
+  try {
+    window.localStorage.setItem(DISCLAIMER_KEY, new Date().toISOString());
+  } catch {
+    /* storage unavailable — the gate falls back to per-session state */
+  }
+}
+
+function clearDisclaimerAccepted(): void {
+  try {
+    window.localStorage.removeItem(DISCLAIMER_KEY);
+  } catch {
+    /* nothing to clear */
+  }
+}
+
+type Tier = "VERY_HIGH" | "HIGH" | "NEUTRAL" | "LOW";
+
+const TIER_CFG: Record<Tier, { color: string; bg: string; icon: ElementType }> = {
+  "VERY_HIGH": { color: "var(--gain)",    bg: "var(--gain-bg)",           icon: TrendingUp   },
+  "HIGH":      { color: "var(--gain)",    bg: "var(--gain-bg)",           icon: TrendingUp   },
+  "NEUTRAL":   { color: "var(--warning)", bg: "rgba(245,158,11,0.08)",   icon: Minus        },
+  "LOW":       { color: "var(--loss)",    bg: "var(--loss-bg)",           icon: TrendingDown },
 };
 
-function actionLabel(action: Action, isId: boolean): string {
-  const map: Record<Action, [string, string]> = {
-    "STRONG BUY": ["BELI KUAT", "STRONG BUY"],
-    "BUY":        ["BELI",      "BUY"        ],
-    "HOLD":       ["TAHAN",     "HOLD"       ],
-    "SELL":       ["JUAL",      "SELL"       ],
+// Probability-band wording (REC-01). Replaces the former BELI/JUAL labels,
+// whose imperative reading conflicted with OJK rule CMP-01 (GAP-01).
+function tierLabel(tier: Tier, isId: boolean): string {
+  const map: Record<Tier, [string, string]> = {
+    "VERY_HIGH": ["Probabilitas Sangat Tinggi", "Very High Probability"],
+    "HIGH":      ["Probabilitas Tinggi",        "High Probability"     ],
+    "NEUTRAL":   ["Probabilitas Netral",        "Neutral Probability"  ],
+    "LOW":       ["Probabilitas Rendah",        "Low Probability"      ],
   };
-  return isId ? map[action][0] : map[action][1];
+  return isId ? map[tier][0] : map[tier][1];
 }
 
 /* OJK-compliant probability gauge */
-function ProbabilityGauge({ uprob, action }: { uprob: number; action: Action }) {
-  const isDown = action === "SELL";
+function ProbabilityGauge({ uprob, tier }: { uprob: number; tier: Tier }) {
+  const isDown = tier === "LOW";
   const displayProb = isDown ? (100 - uprob) : uprob;
   const color = isDown ? "var(--loss)" : uprob >= 70 ? "var(--gain)" : uprob >= 55 ? "var(--warning)" : "var(--muted-foreground)";
   const bgColor = isDown ? "var(--loss-bg)" : uprob >= 70 ? "var(--gain-bg)" : "rgba(245,158,11,0.08)";
@@ -338,7 +373,7 @@ function SignalCard({
   // translation key fails the type check instead of rendering the key itself.
   t: ReturnType<typeof useTranslation>["t"];
 }) {
-  const cfg = ACTION_CFG[rec.action as Action];
+  const cfg = TIER_CFG[rec.probabilityTier as Tier];
   const Icon = cfg.icon;
   const upPos = rec.upside >= 0;
 
@@ -353,8 +388,12 @@ function SignalCard({
   const gaps = technicals.gaps.length ? technicals.gaps : (rec.openGaps ?? []);
   const trend = technicals.trend ?? rec.trend ?? null;
   const snapshot = broksum.snapshot ?? rec.brokerSummary ?? null;
-  const plan = rec.tradePlan ?? null;
-  const note = isId ? rec.technicalNote : rec.technicalNoteEn;
+  // Prefer the live technicals trade plan / note (computed on fresh bars) over
+  // whatever the signal payload carried at generation time.
+  const plan = technicals.tradePlan ?? rec.tradePlan ?? null;
+  const note =
+    (isId ? technicals.technicalNote : technicals.technicalNoteEn) ||
+    (isId ? rec.technicalNote : rec.technicalNoteEn);
   const patterns = (isId ? rec.activePatterns : rec.activePatternsEn) ?? [];
   const unfilledGaps = gaps.filter((g) => !g.isFilled);
 
@@ -370,7 +409,7 @@ function SignalCard({
         style={{ userSelect: "none" }}
       >
         {/* Probability gauge — OJK compliant (replaces absolute buy/sell badge) */}
-        <ProbabilityGauge uprob={rec.uprob} action={rec.action as Action} />
+        <ProbabilityGauge uprob={rec.uprob} tier={rec.probabilityTier as Tier} />
 
         {/* Name + symbol + thesis */}
         <div className="flex-1 min-w-0">
@@ -386,7 +425,7 @@ function SignalCard({
             >
               <Icon size={10} style={{ color: cfg.color }} />
               <span style={{ fontSize: 10, fontWeight: 600, color: cfg.color, fontFamily: "var(--font-mono)", letterSpacing: "0.04em" }}>
-                {actionLabel(rec.action as Action, isId)}
+                {tierLabel(rec.probabilityTier as Tier, isId)}
               </span>
             </span>
             <TrendBadge trend={trend} isId={isId} />
@@ -466,6 +505,9 @@ function SignalCard({
               />
             </Suspense>
           </div>
+
+          {/* Actionable technical read: when to enter, where the stop is, R:R */}
+          <EntrySignalCard entry={technicals.entrySignal} plan={plan} locale={isId ? "id" : "en"} />
 
           <div className="grid gap-5" style={{ gridTemplateColumns: "1fr 1fr" }}>
             {/* Left: thesis + technical note + catalysts + meta */}
@@ -636,6 +678,16 @@ function SignalCard({
                 </div>
               </div>
 
+              {(technicals.volume || technicals.accumulation) && (
+                <div style={{ background: "var(--muted)", borderRadius: 4, padding: 16 }}>
+                  <VolumeAccumulationPanel
+                    volume={technicals.volume}
+                    accumulation={technicals.accumulation}
+                    locale={isId ? "id" : "en"}
+                  />
+                </div>
+              )}
+
               <div style={{ background: "var(--muted)", borderRadius: 4, padding: 16 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   {t("ai_broker_summary")}
@@ -661,13 +713,19 @@ export function AIAdvisorView() {
   const { t } = useTranslation(locale);
   const isId = locale === "id";
   const [expanded, setExpanded] = useState<number | null>(null);
-  const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
+  // Persisted so the gate survives a reload or navigating away and back — the
+  // previous plain useState(false) reset on every mount, which made the OJK
+  // disclaimer gate cosmetic rather than a real gate (GAP-16). Server-side
+  // recording of the acceptance for audit is a separate concern (GAP-03).
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState<boolean>(
+    () => readDisclaimerAccepted()
+  );
   const { signals, loading, error } = useAISignals();
 
   const avgUprob = signals.length
     ? Math.round(signals.reduce((s, r) => s + r.uprob, 0) / signals.length)
     : 0;
-  const activeSignals = signals.filter((r) => r.action !== "HOLD").length;
+  const activeSignals = signals.filter((r) => r.probabilityTier !== "NEUTRAL").length;
 
   if (loading) {
     return <ViewSkeleton rows={5} label={isId ? "Memuat sinyal AI…" : "Loading AI signals…"} />;
@@ -679,7 +737,13 @@ export function AIAdvisorView() {
   return (
     <>
       {!disclaimerAccepted && (
-        <DisclaimerModal isId={isId} onAccept={() => setDisclaimerAccepted(true)} />
+        <DisclaimerModal
+          isId={isId}
+          onAccept={() => {
+            writeDisclaimerAccepted();
+            setDisclaimerAccepted(true);
+          }}
+        />
       )}
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
@@ -700,7 +764,10 @@ export function AIAdvisorView() {
               : "All outputs are Probability Scores — not investment advice or definitive buy/sell instructions."}
           </div>
           <button
-            onClick={() => setDisclaimerAccepted(false)}
+            onClick={() => {
+              clearDisclaimerAccepted();
+              setDisclaimerAccepted(false);
+            }}
             style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted-foreground)", padding: 0 }}
           >
             <X size={12} />

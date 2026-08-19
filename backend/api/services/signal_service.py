@@ -2,10 +2,17 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from api.core.config import get_settings
 from api.core.redis_client import REDIS_KEYS, redis_get_json, redis_set_json
 from api.models.signals import AISignal, SignalsResponse
+
+if TYPE_CHECKING:
+    # pandas is imported lazily inside the functions that need it (it is only
+    # on the DB serving path). This makes the "pd.DataFrame" annotations resolve
+    # for type-checkers and linters without importing pandas at module load.
+    import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +150,6 @@ async def _compute_live_signals() -> SignalsResponse:
     Only the most recent row per symbol is scored: that is the only row whose
     features describe today.
     """
-    import pandas as pd
 
     from api.services.market_service import _IDX_METADATA
     from api.services.technicals_service import analyse, load_ohlcv

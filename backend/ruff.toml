@@ -1,0 +1,25 @@
+# Ruff config for the AIDSS backend.
+#
+# Scope is intentionally narrow: pyflakes (F) plus syntax errors (E9). These
+# catch real defects — undefined names, unused imports, unreachable code — while
+# staying quiet about the codebase's deliberate patterns (broad except for
+# graceful degradation, dict() calls, non-tz datetimes in mock generators).
+# Widen `select` as the team decides to adopt more rules; this is the floor, not
+# the ceiling.
+
+target-version = "py311"
+line-length = 100
+
+exclude = [
+    ".venv",
+    "__pycache__",
+    "models",
+]
+
+[lint]
+select = ["F", "E9"]
+
+[lint.per-file-ignores]
+# Test files legitimately import fixtures/symbols for their side effects and
+# redefine names across parametrized cases.
+"tests/**" = ["F811"]

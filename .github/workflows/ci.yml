@@ -1,0 +1,100 @@
+name: CI
+
+# Runs on every push and PR. This is the gate the repository never had: before
+# it, a branch could ship with an unimportable app (missing slowapi /
+# prometheus-fastapi-instrumentator), a red test suite, and a type error in the
+# frontend, and nothing would catch it until a human ran the commands by hand.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — pytest + coverage
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/requirements-test.txt
+
+      - name: Install locked test dependencies
+        # requirements-test.txt is the exact, verified set the suite passes
+        # against — no heavy ML training stack, so this stays fast.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-test.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Run test suite with coverage gate
+        # Mock data paths keep the suite hermetic — no Postgres/Redis needed.
+        env:
+          AUTH_BYPASS: "true"
+          USE_MOCK_SIGNALS: "true"
+          USE_MOCK_RISK: "true"
+          USE_MOCK_MARKET: "true"
+          USE_MOCK_PORTFOLIO: "true"
+          USE_MOCK_BROKSUM: "true"
+          METRICS_ENABLED: "false"
+          RATE_LIMIT_ENABLED: "false"
+        run: pytest
+
+  env-template:
+    name: Backend — .env.example covers every setting
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/requirements-test.txt
+      - run: pip install -r requirements-test.txt
+      - name: Assert config and .env.example are in sync
+        run: pytest tests/test_env_template.py
+
+  frontend:
+    name: Frontend — typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test -- --run
+
+      - name: Build
+        run: npm run build

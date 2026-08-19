@@ -170,8 +170,12 @@ async def _refresh_continuous_aggregate(start: datetime, end: datetime) -> None:
     )
     try:
         # CALL refresh_continuous_aggregate cannot run inside a transaction block.
+        # The parameters need explicit casts: asyncpg cannot infer a type for a
+        # procedure argument, so unqualified $1/$2 raise "could not determine
+        # data type of parameter $1" and the whole backfill's aggregate is skipped.
         await conn.execute(
-            "CALL refresh_continuous_aggregate('ohlcv_daily', $1, $2)", start, end
+            "CALL refresh_continuous_aggregate('ohlcv_daily', $1::timestamptz, $2::timestamptz)",
+            start, end,
         )
     except Exception as exc:  # noqa: BLE001 — refresh is best-effort
         logger.warning("ohlcv_worker: continuous aggregate refresh failed: %s", exc)

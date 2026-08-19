@@ -15,7 +15,6 @@ from datetime import timedelta
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from ml.features.point_in_time import (
     FEATURE_COLUMNS,

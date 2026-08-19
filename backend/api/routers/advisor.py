@@ -13,10 +13,11 @@ SSE event format:
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from api.core.auth import CurrentUser
+from api.core.rate_limit import advisor_limit, limiter
 from api.models.advisor import ChatRequest
 from api.services.advisor_service import stream_advisor_response
 
@@ -40,7 +41,9 @@ async def _sse_generator(request: ChatRequest):
     ),
     response_class=StreamingResponse,
 )
+@limiter.limit(advisor_limit)
 async def advisor_chat(
+    request: Request,
     body: ChatRequest,
     current_user: CurrentUser,
 ) -> StreamingResponse:

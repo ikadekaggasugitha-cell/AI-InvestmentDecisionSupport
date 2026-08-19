@@ -16,7 +16,6 @@ Uses PyPortfolioOpt for BL and HRP implementations.
 
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -188,7 +187,7 @@ def _mean_variance_weights(
 
         sigma = risk_models.CovarianceShrinkage(prices[mu.index]).ledoit_wolf()
         ef = EfficientFrontier(mu, sigma, weight_bounds=(MIN_WEIGHT, max_weight))
-        raw_weights = ef.max_sharpe(risk_free_rate=0.0575)
+        ef.max_sharpe(risk_free_rate=0.0575)  # solves in place; read via clean_weights()
         return pd.Series(ef.clean_weights())
     except Exception as exc:
         logger.warning("MVO failed (%s), falling back to HRP", exc)

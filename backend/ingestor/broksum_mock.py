@@ -154,9 +154,8 @@ def generate_mock_broksum_history(
     now = datetime.now(timezone.utc)
     all_rows: list[dict[str, Any]] = []
 
-    # Use symbol as seed for consistent broker selection
-    rng = random.Random(hash(symbol) % (2**31))
-    persistent_brokers = rng.sample(ALL_BROKER_CODES, min(num_brokers, len(ALL_BROKER_CODES)))
+    # Consistency per symbol/day is handled by the random.seed() call inside the
+    # loop below, keyed on symbol+date — that is what makes the series stable.
 
     for day_offset in range(days):
         date = now - timedelta(days=day_offset)
