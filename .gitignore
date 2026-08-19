@@ -36,6 +36,7 @@ htmlcov
 # Trained models are large and reproducible from ml/training/. MLflow tracks
 # the ones that matter.
 backend/models/*.pkl
+backend/models/report_*.json
 backend/mlruns
 backend/mlartifacts
 
