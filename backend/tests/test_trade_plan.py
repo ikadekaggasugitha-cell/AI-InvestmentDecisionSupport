@@ -6,7 +6,7 @@ all. A fabricated or unusable level is worse than an absent one, because the
 reader cannot tell the difference.
 """
 
-from ml.inference.trade_plan import _compute_trade_plan
+from ml.inference.trade_plan import _build_technical_note, _compute_trade_plan
 
 
 def _support(price: float, touches: int = 3) -> dict:
@@ -117,3 +117,35 @@ class TestDegenerateInputs:
 
     def test_negative_support_ignored(self):
         assert _compute_trade_plan(10_000, 11_000, [_support(-500)]) is None
+
+
+class TestTechnicalNoteForeignFlow:
+    """The technical note must cite foreign flow (the free bandarmology) when it
+    is available, and fall back to the volume phrasing when it is not."""
+
+    def _acc(self, foreign_available: bool) -> dict:
+        return {
+            "phase": "accumulation", "phaseId": "Akumulasi",
+            "foreignAvailable": foreign_available,
+            "foreignPhase": "accumulation" if foreign_available else "neutral",
+            "netForeign5d": 7_500, "foreignConsistencyDays": 6,
+            "consistencyDays": 4,
+        }
+
+    def test_note_cites_foreign_when_available(self):
+        note_id, note_en = _build_technical_note(
+            None, None, [], [], self._acc(foreign_available=True)
+        )
+        assert "asing net +7.500 lot" in note_id
+        assert "6 hari beruntun" in note_id
+        assert "foreign net" in note_en.lower()
+
+    def test_note_falls_back_to_volume_when_no_foreign(self):
+        note_id, note_en = _build_technical_note(
+            None, None, [], [], self._acc(foreign_available=False)
+        )
+        assert "asing" not in note_id.lower()
+        assert "volume" in note_id.lower()
+
+    def test_empty_when_no_accumulation(self):
+        assert _build_technical_note(None, None, [], [], None) == ("", "")

@@ -64,7 +64,7 @@ export type BrokerSummarySnapshot = {
   /* ── Volume-flow analysis (method="volume"): populated when the snapshot is
    * derived from OHLCV+volume rather than licensed per-broker flow. Optional so
    * broker-flow snapshots stay valid. ────────────────────────────────────── */
-  method?: "broker" | "volume";
+  method?: "broker" | "volume" | "volume+foreign";
   strength?: number;
   obvTrend?: number;
   cmf?: number;
@@ -126,7 +126,16 @@ export interface AISignalsResult {
   error: string | null;
   /** ISO timestamp of the last successful fetch */
   lastFetched: string | null;
+  /**
+   * True when `signals` came from the live backend, false when it is the
+   * bundled seed fallback. Lets the view label simulated data without hiding
+   * everything behind a full-screen error.
+   */
+  isLive: boolean;
 }
+
+/** How often live signals are re-polled, in ms. */
+const REFRESH_MS = 60_000;
 
 /* ── Seed data (same shape, mutable copy of the const) ──────────────────── */
 
@@ -163,6 +172,7 @@ export function useAISignals(): AISignalsResult {
   const [signals, setSignals]         = useState<AISignal[]>(SEED_SIGNALS);
   const [loading, setLoading]         = useState(USE_LIVE_API);
   const [error, setError]             = useState<string | null>(null);
+  const [isLive, setIsLive]           = useState(false);
   const [lastFetched, setLastFetched] = useState<string | null>(
     USE_LIVE_API ? null : new Date().toISOString()
   );
@@ -171,44 +181,52 @@ export function useAISignals(): AISignalsResult {
     if (!USE_LIVE_API) return;
 
     let cancelled = false;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-    async function fetchSignals() {
-      setLoading(true);
-      setError(null);
+    async function fetchSignals(isFirst: boolean) {
+      // A background poll must not flash the skeleton over data already on
+      // screen — only the initial load shows the loading state.
+      if (isFirst) setLoading(true);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       try {
         const res = await apiFetch(ENDPOINTS.signals, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         // Validate the core numeric fields before trusting the payload. A
-        // malformed response throws here and lands in the seed fallback below,
+        // malformed response throws here and lands in the error branch below,
         // rather than rendering `Rp undefined` on a signal card.
         const parsed = parseOrThrow(signalsResponseSchema, data, "signals");
         const signalList = (Array.isArray(parsed) ? parsed : parsed.signals) as AISignal[];
         if (!cancelled) {
           setSignals(signalList);
           setLastFetched(new Date().toISOString());
+          setIsLive(true);
+          setError(null);
         }
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : "Unknown error";
           setError(msg);
-          setSignals(SEED_SIGNALS);
+          setIsLive(false);
+          // Keep whatever is already on screen (seed on first load, or the last
+          // good live snapshot). The view renders it with a "simulated/offline"
+          // badge rather than a blank error page, and the next poll recovers
+          // automatically once the backend is reachable again.
+          setSignals((prev) => (prev.length ? prev : SEED_SIGNALS));
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && isFirst) setLoading(false);
         clearTimeout(timeout);
       }
     }
 
-    fetchSignals();
+    fetchSignals(true);
+    const interval = setInterval(() => fetchSignals(false), REFRESH_MS);
     return () => {
       cancelled = true;
-      controller.abort();
-      clearTimeout(timeout);
+      clearInterval(interval);
     };
   }, []);
 
-  return { signals, loading, error, lastFetched };
+  return { signals, loading, error, lastFetched, isLive };
 }

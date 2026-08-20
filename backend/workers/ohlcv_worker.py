@@ -261,4 +261,17 @@ def refresh_ohlcv_daily(self) -> dict:
     Pulls a 5-day window rather than 1 so a missed run (holiday, outage) heals
     itself on the next execution instead of leaving a hole in the series.
     """
-    return backfill_ohlcv(days=5)
+    result = backfill_ohlcv(days=5)
+    # Heartbeat so /health can confirm the daily update actually ran.
+    try:
+        from api.core.redis_client import record_run
+
+        asyncio.run(record_run(
+            "refresh-ohlcv-eod",
+            status=result.get("status", "ok"),
+            detail={"bars_written": result.get("bars_written"),
+                    "instruments": result.get("instruments")},
+        ))
+    except Exception as exc:  # noqa: BLE001 — heartbeat must never fail the task
+        logger.debug("ohlcv_worker: heartbeat write skipped — %s", exc)
+    return result

@@ -265,6 +265,7 @@ Set `AUTH_BYPASS=true` in `.env` for development.
             )
             try:
                 bars = await conn.fetchval("SELECT count(*) FROM ohlcv")
+                latest_session = await conn.fetchval("SELECT max(time) FROM ohlcv")
             finally:
                 await conn.close()
             checks["database"] = "ok"
@@ -272,6 +273,21 @@ Set `AUTH_BYPASS=true` in `.env` for development.
             if not bars and db_required:
                 checks["database"] = "reachable but `ohlcv` is empty — run backfill_ohlcv"
                 degraded = True
+            # Data freshness — confirms the daily update is actually landing bars,
+            # not just that the table has rows. Stale beyond data_max_age_hours
+            # (a stalled scheduler) degrades the service; a normal weekend does not.
+            if latest_session is not None:
+                if latest_session.tzinfo is None:
+                    latest_session = latest_session.replace(tzinfo=timezone.utc)
+                age_h = (datetime.now(timezone.utc) - latest_session).total_seconds() / 3600
+                checks["last_ohlcv_session"] = latest_session.date().isoformat()
+                checks["ohlcv_age_hours"] = round(age_h, 1)
+                if age_h > settings.data_max_age_hours and bars and db_required:
+                    checks["database"] = (
+                        f"reachable but newest bar is {age_h/24:.1f}d old "
+                        f"(> {settings.data_max_age_hours}h) — is the daily update running?"
+                    )
+                    degraded = True
         except Exception as exc:  # noqa: BLE001
             checks["database"] = f"unavailable: {type(exc).__name__}"
             if db_required:
@@ -318,6 +334,29 @@ Set `AUTH_BYPASS=true` in `.env` for development.
         except Exception as exc:  # noqa: BLE001
             checks["market_source"] = f"error: {type(exc).__name__}"
             degraded = True
+
+        # Scheduler liveness — the last successful daily-update heartbeat, so an
+        # operator can see the 24/7 pipeline is running rather than infer it from
+        # the data age alone. Informational: absence never fails the check (a
+        # fresh deploy has no heartbeat yet), the data-age check above is what
+        # degrades on a genuinely stalled pipeline.
+        try:
+            from api.core.redis_client import get_heartbeat
+
+            hb = await get_heartbeat("refresh-ohlcv-eod")
+            if hb and hb.get("at"):
+                hb_at = datetime.fromisoformat(hb["at"])
+                if hb_at.tzinfo is None:
+                    hb_at = hb_at.replace(tzinfo=timezone.utc)
+                checks["daily_update"] = {
+                    "at": hb["at"],
+                    "status": hb.get("status", "ok"),
+                    "age_hours": round((datetime.now(timezone.utc) - hb_at).total_seconds() / 3600, 1),
+                }
+            else:
+                checks["daily_update"] = "no heartbeat yet — run scripts.daily_update or start the beat worker"
+        except Exception as exc:  # noqa: BLE001 — heartbeat read is best-effort
+            checks["daily_update"] = f"unavailable: {type(exc).__name__}"
 
         # Not named `status`: that shadows the imported fastapi.status module
         # and the next line then raises AttributeError on a str.

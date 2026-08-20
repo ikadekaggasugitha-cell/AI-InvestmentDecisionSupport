@@ -154,6 +154,30 @@ export function CandlestickChart({
         })),
       );
 
+      // EMA9 × EMA21 overlay — the same cross the backend reads for trend, drawn
+      // so the up/down structure is visible on the chart itself. EMA9 above EMA21
+      // and both rising is the uptrend footprint; the inverse is a downtrend.
+      const emaLine = (period: number, color: string, title: string) => {
+        const k = 2 / (period + 1);
+        const points: { time: never; value: number }[] = [];
+        let prev = 0;
+        ohlcv.forEach((c, i) => {
+          prev = i === 0 ? c.close : c.close * k + prev * (1 - k);
+          if (i >= period - 1) points.push({ time: c.time as never, value: prev });
+        });
+        const series = chart.addLineSeries({
+          color,
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+          title,
+        });
+        series.setData(points);
+      };
+      emaLine(9, theme.warning, "EMA9");
+      emaLine(21, theme.text, "EMA21");
+
       // Support / resistance as horizontal lines on the candle series.
       for (const level of supportResistance) {
         candleSeries.createPriceLine({

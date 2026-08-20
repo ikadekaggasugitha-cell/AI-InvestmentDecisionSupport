@@ -99,6 +99,17 @@ def refresh_signals(self) -> dict:
             "signal_worker: refreshed %d signals (version=%s)",
             len(response.signals), response.modelVersion,
         )
+
+        try:
+            from api.core.redis_client import record_run
+
+            asyncio.run(record_run(
+                "refresh-signals", status="ok",
+                detail={"n_signals": len(response.signals), "version": response.modelVersion},
+            ))
+        except Exception as exc:  # noqa: BLE001 — heartbeat must never fail the task
+            logger.debug("signal_worker: heartbeat write skipped — %s", exc)
+
         return {"status": "ok", "n_signals": len(response.signals), "version": response.modelVersion}
 
     except Exception as exc:

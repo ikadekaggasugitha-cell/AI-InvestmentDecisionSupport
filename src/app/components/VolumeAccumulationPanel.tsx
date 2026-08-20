@@ -122,7 +122,9 @@ export function VolumeAccumulationPanel({
         <div className="flex flex-col gap-2">
           <div style={SECTION_LABEL} className="flex items-center gap-1.5">
             <Waves size={12} style={{ color: "var(--muted-foreground)" }} aria-hidden="true" />
-            {isId ? "Akumulasi Volume" : "Volume Accumulation"}
+            {accumulation.foreignAvailable
+              ? isId ? "Akumulasi (Volume + Asing)" : "Accumulation (Volume + Foreign)"
+              : isId ? "Akumulasi Volume" : "Volume Accumulation"}
           </div>
 
           {(() => {
@@ -159,6 +161,55 @@ export function VolumeAccumulationPanel({
                       : `OBV up ${accumulation.consistencyDays} sessions running`}
                   </span>
                 )}
+
+                {/* Foreign flow — the "who" behind the accumulation, from real
+                    IDX foreign participation (the free bandarmology substitute). */}
+                {accumulation.foreignAvailable && (() => {
+                  const net5 = accumulation.netForeign5d ?? 0;
+                  const net20 = accumulation.netForeign20d ?? 0;
+                  const fdays = accumulation.foreignConsistencyDays ?? 0;
+                  const fphase = accumulation.foreignPhase ?? "neutral";
+                  const fcfg = PHASE_CFG[fphase] ?? PHASE_CFG.neutral;
+                  const lotColor = (v: number) =>
+                    v > 0 ? "var(--gain)" : v < 0 ? "var(--loss)" : "var(--muted-foreground)";
+                  const fmt = (v: number) => `${v > 0 ? "+" : ""}${v.toLocaleString("id-ID")}`;
+                  return (
+                    <div
+                      className="flex flex-col gap-1 rounded px-2 py-1.5"
+                      style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+                          {isId ? "Aliran Dana Asing" : "Foreign Flow"}
+                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: fcfg.color, fontFamily: "var(--font-mono)", letterSpacing: "0.04em" }}>
+                          {isId ? fcfg.id : fcfg.en}
+                        </span>
+                      </div>
+                      <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                        <div className="flex flex-col gap-0.5" title={isId ? "Net beli/jual asing 5 sesi" : "Foreign net over 5 sessions"}>
+                          <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{isId ? "Net 5 Hari" : "Net 5D"}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, fontFamily: "var(--font-mono)", color: lotColor(net5) }}>
+                            {fmt(net5)} {isId ? "lot" : "lots"}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-0.5" title={isId ? "Net beli/jual asing 20 sesi" : "Foreign net over 20 sessions"}>
+                          <span style={{ fontSize: 9, color: "var(--muted-foreground)" }}>{isId ? "Net 20 Hari" : "Net 20D"}</span>
+                          <span style={{ fontSize: 11, fontWeight: 600, fontFamily: "var(--font-mono)", color: lotColor(net20) }}>
+                            {fmt(net20)} {isId ? "lot" : "lots"}
+                          </span>
+                        </div>
+                      </div>
+                      {fdays >= 3 && (
+                        <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+                          {isId
+                            ? `Asing net ${net5 >= 0 ? "beli" : "jual"} ${fdays} hari beruntun`
+                            : `Foreign net ${net5 >= 0 ? "buying" : "selling"} ${fdays} sessions running`}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {(isId ? accumulation.signals : accumulation.signalsEn).length > 0 && (
                   <ul className="flex flex-col gap-1" style={{ listStyle: "none", padding: 0, margin: 0 }}>

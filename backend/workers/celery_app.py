@@ -101,11 +101,14 @@ celery_app.conf.update(
                 day_of_week="mon-fri",
             ),
         },
-        # Broker summary is an end-of-day publication. One fetch per symbol per
-        # session; polling intraday would re-read unchanged data ~78×/day and
-        # is the only reason a proxy pool was ever needed.
+        # "Smart money" accumulation, once per session after the close. IDX's
+        # per-broker feed is gated, so this is the FREE path: it warms the
+        # accumulation snapshot cache from OHLCV volume + IDX foreign flow (the
+        # `ohlcv.foreign_net` column the OHLCV refresh above just updated). Runs
+        # after refresh-ohlcv-eod so foreign flow is current. Swap the task for
+        # `refresh_broksum` only if a licensed per-broker feed is wired up.
         "refresh-broksum-eod": {
-            "task": "workers.broksum_worker.refresh_broksum",
+            "task": "workers.broksum_worker.refresh_accumulation",
             "schedule": crontab(
                 minute="30",
                 hour="16",       # 16:30 WIB — after the OHLCV refresh lands

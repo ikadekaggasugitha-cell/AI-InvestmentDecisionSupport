@@ -86,6 +86,38 @@ async def redis_set_json(key: str, value: Any, ttl: int | None = None) -> None:
         _warn_cache_unavailable("write", key, exc)
 
 
+async def record_run(task: str, status: str = "ok", detail: dict | None = None,
+                      ttl: int = 259_200) -> None:
+    """
+    Persist a "last successful run" heartbeat for a scheduled task.
+
+    This is what makes the scheduler observable: without it, "is the daily update
+    still running?" can only be answered by tailing worker logs. Each EOD/interval
+    task calls this on success, and /health surfaces the freshest markers so an
+    operator (or the DataFreshnessBadge) can see the pipeline is alive. TTL
+    defaults to 3 days so a stale marker disappears rather than lingering as a
+    false "healthy". A write failure is swallowed by redis_set_json — a heartbeat
+    must never fail the task it is reporting on.
+    """
+    from datetime import datetime, timezone
+
+    await redis_set_json(
+        REDIS_KEYS["heartbeat"].format(task=task),
+        {
+            "task": task,
+            "at": datetime.now(timezone.utc).isoformat(),
+            "status": status,
+            "detail": detail or {},
+        },
+        ttl=ttl,
+    )
+
+
+async def get_heartbeat(task: str) -> dict | None:
+    """Read a task's heartbeat, or None if it never ran / expired / Redis down."""
+    return await redis_get_json(REDIS_KEYS["heartbeat"].format(task=task))
+
+
 async def redis_hget_all(key: str) -> dict[str, str]:
     try:
         async with get_redis() as r:
@@ -129,4 +161,8 @@ REDIS_KEYS = {
     # workers.monitoring_worker.check_drift. No TTL — the last report stands
     # until the next run, so /health and the operator always see current state.
     "drift_latest":    "drift:latest",              # STRING  drift report dict
+    # Scheduler observability: per-task "last successful run" heartbeat, written
+    # by record_run() at the end of each scheduled task and by scripts/
+    # daily_update.py. Read by /health to report pipeline liveness. TTL ~3 days.
+    "heartbeat":       "heartbeat:{task}",           # STRING  {task, at, status, detail}
 }

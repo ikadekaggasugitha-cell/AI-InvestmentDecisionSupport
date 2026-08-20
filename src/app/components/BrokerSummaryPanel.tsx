@@ -14,7 +14,7 @@ import type { BrokerSummaryDay } from "../hooks/useBrokerSummary";
 export interface BrokerSummaryPanelProps {
   snapshot: BrokerSummarySnapshot | null;
   history?: readonly BrokerSummaryDay[];
-  source?: "live" | "mock" | "volume" | null;
+  source?: "live" | "mock" | "volume" | "volume+foreign" | "foreign" | null;
   locale?: "id" | "en";
   loading?: boolean;
 }
@@ -241,25 +241,30 @@ export function BrokerSummaryPanel({
         </div>
       )}
 
-      {/* Volume-derived accumulation. Honest about the source: this is computed
-          from real OHLCV+volume (OBV/CMF), not licensed per-broker flow. */}
-      {source === "volume" && (
+      {/* Free "smart money" accumulation. Honest about the source: computed from
+          real OHLCV+volume (OBV/CMF) and IDX foreign flow, not licensed
+          per-broker flow. */}
+      {(source === "volume" || source === "volume+foreign" || source === "foreign") && (
         <div
           className="flex items-center gap-2 rounded px-2 py-1"
           style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)" }}
         >
           <FlaskConical size={11} style={{ color: "var(--info, #3b82f6)", flexShrink: 0 }} />
           <span style={{ fontSize: 10, color: "var(--foreground)", lineHeight: 1.4 }}>
-            {isId
-              ? "Akumulasi dari analisis volume (OBV/CMF) data pasar nyata — bukan data flow broker berlisensi."
-              : "Accumulation from real volume analysis (OBV/CMF) — not licensed broker flow."}
+            {source === "volume"
+              ? isId
+                ? "Akumulasi dari analisis volume (OBV/CMF) data pasar nyata — bukan data flow broker berlisensi."
+                : "Accumulation from real volume analysis (OBV/CMF) — not licensed broker flow."
+              : isId
+              ? "Akumulasi dari aliran dana asing IDX (net asing) + analisis volume — data pasar nyata, bukan flow broker berlisensi."
+              : "Accumulation from IDX foreign flow (net foreign) + volume analysis — real market data, not licensed broker flow."}
           </span>
         </div>
       )}
 
       {snapshot.method === "volume" ? (
         <>
-          {/* Volume-flow indicators (no per-broker split without a licensed feed) */}
+          {/* Volume-flow indicators (no foreign flow available for this symbol) */}
           <VolumeMetrics snapshot={snapshot} isId={isId} />
           {(isId ? snapshot.signals : snapshot.signalsEn ?? snapshot.signals)?.length ? (
             <ul className="flex flex-col gap-1" style={{ listStyle: "none", padding: 0, margin: 0 }}>
@@ -276,31 +281,43 @@ export function BrokerSummaryPanel({
         </>
       ) : (
         <>
-          {/* Rolling net lots */}
-          <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
-            <div>
-              <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
-                {isId ? "Net Lot 5 Hari" : "Net Lot 5D"}
+          {/* Rolling net lots. For the free foreign-flow read the dominant party
+              is "ASING" (foreign), so label these as net foreign lots. */}
+          {(() => {
+            const isForeign = snapshot.method === "volume+foreign";
+            const lot5Label = isForeign
+              ? isId ? "Net Asing 5 Hari" : "Foreign Net 5D"
+              : isId ? "Net Lot 5 Hari" : "Net Lot 5D";
+            const lot20Label = isForeign
+              ? isId ? "Net Asing 20 Hari" : "Foreign Net 20D"
+              : isId ? "Net Lot 20 Hari" : "Net Lot 20D";
+            return (
+              <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                <div>
+                  <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{lot5Label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-mono)", color: snapshot.netLot5d >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                    {formatLots(snapshot.netLot5d)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{lot20Label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-mono)", color: snapshot.netLot20d >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                    {formatLots(snapshot.netLot20d)}
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-mono)", color: snapshot.netLot5d >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                {formatLots(snapshot.netLot5d)}
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
-                {isId ? "Net Lot 20 Hari" : "Net Lot 20D"}
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-mono)", color: snapshot.netLot20d >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                {formatLots(snapshot.netLot20d)}
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
-          {/* Top buyers / sellers */}
+          {/* Dominant party — "ASING" (foreign) when derived from foreign flow. */}
           <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
             <BrokerList title={isId ? "Pembeli Dominan" : "Top Buyers"} brokers={snapshot.topBuyers} color="var(--gain)" />
             <BrokerList title={isId ? "Penjual Dominan" : "Top Sellers"} brokers={snapshot.topSellers} color="var(--loss)" />
           </div>
+
+          {/* Volume-flow indicators still shown alongside the foreign read, so the
+              "how hard" dimension is visible next to the "who". */}
+          {snapshot.method === "volume+foreign" && <VolumeMetrics snapshot={snapshot} isId={isId} />}
         </>
       )}
 

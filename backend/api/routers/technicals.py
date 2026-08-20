@@ -3,11 +3,13 @@ from fastapi import APIRouter, Path, Query
 from api.core.auth import CurrentUser
 from api.models.technicals import (
     AccumulationBatchResponse,
+    AccumulationHistoryResponse,
     OHLCVResponse,
     TechnicalAnalysisResponse,
 )
 from api.services.technicals_service import (
     get_accumulation_batch,
+    get_accumulation_history,
     get_ohlcv_history,
     get_technical_analysis,
 )
@@ -57,6 +59,27 @@ async def technical_analysis_endpoint(
     OJK compliance: technical levels are descriptive, not buy/sell instructions.
     """
     return await get_technical_analysis(symbol)
+
+
+@router.get(
+    "/{symbol}/accumulation-history",
+    response_model=AccumulationHistoryResponse,
+    summary="Daily foreign-flow accumulation history (pullable)",
+)
+async def accumulation_history_endpoint(
+    _user: CurrentUser,
+    symbol: str = Path(..., min_length=2, max_length=8),
+    days: int = Query(30, ge=5, le=180, description="Sessions to return"),
+) -> AccumulationHistoryResponse:
+    """
+    Per-session net foreign flow (lots), running cumulative, and a rolling
+    accumulation phase — the free "bandarmology" history built from IDX foreign
+    participation. `available=false` when the symbol carries no foreign flow.
+
+    OJK compliance: foreign flow is descriptive market data, not a buy/sell
+    instruction.
+    """
+    return await get_accumulation_history(symbol, days=days)
 
 
 @router.get(

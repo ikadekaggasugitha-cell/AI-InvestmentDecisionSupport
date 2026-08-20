@@ -1,11 +1,10 @@
 import { memo } from "react";
 import { ViewSkeleton } from "./ViewSkeleton";
-import { ViewError } from "./ViewError";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from "recharts";
-import { Shield, Activity, TrendingDown, BarChart2, DollarSign } from "lucide-react";
+import { Shield, Activity, TrendingDown, BarChart2, DollarSign, AlertTriangle } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "../i18n/translations";
 import { useRiskMetrics, type RiskMetrics, type StressTest, type SectorExposureItem } from "../hooks/useRiskMetrics";
@@ -181,14 +180,14 @@ export function RiskView({ market }: Props) {
   const { t } = useTranslation(locale);
   const isId = locale === "id";
 
-  const { risk: rd, stressTests, sectorExposure, loading, error } = useRiskMetrics();
+  const { risk: rd, stressTests, sectorExposure, loading, error, isLive } = useRiskMetrics();
 
   if (loading) {
     return <ViewSkeleton rows={4} label={isId ? "Memuat data risiko…" : "Loading risk data…"} />;
   }
-  if (error) {
-    return <ViewError message={error} locale={locale} />;
-  }
+  // A fetch error no longer blanks the page: the hook keeps the seed metrics in
+  // state, so the view stays usable behind an offline badge and re-polls until
+  // the backend recovers.
 
   const stressData = stressTests.map((s) => ({
     scenario: isId ? s.scenario : s.scenarioEn,
@@ -210,6 +209,26 @@ export function RiskView({ market }: Props) {
 
   return (
     <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+
+      {/* Offline / simulated-data banner — shown only when the live fetch failed.
+          The metrics below are the bundled seed; the hook re-polls and clears
+          this once the backend is reachable. */}
+      {error && !isLive && (
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded"
+          style={{ background: "var(--loss-bg)", border: "1px solid var(--loss)" }}
+        >
+          <AlertTriangle size={14} style={{ color: "var(--loss)", flexShrink: 0 }} />
+          <div style={{ fontSize: 11, color: "var(--foreground)", flex: 1 }}>
+            <span style={{ fontWeight: 600, color: "var(--loss)" }}>
+              {isId ? "Mode simulasi:" : "Simulated mode:"}
+            </span>{" "}
+            {isId
+              ? "Backend tidak terjangkau — menampilkan data simulasi. Sistem mencoba menyambung kembali otomatis."
+              : "Backend unreachable — showing simulated data. The system is retrying automatically."}
+          </div>
+        </div>
+      )}
 
       {/* KPI row */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">

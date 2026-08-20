@@ -93,7 +93,7 @@ def _build_technical_note(
     plan: TradePlan | None,
     patterns: list[dict[str, Any]],
     gaps: list[dict[str, Any]],
-    broksum: dict[str, Any] | None,
+    accumulation: dict[str, Any] | None,
 ) -> tuple[str, str]:
     """
     Compose a technical commentary string from whatever data is present.
@@ -140,23 +140,32 @@ def _build_technical_note(
             f"(historical fill probability {prob_pct}%)"
         )
 
-    if broksum and broksum.get("phase") in ("accumulation", "distribution"):
-        buyers = broksum.get("topBuyers") or []
-        days = broksum.get("consistencyDays", 0)
-        phase_id = broksum.get("phaseId", "")
-        if buyers:
-            top = buyers[0]
+    if accumulation and accumulation.get("phase") in ("accumulation", "distribution"):
+        phase = accumulation["phase"]
+        phase_id = accumulation.get("phaseId", "")
+        # Foreign flow is the "who" — quote it when available, since a named net
+        # foreign figure is far more concrete than a generic accumulation label.
+        if accumulation.get("foreignAvailable") and accumulation.get("foreignPhase") in (
+            "accumulation", "distribution",
+        ):
+            net5 = int(accumulation.get("netForeign5d", 0))
+            days = int(accumulation.get("foreignConsistencyDays", 0))
+            arah_en = "buy" if net5 > 0 else "sell"
+            clause_id = f"{phase_id}: asing net {net5:+,} lot dalam 5 hari".replace(",", ".")
+            clause_en = f"{phase.capitalize()}: foreign net {arah_en} {net5:+,} lots over 5 sessions"
+            if days >= 3:
+                clause_id += f" ({days} hari beruntun)"
+                clause_en += f" ({days} sessions running)"
+            id_parts.append(clause_id)
+            en_parts.append(clause_en)
+        else:
+            days = int(accumulation.get("consistencyDays", 0))
             id_parts.append(
-                f"{phase_id}: broker {top['broker']} net "
-                f"{top['netLot5d']:+,} lot dalam 5 hari".replace(",", ".")
+                f"{phase_id} volume" + (f" konsisten {days} hari" if days else "")
             )
             en_parts.append(
-                f"{broksum['phase'].capitalize()}: broker {top['broker']} net "
-                f"{top['netLot5d']:+,} lots over 5 days"
+                f"Volume {phase}" + (f" consistent for {days} sessions" if days else "")
             )
-        elif days:
-            id_parts.append(f"{phase_id} konsisten {days} hari")
-            en_parts.append(f"{broksum['phase'].capitalize()} consistent for {days} days")
 
     if not id_parts:
         return "", ""

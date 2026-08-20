@@ -14,6 +14,19 @@ CommaList = Annotated[list[str], NoDecode]
 
 DEV_JWT_SECRET = "dev-secret-change-in-production"
 
+# OpenAI-compatible base URLs per advisor LLM provider. Kept at module scope
+# rather than as a class attribute so pydantic-settings does not mistake it for a
+# settings field.
+_LLM_BASE_URLS = {
+    "groq": "https://api.groq.com/openai/v1",
+    "openrouter": "https://openrouter.ai/api/v1",
+    "ollama": "http://localhost:11434/v1",
+    "openai": "https://api.openai.com/v1",
+    # Anthropic ships an OpenAI-compatible layer, so the legacy Claude path runs
+    # through the same client. Set LLM_MODEL to a Claude id (e.g. claude-sonnet-4-6).
+    "anthropic": "https://api.anthropic.com/v1/",
+}
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -24,7 +37,15 @@ class Settings(BaseSettings):
     app_port: int = 8000
     # Accepts either a comma-separated string or a JSON array — see the
     # validator below for why the plain form had to be supported.
-    cors_origins: CommaList = ["http://localhost:5173", "http://localhost:3000"]
+    # Vite picks the next free port (5174, 5175…) when 5173 is taken, so allow a
+    # small range by default; otherwise a second dev server is silently blocked
+    # by CORS while the network tab shows only an opaque failure.
+    cors_origins: CommaList = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:3000",
+    ]
 
     # Auth
     jwt_secret_key: str = DEV_JWT_SECRET
@@ -101,6 +122,12 @@ class Settings(BaseSettings):
     # is reported stale in /health and logs a warning at load, so retraining is
     # visible rather than silently overdue. See ml/monitoring/drift_detector.py.
     model_max_age_days: int = 45
+    # How old the newest `ohlcv` session may be before /health reports the data
+    # pipeline as `degraded`. 96h (4 days) clears a normal Fri→Mon weekend plus
+    # one public holiday without a false alarm, while a genuinely stalled daily
+    # update (several missed sessions) still trips it. Confirms the scheduler is
+    # actually running 24/7 rather than assumed to be.
+    data_max_age_hours: int = 96
     use_mock_risk: bool = False       # REAL GARCH / CVaR on live returns
     use_mock_market: bool = False     # REAL IDX prices (delayed — see idx_feed_vendor)
     # REAL Black-Litterman + HRP over TimescaleDB price history + live signal
@@ -208,7 +235,34 @@ class Settings(BaseSettings):
     # USD/IDR ticker on the quote provider.
     usdidr_symbol: str = "IDR=X"
 
-    # Claude API — Phase 7
+    # LLM provider for the AI Advisor chat — Phase 7 (pluggable)
+    #
+    # The advisor speaks an OpenAI-compatible chat/completions API so the same
+    # code path works across free and paid providers. Pick one with LLM_PROVIDER
+    # and supply the matching key; the base URL is derived per provider unless
+    # LLM_BASE_URL overrides it.
+    #
+    #   groq       — free, fast, Llama 3.3 70B (default). Key: GROQ_API_KEY,
+    #                get one free at https://console.groq.com/keys
+    #   openrouter — free `:free` models + many paid. Key: OPENROUTER_API_KEY
+    #   ollama     — 100% local, no key. Run `ollama serve` + `ollama pull <model>`
+    #   openai     — OpenAI proper. Key: OPENAI_API_KEY
+    #   anthropic  — legacy Claude path (uses ANTHROPIC_API_KEY below)
+    llm_provider: str = "groq"
+    # Generic key override; if empty, the provider-specific key below is used.
+    llm_api_key: str = ""
+    groq_api_key: str = ""
+    openrouter_api_key: str = ""
+    openai_api_key: str = ""
+    # Empty → derived from the provider (see llm_resolved_base_url).
+    llm_base_url: str = ""
+    # A powerful, tool-capable default that exists on Groq's free tier. Override
+    # with LLM_MODEL for any other provider (e.g. "llama3.1" for ollama,
+    # "deepseek/deepseek-chat-v3:free" for openrouter, "gpt-4o-mini" for openai).
+    llm_model: str = "openai/gpt-oss-120b"
+    llm_max_tokens: int = 2048
+
+    # Legacy Claude API — used only when llm_provider="anthropic"
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-4-6"
     claude_max_tokens: int = 2048
@@ -311,6 +365,38 @@ class Settings(BaseSettings):
     @property
     def has_claude(self) -> bool:
         return bool(self.anthropic_api_key)
+
+    # ── LLM provider resolution (OpenAI-compatible advisor) ─────────────────────
+
+    @property
+    def llm_resolved_base_url(self) -> str:
+        if self.llm_base_url:
+            return self.llm_base_url
+        return _LLM_BASE_URLS.get(self.llm_provider, _LLM_BASE_URLS["groq"])
+
+    @property
+    def llm_resolved_key(self) -> str:
+        """The API key for the active provider. Ollama needs none, so a
+        placeholder is returned to satisfy the SDK's non-empty requirement."""
+        if self.llm_api_key:
+            return self.llm_api_key
+        per_provider = {
+            "groq": self.groq_api_key,
+            "openrouter": self.openrouter_api_key,
+            "openai": self.openai_api_key,
+            "anthropic": self.anthropic_api_key,
+        }.get(self.llm_provider, "")
+        if self.llm_provider == "ollama":
+            return per_provider or "ollama"  # local server ignores the key
+        return per_provider
+
+    @property
+    def has_llm(self) -> bool:
+        """True when the advisor chat can run — a local provider always can, a
+        cloud provider needs its key."""
+        if self.llm_provider == "ollama":
+            return True
+        return bool(self.llm_resolved_key)
 
 
 @lru_cache

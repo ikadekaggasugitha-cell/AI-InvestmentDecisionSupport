@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageSquare, Send, Square, RotateCcw, AlertTriangle } from "lucide-react";
 import { useAdvisorChat } from "../hooks/useAdvisorChat";
+import { AdvisorMessage } from "./advisor/AdvisorMessage";
 
 /**
  * Q&A panel over the portfolio.
@@ -86,7 +87,7 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
       <div
         ref={scrollRef}
         className="flex flex-col gap-3 px-5 py-4"
-        style={{ maxHeight: 300, overflowY: "auto", minHeight: 120 }}
+        style={{ maxHeight: 520, overflowY: "auto", minHeight: 120 }}
       >
         {!hasConversation && !error && (
           <div className="flex flex-col gap-2">
@@ -137,16 +138,20 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
             >
               {m.role === "user" ? (isId ? "Anda" : "You") : "AIDSS"}
             </div>
-            <div
-              style={{
-                fontSize: 12.5,
-                color: "var(--foreground)",
-                lineHeight: 1.6,
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {m.content}
-            </div>
+            {m.role === "assistant" ? (
+              <AdvisorMessage content={m.content} />
+            ) : (
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: "var(--foreground)",
+                  lineHeight: 1.6,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {m.content}
+              </div>
+            )}
           </div>
         ))}
 
@@ -161,9 +166,13 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
             >
               AIDSS
             </div>
-            <div style={{ fontSize: 12.5, color: "var(--foreground)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-              {streaming || (isId ? "Menyusun jawaban…" : "Thinking…")}
-            </div>
+            {streaming ? (
+              <AdvisorMessage content={streaming} />
+            ) : (
+              <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
+                {isId ? "Menyusun jawaban…" : "Thinking…"}
+              </div>
+            )}
           </div>
         )}
 

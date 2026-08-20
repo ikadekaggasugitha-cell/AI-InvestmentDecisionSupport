@@ -19,6 +19,16 @@
 # reach each other over the compose network regardless of these:
 #
 #   AIDSS_DB_PORT=55432 AIDSS_REDIS_PORT=56379 docker compose up -d
+#
+# The `api` service defaults to host port 8000; on a machine already running
+# something there (e.g. a local PHP server) set AIDSS_API_PORT=8010:
+#
+#   AIDSS_API_PORT=8010 docker compose up -d
+#
+# 24/7 daily update: bring up `worker` + `beat` (both restart: unless-stopped).
+# They run the Celery schedule in workers/celery_app.py — this is the CANONICAL
+# scheduler. The launchd/cron path in deploy/com.aidss.daily-update.plist is an
+# ALTERNATIVE for hosts without Docker; enable ONE, not both.
 
 x-app-env: &app-env
   # Container-network addresses. These override anything in .env.
@@ -129,6 +139,14 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      # Beat dispatches the EOD tasks (refresh-ohlcv-eod → refresh-broksum-eod)
+      # that read/write `ohlcv`, so wait for the DB and its schema too — not just
+      # redis. Otherwise beat can fire the first daily update before the table
+      # exists and the worker's run fails until the next session.
+      timescaledb:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
 
   # ── Celery Flower monitoring ───────────────────────────────────────────────
   flower:

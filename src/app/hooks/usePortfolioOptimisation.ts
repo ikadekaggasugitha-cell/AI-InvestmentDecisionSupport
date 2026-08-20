@@ -47,6 +47,10 @@ const EMPTY: PortfolioOptimisationResult = {
   error: null,
 };
 
+/** How often the live allocation is re-polled, in ms. Heavier than the other
+ * endpoints (Black-Litterman + HRP), so polled less aggressively. */
+const REFRESH_MS = 120_000;
+
 export function usePortfolioOptimisation(uid = "default"): PortfolioOptimisationResult {
   const [state, setState] = useState<PortfolioOptimisationResult>(EMPTY);
 
@@ -57,11 +61,13 @@ export function usePortfolioOptimisation(uid = "default"): PortfolioOptimisation
     }
 
     let cancelled = false;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-    async function load() {
-      setState((s) => ({ ...s, loading: true, error: null }));
+    async function load(isFirst: boolean) {
+      // Only the first load shows the spinner; a background refresh keeps the
+      // current allocation on screen rather than flashing an empty panel.
+      if (isFirst) setState((s) => ({ ...s, loading: true, error: null }));
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       try {
         const res = await apiFetch(ENDPOINTS.portfolio(uid), { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -83,20 +89,23 @@ export function usePortfolioOptimisation(uid = "default"): PortfolioOptimisation
       } catch (err) {
         if (cancelled) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
-        setState({
-          ...EMPTY,
-          error: err instanceof Error ? err.message : "Unknown error",
-        });
+        // Keep the last good allocation if we have one; only fall to the empty
+        // error state when nothing has loaded yet. The next poll recovers.
+        setState((prev) =>
+          prev.weights.length
+            ? { ...prev, loading: false, error: err instanceof Error ? err.message : "Unknown error" }
+            : { ...EMPTY, error: err instanceof Error ? err.message : "Unknown error" },
+        );
       } finally {
         clearTimeout(timeout);
       }
     }
 
-    load();
+    load(true);
+    const interval = setInterval(() => load(false), REFRESH_MS);
     return () => {
       cancelled = true;
-      controller.abort();
-      clearTimeout(timeout);
+      clearInterval(interval);
     };
   }, [uid]);
 

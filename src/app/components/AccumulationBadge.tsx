@@ -36,13 +36,16 @@ export function AccumulationBadge({ data, locale = "id", loading = false }: Accu
   const Icon = cfg.icon;
   const label = isId ? cfg.id : cfg.en;
 
+  const foreign = data.method === "volume+foreign";
   const tip = isId
     ? `${data.phaseId} — skor ${data.score > 0 ? "+" : ""}${data.score.toFixed(1)}, ` +
       `kekuatan ${data.strength}/100` +
-      (data.consistencyDays > 0 ? `, OBV naik ${data.consistencyDays} hari` : "")
+      (data.consistencyDays > 0 ? `, OBV naik ${data.consistencyDays} hari` : "") +
+      (foreign ? ` · termasuk aliran dana asing (${data.foreignPhase})` : " · basis volume")
     : `${data.phaseId} — score ${data.score > 0 ? "+" : ""}${data.score.toFixed(1)}, ` +
       `strength ${data.strength}/100` +
-      (data.consistencyDays > 0 ? `, OBV up ${data.consistencyDays}d` : "");
+      (data.consistencyDays > 0 ? `, OBV up ${data.consistencyDays}d` : "") +
+      (foreign ? ` · incl. foreign flow (${data.foreignPhase})` : " · volume-based");
 
   if (data.phase === "neutral") {
     // Keep neutral rows quiet — a muted dash with the score in the tooltip.

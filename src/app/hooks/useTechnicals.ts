@@ -35,7 +35,11 @@ export type VolumeInfo = {
   noteEn: string;
 };
 
-/** Volume-flow accumulation/distribution read (OBV/ADL/CMF/MFI). */
+/**
+ * Combined "smart money" accumulation read: volume-flow (OBV/ADL/CMF/MFI) for
+ * how hard buying pressure is, plus IDX foreign flow for who — the free, real
+ * substitute for gated per-broker bandarmology.
+ */
 export type AccumulationInfo = {
   phase: "accumulation" | "distribution" | "neutral";
   phaseId: string;
@@ -47,6 +51,25 @@ export type AccumulationInfo = {
   consistencyDays: number;
   signals: string[];
   signalsEn: string[];
+  /** "volume+foreign" when foreign flow contributed, else "volume". */
+  method?: "volume" | "volume+foreign";
+  foreignAvailable?: boolean;
+  foreignPhase?: "accumulation" | "distribution" | "neutral";
+  foreignScore?: number;
+  /** Net foreign flow in lots (5 / 20 sessions). */
+  netForeign5d?: number;
+  netForeign20d?: number;
+  foreignConsistencyDays?: number;
+};
+
+/** One session in the pullable foreign-flow accumulation history. */
+export type AccumulationHistoryPoint = {
+  date: string;
+  netForeign: number;
+  cumulativeNet: number;
+  score: number;
+  phase: "accumulation" | "distribution" | "neutral";
+  close: number;
 };
 
 /** When to enter and why. */

@@ -8,6 +8,8 @@ Tests for Advisor Service — Phases 9A · 9B · 9C · 9D
 """
 
 import json
+from types import SimpleNamespace
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -173,67 +175,98 @@ class TestToolExecution:
         assert "error" in result
 
 
-# ── Phase 9C: Prompt caching tests ───────────────────────────────────────────
+# ── LLM request assembly (OpenAI-compatible provider) ────────────────────────
 
-class TestPromptCaching:
-    @pytest.mark.asyncio
-    async def test_system_payload_has_cache_control_on_first_block(self):
-        """
-        The static system prompt block must carry cache_control: ephemeral.
-        Verify the structure assembled before the API call.
-        """
-        mock_redis = AsyncMock()
-        mock_redis.get = AsyncMock(return_value=None)
-        mock_redis.zrange = AsyncMock(return_value=[])
-
-        # Capture what gets passed to Claude
-        captured_system = []
-
-        async def _fake_stream(*args, **kwargs):
-            captured_system.extend(kwargs.get("system", []))
-            raise StopAsyncIteration()  # bail early
-
-        with (
-            patch("api.services.advisor_service.get_redis", return_value=mock_redis),
-            patch("anthropic.AsyncAnthropic") as mock_anthropic,
-        ):
-            mock_client = MagicMock()
-            mock_anthropic.return_value = mock_client
-            mock_stream = AsyncMock()
-            mock_stream.__aenter__ = AsyncMock(return_value=mock_stream)
-            mock_stream.__aexit__ = AsyncMock(return_value=False)
-            mock_stream.text_stream = _make_async_iter([])
-            mock_msg = MagicMock()
-            mock_msg.stop_reason = "end_turn"
-            mock_msg.content = []
-            mock_stream.get_final_message = AsyncMock(return_value=mock_msg)
-            mock_client.messages.stream.return_value = mock_stream
-
-            import os
-            os.environ["ANTHROPIC_API_KEY"] = "test-key-not-real"
-
-            from api.models.advisor import ChatRequest
-            from api.services.advisor_service import stream_advisor_response
-            req = ChatRequest(message="Test", uid="default", locale="id")
-
-            # Consume the generator
-            async for _ in stream_advisor_response(req):
-                pass
-
-            # Verify system payload structure
-            call_kwargs = mock_client.messages.stream.call_args
-            if call_kwargs:
-                system_arg = call_kwargs.kwargs.get("system") or call_kwargs.args[0] if call_kwargs.args else []
-                if isinstance(system_arg, list) and system_arg:
-                    first_block = system_arg[0]
-                    assert first_block.get("cache_control") == {"type": "ephemeral"}, (
-                        "First system block must have cache_control: ephemeral"
-                    )
+def _chunk(content=None, tool_calls=None, finish_reason=None):
+    """Build a fake OpenAI streaming chunk (choices[0].delta shape)."""
+    delta = MagicMock()
+    delta.content = content
+    delta.tool_calls = tool_calls
+    choice = MagicMock()
+    choice.delta = delta
+    choice.finish_reason = finish_reason
+    chunk = MagicMock()
+    chunk.choices = [choice]
+    return chunk
 
 
 async def _make_async_iter(items):
     for item in items:
         yield item
+
+
+class TestLLMRequest:
+    @pytest.mark.asyncio
+    async def test_missing_key_yields_error_chunk(self):
+        """With no provider key configured, the first chunk is a typed error and
+        no API call is attempted.
+
+        `get_settings` is stubbed rather than relying on a clean environment,
+        because a developer's real backend/.env (loaded by pydantic-settings)
+        may carry a key that no amount of os.environ popping removes.
+        """
+        stub = SimpleNamespace(has_llm=False, llm_provider="groq")
+
+        with patch("api.services.advisor_service.get_settings", return_value=stub):
+            from api.models.advisor import ChatRequest
+            from api.services.advisor_service import stream_advisor_response
+            req = ChatRequest(message="Test", uid="default", locale="id")
+            chunks = [c async for c in stream_advisor_response(req)]
+
+        assert chunks, "expected at least one chunk"
+        assert chunks[0].type == "error"
+        assert "GROQ_API_KEY" in chunks[0].content
+
+    @pytest.mark.asyncio
+    async def test_system_message_and_tools_passed_openai_format(self):
+        """The request sends a system message (persona + live context) first and
+        tools in OpenAI function format."""
+        import os
+        from api.core.config import get_settings
+
+        mock_redis = AsyncMock()
+        mock_redis.get = AsyncMock(return_value=None)
+        mock_redis.zrange = AsyncMock(return_value=[])
+
+        os.environ["LLM_PROVIDER"] = "groq"
+        os.environ["GROQ_API_KEY"] = "test-key-not-real"
+        get_settings.cache_clear()
+
+        # A single text turn that completes immediately.
+        stream_chunks = _make_async_iter([
+            _chunk(content="Halo, ini analisis AI."),
+            _chunk(finish_reason="stop"),
+        ])
+
+        with (
+            patch("api.services.advisor_service.get_redis", return_value=mock_redis),
+            patch("api.services.advisor_service.AsyncOpenAI") as mock_openai,
+        ):
+            mock_client = MagicMock()
+            mock_openai.return_value = mock_client
+            mock_client.chat.completions.create = AsyncMock(return_value=stream_chunks)
+
+            from api.models.advisor import ChatRequest
+            from api.services.advisor_service import stream_advisor_response
+            req = ChatRequest(message="Bagaimana portofolio saya?", uid="default", locale="id")
+
+            out = [c async for c in stream_advisor_response(req)]
+
+        get_settings.cache_clear()
+
+        # The persona text streamed through as a delta and closed with done.
+        assert any(c.type == "delta" and "analisis" in c.content for c in out)
+        assert out[-1].type == "done"
+
+        # Inspect what was sent to the provider.
+        kwargs = mock_client.chat.completions.create.call_args.kwargs
+        messages = kwargs["messages"]
+        assert messages[0]["role"] == "system"
+        assert "AIDSS" in messages[0]["content"]
+        assert messages[-1] == {"role": "user", "content": "Bagaimana portofolio saya?"}
+        # Tools are OpenAI function-shaped.
+        assert kwargs["tools"][0]["type"] == "function"
+        assert kwargs["tools"][0]["function"]["name"] == "get_stock_price"
 
 
 # ── Phase 9D: Session persistence tests ──────────────────────────────────────

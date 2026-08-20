@@ -1,12 +1,15 @@
 """
-Advisor Service — Phases 9A · 9B · 9C · 9D
+Advisor Service — Phases 9A · 9B · 9D
+
+Provider-agnostic: the advisor speaks an OpenAI-compatible chat/completions API,
+so the active LLM (Groq / OpenRouter / Ollama / OpenAI / Anthropic-compat — set
+via LLM_PROVIDER) is transparent to the rest of the app. Groq's free tier is the
+default.
 
 9A  Live Redis context  — replaces static seed files with async Redis reads;
                           seed JSON used as fallback when Redis is unavailable.
-9B  Claude tool use     — 5 internal tools executed server-side; client only
+9B  Tool use            — 5 internal tools executed server-side; client only
                           receives streaming text deltas.
-9C  Prompt caching      — system prompt marked with cache_control so Anthropic
-                          caches the static prefix across requests (~60% token saving).
 9D  Session persistence — conversation history persisted in Redis per session_id;
                           survives page refresh within a 1-hour TTL.
 """
@@ -17,7 +20,7 @@ import logging
 from pathlib import Path
 from typing import AsyncIterator
 
-import anthropic
+from openai import APIError, AsyncOpenAI
 
 from api.core.config import get_settings
 from api.core.redis_client import get_redis, REDIS_KEYS
@@ -76,6 +79,58 @@ OJK constraints:
 - Outputs are probability scores (0–100), not buy/sell instructions.
 - Always remind users that investment decisions are solely their responsibility.
 - Never guarantee returns or promise profit."""
+
+# ── Visual widget protocol ────────────────────────────────────────────────────
+#
+# The frontend renders interactive charts/gauges from fenced ```aidss:widget
+# blocks the model emits inline. Text outside the blocks renders as Markdown.
+# This spec is provider-neutral and appended to both system prompts. The model
+# is told to reuse the numbers already in its context (never to invent them),
+# so a widget always reflects the same data the dashboard shows.
+_WIDGET_SPEC = """\
+
+## Visual output (IMPORTANT)
+Besides Markdown text, you can render interactive visuals by emitting fenced
+blocks tagged `aidss:widget` containing a single JSON object. Put each block on
+its own lines with a short sentence of context around it. Use ONLY numbers that
+appear in your context or tool results — never invent values. Emit at most 3–4
+widgets per answer, only when they add clarity. Also use normal Markdown
+(headings, **bold**, tables, lists) for the rest.
+
+Supported widgets (JSON schema by `type`):
+
+1) Key-metric tiles:
+```aidss:widget
+{"type":"metric_tiles","title":"Risiko Portofolio","items":[{"label":"VaR 95%","value":"-Rp 384,7 jt","tone":"loss"},{"label":"Beta","value":"0,94","tone":"neutral"},{"label":"Sharpe","value":"1,71","tone":"gain"}]}
+```
+`tone` ∈ gain | loss | neutral | warning. `value` is a display string.
+
+2) Probability gauge for one stock:
+```aidss:widget
+{"type":"signal_gauge","symbol":"BBCA","name":"Bank Central Asia","uprob":82,"tier":"HIGH","target":11500,"upside":16.8}
+```
+`tier` ∈ VERY_HIGH | HIGH | NEUTRAL | LOW. `uprob` and `upside` are numbers.
+
+3) SHAP factor contributions (horizontal bars):
+```aidss:widget
+{"type":"shap","symbol":"BBCA","factors":[{"label":"Fundamental","value":24},{"label":"Teknikal","value":14},{"label":"Sentimen","value":12},{"label":"Risiko","value":-4}]}
+```
+`value` is a signed number (positive = pushes probability up).
+
+4) Risk radar (0–100 per dimension):
+```aidss:widget
+{"type":"risk_radar","items":[{"label":"Pasar","value":58},{"label":"Konsentrasi","value":52},{"label":"Likuiditas","value":22},{"label":"Mata Uang","value":31},{"label":"Kredit","value":12},{"label":"Keseluruhan","value":44}]}
+```
+
+5) Portfolio allocation (donut, weight % per holding):
+```aidss:widget
+{"type":"allocation","title":"Alokasi","items":[{"label":"BBCA","value":22.4},{"label":"BBRI","value":18.1},{"label":"TLKM","value":15.0}]}
+```
+
+Rules: emit strictly valid JSON (double quotes, no trailing commas, no comments).
+Numbers must be raw (no thousands separators) except display strings in
+`metric_tiles.value`. If you lack the data for a widget, omit it rather than
+guessing."""
 
 # ── Tool definitions (Phase 9B) ───────────────────────────────────────────────
 
@@ -140,6 +195,28 @@ _TOOLS: list[dict] = [
         },
     },
     {
+        "name": "get_technical_analysis",
+        "description": (
+            "Get chart / technical analysis for one stock: EMA trend (up/down/sideways) "
+            "with strength, support & resistance levels, unfilled price gaps with historical "
+            "fill probability, volume intensity (heavy/thin, spike), smart-money accumulation "
+            "(blended volume flow + IDX foreign flow — the free substitute for per-broker "
+            "bandarmology), and an entry / stop-loss plan with the reasoning behind it. "
+            "Call this for any question about charts, entry timing, stop loss, gaps, volume, "
+            "or whether a stock is being accumulated. Levels are descriptive, not buy/sell orders."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "IDX stock symbol (e.g. BBCA, BBRI, TLKM)",
+                }
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
         "name": "get_recent_news",
         "description": (
             "Get the most recent IDX/BEI news headlines and disclosures, "
@@ -156,6 +233,22 @@ _TOOLS: list[dict] = [
             "required": [],
         },
     },
+]
+
+
+# OpenAI-compatible tool schema (Groq / OpenRouter / Ollama / OpenAI all use
+# this shape). Derived from the single _TOOLS definition above so the two never
+# drift.
+_OPENAI_TOOLS: list[dict] = [
+    {
+        "type": "function",
+        "function": {
+            "name": t["name"],
+            "description": t["description"],
+            "parameters": t["input_schema"],
+        },
+    }
+    for t in _TOOLS
 ]
 
 
@@ -420,6 +513,44 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
         except Exception:
             return {"error": "Risk data unavailable"}
 
+    if name == "get_technical_analysis":
+        symbol = inputs.get("symbol", "").upper()
+        if symbol not in _valid_symbols():
+            return {"error": f"Symbol {symbol!r} not in IDX universe"}
+        try:
+            from api.services.technicals_service import get_technical_analysis
+
+            resp = await get_technical_analysis(symbol)
+            d = resp.model_dump()
+            acc = d.get("accumulation", {})
+            gaps = [g for g in d.get("gaps", []) if not g.get("isFilled")][:2]
+            return {
+                "symbol": symbol,
+                "trend": d.get("trend", {}),
+                "volume": {
+                    "level": d.get("volume", {}).get("level"),
+                    "ratio": d.get("volume", {}).get("ratio"),
+                    "spike": d.get("volume", {}).get("spike"),
+                    "trend": d.get("volume", {}).get("trend"),
+                },
+                "accumulation": {
+                    "phase": acc.get("phase"),
+                    "score": acc.get("score"),
+                    "method": acc.get("method"),
+                    "foreignPhase": acc.get("foreignPhase"),
+                    "netForeign5d": acc.get("netForeign5d"),
+                    "foreignConsistencyDays": acc.get("foreignConsistencyDays"),
+                },
+                "unfilledGaps": gaps,
+                "entrySignal": d.get("entrySignal", {}),
+                "tradePlan": d.get("tradePlan", {}),
+                "technicalNote": d.get("technicalNote", ""),
+                "source": d.get("source"),
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("tool get_technical_analysis failed: %s", exc)
+            return {"symbol": symbol, "error": "Technical analysis unavailable"}
+
     if name == "get_recent_news":
         symbol_filter = inputs.get("symbol", "").upper() or None
         try:
@@ -433,23 +564,6 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
         return {"news": [], "source": "unavailable"}
 
     return {"error": f"Unknown tool: {name!r}"}
-
-
-def _content_blocks_to_dicts(content) -> list[dict]:
-    """Convert SDK typed content blocks to plain dicts for subsequent API calls."""
-    result = []
-    for block in content:
-        if hasattr(block, "type"):
-            if block.type == "text":
-                result.append({"type": "text", "text": block.text})
-            elif block.type == "tool_use":
-                result.append({
-                    "type": "tool_use",
-                    "id": block.id,
-                    "name": block.name,
-                    "input": block.input,
-                })
-    return result
 
 
 # ── Phase 9D: Session persistence helpers ────────────────────────────────────
@@ -484,29 +598,38 @@ async def stream_advisor_response(
     request: ChatRequest,
 ) -> AsyncIterator[StreamChunk]:
     """
-    Stream a Claude response for the given chat request.
+    Stream an LLM response for the given chat request.
+
+    Speaks an OpenAI-compatible chat/completions API, so the active provider
+    (Groq / OpenRouter / Ollama / OpenAI — see LLM_PROVIDER) is transparent to
+    the caller. The SSE contract (delta / done / error chunks) is unchanged.
 
     Phases active:
       9A  Context assembled from live Redis (signals, risk, market, news)
-      9B  Claude may invoke tools; server executes them transparently
-      9C  System prompt uses cache_control for Anthropic prompt caching
+      9B  The model may invoke tools; the server executes them transparently
       9D  History loaded from / saved to Redis when session_id is provided
     """
     settings = get_settings()
 
-    if not settings.has_claude:
+    if not settings.has_llm:
         yield StreamChunk(
             type="error",
             content=(
-                "ANTHROPIC_API_KEY tidak dikonfigurasi. "
-                "Tambahkan key di .env untuk mengaktifkan AI Advisor."
+                f"API key untuk provider '{settings.llm_provider}' belum dikonfigurasi. "
+                "Tambahkan GROQ_API_KEY di backend/.env untuk mengaktifkan AI Advisor "
+                "(dapatkan gratis di https://console.groq.com/keys)."
                 if request.locale == "id"
-                else "ANTHROPIC_API_KEY is not configured. Add the key to .env to enable AI Advisor."
+                else f"No API key configured for provider '{settings.llm_provider}'. "
+                "Add GROQ_API_KEY to backend/.env to enable the AI Advisor "
+                "(get one free at https://console.groq.com/keys)."
             ),
         )
         return
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = AsyncOpenAI(
+        api_key=settings.llm_resolved_key,
+        base_url=settings.llm_resolved_base_url,
+    )
 
     # ── Phase 9D: Load history from Redis if session_id provided and no history ──
     history = list(request.history)
@@ -516,80 +639,96 @@ async def stream_advisor_response(
     # ── Phase 9A: Assemble live context ─────────────────────────────────────────
     ctx = await _load_live_context(request.uid)
     context_block = _build_context_block(ctx)
-    base_system = _SYSTEM_ID if request.locale == "id" else _SYSTEM_EN
+    base_system = (_SYSTEM_ID if request.locale == "id" else _SYSTEM_EN) + _WIDGET_SPEC
 
-    # ── Phase 9C: Prompt caching — system is a list of blocks ───────────────────
-    system_payload: list[dict] = [
-        {
-            "type": "text",
-            "text": base_system,
-            "cache_control": {"type": "ephemeral"},  # cache the static persona block
-        },
-        {
-            "type": "text",
-            "text": context_block,
-            # live context is NOT cached — it changes every 15 min
-        },
-    ]
-
-    # ── Build messages list ───────────────────────────────────────────────────
+    # ── Build messages list (OpenAI format: system first, then turns) ───────────
+    # The live context is appended to the system message. Prompt caching is
+    # provider-specific and dropped here; the context block stays within
+    # MAX_CONTEXT_TOKENS so the per-request cost is bounded regardless.
     messages: list[dict] = [
-        {"role": m.role, "content": m.content}
-        for m in history[-10:]  # last 10 turns
+        {"role": "system", "content": f"{base_system}\n\n{context_block}"}
     ]
+    messages.extend(
+        {"role": m.role, "content": m.content} for m in history[-10:]
+    )
     messages.append({"role": "user", "content": request.message})
 
     # ── Phase 9B: Tool-use streaming loop ────────────────────────────────────
     accumulated_assistant_text = ""
     try:
         for iteration in range(MAX_TOOL_ITERATIONS + 1):
-            async with client.messages.stream(
-                model=settings.claude_model,
-                max_tokens=settings.claude_max_tokens,
-                system=system_payload,  # type: ignore[arg-type]
-                messages=messages,
-                tools=_TOOLS,
-            ) as stream:
-                async for text in stream.text_stream:
-                    accumulated_assistant_text += text
-                    yield StreamChunk(type="delta", content=text)
+            allow_tools = iteration < MAX_TOOL_ITERATIONS
+            stream = await client.chat.completions.create(
+                model=settings.llm_model,
+                max_tokens=settings.llm_max_tokens,
+                messages=messages,  # type: ignore[arg-type]
+                # Once the loop budget is spent, force a plain text answer so the
+                # model summarises what it has rather than requesting more tools.
+                tools=_OPENAI_TOOLS if allow_tools else None,  # type: ignore[arg-type]
+                stream=True,
+            )
 
-                final_msg = await stream.get_final_message()
+            text_this_turn = ""
+            finish_reason: str | None = None
+            # tool_calls stream in fragments keyed by index; reassemble them.
+            tool_calls: dict[int, dict] = {}
 
-            if final_msg.stop_reason == "end_turn":
-                # Normal completion — done
-                break
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                choice = chunk.choices[0]
+                delta = choice.delta
 
-            if final_msg.stop_reason == "tool_use":
-                if iteration >= MAX_TOOL_ITERATIONS:
-                    logger.warning("advisor: tool loop limit reached (%d)", MAX_TOOL_ITERATIONS)
-                    yield StreamChunk(type="delta", content="\n\n[Data retrieval limit reached.]")
-                    break
+                if delta and delta.content:
+                    text_this_turn += delta.content
+                    accumulated_assistant_text += delta.content
+                    yield StreamChunk(type="delta", content=delta.content)
 
-                # Extract tool_use blocks and execute them
-                tool_use_blocks = [b for b in final_msg.content if b.type == "tool_use"]
-                tool_results = []
+                if delta and delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        slot = tool_calls.setdefault(
+                            tc.index, {"id": "", "name": "", "arguments": ""}
+                        )
+                        if tc.id:
+                            slot["id"] = tc.id
+                        if tc.function and tc.function.name:
+                            slot["name"] = tc.function.name
+                        if tc.function and tc.function.arguments:
+                            slot["arguments"] += tc.function.arguments
 
-                for block in tool_use_blocks:
-                    logger.info("advisor: executing tool=%s inputs=%s", block.name, block.input)
-                    result = await _execute_tool(block.name, block.input, request.uid)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": json.dumps(result),
-                    })
+                if choice.finish_reason:
+                    finish_reason = choice.finish_reason
 
-                # Append assistant's tool-use turn + tool results as user turn
+            # Model wants to call tools → execute and loop.
+            if finish_reason == "tool_calls" and tool_calls:
+                ordered = [tool_calls[i] for i in sorted(tool_calls)]
                 messages.append({
                     "role": "assistant",
-                    "content": _content_blocks_to_dicts(final_msg.content),
+                    "content": text_this_turn or None,
+                    "tool_calls": [
+                        {
+                            "id": s["id"],
+                            "type": "function",
+                            "function": {"name": s["name"], "arguments": s["arguments"] or "{}"},
+                        }
+                        for s in ordered
+                    ],
                 })
-                messages.append({"role": "user", "content": tool_results})
-                accumulated_assistant_text = ""  # reset for next iteration
+                for s in ordered:
+                    try:
+                        args = json.loads(s["arguments"] or "{}")
+                    except json.JSONDecodeError:
+                        args = {}
+                    logger.info("advisor: executing tool=%s inputs=%s", s["name"], args)
+                    result = await _execute_tool(s["name"], args, request.uid)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": s["id"],
+                        "content": json.dumps(result),
+                    })
                 continue
 
-            # Unexpected stop reason
-            logger.warning("advisor: unexpected stop_reason=%s", final_msg.stop_reason)
+            # Normal completion (or forced text on the final iteration).
             break
 
         yield StreamChunk(type="done", content="")
@@ -601,9 +740,17 @@ async def stream_advisor_response(
             updated_history.append(ChatMessage(role="assistant", content=accumulated_assistant_text))
             await _save_session_history(request.session_id, updated_history)
 
-    except anthropic.APIStatusError as exc:
-        logger.error("Claude API error: %s %s", exc.status_code, exc.message)
-        yield StreamChunk(type="error", content=f"Claude API error: {exc.status_code}")
+    except APIError as exc:
+        logger.error("LLM API error (%s): %s", settings.llm_provider, exc)
+        msg = getattr(exc, "message", str(exc))
+        yield StreamChunk(
+            type="error",
+            content=(
+                f"Kesalahan API {settings.llm_provider}: {msg}"
+                if request.locale == "id"
+                else f"{settings.llm_provider} API error: {msg}"
+            ),
+        )
     except Exception as exc:
         logger.exception("Unexpected advisor error: %s", exc)
         yield StreamChunk(type="error", content="Unexpected error occurred.")

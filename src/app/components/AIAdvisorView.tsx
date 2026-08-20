@@ -720,17 +720,29 @@ export function AIAdvisorView() {
   const [disclaimerAccepted, setDisclaimerAccepted] = useState<boolean>(
     () => readDisclaimerAccepted()
   );
-  const { signals, loading, error } = useAISignals();
+  const { signals, loading, error, lastFetched, isLive } = useAISignals();
 
   const avgUprob = signals.length
     ? Math.round(signals.reduce((s, r) => s + r.uprob, 0) / signals.length)
     : 0;
   const activeSignals = signals.filter((r) => r.probabilityTier !== "NEUTRAL").length;
 
+  const lastUpdatedLabel = lastFetched
+    ? new Date(lastFetched).toLocaleTimeString(isId ? "id-ID" : "en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Jakarta",
+      }) + " WIB"
+    : "—";
+
   if (loading) {
     return <ViewSkeleton rows={5} label={isId ? "Memuat sinyal AI…" : "Loading AI signals…"} />;
   }
-  if (error) {
+  // A fetch error no longer blanks the page: the hook keeps the last good
+  // snapshot (or seed) in `signals`, so the view stays usable and an offline
+  // banner below explains the numbers are simulated. Only a genuine empty state
+  // (no data at all) falls through to the full error screen.
+  if (error && signals.length === 0) {
     return <ViewError message={error} locale={locale} />;
   }
 
@@ -747,6 +759,27 @@ export function AIAdvisorView() {
       )}
 
       <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+
+        {/* Offline / simulated-data banner — shown only when the live fetch
+            failed. The cards below still render the last good snapshot (or the
+            bundled seed), and the hook re-polls, so this clears itself once the
+            backend is reachable again. */}
+        {error && !isLive && (
+          <div
+            className="flex items-center gap-3 px-4 py-3 rounded"
+            style={{ background: "var(--loss-bg)", border: "1px solid var(--loss)" }}
+          >
+            <AlertTriangle size={14} style={{ color: "var(--loss)", flexShrink: 0 }} />
+            <div style={{ fontSize: 11, color: "var(--foreground)", flex: 1 }}>
+              <span style={{ fontWeight: 600, color: "var(--loss)" }}>
+                {isId ? "Mode simulasi:" : "Simulated mode:"}
+              </span>{" "}
+              {isId
+                ? "Backend tidak terjangkau — menampilkan data simulasi. Sistem mencoba menyambung kembali otomatis."
+                : "Backend unreachable — showing simulated data. The system is retrying automatically."}
+            </div>
+          </div>
+        )}
 
         {/* OJK compliance notice banner */}
         <div
@@ -780,7 +813,7 @@ export function AIAdvisorView() {
             { label: t("ai_model_accuracy"),  value: "84.7%",          color: "var(--gain)",             icon: Brain     },
             { label: t("ai_active_signals"),  value: String(activeSignals), color: "var(--neutral)",      icon: TrendingUp },
             { label: t("ai_avg_confidence"),  value: `${avgUprob}%`,    color: "var(--warning)",          icon: BarChart2  },
-            { label: t("ai_last_updated"),    value: "14:47 WIB",       color: "var(--muted-foreground)", icon: Clock      },
+            { label: t("ai_last_updated"),    value: lastUpdatedLabel,  color: "var(--muted-foreground)", icon: Clock      },
           ].map((m) => {
             const Icon = m.icon;
             return (

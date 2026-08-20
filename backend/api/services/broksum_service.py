@@ -96,19 +96,20 @@ async def get_broker_summary(symbol: str) -> BrokerSummaryResponse:
 
     if not rows:
         # No per-broker flow (IDX's broker summary is a gated feed). Fall back to
-        # the real volume-based accumulation read from OHLCV rather than an empty
-        # neutral card, so "is this stock being accumulated?" still gets a real,
-        # daily-updated answer. Labelled source="volume" so it is never mistaken
-        # for licensed broker flow.
-        snapshot = await _volume_snapshot(symbol)
+        # the free, real "smart money" read from OHLCV + IDX foreign flow rather
+        # than an empty neutral card, so "is this stock being accumulated, and by
+        # whom?" still gets a real, daily-updated answer. `method` labels the
+        # source ("volume+foreign" | "volume") so it is never mistaken for
+        # licensed per-broker flow.
+        snapshot = await _free_snapshot(symbol)
         response = BrokerSummaryResponse(
             symbol=symbol,
             date=datetime.now(timezone.utc).date().isoformat(),
             snapshot=snapshot,
             brokers=[],
-            source="volume" if snapshot.method == "volume" else source,
+            source=snapshot.method if snapshot.method != "broker" else source,
         )
-        if snapshot.method == "volume":
+        if snapshot.method in ("volume", "volume+foreign"):
             await redis_set_json(cache_key, response.model_dump(), ttl=BROKSUM_TTL)
         return response
 
@@ -148,29 +149,50 @@ async def get_broker_summary(symbol: str) -> BrokerSummaryResponse:
     return response
 
 
-async def _volume_snapshot(symbol: str) -> BrokerSummarySnapshot:
+async def _free_snapshot(symbol: str) -> BrokerSummarySnapshot:
     """
-    Accumulation snapshot derived from OHLCV+volume (no broker feed needed).
+    "Smart money" accumulation snapshot from OHLCV + IDX foreign flow — the free
+    substitute for gated per-broker flow, no licensed feed needed.
 
-    Returns a neutral placeholder when there are not enough bars; otherwise a
-    real read with method="volume" so the caller can label the source honestly.
+    Blends volume-flow (how hard buying pressure is) with foreign flow (who —
+    institutional/asing). When foreign flow is available, "ASING" is surfaced as
+    the dominant party in topBuyers/topSellers so the existing broker panel keeps
+    a "who is accumulating" column. Returns a neutral placeholder when there are
+    too few bars; `method` reports which dimensions contributed.
     """
-    from api.services.technicals_service import load_ohlcv
+    from api.services.technicals_service import _combine_accumulation, load_ohlcv
+    from ml.features.foreign_flow import analyse_foreign_flow
     from ml.features.volume_accumulation import analyse_accumulation
 
     try:
         frame, _src = await load_ohlcv(symbol, days=90)
-        r = analyse_accumulation(frame)
+        vol = analyse_accumulation(frame)
+        ff = analyse_foreign_flow(frame)
+        c = _combine_accumulation(vol, ff)
     except Exception as exc:  # noqa: BLE001 — degrade to neutral, never 500
-        logger.warning("broksum_service: volume snapshot failed for %s — %s", symbol, exc)
+        logger.warning("broksum_service: free snapshot failed for %s — %s", symbol, exc)
         return BrokerSummarySnapshot(phase="neutral", phaseId="Netral", score=0.0)
 
+    top_buyers: list[BrokerActivity] = []
+    top_sellers: list[BrokerActivity] = []
+    net5 = int(c.get("netForeign5d", 0))
+    net20 = int(c.get("netForeign20d", 0))
+    if c.get("foreignAvailable"):
+        asing = BrokerActivity(broker="ASING", netLot5d=net5, netLot20d=net20)
+        if net5 > 0:
+            top_buyers = [asing]
+        elif net5 < 0:
+            top_sellers = [asing]
+
     return BrokerSummarySnapshot(
-        phase=r["phase"], phaseId=r["phaseId"], score=r["score"],
-        consistencyDays=r["consistencyDays"],
-        method=r["method"], strength=r["strength"], obvTrend=r["obvTrend"],
-        cmf=r["cmf"], mfi=r["mfi"], volumeRatio=r["volumeRatio"],
-        volumeLevel=r["volumeLevel"], signals=r["signals"], signalsEn=r["signalsEn"],
+        phase=c["phase"], phaseId=c["phaseId"], score=c["score"],
+        topBuyers=top_buyers, topSellers=top_sellers,
+        netLot5d=net5, netLot20d=net20,
+        consistencyDays=c["consistencyDays"],
+        method=c["method"], strength=c["strength"], obvTrend=c["obvTrend"],
+        cmf=c["cmf"], mfi=c["mfi"],
+        volumeRatio=vol.get("volumeRatio", 1.0), volumeLevel=vol.get("volumeLevel", "normal"),
+        signals=c["signals"], signalsEn=c["signalsEn"],
     )
 
 
@@ -184,18 +206,37 @@ async def get_broker_summary_history(
     source = "mock" if settings.use_mock_broksum else "live"
 
     if not rows:
-        # Volume-based accumulation history from OHLCV — the daily record of how
-        # buying/selling pressure built, without a broker feed.
+        # No per-broker feed. Prefer the free foreign-flow history (net foreign
+        # per session + who is dominant); fall back to volume-flow history when a
+        # symbol carries no foreign flow. Either way this is a real, daily record
+        # of how buying/selling pressure built up.
         from api.services.technicals_service import load_ohlcv
+        from ml.features.foreign_flow import foreign_flow_history
         from ml.features.volume_accumulation import accumulation_history
 
         try:
             frame, _src = await load_ohlcv(symbol, days=max(days + 25, 60))
-            hist = accumulation_history(frame, days=days)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("broksum_service: volume history failed for %s — %s", symbol, exc)
-            hist = []
+        except Exception as exc:  # noqa: BLE001 — degrade to no history, never 500
+            logger.warning("broksum_service: history load failed for %s — %s", symbol, exc)
+            return BrokerSummaryHistoryResponse(symbol=symbol, days=days, history=[], source=source)
 
+        fhist = foreign_flow_history(frame, days=days)
+        if fhist:
+            return BrokerSummaryHistoryResponse(
+                symbol=symbol, days=days,
+                history=[
+                    BrokerSummaryDay(
+                        date=h["date"], netLot=h["netForeign"], score=h["score"],
+                        phase=h["phase"], close=h["close"],
+                        topBuyer="ASING" if h["netForeign"] > 0 else "",
+                        topSeller="ASING" if h["netForeign"] < 0 else "",
+                    )
+                    for h in fhist
+                ],
+                source="foreign",
+            )
+
+        vhist = accumulation_history(frame, days=days)
         return BrokerSummaryHistoryResponse(
             symbol=symbol, days=days,
             history=[
@@ -203,9 +244,9 @@ async def get_broker_summary_history(
                     date=h["date"], score=h["score"], phase=h["phase"],
                     volume=h["volume"], close=h["close"],
                 )
-                for h in hist
+                for h in vhist
             ],
-            source="volume" if hist else source,
+            source="volume" if vhist else source,
         )
 
     import pandas as pd

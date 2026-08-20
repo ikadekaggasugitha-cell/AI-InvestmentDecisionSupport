@@ -44,7 +44,12 @@ export interface RiskMetricsResult {
   sectorExposure: SectorExposureItem[];
   loading: boolean;
   error: string | null;
+  /** True when the metrics came from the live backend, false for seed. */
+  isLive: boolean;
 }
+
+/** How often live risk metrics are re-polled, in ms. */
+const REFRESH_MS = 60_000;
 
 /* ── Seed data ───────────────────────────────────────────────────────────── */
 
@@ -70,17 +75,17 @@ export function useRiskMetrics(): RiskMetricsResult {
   const [sectorExposure, setSectorExposure] = useState<SectorExposureItem[]>(SEED_EXPOSURE);
   const [loading, setLoading]             = useState(USE_LIVE_API);
   const [error, setError]                 = useState<string | null>(null);
+  const [isLive, setIsLive]               = useState(false);
 
   useEffect(() => {
     if (!USE_LIVE_API) return;
 
     let cancelled = false;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-    async function fetchRisk() {
-      setLoading(true);
-      setError(null);
+    async function fetchRisk(isFirst: boolean) {
+      if (isFirst) setLoading(true);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       try {
         const res = await apiFetch(ENDPOINTS.riskMetrics, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -93,25 +98,31 @@ export function useRiskMetrics(): RiskMetricsResult {
           setRisk(parsed.risk as RiskMetrics);
           setStressTests(parsed.stressTests as StressTest[]);
           setSectorExposure(parsed.sectorExposure as SectorExposureItem[]);
+          setIsLive(true);
+          setError(null);
         }
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : "Unknown error";
           setError(msg);
+          setIsLive(false);
+          // Seed values already in state stand — the view renders them with an
+          // offline badge instead of a blank error page, and the next poll
+          // recovers once the backend is reachable again.
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && isFirst) setLoading(false);
         clearTimeout(timeout);
       }
     }
 
-    fetchRisk();
+    fetchRisk(true);
+    const interval = setInterval(() => fetchRisk(false), REFRESH_MS);
     return () => {
       cancelled = true;
-      controller.abort();
-      clearTimeout(timeout);
+      clearInterval(interval);
     };
   }, []);
 
-  return { risk, stressTests, sectorExposure, loading, error };
+  return { risk, stressTests, sectorExposure, loading, error, isLive };
 }

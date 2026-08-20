@@ -10,6 +10,9 @@ export type AccumulationBadgeData = {
   score: number;
   strength: number;
   consistencyDays: number;
+  /** "volume+foreign" when IDX foreign flow contributed, else "volume". */
+  method?: "volume" | "volume+foreign";
+  foreignPhase?: "accumulation" | "distribution" | "neutral";
 };
 
 export interface AccumulationMapResult {

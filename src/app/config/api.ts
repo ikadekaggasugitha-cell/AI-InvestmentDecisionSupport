@@ -50,6 +50,9 @@ export const ENDPOINTS = {
   /** Daily candles for the chart (Phase 10) */
   ohlcv:          (symbol: string, days = 120) =>
     `${API_BASE}/v1/technicals/${symbol}/ohlcv?days=${days}`,
+  /** Pullable foreign-flow accumulation history (net foreign per session) */
+  accumulationHistory: (symbol: string, days = 30) =>
+    `${API_BASE}/v1/technicals/${symbol}/accumulation-history?days=${days}`,
   /** IDX keterbukaan informasi — primary filings, not aggregated news */
   news:           (limit = 20, daysBack = 7) =>
     `${API_BASE}/v1/news?limit=${limit}&daysBack=${daysBack}`,

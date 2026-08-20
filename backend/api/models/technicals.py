@@ -69,17 +69,33 @@ class VolumeInfo(BaseModel):
 
 
 class AccumulationInfo(BaseModel):
-    """Volume-flow accumulation/distribution read (OBV/ADL/CMF/MFI)."""
+    """
+    Combined "smart money" accumulation read.
+
+    Blends two free, real signals: volume-flow (OBV/ADL/CMF/MFI) for *how much*
+    buying pressure, and IDX foreign flow for *who* — persistent net foreign
+    buying is the honest, free substitute for gated per-broker bandarmology.
+    `method` reports which dimensions actually contributed ("volume+foreign" vs
+    "volume" when foreign flow is unavailable for the symbol/session).
+    """
     phase: str = "neutral"         # "accumulation" | "distribution" | "neutral"
     phaseId: str = "Netral"
-    score: float = 0.0             # -100..+100
+    score: float = 0.0             # -100..+100 (combined)
     strength: int = 0
     obvTrend: float = 0.0
     cmf: float = 0.0
     mfi: float = 50.0
-    consistencyDays: int = 0
+    consistencyDays: int = 0       # volume-flow OBV persistence
     signals: list[str] = []
     signalsEn: list[str] = []
+    method: str = "volume"         # "volume+foreign" | "volume"
+    # ── Foreign-flow dimension (null-ish when method == "volume") ──────────────
+    foreignAvailable: bool = False
+    foreignPhase: str = "neutral"
+    foreignScore: float = 0.0
+    netForeign5d: int = 0          # net foreign flow, lots (5 sessions)
+    netForeign20d: int = 0
+    foreignConsistencyDays: int = 0
 
 
 class EntrySignal(BaseModel):
@@ -105,15 +121,36 @@ class AccumulationBadge(BaseModel):
     symbol: str
     phase: str = "neutral"          # "accumulation" | "distribution" | "neutral"
     phaseId: str = "Netral"
-    score: float = 0.0              # -100..+100
+    score: float = 0.0              # -100..+100 (combined volume + foreign)
     strength: int = 0
     consistencyDays: int = 0
+    # Which dimensions contributed, so the table badge matches the detail panel.
+    method: str = "volume"          # "volume+foreign" | "volume"
+    foreignPhase: str = "neutral"   # foreign-flow phase when method includes foreign
 
 
 class AccumulationBatchResponse(BaseModel):
     """Response for GET /v1/technicals/accumulation — one entry per symbol."""
     items: list[AccumulationBadge] = []
     source: str = "volume"
+
+
+class AccumulationHistoryPoint(BaseModel):
+    """One session in the foreign-flow accumulation history."""
+    date: str
+    netForeign: int = 0            # net foreign flow that session, lots
+    cumulativeNet: int = 0         # running cumulative net, lots
+    score: float = 0.0             # -100..+100 rolling foreign-flow score
+    phase: str = "neutral"
+    close: float = 0.0
+
+
+class AccumulationHistoryResponse(BaseModel):
+    """Response for GET /v1/technicals/{symbol}/accumulation-history."""
+    symbol: str
+    points: list[AccumulationHistoryPoint] = []
+    available: bool = False        # False when the symbol carries no foreign flow
+    source: str = "foreign"
 
 
 class TechnicalAnalysisResponse(BaseModel):

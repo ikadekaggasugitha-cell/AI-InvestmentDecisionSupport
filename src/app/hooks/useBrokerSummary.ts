@@ -41,7 +41,7 @@ export interface BrokerSummaryResult {
    * label simulated flow as such. Presenting invented activity as observed
    * would misrepresent those firms' actual trading.
    */
-  source: "live" | "mock" | "volume" | null;
+  source: "live" | "mock" | "volume" | "volume+foreign" | "foreign" | null;
   loading: boolean;
   error: string | null;
 }

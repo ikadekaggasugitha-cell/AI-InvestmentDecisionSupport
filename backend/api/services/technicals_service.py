@@ -22,6 +22,8 @@ from api.core.redis_client import REDIS_KEYS, redis_get_json, redis_set_json
 from api.models.technicals import (
     AccumulationBadge,
     AccumulationBatchResponse,
+    AccumulationHistoryPoint,
+    AccumulationHistoryResponse,
     AccumulationInfo,
     CandlestickPattern,
     EntrySignal,
@@ -82,6 +84,8 @@ async def load_ohlcv(symbol: str, days: int = 260) -> tuple[pd.DataFrame, str]:
                     {
                         "time": b.date, "open": b.open, "high": b.high,
                         "low": b.low, "close": b.close, "volume": b.volume,
+                        # IDX bars carry foreign flow; Yahoo bars leave it None.
+                        "foreign_net": getattr(b, "foreign_net", None),
                     }
                     for b in bars
                 ]), get_provider().name
@@ -107,7 +111,7 @@ async def _load_ohlcv_from_db(symbol: str, days: int) -> list[dict[str, Any]]:
         pool = await get_pool()
         records = await pool.fetch(
             """
-            SELECT time, open, high, low, close, volume
+            SELECT time, open, high, low, close, volume, foreign_net
             FROM ohlcv
             WHERE symbol = $1 AND time > NOW() - ($2 || ' days')::INTERVAL
             ORDER BY time
@@ -126,6 +130,9 @@ async def _load_ohlcv_from_db(symbol: str, days: int) -> list[dict[str, Any]]:
             "low": float(r["low"]),
             "close": float(r["close"]),
             "volume": int(r["volume"] or 0),
+            # Foreign flow drives the accumulation "who" dimension; NULL for
+            # Yahoo-sourced rows, which the foreign-flow read treats as absent.
+            "foreign_net": float(r["foreign_net"]) if r["foreign_net"] is not None else None,
         }
         for r in records
     ]
@@ -191,6 +198,67 @@ def _volume_info(ohlcv: pd.DataFrame) -> VolumeInfo:
     )
 
 
+_COMBINE_THRESHOLD = 15.0    # |combined score| below this is neutral
+# Foreign flow answers "who is buying" (institutional/asing); volume answers
+# "how hard". When foreign flow is available it carries slightly more weight.
+_W_FOREIGN, _W_VOLUME = 0.55, 0.45
+
+
+def _combine_accumulation(vol: dict[str, Any], ff: dict[str, Any]) -> dict[str, Any]:
+    """
+    Fuse the volume-flow and foreign-flow reads into one accumulation dict
+    shaped for AccumulationInfo.
+
+    Foreign flow is the free stand-in for per-broker bandarmology, so when it is
+    available the combined score is a weighted blend; otherwise it degrades to
+    the volume-only read and `method` reports which happened.
+    """
+    vol = vol or {}
+    ff = ff or {}
+    foreign_ok = bool(ff.get("available"))
+
+    vol_score = float(vol.get("score", 0.0))
+    if foreign_ok:
+        combined = _W_FOREIGN * float(ff.get("score", 0.0)) + _W_VOLUME * vol_score
+        method = "volume+foreign"
+        # Volume reasons first (how hard), then foreign (who) — both are real.
+        signals = list(vol.get("signals", [])) + list(ff.get("signals", []))
+        signals_en = list(vol.get("signalsEn", [])) + list(ff.get("signalsEn", []))
+    else:
+        combined = vol_score
+        method = "volume"
+        signals = list(vol.get("signals", []))
+        signals_en = list(vol.get("signalsEn", []))
+
+    combined = max(-100.0, min(100.0, combined))
+    if combined >= _COMBINE_THRESHOLD:
+        phase, phase_id = "accumulation", "Akumulasi"
+    elif combined <= -_COMBINE_THRESHOLD:
+        phase, phase_id = "distribution", "Distribusi"
+    else:
+        phase, phase_id = "neutral", "Netral"
+
+    return {
+        "phase": phase,
+        "phaseId": phase_id,
+        "score": round(combined, 1),
+        "strength": int(round(abs(combined))),
+        "obvTrend": vol.get("obvTrend", 0.0),
+        "cmf": vol.get("cmf", 0.0),
+        "mfi": vol.get("mfi", 50.0),
+        "consistencyDays": vol.get("consistencyDays", 0),
+        "signals": signals,
+        "signalsEn": signals_en,
+        "method": method,
+        "foreignAvailable": foreign_ok,
+        "foreignPhase": ff.get("phase", "neutral"),
+        "foreignScore": ff.get("score", 0.0),
+        "netForeign5d": ff.get("netForeign5d", 0),
+        "netForeign20d": ff.get("netForeign20d", 0),
+        "foreignConsistencyDays": ff.get("consistencyDays", 0),
+    }
+
+
 def _entry_signal(
     trend: dict[str, Any] | None,
     accumulation: dict[str, Any],
@@ -198,19 +266,24 @@ def _entry_signal(
     volume: VolumeInfo,
 ) -> EntrySignal:
     """
-    When to enter and why. Combines trend direction, the volume-flow
-    accumulation read, and whether a usable stop exists into one call with a
-    plain-language reason — never a bare buy/sell instruction.
+    When to enter and why. Combines trend direction, the combined (volume +
+    foreign) accumulation read, and whether a usable stop exists into one call
+    with a plain-language reason — never a bare buy/sell instruction.
     """
     tdir = (trend or {}).get("trend", "sideways")
     strength = int((trend or {}).get("strength", 0))
     phase = accumulation.get("phase", "neutral")
+    foreign_phase = accumulation.get("foreignPhase", "neutral")
     has_stop = plan is not None and getattr(plan, "stopLoss", None) is not None
 
-    # Distribution or a broken downtrend → stay out.
-    if phase == "distribution" or (tdir == "downtrend" and strength >= 40):
-        reason = "Tren turun / distribusi terdeteksi — hindari entry sampai struktur membaik"
-        reason_en = "Downtrend / distribution detected — avoid entry until structure improves"
+    # Distribution (combined or foreign), or a broken downtrend → stay out.
+    if phase == "distribution" or foreign_phase == "distribution" or (tdir == "downtrend" and strength >= 40):
+        if foreign_phase == "distribution":
+            reason = "Asing net jual (distribusi) — hindari entry sampai aliran dana berbalik"
+            reason_en = "Foreign net selling (distribution) — avoid entry until flow reverses"
+        else:
+            reason = "Tren turun / distribusi terdeteksi — hindari entry sampai struktur membaik"
+            reason_en = "Downtrend / distribution detected — avoid entry until structure improves"
         return EntrySignal(signal="avoid", signalId="Hindari", reason=reason, reasonEn=reason_en)
 
     # Uptrend (or accumulation) with a definable risk level → a watch entry.
@@ -221,6 +294,9 @@ def _entry_signal(
         if phase == "accumulation":
             bits_id.append("terindikasi akumulasi volume")
             bits_en.append("volume accumulation")
+        if foreign_phase == "accumulation":
+            bits_id.append("didukung akumulasi asing")
+            bits_en.append("confirmed by foreign accumulation")
         if volume.level == "high":
             bits_id.append("didukung volume ramai")
             bits_en.append("backed by heavy volume")
@@ -249,6 +325,7 @@ async def get_technical_analysis(symbol: str) -> TechnicalAnalysisResponse:
     volume intensity, volume-flow accumulation, and an entry / stop-loss plan
     with the reasoning behind it.
     """
+    from ml.features.foreign_flow import analyse_foreign_flow
     from ml.features.volume_accumulation import analyse_accumulation
     from ml.inference.trade_plan import _build_technical_note, _compute_trade_plan
 
@@ -267,7 +344,9 @@ async def get_technical_analysis(symbol: str) -> TechnicalAnalysisResponse:
 
     # ── Volume, accumulation, entry/stop-loss plan ────────────────────────────
     volume = _volume_info(ohlcv)
-    acc_raw = analyse_accumulation(ohlcv) if not ohlcv.empty else {}
+    vol_raw = analyse_accumulation(ohlcv) if not ohlcv.empty else {}
+    ff_raw = analyse_foreign_flow(ohlcv) if not ohlcv.empty else {}
+    acc_raw = _combine_accumulation(vol_raw, ff_raw)
 
     current_price = float(ohlcv["close"].iloc[-1]) if not ohlcv.empty else 0.0
     # Target for the risk/reward leg: the nearest resistance above price, or a
@@ -287,7 +366,7 @@ async def get_technical_analysis(symbol: str) -> TechnicalAnalysisResponse:
 
     entry = _entry_signal(trend_raw, acc_raw or {}, plan, volume)
     note_id, note_en = _build_technical_note(
-        trend_raw, plan, raw["patterns"], raw["gaps"], None,
+        trend_raw, plan, raw["patterns"], raw["gaps"], acc_raw,
     )
 
     response = TechnicalAnalysisResponse(
@@ -344,6 +423,13 @@ async def get_technical_analysis(symbol: str) -> TechnicalAnalysisResponse:
             consistencyDays=acc_raw.get("consistencyDays", 0),
             signals=acc_raw.get("signals", []),
             signalsEn=acc_raw.get("signalsEn", []),
+            method=acc_raw.get("method", "volume"),
+            foreignAvailable=acc_raw.get("foreignAvailable", False),
+            foreignPhase=acc_raw.get("foreignPhase", "neutral"),
+            foreignScore=acc_raw.get("foreignScore", 0.0),
+            netForeign5d=acc_raw.get("netForeign5d", 0),
+            netForeign20d=acc_raw.get("netForeign20d", 0),
+            foreignConsistencyDays=acc_raw.get("foreignConsistencyDays", 0),
         ),
         entrySignal=entry,
         tradePlan=TradePlanInfo(
@@ -391,8 +477,48 @@ async def get_ohlcv_history(symbol: str, days: int = 120) -> OHLCVResponse:
     return response
 
 
+async def get_accumulation_history(symbol: str, days: int = 30) -> AccumulationHistoryResponse:
+    """
+    Pullable foreign-flow accumulation history — net foreign flow per session
+    with a running cumulative and a rolling accumulation phase.
+
+    This is the free, real "broker/accumulation history" the product needs:
+    daily net foreign (institutional) flow from IDX, which shows how buying or
+    selling pressure built up over time. Returns `available=False` with an empty
+    series when the symbol carries no foreign flow (e.g. a Yahoo-only bootstrap).
+    """
+    from ml.features.foreign_flow import foreign_flow_history
+
+    symbol = symbol.upper()
+    cache_key = f"technicals:acchist:{symbol}:{days}"  # technicals:* → cleared by daily_update
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return AccumulationHistoryResponse(**cached)
+
+    try:
+        frame, _src = await load_ohlcv(symbol, days=max(days + 25, 60))
+        points = foreign_flow_history(frame, days=days)
+    except Exception as exc:  # noqa: BLE001 — degrade to empty, never 500
+        logger.warning("technicals_service: accumulation history failed for %s — %s", symbol, exc)
+        points = []
+
+    response = AccumulationHistoryResponse(
+        symbol=symbol,
+        points=[AccumulationHistoryPoint(**p) for p in points],
+        available=bool(points),
+        source="foreign",
+    )
+    await redis_set_json(cache_key, response.model_dump(), ttl=TECHNICALS_TTL)
+    return response
+
+
 async def _accumulation_badge(symbol: str) -> AccumulationBadge:
-    """Compact accumulation read for one symbol, cached a day (per-symbol)."""
+    """
+    Compact combined (volume + foreign) accumulation read for one symbol, cached
+    a day. Blends the same two dimensions as the detail panel so the MarketsView
+    table badge and the expanded card never disagree.
+    """
+    from ml.features.foreign_flow import analyse_foreign_flow
     from ml.features.volume_accumulation import analyse_accumulation
 
     symbol = symbol.upper()
@@ -403,7 +529,9 @@ async def _accumulation_badge(symbol: str) -> AccumulationBadge:
 
     try:
         frame, _src = await load_ohlcv(symbol, days=90)
-        r = analyse_accumulation(frame)
+        vol = analyse_accumulation(frame)
+        ff = analyse_foreign_flow(frame)
+        r = _combine_accumulation(vol, ff)
     except Exception as exc:  # noqa: BLE001 — one bad symbol must not fail the batch
         logger.warning("technicals_service: accumulation badge failed for %s — %s", symbol, exc)
         return AccumulationBadge(symbol=symbol)
@@ -415,6 +543,8 @@ async def _accumulation_badge(symbol: str) -> AccumulationBadge:
         score=r["score"],
         strength=r["strength"],
         consistencyDays=r["consistencyDays"],
+        method=r["method"],
+        foreignPhase=r["foreignPhase"],
     )
     await redis_set_json(cache_key, badge.model_dump(), ttl=TECHNICALS_TTL)
     return badge

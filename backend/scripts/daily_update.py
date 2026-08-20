@@ -68,6 +68,22 @@ async def _invalidate_caches() -> None:
     _ = get_settings  # keep import meaningful even if settings unused here
 
 
+async def _record_heartbeat(ohlcv_result: dict) -> None:
+    """Persist a run marker so /health can confirm the cron path executed."""
+    from api.core.redis_client import record_run
+
+    try:
+        await record_run(
+            "refresh-ohlcv-eod",
+            status=ohlcv_result.get("status", "ok"),
+            detail={"via": "scripts.daily_update",
+                    "bars_written": ohlcv_result.get("bars_written"),
+                    "instruments": ohlcv_result.get("instruments")},
+        )
+    except Exception as exc:  # noqa: BLE001 — heartbeat must never fail the update
+        logger.warning("    heartbeat write skipped: %s", exc)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Daily market-data refresh.")
     parser.add_argument(
@@ -79,10 +95,19 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    _refresh_ohlcv(args.days)
+    ohlcv_result = _refresh_ohlcv(args.days)
     if not args.skip_signals:
         _refresh_signals()
-    asyncio.run(_invalidate_caches())
+
+    # Cache invalidation and the heartbeat share one event loop: both touch the
+    # module-global Redis pool, and splitting them across two asyncio.run() calls
+    # binds the pool to the first loop and then uses it from the second — which
+    # raises "Event loop is closed" on connection cleanup.
+    async def _finalise() -> None:
+        await _invalidate_caches()
+        await _record_heartbeat(ohlcv_result)
+
+    asyncio.run(_finalise())
     logger.info("daily update complete.")
 
 

@@ -33,6 +33,31 @@ class TestHealthEndpoint:
         resp = client.get("/health")
         assert "version" in resp.json()
 
+    def test_health_reports_scheduler_liveness(self, client):
+        """
+        The daily-update heartbeat must be surfaced so "is the 24/7 scheduler
+        running?" is observable rather than assumed. The field is always present
+        — either a heartbeat object or an honest "no heartbeat yet" string.
+        """
+        body = client.get("/health").json()
+        assert "daily_update" in body["checks"]
+
+    def test_health_reports_data_freshness_when_db_present(self, client):
+        """
+        When the database is reachable, /health reports the newest OHLCV session
+        and its age so a stalled pipeline (stale data) is visible. Skipped when
+        there is no DB in the test environment — the field is DB-gated.
+        """
+        checks = client.get("/health").json()["checks"]
+        db = checks.get("database", "")
+        if isinstance(db, str) and db.startswith("unavailable"):
+            import pytest
+            pytest.skip("no database in this environment")
+        # DB reachable → freshness fields present (unless the table is empty).
+        if checks.get("ohlcv_rows"):
+            assert "last_ohlcv_session" in checks
+            assert "ohlcv_age_hours" in checks
+
 
 class TestMarketWebSocket:
     def test_ws_connect_and_receive_snapshot(self, client):

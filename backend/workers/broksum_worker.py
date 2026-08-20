@@ -228,3 +228,54 @@ def refresh_broksum(self) -> dict:
         "rows_written": written,
         "snapshots_cached": cached,
     }
+
+
+@celery_app.task(
+    name="workers.broksum_worker.refresh_accumulation",
+    bind=True,
+    max_retries=2,
+    default_retry_delay=300,
+    acks_late=True,
+)
+def refresh_accumulation(self) -> dict:
+    """
+    End-of-day "smart money" accumulation refresh — the FREE path.
+
+    IDX per-broker flow is a gated feed, so instead of scraping it this warms the
+    accumulation snapshot cache from data we already have for free: OHLCV volume
+    (OBV/CMF/MFI) blended with IDX foreign flow (net foreign, from the `ohlcv`
+    table the OHLCV worker refreshes at 16:15). Runs after that refresh so the
+    foreign_net column is current.
+
+    `get_broker_summary` computes the blended snapshot and caches it under
+    REDIS_KEYS["broksum"], so the /v1/broksum and MarketsView badge paths serve a
+    warm, real, daily-updated read without any licensed feed.
+    """
+    from api.services.broksum_service import get_broker_summary
+
+    settings = get_settings()
+
+    async def _warm() -> int:
+        from api.core.redis_client import record_run
+
+        warmed = 0
+        for sym in settings.tracked_symbols:
+            try:
+                await get_broker_summary(sym)  # computes blended snapshot + caches
+                warmed += 1
+            except Exception as exc:  # noqa: BLE001 — one bad symbol must not abort the run
+                logger.warning("broksum_worker: accumulation warm failed for %s — %s", sym, exc)
+        # Heartbeat in the SAME loop as the warm-up, so the shared Redis pool is
+        # never used across two asyncio.run() calls ("Event loop is closed").
+        try:
+            await record_run(
+                "refresh-broksum-eod", status="ok",
+                detail={"symbols_warmed": warmed, "method": "foreign+volume"},
+            )
+        except Exception as exc:  # noqa: BLE001 — heartbeat must never fail the task
+            logger.debug("broksum_worker: heartbeat write skipped — %s", exc)
+        return warmed
+
+    warmed = asyncio.run(_warm())
+    logger.info("broksum_worker: accumulation cache warmed for %d symbols (foreign+volume)", warmed)
+    return {"status": "ok", "symbols_warmed": warmed, "method": "foreign+volume"}
