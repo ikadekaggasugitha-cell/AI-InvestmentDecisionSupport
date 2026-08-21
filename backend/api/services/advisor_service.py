@@ -132,6 +132,32 @@ Numbers must be raw (no thousands separators) except display strings in
 `metric_tiles.value`. If you lack the data for a widget, omit it rather than
 guessing."""
 
+# ── Price-action reading guide ────────────────────────────────────────────────
+#
+# Appended to both system prompts. The detection is deterministic (done in
+# price_action.classify_situation); this teaches the model to REASON over the
+# facts rather than restate the label. Provider-neutral, locale-neutral.
+_PRICE_ACTION_GUIDE = """\
+
+## Reading price action
+When get_technical_analysis returns a `situation`, treat it as the price-action
+context and weave it into your reasoning — never just restate the label:
+- Combine the situation with the most recent `patterns` and WHERE they occur. A
+  candlestick pattern AT a level is far stronger than one mid-range: a Bullish
+  Engulfing exactly on support = a real reversal; the same pattern in open space
+  is weak. Say this explicitly.
+- Ceiling behaviour: `uji_resistance` (testing), `tembus_resistance` (breakout),
+  `gagal_breakout` (false break — selling at the top). Floor behaviour:
+  `mantul_support` (bounce), `gagal_breakdown` (spring / bear trap),
+  `tembus_support` (breakdown — structure broken).
+- `volatility_squeeze` = ATR compressed into a coil; a big move may be near but
+  the DIRECTION is unconfirmed until a breakout close — state that, don't guess.
+- `konsolidasi_lebar` = choppy mid-range: high risk, low reward; advise patience.
+- `atrPct` is volatility as % of price — cite it to calibrate expectations and
+  how wide a stop must sit. Quote `nearestSupport`/`nearestResistance` by price.
+- These are descriptive context, never buy/sell orders. Keep the probabilistic,
+  OJK-compliant framing at all times."""
+
 # ── Tool definitions (Phase 9B) ───────────────────────────────────────────────
 
 _TOOLS: list[dict] = [
@@ -198,12 +224,16 @@ _TOOLS: list[dict] = [
         "name": "get_technical_analysis",
         "description": (
             "Get chart / technical analysis for one stock: EMA trend (up/down/sideways) "
-            "with strength, support & resistance levels, unfilled price gaps with historical "
-            "fill probability, volume intensity (heavy/thin, spike), smart-money accumulation "
-            "(blended volume flow + IDX foreign flow — the free substitute for per-broker "
-            "bandarmology), and an entry / stop-loss plan with the reasoning behind it. "
-            "Call this for any question about charts, entry timing, stop loss, gaps, volume, "
-            "or whether a stock is being accumulated. Levels are descriptive, not buy/sell orders."
+            "with strength, support & resistance levels, the price-action situation "
+            "(testing resistance, breakout, false break, bounce off support, spring, "
+            "volatility squeeze, or wide consolidation — measured with ATR-scaled zones "
+            "so it self-adjusts per stock), recent candlestick patterns, unfilled price "
+            "gaps with historical fill probability, volume intensity (heavy/thin, spike), "
+            "smart-money accumulation (blended volume flow + IDX foreign flow — the free "
+            "substitute for per-broker bandarmology), and an entry / stop-loss plan with "
+            "the reasoning behind it. Call this for any question about charts, entry timing, "
+            "stop loss, breakouts, gaps, volume, or whether a stock is being accumulated. "
+            "Levels and situations are descriptive context, not buy/sell orders."
         ),
         "input_schema": {
             "type": "object",
@@ -524,9 +554,24 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
             d = resp.model_dump()
             acc = d.get("accumulation", {})
             gaps = [g for g in d.get("gaps", []) if not g.get("isFilled")][:2]
+            # Price-action detail the model previously never saw: where price sits
+            # in the structure (ATR-scaled), the recent candle patterns, and the
+            # nearest S/R levels. Detection is deterministic here — the LLM only
+            # narrates and reasons over these facts.
+            patterns = [
+                {k: p.get(k) for k in ("patternId", "date", "significance", "signal")}
+                for p in d.get("patterns", [])[-3:]
+            ]
+            key_levels = [
+                {"type": l.get("type"), "price": l.get("price"), "strength": l.get("strength")}
+                for l in d.get("supportResistance", [])[:4]
+            ]
             return {
                 "symbol": symbol,
                 "trend": d.get("trend", {}),
+                "situation": d.get("situation", {}),
+                "patterns": patterns,
+                "supportResistance": key_levels,
                 "volume": {
                     "level": d.get("volume", {}).get("level"),
                     "ratio": d.get("volume", {}).get("ratio"),
@@ -639,7 +684,11 @@ async def stream_advisor_response(
     # ── Phase 9A: Assemble live context ─────────────────────────────────────────
     ctx = await _load_live_context(request.uid)
     context_block = _build_context_block(ctx)
-    base_system = (_SYSTEM_ID if request.locale == "id" else _SYSTEM_EN) + _WIDGET_SPEC
+    base_system = (
+        (_SYSTEM_ID if request.locale == "id" else _SYSTEM_EN)
+        + _PRICE_ACTION_GUIDE
+        + _WIDGET_SPEC
+    )
 
     # ── Build messages list (OpenAI format: system first, then turns) ───────────
     # The live context is appended to the system message. Prompt caching is

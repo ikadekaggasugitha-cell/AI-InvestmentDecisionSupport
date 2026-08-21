@@ -508,6 +508,188 @@ class PriceActionAnalyzer:
                 return j - gap_idx
         return None
 
+    # ── Volatility (ATR) & Situational Context ────────────────────────────────
+
+    # ATR is the dynamic ruler for every proximity test below. A fixed 2% zone
+    # means "strong resistance" for a bluechip like BBCA but mere noise for a
+    # volatile third-liner; ATR self-scales the zone to each stock's own range.
+    ATR_PERIOD = 14
+    # A close within 0.5·ATR of a level is "testing" it.
+    SITUATION_ZONE_ATR = 0.5
+    # A bounce must close at least this many ATR above support to count as a real
+    # rejection of the level rather than a marginal, still-vulnerable recovery.
+    BOUNCE_MARGIN_ATR = 0.1
+    # Volatility squeeze (VCP): current ATR% sitting in the bottom quintile of its
+    # own recent range signals extreme compression — a coil before expansion.
+    SQUEEZE_LOOKBACK_BARS = 60
+    SQUEEZE_QUANTILE = 0.20
+
+    def _atr_series(self, ohlcv: pd.DataFrame, period: int = ATR_PERIOD) -> pd.Series | None:
+        """Wilder True Range rolling mean. None when history is too short."""
+        if len(ohlcv) < period + 1:
+            return None
+        df = ohlcv.copy().sort_values("time").reset_index(drop=True)
+        high = df["high"].astype(float)
+        low = df["low"].astype(float)
+        prev_close = df["close"].astype(float).shift(1)
+        true_range = pd.concat(
+            [(high - low), (high - prev_close).abs(), (low - prev_close).abs()],
+            axis=1,
+        ).max(axis=1)
+        return true_range.rolling(period).mean()
+
+    def compute_atr(self, ohlcv: pd.DataFrame, period: int = ATR_PERIOD) -> float:
+        """Average True Range in absolute price units (0.0 when unavailable)."""
+        series = self._atr_series(ohlcv, period)
+        if series is None or series.empty or pd.isna(series.iloc[-1]):
+            return 0.0
+        return float(series.iloc[-1])
+
+    def _is_squeeze(self, ohlcv: pd.DataFrame) -> bool:
+        """
+        True when volatility is compressing hard — current ATR%, normalised by
+        price, sits in the bottom quintile of its own recent history. Comparing
+        ATR% (not raw ATR) keeps the test scale-free across price levels.
+        """
+        series = self._atr_series(ohlcv)
+        if series is None:
+            return False
+        df = ohlcv.copy().sort_values("time").reset_index(drop=True)
+        atr_pct = (series / df["close"].astype(float) * 100).tail(
+            self.SQUEEZE_LOOKBACK_BARS
+        ).dropna()
+        if len(atr_pct) < 20:
+            return False
+        return float(atr_pct.iloc[-1]) <= float(atr_pct.quantile(self.SQUEEZE_QUANTILE))
+
+    def classify_situation(
+        self,
+        ohlcv: pd.DataFrame,
+        sr_levels: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Read WHERE the last bar sits relative to structure, using ATR-scaled
+        zones. Returns one primary situation label plus the volatility context
+        the AI advisor narrates from. Fully deterministic — the LLM reasons over
+        the label, it never detects it.
+
+        Labels: uji_resistance, tembus_resistance, gagal_breakout, mantul_support,
+        gagal_breakdown, tembus_support, volatility_squeeze, konsolidasi_lebar.
+        """
+        empty = {
+            "situation": "konsolidasi_lebar", "situationId": "Konsolidasi Lebar",
+            "note": "Data belum cukup untuk membaca struktur harga.",
+            "noteEn": "Not enough data to read price structure.",
+            "atr": 0.0, "atrPct": 0.0, "squeeze": False,
+            "nearestSupport": None, "nearestResistance": None,
+            "distSupportPct": None, "distResistancePct": None,
+        }
+        if len(ohlcv) < self.ATR_PERIOD + 5:
+            return empty
+
+        df = ohlcv.copy().sort_values("time").reset_index(drop=True)
+        atr = self.compute_atr(df)
+        c = float(df["close"].iloc[-1])
+        if atr <= 0 or c <= 0:
+            return empty
+
+        h = float(df["high"].iloc[-1])
+        l = float(df["low"].iloc[-1])
+
+        if sr_levels is None:
+            sr_levels = self.find_support_resistance(df)
+        resistances = [float(x["price"]) for x in sr_levels if x.get("type") == "resistance"]
+        supports = [float(x["price"]) for x in sr_levels if x.get("type") == "support"]
+        # Logic levels: the level closest to price on either side. Event detection
+        # needs these — a fresh breakout leaves the broken resistance just BELOW
+        # the close, and the abs-nearest pick captures it.
+        R = min(resistances, key=lambda p: abs(p - c)) if resistances else None
+        S = min(supports, key=lambda p: abs(p - c)) if supports else None
+
+        zone = self.SITUATION_ZONE_ATR * atr
+        margin = self.BOUNCE_MARGIN_ATR * atr
+        atr_pct = round(atr / c * 100, 2)
+        squeeze = self._is_squeeze(df)
+
+        # Display levels: the nearest support BELOW and resistance ABOVE the close,
+        # so the reported distances read as "x% down to support / y% up to
+        # resistance" and never go negative. Distinct from the logic levels above.
+        sup_below = [s for s in supports if s <= c]
+        res_above = [r for r in resistances if r >= c]
+        disp_S = max(sup_below) if sup_below else None
+        disp_R = min(res_above) if res_above else None
+        dist_res = round((disp_R - c) / c * 100, 2) if disp_R is not None else None
+        dist_sup = round((c - disp_S) / c * 100, 2) if disp_S is not None else None
+
+        # A squeeze only reads as "at a level" when the close is within one ATR of
+        # one. But measure that with the BASELINE (median) ATR, not the spot ATR:
+        # during a squeeze the spot ATR collapses, so a spot-ATR test would become
+        # absurdly strict exactly when the label matters. The baseline reflects the
+        # stock's normal range. A wide mid-range bar still fails this, keeping it
+        # out of the squeeze bucket and in konsolidasi_lebar.
+        atr_series = self._atr_series(df)
+        atr_baseline = atr
+        if atr_series is not None:
+            recent = atr_series.tail(self.SQUEEZE_LOOKBACK_BARS).dropna()
+            if len(recent):
+                atr_baseline = float(recent.median()) or atr
+        near_level = (
+            (R is not None and abs(c - R) <= atr_baseline)
+            or (S is not None and abs(c - S) <= atr_baseline)
+        )
+
+        def _rp(v: float) -> str:  # Indonesian thousands separator
+            return f"Rp{v:,.0f}".replace(",", ".")
+
+        # Priority ladder: decisive breaks first, then false breaks and bounces,
+        # then a plain test, then the coil, then choppy mid-range.
+        if R is not None and c > R:
+            label, label_id = "tembus_resistance", "Tembus Resistance"
+            note = f"Harga menembus resistance {_rp(R)} (breakout). Momentum bullish terkonfirmasi bila didukung volume."
+            note_en = f"Price closed above resistance {_rp(R)} (breakout). Bullish momentum confirmed if volume backs it."
+        elif S is not None and c < S:
+            label, label_id = "tembus_support", "Tembus Support"
+            note = f"Harga jebol di bawah support {_rp(S)} (breakdown). Struktur tren rusak — waspada cut loss."
+            note_en = f"Price closed below support {_rp(S)} (breakdown). Trend structure broken — cut-loss risk."
+        elif R is not None and h > R and c <= R:
+            label, label_id = "gagal_breakout", "Gagal Breakout"
+            note = f"High menembus resistance {_rp(R)} tetapi ditutup di bawahnya (false break) — tekanan jual/distribusi kuat di atap."
+            note_en = f"High pierced resistance {_rp(R)} but closed back below (false break) — strong selling/distribution at the ceiling."
+        elif S is not None and l < S and c >= S:
+            if c > S + margin:
+                label, label_id = "mantul_support", "Mantul dari Support"
+                note = f"Harga sempat disapu ke bawah support {_rp(S)} lalu ditutup menguat — pantulan valid (buyer mempertahankan lantai)."
+                note_en = f"Price swept below support {_rp(S)} then closed strongly back up — valid bounce (buyers defending the floor)."
+            else:
+                label, label_id = "gagal_breakdown", "Gagal Breakdown (Spring)"
+                note = f"Low menembus support {_rp(S)} lalu ditutup tipis di atasnya (spring / bear trap) — kemungkinan penyapuan stop loss ritel."
+                note_en = f"Low pierced support {_rp(S)} then closed just above it (spring / bear trap) — likely retail stop-loss sweep."
+        elif S is not None and l <= S + margin and c > S + margin:
+            label, label_id = "mantul_support", "Mantul dari Support"
+            note = f"Harga menguji support {_rp(S)} dan ditutup menguat — support bertahan."
+            note_en = f"Price tested support {_rp(S)} and closed higher — support holding."
+        elif R is not None and (R - zone) <= c <= R:
+            label, label_id = "uji_resistance", "Uji Resistance"
+            note = f"Harga bersiap menguji resistance {_rp(R)} (jarak {dist_res:.1f}%). Waspada penolakan; butuh close di atasnya untuk breakout."
+            note_en = f"Price is testing resistance {_rp(R)} ({dist_res:.1f}% away). Watch for rejection; needs a close above to break out."
+        elif squeeze and near_level:
+            label, label_id = "volatility_squeeze", "Volatility Squeeze"
+            note = "Volatilitas mengompresi secara ekstrem (ATR menyempit) di dekat level kunci — potensi pergerakan eksplosif; arah belum terkonfirmasi hingga ada breakout."
+            note_en = "Volatility is compressing hard (ATR contracting) near a key level — potential explosive move; direction unconfirmed until a breakout close."
+        else:
+            label, label_id = "konsolidasi_lebar", "Konsolidasi Lebar"
+            note = "Harga mengayun di tengah antara support dan resistance tanpa arah jelas (choppy) — risiko tinggi, reward rendah."
+            note_en = "Price is chopping mid-range between support and resistance with no clear direction — high risk, low reward."
+
+        return {
+            "situation": label, "situationId": label_id,
+            "note": note, "noteEn": note_en,
+            "atr": round(atr, 2), "atrPct": atr_pct, "squeeze": squeeze,
+            "nearestSupport": round(disp_S, 2) if disp_S is not None else None,
+            "nearestResistance": round(disp_R, 2) if disp_R is not None else None,
+            "distSupportPct": dist_sup, "distResistancePct": dist_res,
+        }
+
     # ── Combined Feature Extraction ───────────────────────────────────────────
 
     def compute_features(

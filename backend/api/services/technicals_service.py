@@ -30,6 +30,7 @@ from api.models.technicals import (
     GapInfo,
     OHLCVCandle,
     OHLCVResponse,
+    SituationInfo,
     SRLevel,
     TechnicalAnalysisResponse,
     TradePlanInfo,
@@ -146,18 +147,20 @@ def analyse(ohlcv: pd.DataFrame) -> dict[str, Any]:
     signal_inference for trade-plan derivation, so both read identical levels.
     """
     if ohlcv.empty:
-        return {"trend": None, "sr_levels": [], "patterns": [], "gaps": []}
+        return {"trend": None, "sr_levels": [], "patterns": [], "gaps": [], "situation": None}
 
     settings = get_settings()
+    # Compute S/R once and reuse it for the situational read, so the level the AI
+    # narrates ("testing resistance 9.850") is the exact same level shown elsewhere.
+    sr_levels = _analyzer.find_support_resistance(ohlcv, method=settings.ta_sr_method)
     return {
         "trend": _analyzer.detect_trend(ohlcv),
-        "sr_levels": _analyzer.find_support_resistance(
-            ohlcv, method=settings.ta_sr_method
-        ),
+        "sr_levels": sr_levels,
         "patterns": _analyzer.detect_candlestick_patterns(ohlcv),
         "gaps": _analyzer.detect_gaps(
             ohlcv, threshold_pct=settings.ta_gap_threshold_pct
         ),
+        "situation": _analyzer.classify_situation(ohlcv, sr_levels),
     }
 
 
@@ -398,6 +401,7 @@ async def get_technical_analysis(symbol: str) -> TechnicalAnalysisResponse:
             )
             for p in raw["patterns"]
         ],
+        situation=SituationInfo(**raw["situation"]) if raw.get("situation") else SituationInfo(),
         gaps=[
             GapInfo(
                 type=g["type"],

@@ -80,6 +80,31 @@ export type EntrySignal = {
   reasonEn: string;
 };
 
+/** Machine labels for the price-action situation — keep in sync with the backend. */
+export type SituationLabel =
+  | "uji_resistance" | "tembus_resistance" | "gagal_breakout"
+  | "mantul_support" | "gagal_breakdown" | "tembus_support"
+  | "volatility_squeeze" | "konsolidasi_lebar";
+
+/**
+ * Price-action situational read: WHERE the last bar sits relative to structure,
+ * measured with ATR-scaled zones (self-scaling per stock, not a fixed %). The
+ * label drives display; `note`/`noteEn` carry the bilingual narration.
+ */
+export type SituationInfo = {
+  situation: SituationLabel;
+  situationId: string;         // Indonesian label from the backend
+  note: string;                // Indonesian narration
+  noteEn: string;
+  atr: number;                 // Average True Range, absolute price
+  atrPct: number;              // ATR as % of price — dynamic volatility
+  squeeze: boolean;            // volatility compressed (VCP coil)
+  nearestSupport: number | null;
+  nearestResistance: number | null;
+  distSupportPct: number | null;     // % below price to nearest support
+  distResistancePct: number | null;  // % above price to nearest resistance
+};
+
 /** Entry / stop-loss derived from fractal S/R. */
 export type TradePlanInfo = {
   entryPrice: number | null;
@@ -99,6 +124,7 @@ export interface TechnicalsResult {
   volume: VolumeInfo | null;
   accumulation: AccumulationInfo | null;
   entrySignal: EntrySignal | null;
+  situation: SituationInfo | null;
   tradePlan: TradePlanInfo | null;
   technicalNote: string;
   technicalNoteEn: string;
@@ -115,6 +141,7 @@ const EMPTY: TechnicalsResult = {
   volume: null,
   accumulation: null,
   entrySignal: null,
+  situation: null,
   tradePlan: null,
   technicalNote: "",
   technicalNoteEn: "",
@@ -168,6 +195,7 @@ export function useTechnicals(
         volume: null,
         accumulation: null,
         entrySignal: null,
+        situation: null,
         tradePlan: seed.tradePlan ?? null,
         technicalNote: seed.technicalNote ?? "",
         technicalNoteEn: seed.technicalNoteEn ?? "",
@@ -222,6 +250,7 @@ export function useTechnicals(
           volume: ta?.volume ?? null,
           accumulation: ta?.accumulation ?? null,
           entrySignal: ta?.entrySignal ?? null,
+          situation: ta?.situation ?? null,
           tradePlan: ta?.tradePlan ?? null,
           technicalNote: ta?.technicalNote ?? "",
           technicalNoteEn: ta?.technicalNoteEn ?? "",

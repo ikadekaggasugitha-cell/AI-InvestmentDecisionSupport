@@ -65,19 +65,34 @@ async def _market_poller_task():
         )
 
     consecutive_failures = 0
+
+    def _next_interval() -> float:
+        base = (
+            settings.market_poll_interval_open_sec
+            if is_market_open()
+            else settings.market_poll_interval_closed_sec
+        )
+        # Back off on sustained failure so an upstream outage does not turn
+        # into a tight retry loop for its whole duration.
+        if consecutive_failures:
+            base = min(base * (2 ** min(consecutive_failures, 4)), 1800)
+        return float(base)
+
     while True:
         try:
-            interval = (
-                settings.market_poll_interval_open_sec
-                if is_market_open()
-                else settings.market_poll_interval_closed_sec
-            )
-            # Back off on sustained failure so an upstream outage does not turn
-            # into a tight retry loop for its whole duration.
-            if consecutive_failures:
-                interval = min(interval * (2 ** min(consecutive_failures, 4)), 1800)
-
-            await asyncio.sleep(interval)
+            # Wait in short slices, re-checking the cadence each slice, so a
+            # market-open transition takes effect promptly. A single
+            # asyncio.sleep(interval) would not re-evaluate is_market_open()
+            # mid-nap: a closed-hours nap (15 min, or up to 30 min after
+            # backoff) that began before the 09:00 bell delays the first
+            # intraday poll by that whole nap, and the snapshot reads
+            # hours-stale at the open until the poll finally lands.
+            slice_sec = max(1.0, float(settings.market_poll_interval_open_sec))
+            waited = 0.0
+            while waited < _next_interval():
+                nap = min(slice_sec, _next_interval() - waited)
+                await asyncio.sleep(nap)
+                waited += nap
 
             if await fetch_yahoo_market_data():
                 consecutive_failures = 0
@@ -103,8 +118,30 @@ async def lifespan(app: FastAPI):
         mock_portfolio=settings.use_mock_portfolio,
     )
     poller = asyncio.create_task(_market_poller_task())
+
+    # Warm the LightGBM model + SHAP explainer in the background so the first
+    # /v1/signals request isn't a multi-second cold load that trips the
+    # frontend's 10s fetch timeout and shows the "data simulasi" banner. Runs in
+    # a thread (the load is sync/CPU-bound) and never blocks serving; a failure
+    # here only means the first request pays the load cost, as before.
+    warmup: asyncio.Task | None = None
+    if not settings.use_mock_signals:
+        async def _warm_signals() -> None:
+            try:
+                from api.services.signal_service import warm_inference_engine
+                await asyncio.to_thread(warm_inference_engine)
+                logger.info("signal_engine_warmed")
+            except FileNotFoundError:
+                logger.warning("signal_engine_warmup_skipped_no_model")
+            except Exception as exc:  # noqa: BLE001 — warm-up must never crash startup
+                logger.warning("signal_engine_warmup_failed", error=str(exc))
+
+        warmup = asyncio.create_task(_warm_signals())
+
     yield
     poller.cancel()
+    if warmup:
+        warmup.cancel()
     try:
         await poller
     except asyncio.CancelledError:

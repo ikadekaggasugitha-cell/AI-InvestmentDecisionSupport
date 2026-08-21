@@ -2,13 +2,14 @@ import { Suspense, lazy, useState, type ElementType } from "react";
 import {
   Brain, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp,
   Clock, AlertTriangle, BarChart2, ShieldCheck, X, MoveRight,
+  ArrowUpToLine, ArrowUpFromLine, Minimize2, MoveHorizontal, Zap,
 } from "lucide-react";
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "../i18n/translations";
 import { useAISignals, type AISignal } from "../hooks/useAISignals";
 import { useBrokerSummary } from "../hooks/useBrokerSummary";
-import { useTechnicals } from "../hooks/useTechnicals";
+import { useTechnicals, type SituationInfo } from "../hooks/useTechnicals";
 import { AdvisorChat } from "./AdvisorChat";
 import { BrokerSummaryPanel } from "./BrokerSummaryPanel";
 import { EntrySignalCard } from "./EntrySignalCard";
@@ -132,6 +133,104 @@ function TrendBadge({ trend, isId }: { trend: AISignal["trend"]; isId: boolean }
         {isId ? cfg.id : cfg.en}
       </span>
     </span>
+  );
+}
+
+/* ── Price-action situation ────────────────────────────────────────────────
+ *
+ * WHERE price sits in the structure, read deterministically on the backend with
+ * ATR-scaled zones. Each label pairs a colour with an icon AND a text label
+ * (never colour alone) — same accessibility convention as TrendBadge, and it
+ * keeps the read honest under the OJK "no bare buy/sell" framing.
+ */
+const SITUATION_CFG: Record<
+  SituationInfo["situation"],
+  { tone: "gain" | "loss" | "warning" | "neutral"; icon: ElementType; id: string; en: string }
+> = {
+  tembus_resistance:  { tone: "gain",    icon: TrendingUp,      id: "Tembus Resistance",   en: "Breakout" },
+  mantul_support:     { tone: "gain",    icon: ArrowUpFromLine, id: "Mantul Support",      en: "Support Bounce" },
+  gagal_breakdown:    { tone: "gain",    icon: Zap,             id: "Spring (Bear Trap)",  en: "Spring (Bear Trap)" },
+  uji_resistance:     { tone: "warning", icon: ArrowUpToLine,   id: "Uji Resistance",      en: "Testing Resistance" },
+  volatility_squeeze: { tone: "warning", icon: Minimize2,       id: "Squeeze Volatilitas", en: "Volatility Squeeze" },
+  gagal_breakout:     { tone: "loss",    icon: AlertTriangle,   id: "Gagal Breakout",      en: "False Breakout" },
+  tembus_support:     { tone: "loss",    icon: TrendingDown,    id: "Tembus Support",      en: "Breakdown" },
+  konsolidasi_lebar:  { tone: "neutral", icon: MoveHorizontal,  id: "Konsolidasi Lebar",   en: "Wide Consolidation" },
+};
+
+const SITUATION_TONE: Record<string, { color: string; bg: string }> = {
+  gain:    { color: "var(--gain)", bg: "var(--gain-bg)" },
+  loss:    { color: "var(--loss)", bg: "var(--loss-bg)" },
+  warning: { color: "var(--warning)", bg: "var(--muted)" },
+  neutral: { color: "var(--muted-foreground)", bg: "var(--muted)" },
+};
+
+/* The primary situation pill — sits in the chart header. Null when absent. */
+function SituationBadge({ situation, isId }: { situation: SituationInfo | null; isId: boolean }) {
+  if (!situation) return null;
+  const cfg = SITUATION_CFG[situation.situation];
+  if (!cfg) return null;
+  const tone = SITUATION_TONE[cfg.tone];
+  const Icon = cfg.icon;
+
+  return (
+    <span
+      className="flex items-center gap-1 rounded px-2 py-0.5"
+      style={{ background: tone.bg, border: `1px solid ${tone.color}25` }}
+      title={isId ? situation.note : situation.noteEn}
+    >
+      <Icon size={11} style={{ color: tone.color }} />
+      <span style={{ fontSize: 10, fontWeight: 600, color: tone.color, fontFamily: "var(--font-mono)" }}>
+        {isId ? cfg.id : cfg.en}
+      </span>
+    </span>
+  );
+}
+
+/* The structural facts under the header: nearest S/R with signed distances, the
+ * ATR% volatility read, and a squeeze pill when the coil isn't already the
+ * primary label. Mono, muted — it grounds the badge in concrete price levels. */
+function SituationFacts({ situation, isId }: { situation: SituationInfo | null; isId: boolean }) {
+  if (!situation) return null;
+  const fmt = (n: number) => n.toLocaleString("id-ID");
+  const showSqueeze = situation.squeeze && situation.situation !== "volatility_squeeze";
+
+  return (
+    <div
+      className="flex items-center flex-wrap gap-x-3 gap-y-1"
+      style={{ fontSize: 10, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", margin: "6px 0 10px" }}
+    >
+      {situation.nearestSupport != null && (
+        <span>
+          Support{" "}
+          <b style={{ color: "var(--foreground)", fontWeight: 600 }}>{fmt(situation.nearestSupport)}</b>
+          {situation.distSupportPct != null && (
+            <span style={{ color: "var(--gain)" }}> −{situation.distSupportPct.toFixed(1)}%</span>
+          )}
+        </span>
+      )}
+      {situation.nearestResistance != null && (
+        <span>
+          Resistance{" "}
+          <b style={{ color: "var(--foreground)", fontWeight: 600 }}>{fmt(situation.nearestResistance)}</b>
+          {situation.distResistancePct != null && (
+            <span style={{ color: "var(--loss)" }}> +{situation.distResistancePct.toFixed(1)}%</span>
+          )}
+        </span>
+      )}
+      <span title={isId ? "Volatilitas harian (Average True Range)" : "Daily volatility (Average True Range)"}>
+        ATR <b style={{ color: "var(--foreground)", fontWeight: 600 }}>{situation.atrPct.toFixed(1)}%</b>
+      </span>
+      {showSqueeze && (
+        <span
+          className="flex items-center gap-1 rounded"
+          style={{ padding: "0 5px", color: "var(--warning)", border: "1px solid var(--warning)", opacity: 0.85 }}
+          title={isId ? "Volatilitas menyempit — potensi pergerakan eksplosif" : "Volatility compressing — potential explosive move"}
+        >
+          <Minimize2 size={9} />
+          {isId ? "Squeeze" : "Squeeze"}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -479,9 +578,13 @@ function SignalCard({
         >
           {/* Interactive candlestick chart with S/R, entry and stop lines */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              {t("ai_price_action")}
+            <div className="flex items-center justify-between gap-2" style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                {t("ai_price_action")}
+              </div>
+              <SituationBadge situation={technicals.situation} isId={isId} />
             </div>
+            <SituationFacts situation={technicals.situation} isId={isId} />
             <Suspense
               fallback={
                 <div
@@ -500,6 +603,7 @@ function SignalCard({
                 entryPrice={plan?.entryPrice ?? null}
                 stopLoss={plan?.stopLoss ?? null}
                 gaps={gaps}
+                situation={technicals.situation}
                 height={280}
                 locale={isId ? "id" : "en"}
               />

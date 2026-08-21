@@ -1,5 +1,6 @@
 import json
 import logging
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -14,12 +15,49 @@ if TYPE_CHECKING:
     # for type-checkers and linters without importing pandas at module load.
     import pandas as pd
 
+    from ml.inference.signal_inference import SignalInference
+
 logger = logging.getLogger(__name__)
 
 _SEED_PATH = Path(__file__).parent.parent / "seed" / "signals.json"
 _SEED_DATA: list[dict] | None = None
 
 SIGNALS_TTL = 900  # 15 minutes
+
+# The trained LightGBM engine (model + SHAP explainer) is loaded once and reused
+# for the whole process. SignalInference.load() reads the .pkl and builds a
+# shap.TreeExplainer, which costs seconds; without this cache it ran on every
+# Redis cache-miss (i.e. every SIGNALS_TTL = 15 min once the cached signals
+# expire), so the first request after each expiry — and the first after any
+# restart — blew past the frontend's 10s fetch timeout and flipped Risk/Advisor
+# to the "Backend tidak terjangkau — data simulasi" banner. Trade-off: a newly
+# trained model is only picked up on the next backend restart.
+_INFERENCE_ENGINE: "SignalInference | None" = None
+_INFERENCE_LOCK = threading.Lock()
+
+
+def _get_inference_engine() -> "SignalInference":
+    """Load the trained engine once (double-checked lock) and reuse it.
+
+    Safe to call both from the event loop (the serving path) and from a worker
+    thread (the startup warm-up via asyncio.to_thread). Propagates
+    FileNotFoundError when no model exists so callers can degrade explicitly.
+    """
+    global _INFERENCE_ENGINE
+    if _INFERENCE_ENGINE is None:
+        with _INFERENCE_LOCK:
+            if _INFERENCE_ENGINE is None:
+                from ml.inference.signal_inference import SignalInference
+
+                _INFERENCE_ENGINE = SignalInference.load()
+    return _INFERENCE_ENGINE
+
+
+def warm_inference_engine() -> None:
+    """Force the model + SHAP explainer to load. Called at startup so the first
+    real /v1/signals request is warm. Idempotent; raises FileNotFoundError if no
+    model is present (the caller decides whether that is fatal)."""
+    _get_inference_engine()
 
 
 def _load_seed() -> list[dict]:
@@ -144,12 +182,11 @@ async def _compute_live_signals() -> SignalsResponse:
     from api.services.market_service import _IDX_METADATA
     from api.services.technicals_service import analyse, load_ohlcv
     from ml.features.point_in_time import build_point_in_time_features
-    from ml.inference.signal_inference import SignalInference
 
     settings = get_settings()
 
     try:
-        engine = SignalInference.load()
+        engine = _get_inference_engine()
     except FileNotFoundError as exc:
         raise ModelUnavailable(
             "no trained model in backend/models/ — run "

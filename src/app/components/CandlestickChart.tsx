@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import type {
+  ISeriesApi, ISeriesPrimitive, ISeriesPrimitivePaneRenderer,
+  ISeriesPrimitivePaneView, SeriesType, Time,
+} from "lightweight-charts";
+import type { CanvasRenderingTarget2D } from "fancy-canvas";
 import type { GapInfo, SRLevel } from "../hooks/useAISignals";
-import type { OHLCVCandle } from "../hooks/useTechnicals";
+import type { OHLCVCandle, SituationInfo } from "../hooks/useTechnicals";
 
 /**
  * Lightweight Charts wrapper.
@@ -24,8 +29,71 @@ export interface CandlestickChartProps {
   entryPrice?: number | null;
   stopLoss?: number | null;
   gaps?: readonly GapInfo[];
+  situation?: SituationInfo | null;
   height?: number;
   locale?: "id" | "en";
+}
+
+/* Situations that describe behaviour at the ceiling vs. the floor — decides
+   which level the ATR proximity band wraps. Kept in sync with the backend. */
+const RESISTANCE_SITUATIONS = new Set(["uji_resistance", "tembus_resistance", "gagal_breakout"]);
+const SUPPORT_SITUATIONS = new Set(["mantul_support", "gagal_breakdown", "tembus_support"]);
+
+/**
+ * A shaded horizontal band drawn as a Lightweight-Charts *series primitive*.
+ *
+ * Why a primitive and not a positioned <div>: the primitive re-paints in the
+ * chart's own coordinate space every frame, so the band stays glued to its
+ * price levels through any zoom or pan. A DOM overlay would need manual
+ * re-projection on every scale change and would still drift mid-gesture.
+ *
+ * Drawn on the `bottom` z-layer so candles paint on top — the reader sees the
+ * last bar sitting *inside* the zone, which is the whole point of showing it.
+ */
+function createZonePrimitive(opts: {
+  top: number;
+  bottom: number;
+  fill: string;   // band fill (colour + low alpha)
+  edge: string;   // the two boundary lines (colour + higher alpha)
+}): ISeriesPrimitive<Time> {
+  let series: ISeriesApi<SeriesType> | null = null;
+
+  const renderer: ISeriesPrimitivePaneRenderer = {
+    draw(target: CanvasRenderingTarget2D) {
+      const s = series;
+      if (!s) return;
+      const yTop = s.priceToCoordinate(opts.top);
+      const yBottom = s.priceToCoordinate(opts.bottom);
+      if (yTop == null || yBottom == null) return;
+
+      target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
+        const y1 = Math.min(yTop, yBottom);
+        const y2 = Math.max(yTop, yBottom);
+        ctx.fillStyle = opts.fill;
+        ctx.fillRect(0, y1, mediaSize.width, Math.max(1, y2 - y1));
+        ctx.strokeStyle = opts.edge;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, y1 + 0.5);
+        ctx.lineTo(mediaSize.width, y1 + 0.5);
+        ctx.moveTo(0, y2 - 0.5);
+        ctx.lineTo(mediaSize.width, y2 - 0.5);
+        ctx.stroke();
+      });
+    },
+  };
+
+  const paneView: ISeriesPrimitivePaneView = {
+    zOrder: () => "bottom",
+    renderer: () => renderer,
+  };
+
+  return {
+    attached: (param) => { series = param.series; },
+    detached: () => { series = null; },
+    paneViews: () => [paneView],
+    updateAllViews: () => {},
+  };
 }
 
 /** Read a CSS custom property off the document root. */
@@ -54,6 +122,7 @@ export function CandlestickChart({
   entryPrice,
   stopLoss,
   gaps = [],
+  situation = null,
   height = 280,
   locale = "id",
 }: CandlestickChartProps) {
@@ -229,6 +298,45 @@ export function CandlestickChart({
         }
       }
 
+      // ATR proximity band around the active level (R ± 0.5·ATR / S ± 0.5·ATR).
+      // The candlestick dotted line marks the exact level; this shaded zone is
+      // its ATR tolerance — the reader sees the last bar enter the zone when the
+      // situation reads "testing"/"bounce"/"breakdown". Skipped for
+      // konsolidasi_lebar, which has no single active level to wrap.
+      if (situation && situation.atr > 0) {
+        let level: number | null = null;
+        let zoneColor = theme.warning;
+        if (RESISTANCE_SITUATIONS.has(situation.situation) && situation.nearestResistance != null) {
+          level = situation.nearestResistance;
+          zoneColor = theme.resistance;
+        } else if (SUPPORT_SITUATIONS.has(situation.situation) && situation.nearestSupport != null) {
+          level = situation.nearestSupport;
+          zoneColor = theme.support;
+        } else if (situation.situation === "volatility_squeeze") {
+          // Coil sits near a level but the label doesn't name a side — wrap the
+          // level nearest the last close, coloured as caution.
+          const last = ohlcv[ohlcv.length - 1].close;
+          const candidates = [situation.nearestResistance, situation.nearestSupport]
+            .filter((v): v is number => v != null);
+          if (candidates.length) {
+            level = candidates.reduce((a, b) => (Math.abs(b - last) < Math.abs(a - last) ? b : a));
+            zoneColor = theme.warning;
+          }
+        }
+
+        if (level != null) {
+          const half = 0.5 * situation.atr;
+          candleSeries.attachPrimitive(
+            createZonePrimitive({
+              top: level + half,
+              bottom: level - half,
+              fill: `${zoneColor}26`,  // ~15% — a thin shade, candles stay legible
+              edge: `${zoneColor}66`,  // ~40% — faint boundary lines
+            }),
+          );
+        }
+      }
+
       chart.timeScale().fitContent();
 
       const resize = () => chart.applyOptions({ width: container.clientWidth });
@@ -246,7 +354,7 @@ export function CandlestickChart({
       disposed = true;
       cleanup?.();
     };
-  }, [ohlcv, supportResistance, entryPrice, stopLoss, gaps, height, isId, themeTick]);
+  }, [ohlcv, supportResistance, entryPrice, stopLoss, gaps, situation, height, isId, themeTick]);
 
   if (failed) {
     return (

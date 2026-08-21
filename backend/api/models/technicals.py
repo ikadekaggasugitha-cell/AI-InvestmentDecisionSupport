@@ -98,6 +98,25 @@ class AccumulationInfo(BaseModel):
     foreignConsistencyDays: int = 0
 
 
+class SituationInfo(BaseModel):
+    """
+    Price-action situational read: WHERE the last bar sits relative to structure,
+    measured with ATR-scaled zones (self-scaling per stock, not a fixed %). One
+    primary label plus the volatility context the AI advisor narrates from.
+    """
+    situation: str = "konsolidasi_lebar"   # machine label (see classify_situation)
+    situationId: str = "Konsolidasi Lebar"  # Indonesian label
+    note: str = ""                          # Indonesian narration hint
+    noteEn: str = ""
+    atr: float = 0.0                        # Average True Range, absolute price
+    atrPct: float = 0.0                     # ATR as % of price — dynamic volatility
+    squeeze: bool = False                   # volatility compressed (VCP coil)
+    nearestSupport: float | None = None
+    nearestResistance: float | None = None
+    distSupportPct: float | None = None     # % below price to nearest support
+    distResistancePct: float | None = None  # % above price to nearest resistance
+
+
 class EntrySignal(BaseModel):
     """When to enter and why — derived from trend, accumulation and structure."""
     signal: str = "wait"           # "buy_watch" | "wait" | "avoid"
@@ -159,6 +178,7 @@ class TechnicalAnalysisResponse(BaseModel):
     trend: TrendInfo
     supportResistance: list[SRLevel] = []
     patterns: list[CandlestickPattern] = []
+    situation: SituationInfo = SituationInfo()
     gaps: list[GapInfo] = []
     volume: VolumeInfo = VolumeInfo()
     accumulation: AccumulationInfo = AccumulationInfo()
