@@ -9,6 +9,9 @@ export interface NewsItem {
   summaryId: string;
   summaryEn: string;
   source: string;
+  /** Link to the original article/filing. Present on live IDX items; seed items
+   *  have none, so the UI shows expand-only and hides the external-link icon. */
+  url?: string;
   category: "market" | "macro" | "corporate" | "global";
   symbols: string[];
   minsAgo: number;
@@ -123,6 +126,7 @@ async function fetchIdxDisclosures(): Promise<NewsItem[]> {
         ? `IDX disclosure filed by ${item.symbol} — ${item.category || "official announcement"}.`
         : `Official Indonesia Stock Exchange announcement — ${item.category || "disclosure"}.`,
       source: item.source || "IDX",
+      url: item.url || undefined,
       category: mapCategory(item.category),
       symbols: item.symbol ? [item.symbol] : [],
       minsAgo: minutesSince(item.publishedAt),

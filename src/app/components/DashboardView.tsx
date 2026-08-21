@@ -17,6 +17,8 @@ interface Props {
   fx:           ExchangeRateData;
   holdings:     PortfolioHolding[];
   transactions: Transaction[];
+  /** Open a stock in Markets (holding/transaction rows are drill-downs). */
+  onSelectSymbol?: (symbol: string) => void;
 }
 
 const ALERT_ICONS: Record<string, ElementType> = {
@@ -26,7 +28,7 @@ const ALERT_COLORS: Record<string, string> = {
   high: "var(--loss)", medium: "var(--warning)", low: "var(--neutral)",
 };
 
-export function DashboardView({ market, fx, holdings, transactions }: Props) {
+export function DashboardView({ market, fx, holdings, transactions, onSelectSymbol }: Props) {
   const { locale } = useApp();
   const { t }      = useTranslation(locale);
   const isId       = locale === "id";
@@ -235,7 +237,20 @@ export function DashboardView({ market, fx, holdings, transactions }: Props) {
             {t("dash_top_holdings")}
           </div>
           {topHoldings.map((h, i) => (
-            <div key={h.symbol} className="flex items-center justify-between py-2" style={{ borderBottom: i < topHoldings.length - 1 ? "1px solid var(--border)" : "none" }}>
+            <div
+              key={h.symbol}
+              onClick={() => onSelectSymbol?.(h.symbol)}
+              role={onSelectSymbol ? "button" : undefined}
+              title={onSelectSymbol ? (isId ? `Buka ${h.symbol} di Pasar` : `Open ${h.symbol} in Markets`) : undefined}
+              className="flex items-center justify-between py-2"
+              style={{
+                borderBottom: i < topHoldings.length - 1 ? "1px solid var(--border)" : "none",
+                cursor: onSelectSymbol ? "pointer" : "default",
+                transition: "background-color 0.15s",
+              }}
+              onMouseEnter={(e) => { if (onSelectSymbol) (e.currentTarget as HTMLDivElement).style.background = "var(--muted)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
+            >
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{h.symbol}</div>
                 <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 1 }}>{h.lots.toLocaleString()} {isId ? "lot" : "lots"}</div>

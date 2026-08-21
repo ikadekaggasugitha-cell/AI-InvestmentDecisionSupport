@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, memo, type CSSProperties } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect, memo, type CSSProperties } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Search, ChevronUp, ChevronDown, TrendingUp, TrendingDown, Star } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
@@ -14,9 +14,13 @@ interface Props {
   fx:                ExchangeRateData;
   watchlist:         Set<string>;
   onToggleWatchlist: (symbol: string) => void;
+  /** When set (from a Dashboard row / Header search), pre-filter to this symbol. */
+  focusSymbol?:      string | null;
+  /** Bumped on each selection so re-selecting the same symbol re-applies. */
+  focusNonce?:       number;
 }
 
-type SortKey = "symbol" | "price" | "changePct" | "volume" | "mktCap";
+type SortKey = "symbol" | "price" | "changePct" | "volume" | "mktCap" | "pe" | "foreignNet" | "tier" | "sector" | "trend";
 type SortDir = "asc" | "desc";
 
 /* ── Module-level constants ───────────────────────────────────────────────── */
@@ -205,12 +209,17 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 const COL_COUNT = 12;
 const ROW_HEIGHT = 48;
 
-export function MarketsView({ market, fx, watchlist, onToggleWatchlist }: Props) {
+export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSymbol = null, focusNonce = 0 }: Props) {
   const { locale } = useApp();
   const { t } = useTranslation(locale);
   const isId = locale === "id";
 
   const [search,  setSearch]  = useState("");
+  // Apply an incoming focus (Dashboard row / Header search) as a search filter.
+  useEffect(() => {
+    if (focusSymbol) { setSearch(focusSymbol); setSector("all"); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusSymbol, focusNonce]);
   const [sector,  setSector]  = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("mktCap");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -251,17 +260,28 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist }: Props)
         return matchSearch && matchSector;
       })
       .sort((a, b) => {
+        const dir = sortDir === "asc" ? 1 : -1;
         if (sortKey === "mktCap") {
-          const av = parseMktCap(a.mktCap), bv = parseMktCap(b.mktCap);
-          return sortDir === "asc" ? av - bv : bv - av;
+          return dir * (parseMktCap(a.mktCap) - parseMktCap(b.mktCap));
         }
-        if (sortKey === "symbol") {
-          return sortDir === "asc"
-            ? a.symbol.localeCompare(b.symbol)
-            : b.symbol.localeCompare(a.symbol);
+        // String columns → locale-aware compare.
+        if (sortKey === "symbol" || sortKey === "tier" || sortKey === "sector") {
+          const av = sortKey === "sector" ? (isId ? a.sector : a.sectorEn) : (a[sortKey] as string);
+          const bv = sortKey === "sector" ? (isId ? b.sector : b.sectorEn) : (b[sortKey] as string);
+          return dir * av.localeCompare(bv);
         }
-        const av = a[sortKey] as number, bv = b[sortKey] as number;
-        return sortDir === "asc" ? av - bv : bv - av;
+        // Trend has no discrete field: sort by the 7-day move implied by the
+        // sparkline history (last vs first), so uptrends group together.
+        if (sortKey === "trend") {
+          const move = (s: typeof a) => {
+            const h = s.history;
+            return h && h.length > 1 && h[0] ? (h[h.length - 1] - h[0]) / h[0] : 0;
+          };
+          return dir * (move(a) - move(b));
+        }
+        // Numeric columns: price, changePct, volume, pe, foreignNet.
+        const av = (a[sortKey] as number) ?? 0, bv = (b[sortKey] as number) ?? 0;
+        return dir * (av - bv);
       });
   }, [stocks, search, sector, sortKey, sortDir, isId, watchlist]);
 
@@ -381,7 +401,9 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist }: Props)
                 <th style={thRight} onClick={() => handleSort("changePct")}>
                   <span className="flex items-center justify-end gap-1">{t("mkt_col_change")} <SortIcon active={sortKey === "changePct"} dir={sortDir} /></span>
                 </th>
-                <th style={thBase}>{t("mkt_col_trend")}</th>
+                <th style={thBase} onClick={() => handleSort("trend")}>
+                  <span className="flex items-center gap-1">{t("mkt_col_trend")} <SortIcon active={sortKey === "trend"} dir={sortDir} /></span>
+                </th>
                 <th style={thRight} onClick={() => handleSort("volume")}>
                   <span className="flex items-center justify-end gap-1">{t("mkt_col_volume")} <SortIcon active={sortKey === "volume"} dir={sortDir} /></span>
                 </th>
@@ -396,10 +418,18 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist }: Props)
                 <th style={thRight} onClick={() => handleSort("mktCap")}>
                   <span className="flex items-center justify-end gap-1">{t("mkt_col_mktcap")} <SortIcon active={sortKey === "mktCap"} dir={sortDir} /></span>
                 </th>
-                <th style={thRight}>{t("mkt_col_pe")}</th>
-                <th style={thBase}>{t("mkt_col_tier")}</th>
-                <th style={thRight}>{t("mkt_col_foreign")}</th>
-                <th style={thBase}>{t("mkt_col_sector")}</th>
+                <th style={thRight} onClick={() => handleSort("pe")}>
+                  <span className="flex items-center justify-end gap-1">{t("mkt_col_pe")} <SortIcon active={sortKey === "pe"} dir={sortDir} /></span>
+                </th>
+                <th style={thBase} onClick={() => handleSort("tier")}>
+                  <span className="flex items-center gap-1">{t("mkt_col_tier")} <SortIcon active={sortKey === "tier"} dir={sortDir} /></span>
+                </th>
+                <th style={thRight} onClick={() => handleSort("foreignNet")}>
+                  <span className="flex items-center justify-end gap-1">{t("mkt_col_foreign")} <SortIcon active={sortKey === "foreignNet"} dir={sortDir} /></span>
+                </th>
+                <th style={thBase} onClick={() => handleSort("sector")}>
+                  <span className="flex items-center gap-1">{t("mkt_col_sector")} <SortIcon active={sortKey === "sector"} dir={sortDir} /></span>
+                </th>
               </tr>
             </thead>
             <tbody>

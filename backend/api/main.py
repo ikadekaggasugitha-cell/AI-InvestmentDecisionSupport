@@ -27,7 +27,7 @@ from api.core.auth import get_current_user
 from api.core.config import get_settings
 from api.core.rate_limit import limiter
 from api.routers import (
-    advisor, auth, broksum, market_ws, news, portfolio, risk, signals, technicals,
+    advisor, auth, broksum, market_ws, news, portfolio, reports, risk, signals, technicals,
 )
 
 # ── Structured logging ────────────────────────────────────────────────────────
@@ -203,6 +203,7 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     app.include_router(broksum.router, dependencies=protected)
     app.include_router(technicals.router, dependencies=protected)
     app.include_router(news.router, dependencies=protected)
+    app.include_router(reports.router, dependencies=protected)
 
     # ── Prometheus metrics (Phase 8) ──────────────────────────────────────────
     if settings.metrics_enabled:

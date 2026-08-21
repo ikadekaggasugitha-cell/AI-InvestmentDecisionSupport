@@ -1,4 +1,5 @@
-import { Scale, FlaskConical, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { Scale, FlaskConical, ArrowRight, X } from "lucide-react";
 import { usePortfolioOptimisation } from "../hooks/usePortfolioOptimisation";
 import type { PortfolioHolding } from "../hooks/usePortfolio";
 
@@ -20,6 +21,7 @@ export interface AllocationPanelProps {
 export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationPanelProps) {
   const isId = locale === "id";
   const { weights, metrics, source, loading, error } = usePortfolioOptimisation();
+  const [showRebalance, setShowRebalance] = useState(false);
 
   // Current weights from live prices, so "current vs target" compares like
   // with like rather than target-at-market against cost basis.
@@ -93,6 +95,14 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
             ? "Bobot target vs posisi Anda saat ini — bukan instruksi transaksi"
             : "Target weights vs your current positions — not a trade instruction"}
         </div>
+        <button
+          onClick={() => setShowRebalance(true)}
+          className="flex items-center gap-1.5 rounded mt-2 px-2.5 py-1"
+          style={{ background: "var(--primary-bg, var(--muted))", border: "1px solid var(--primary)", color: "var(--primary)", fontSize: 11, cursor: "pointer", width: "fit-content" }}
+        >
+          <Scale size={12} />
+          {isId ? "Lihat Saran Rebalance" : "View Rebalance Suggestions"}
+        </button>
       </div>
 
       {/* Metrics */}
@@ -157,6 +167,81 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
           );
         })}
       </div>
+
+      {showRebalance && (
+        <div
+          onClick={() => setShowRebalance(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="rounded flex flex-col"
+            style={{ background: "var(--card)", border: "1px solid var(--border)", width: "min(520px, 100%)", maxHeight: "80vh" }}
+          >
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
+                  {isId ? "Saran Rebalance" : "Rebalance Suggestions"}
+                </div>
+                <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 2 }}>
+                  {isId ? "Perkiraan transaksi untuk menutup selisih — bukan eksekusi order." : "Estimated trades to close the gap — not order execution."}
+                </div>
+              </div>
+              <button onClick={() => setShowRebalance(false)} aria-label="Close"
+                className="flex items-center justify-center rounded"
+                style={{ width: 28, height: 28, background: "transparent", border: "none", color: "var(--muted-foreground)", cursor: "pointer" }}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+              {(() => {
+                const suggestions = ranked
+                  .map((w) => {
+                    const now = currentPct[w.symbol] ?? 0;
+                    const gap = w.weightPct - now;
+                    const price = prices[w.symbol] ?? 0;
+                    const deltaIdr = (gap / 100) * totalValue;
+                    const lots = price > 0 ? Math.round(deltaIdr / (price * 100)) : 0;
+                    return { symbol: w.symbol, gap, deltaIdr, lots };
+                  })
+                  .filter((s) => Math.abs(s.gap) >= 1 && s.lots !== 0)
+                  .sort((a, b) => Math.abs(b.deltaIdr) - Math.abs(a.deltaIdr));
+
+                if (suggestions.length === 0) {
+                  return (
+                    <div style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "8px 0" }}>
+                      {isId ? "Portofolio sudah mendekati alokasi target — tak ada aksi berarti." : "Portfolio is already close to target — no meaningful action."}
+                    </div>
+                  );
+                }
+                return suggestions.map((s) => {
+                  const buy = s.lots > 0;
+                  const color = buy ? "var(--gain)" : "var(--loss)";
+                  return (
+                    <div key={s.symbol} className="flex items-center justify-between rounded px-3 py-2"
+                      style={{ background: "var(--muted)", border: "1px solid var(--border)" }}>
+                      <div className="flex items-center gap-2">
+                        <span style={{ fontSize: 9, fontWeight: 700, fontFamily: "var(--font-mono)", color, background: "var(--card)", border: `1px solid ${color}`, borderRadius: 3, padding: "1px 6px" }}>
+                          {buy ? (isId ? "BELI" : "BUY") : (isId ? "JUAL" : "SELL")}
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{s.symbol}</span>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color, fontFamily: "var(--font-mono)" }}>
+                          {Math.abs(s.lots).toLocaleString("id-ID")} {isId ? "lot" : "lots"}
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+                          {s.gap >= 0 ? "+" : ""}{s.gap.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

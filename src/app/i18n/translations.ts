@@ -163,6 +163,7 @@ const translations = {
     /* Settings */
     settings_title: "Pengaturan",
     settings_sub: "Konfigurasi tampilan, bahasa, dan preferensi aplikasi",
+    alerts_subtitle: "Peringatan sinyal, risiko, dan makro dari sistem",
     settings_appearance: "Tampilan",
     settings_dark_mode: "Mode Gelap",
     settings_dark_mode_sub: "Aktifkan tema gelap untuk tampilan malam",
@@ -373,6 +374,7 @@ const translations = {
     /* Settings */
     settings_title: "Settings",
     settings_sub: "Configure display, language, and application preferences",
+    alerts_subtitle: "Signal, risk, and macro alerts from the system",
     settings_appearance: "Appearance",
     settings_dark_mode: "Dark Mode",
     settings_dark_mode_sub: "Enable dark theme for night-time viewing",

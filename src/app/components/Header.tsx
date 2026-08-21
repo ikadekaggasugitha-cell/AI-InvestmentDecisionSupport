@@ -13,6 +13,8 @@ interface HeaderProps {
   fx: ExchangeRateData;
   isMobile?: boolean;
   onMenuToggle?: () => void;
+  /** Open a search result in Markets, pre-filtered to that symbol. */
+  onSelectSymbol?: (symbol: string) => void;
 }
 
 const SECONDARY = [
@@ -53,9 +55,10 @@ interface SearchDropdownProps {
   market: LiveMarketData;
   onClose: () => void;
   isId: boolean;
+  onSelectSymbol?: (symbol: string) => void;
 }
 
-function SearchDropdown({ query, market, onClose, isId }: SearchDropdownProps) {
+function SearchDropdown({ query, market, onClose, isId, onSelectSymbol }: SearchDropdownProps) {
   const q = query.toLowerCase().trim();
   if (!q) return null;
 
@@ -96,7 +99,7 @@ function SearchDropdown({ query, market, onClose, isId }: SearchDropdownProps) {
             }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "var(--muted)")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            onClick={onClose}
+            onClick={() => { onSelectSymbol?.(stock.symbol); onClose(); }}
           >
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -150,7 +153,7 @@ const dropdownStyle: CSSProperties = {
   overflow: "hidden",
 };
 
-export function Header({ title, subtitle, market, fx, isMobile = false, onMenuToggle }: HeaderProps) {
+export function Header({ title, subtitle, market, fx, isMobile = false, onMenuToggle, onSelectSymbol }: HeaderProps) {
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -357,6 +360,7 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
                   market={market}
                   onClose={clearSearch}
                   isId={isId}
+                  onSelectSymbol={onSelectSymbol}
                 />
               )}
             </div>

@@ -16,6 +16,7 @@ const RiskView      = lazy(() => import("./components/RiskView").then((m) => ({ 
 const NewsView      = lazy(() => import("./components/NewsView").then((m) => ({ default: m.NewsView })));
 const SettingsView  = lazy(() => import("./components/SettingsView").then((m) => ({ default: m.SettingsView })));
 const ReportsView   = lazy(() => import("./components/ReportsView").then((m) => ({ default: m.ReportsView })));
+const AlertsView    = lazy(() => import("./components/AlertsView").then((m) => ({ default: m.AlertsView })));
 import { useLiveMarket } from "./hooks/useLiveMarket";
 import { useExchangeRate } from "./hooks/useExchangeRate";
 import { useNews } from "./hooks/useNews";
@@ -60,6 +61,15 @@ function AppInner() {
   const isMobile = windowWidth < 768;
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Cross-view "open this stock": Dashboard rows and the Header search jump to
+  // Markets pre-filtered to a symbol. Bumped each selection so re-selecting the
+  // same symbol still re-applies the filter.
+  const [focus, setFocus] = useState<{ symbol: string; nonce: number } | null>(null);
+  const selectSymbol = (symbol: string) => {
+    setFocus((f) => ({ symbol, nonce: (f?.nonce ?? 0) + 1 }));
+    setView("markets");
+  };
+
   useEffect(() => {
     if (!isMobile) setSidebarOpen(false);
   }, [isMobile]);
@@ -88,6 +98,7 @@ function AppInner() {
     news:      { title: t("nav_news"),      subtitle: t("news_subtitle")    },
     reports:   { title: t("nav_reports"),  subtitle: t("reports_subtitle") },
     settings:  { title: t("nav_settings"), subtitle: t("settings_sub")     },
+    alerts:    { title: t("nav_alerts"),   subtitle: t("alerts_subtitle")  },
   };
 
   const cfg = viewTitles[view];
@@ -115,6 +126,7 @@ function AppInner() {
           fx={fx}
           isMobile={isMobile}
           onMenuToggle={() => setSidebarOpen(true)}
+          onSelectSymbol={selectSymbol}
         />
           <Suspense fallback={<ViewSkeleton />}>
           {view === "dashboard"  && (
@@ -123,6 +135,7 @@ function AppInner() {
                 market={market} fx={fx}
                 holdings={portfolio.holdings}
                 transactions={portfolio.transactions}
+                onSelectSymbol={selectSymbol}
               />
             </ErrorBoundary>
           )}
@@ -132,6 +145,8 @@ function AppInner() {
                 market={market} fx={fx}
                 watchlist={watchlistHook.watchlist}
                 onToggleWatchlist={watchlistHook.toggle}
+                focusSymbol={focus?.symbol ?? null}
+                focusNonce={focus?.nonce ?? 0}
               />
             </ErrorBoundary>
           )}
@@ -151,6 +166,7 @@ function AppInner() {
           {view === "news"       && <ErrorBoundary key="news"     locale={locale}><NewsView news={news} loading={newsLoading} /></ErrorBoundary>}
           {view === "reports"    && <ErrorBoundary key="reports"  locale={locale}><ReportsView /></ErrorBoundary>}
           {view === "settings"   && <ErrorBoundary key="settings" locale={locale}><SettingsView fx={fx} /></ErrorBoundary>}
+          {view === "alerts"     && <ErrorBoundary key="alerts"   locale={locale}><AlertsView alerts={ALERTS_DATA} locale={locale} /></ErrorBoundary>}
           </Suspense>
       </div>
       <Toaster theme={isDark ? "dark" : "light"} position="top-right" richColors />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
 import { riskResponseSchema, parseOrThrow } from "../config/schemas";
 import { RISK_DATA, STRESS_TESTS, SECTOR_EXPOSURE } from "../data/idxData";
@@ -46,6 +46,8 @@ export interface RiskMetricsResult {
   error: string | null;
   /** True when the metrics came from the live backend, false for seed. */
   isLive: boolean;
+  /** Trigger an immediate re-fetch (manual "Refresh" button). */
+  refetch: () => void;
 }
 
 /** How often live risk metrics are re-polled, in ms. */
@@ -76,6 +78,8 @@ export function useRiskMetrics(): RiskMetricsResult {
   const [loading, setLoading]             = useState(USE_LIVE_API);
   const [error, setError]                 = useState<string | null>(null);
   const [isLive, setIsLive]               = useState(false);
+  const [refreshTick, setRefreshTick]     = useState(0);
+  const refetch = useCallback(() => setRefreshTick((t) => t + 1), []);
 
   useEffect(() => {
     if (!USE_LIVE_API) return;
@@ -122,7 +126,9 @@ export function useRiskMetrics(): RiskMetricsResult {
       cancelled = true;
       clearInterval(interval);
     };
-  }, []);
+    // refreshTick bump forces an immediate re-fetch for the manual Refresh button.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTick]);
 
-  return { risk, stressTests, sectorExposure, loading, error, isLive };
+  return { risk, stressTests, sectorExposure, loading, error, isLive, refetch };
 }

@@ -23,7 +23,8 @@ export type ViewType =
   | "risk"
   | "news"
   | "reports"
-  | "settings";
+  | "settings"
+  | "alerts";
 
 interface SidebarProps {
   currentView:    ViewType;
@@ -53,7 +54,7 @@ export function Sidebar({
     { id: "dashboard", label: t("nav_dashboard"), icon: LayoutDashboard },
     { id: "markets",   label: t("nav_markets"),   icon: TrendingUp, badge: watchlistCount > 0 ? String(watchlistCount) : undefined },
     { id: "portfolio", label: t("nav_portfolio"),  icon: PieChart },
-    { id: "advisor",   label: t("nav_advisor"),    icon: Brain, badge: "5" },
+    { id: "advisor",   label: t("nav_advisor"),    icon: Brain },
     { id: "risk",      label: t("nav_risk"),       icon: ShieldAlert },
     { id: "news",      label: t("nav_news"),       icon: Newspaper },
     { id: "reports",   label: t("nav_reports"),    icon: FileBarChart2 },
@@ -222,14 +223,20 @@ export function Sidebar({
           </button>
 
           <button
+            onClick={() => handleNavClick("alerts")}
             className="w-full flex items-center gap-3 px-3 py-2 rounded text-left"
             style={{
-              background: alertCount > 0 ? "rgba(255, 71, 87, 0.06)" : "transparent",
-              borderLeft: "2px solid transparent",
+              background:
+                currentView === "alerts"
+                  ? "rgba(255, 71, 87, 0.14)"
+                  : alertCount > 0
+                  ? "rgba(255, 71, 87, 0.06)"
+                  : "transparent",
+              borderLeft: `2px solid ${currentView === "alerts" ? "#ff4757" : "transparent"}`,
               cursor: "pointer",
             }}
           >
-            <Bell size={15} style={{ color: alertCount > 0 ? "#ff4757" : "#4a6480" }} />
+            <Bell size={15} style={{ color: alertCount > 0 || currentView === "alerts" ? "#ff4757" : "#4a6480" }} />
             <span style={{ fontSize: 13, color: alertCount > 0 ? "#c8d6e5" : "#6b8ba8", flex: 1 }}>
               {t("nav_alerts")}
             </span>

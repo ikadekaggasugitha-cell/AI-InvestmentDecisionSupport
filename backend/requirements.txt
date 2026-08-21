@@ -120,3 +120,6 @@ lxml==6.1.1            # Fast HTML/XML parser backend for bs4
 # This library replays a real Chrome handshake, which is the only reason the
 # quote and chart endpoints respond at all.
 curl_cffi==0.16.0
+
+# PDF report generation (pure-python, no system deps)
+reportlab==4.2.5

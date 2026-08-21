@@ -36,7 +36,7 @@ export function NewsView({ news, loading }: Props) {
   const [filter, setFilter] = useState<string>("all");
   const [active, setActive] = useState<string | null>(null);
 
-  const categories = ["all", "market", "macro", "corporate"];
+  const categories = ["all", "market", "macro", "corporate", "global"];
 
   const filtered = filter === "all" ? news : news.filter((n) => n.category === filter);
 
@@ -183,21 +183,38 @@ export function NewsView({ news, loading }: Props) {
 
                 {/* Footer */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 4 }}>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 500,
-                      color: "var(--muted-foreground)",
-                      background: "var(--muted)",
-                      borderRadius: 4,
-                      padding: "3px 8px",
-                    }}
-                  >
-                    {item.source}
-                  </span>
-                  <span style={{ fontSize: 11, color: "var(--neutral)", display: "flex", alignItems: "center", gap: 3 }}>
-                    {isOpen ? (id ? "Tutup" : "Collapse") : (id ? "Baca" : "Read")}
-                    {!isOpen && <ExternalLink size={10} />}
+                  {item.url ? (
+                    // Real source link — opens the original article/filing in a new
+                    // tab. stopPropagation so it does not also toggle the card.
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        fontSize: 11, fontWeight: 500, color: "var(--neutral)",
+                        background: "var(--muted)", borderRadius: 4, padding: "3px 8px",
+                        display: "flex", alignItems: "center", gap: 4, textDecoration: "none",
+                      }}
+                    >
+                      {item.source}
+                      <ExternalLink size={10} />
+                    </a>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: 11, fontWeight: 500, color: "var(--muted-foreground)",
+                        background: "var(--muted)", borderRadius: 4, padding: "3px 8px",
+                      }}
+                    >
+                      {item.source}
+                    </span>
+                  )}
+                  {/* Expand/collapse indicator — no external-link icon: expanding is
+                      not navigation, and the misleading icon is what made "Baca"
+                      look like it opened the article. */}
+                  <span style={{ fontSize: 11, color: "var(--neutral)" }}>
+                    {isOpen ? (id ? "Tutup" : "Collapse") : (id ? "Baca ringkasan" : "Read summary")}
                   </span>
                 </div>
               </div>

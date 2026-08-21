@@ -53,6 +53,10 @@ export const ENDPOINTS = {
   /** Pullable foreign-flow accumulation history (net foreign per session) */
   accumulationHistory: (symbol: string, days = 30) =>
     `${API_BASE}/v1/technicals/${symbol}/accumulation-history?days=${days}`,
+  /** On-demand PDF reports (Phase 13) */
+  reports:         `${API_BASE}/v1/reports`,
+  reportGenerate:  (type: string) => `${API_BASE}/v1/reports/${type}/generate`,
+  reportDownload:  (type: string) => `${API_BASE}/v1/reports/${type}/download`,
   /** IDX keterbukaan informasi — primary filings, not aggregated news */
   news:           (limit = 20, daysBack = 7) =>
     `${API_BASE}/v1/news?limit=${limit}&daysBack=${daysBack}`,

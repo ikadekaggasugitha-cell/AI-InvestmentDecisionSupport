@@ -180,7 +180,7 @@ export function RiskView({ market }: Props) {
   const { t } = useTranslation(locale);
   const isId = locale === "id";
 
-  const { risk: rd, stressTests, sectorExposure, loading, error, isLive } = useRiskMetrics();
+  const { risk: rd, stressTests, sectorExposure, loading, error, isLive, refetch } = useRiskMetrics();
 
   if (loading) {
     return <ViewSkeleton rows={4} label={isId ? "Memuat data risiko…" : "Loading risk data…"} />;
@@ -209,6 +209,18 @@ export function RiskView({ market }: Props) {
 
   return (
     <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+
+      {/* Toolbar: manual refresh (the view otherwise only auto-polls). */}
+      <div className="flex items-center justify-end">
+        <button
+          onClick={refetch}
+          className="flex items-center gap-2 px-3 py-1.5 rounded"
+          style={{ background: "var(--muted)", border: "1px solid var(--border)", color: "var(--foreground)", fontSize: 12, cursor: "pointer" }}
+        >
+          <Activity size={13} />
+          {isId ? "Segarkan" : "Refresh"}
+        </button>
+      </div>
 
       {/* Offline / simulated-data banner — shown only when the live fetch failed.
           The metrics below are the bundled seed; the hook re-polls and clears

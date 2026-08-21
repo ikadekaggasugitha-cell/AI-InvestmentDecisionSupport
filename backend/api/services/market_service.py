@@ -108,6 +108,44 @@ def _init_default_state() -> None:
         )
 
 
+async def _fetch_latest_foreign_net(symbols: list[str]) -> dict[str, float]:
+    """
+    Latest end-of-day net foreign flow, in SHARES, per symbol from `ohlcv`.
+
+    One `DISTINCT ON` query returns each symbol's most recent non-null
+    `foreign_net`. Returns {} on any DB fault or when mock market data is on, so
+    the caller degrades to foreignNet=0.0 rather than failing the market poll.
+    """
+    settings = get_settings()
+    if settings.use_mock_market or not symbols:
+        return {}
+
+    try:
+        import asyncpg
+
+        conn = await asyncpg.connect(
+            settings.database_url.replace("postgresql+asyncpg://", "postgresql://"),
+            timeout=4,
+        )
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT ON (symbol) symbol, foreign_net
+                FROM ohlcv
+                WHERE symbol = ANY($1::text[]) AND foreign_net IS NOT NULL
+                ORDER BY symbol, time DESC
+                """,
+                symbols,
+            )
+        finally:
+            await conn.close()
+    except Exception as exc:  # noqa: BLE001 — foreign flow is a display bonus, never fatal
+        logger.debug("market_service: foreign flow lookup skipped — %s", exc)
+        return {}
+
+    return {r["symbol"]: float(r["foreign_net"]) for r in rows if r["foreign_net"] is not None}
+
+
 async def fetch_yahoo_market_data() -> bool:
     """
     Refresh the in-memory snapshot from the configured market data provider.
@@ -140,6 +178,14 @@ async def fetch_yahoo_market_data() -> bool:
     if not batch.quotes:
         logger.warning("market feed returned no quotes for any symbol")
         return False
+
+    # IDX foreign flow — the realtime vendor (Yahoo) does not carry it, so pull
+    # the latest END-OF-DAY net foreign shares per symbol from `ohlcv` (the free
+    # IDX feed) and value it at the current price. This is the same real foreign
+    # participation the accumulation panel uses, surfaced on the market table's
+    # "Foreign Net" column instead of a hardcoded 0.0. EOD, not intraday — but a
+    # real net-flow read beats a fabricated zero.
+    foreign_shares = await _fetch_latest_foreign_net(symbols)
 
     applied = 0
 
@@ -193,9 +239,10 @@ async def fetch_yahoo_market_data() -> bool:
             sector=meta["sector"],
             sectorEn=meta["sectorEn"],
             tier=meta["tier"],
-            # IDX foreign flow is not published by this vendor. 0.0 here means
-            # "not reported", and the UI must not read it as "zero net flow".
-            foreignNet=0.0,
+            # Net foreign VALUE in IDR billions: latest EOD net foreign shares
+            # (from `ohlcv`) valued at the current price. 0.0 only when no
+            # foreign flow has been ingested yet for this symbol.
+            foreignNet=round(foreign_shares.get(sym, 0.0) * quote.price / 1e9, 2),
             history=list(hist),
         )
         applied += 1
