@@ -6,6 +6,7 @@ import type {
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
 import type { GapInfo, SRLevel } from "../hooks/useAISignals";
 import type { OHLCVCandle, SituationInfo } from "../hooks/useTechnicals";
+import { mergeLiveBar, wibDateString } from "./candleLive";
 
 /**
  * Lightweight Charts wrapper.
@@ -32,6 +33,14 @@ export interface CandlestickChartProps {
   situation?: SituationInfo | null;
   height?: number;
   locale?: "id" | "en";
+  /**
+   * Live last-trade price from the market feed. When present it pulses the
+   * *forming* (today's) candle — close follows the tick, high/low extend — via
+   * the series' own `update()`, without rebuilding the chart. Null keeps the
+   * chart static, which is the honest state when the market is closed, the feed
+   * is simulated, or the backend is unreachable (the caller gates this).
+   */
+  livePrice?: number | null;
 }
 
 /* Situations that describe behaviour at the ceiling vs. the floor — decides
@@ -125,11 +134,19 @@ export function CandlestickChart({
   situation = null,
   height = 280,
   locale = "id",
+  livePrice = null,
 }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [failed, setFailed] = useState(false);
   // Bumped whenever the theme flips, to force a full chart rebuild.
   const [themeTick, setThemeTick] = useState(0);
+
+  // Live pulse plumbing: the build effect owns the candle series; the live
+  // effect below reaches it through this ref to call update() on the forming
+  // bar without tearing the chart down. `formingBarRef` carries the running
+  // OHLC of today's bar so successive ticks extend high/low correctly.
+  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const formingBarRef = useRef<OHLCVCandle | null>(null);
 
   const isId = locale === "id";
 
@@ -206,6 +223,12 @@ export function CandlestickChart({
           close: c.close,
         })),
       );
+
+      // Hand the series to the live-pulse effect and seed the forming bar from
+      // the freshest history bar. Both reset on every rebuild (theme / new
+      // history), so live accumulation always restarts from the real last bar.
+      candleSeriesRef.current = candleSeries;
+      formingBarRef.current = ohlcv.length ? { ...ohlcv[ohlcv.length - 1] } : null;
 
       // Volume on its own scale, pinned to the lower quarter of the pane.
       const volumeSeries = chart.addHistogramSeries({
@@ -346,6 +369,7 @@ export function CandlestickChart({
 
       cleanup = () => {
         resizeObserver.disconnect();
+        candleSeriesRef.current = null;
         chart.remove();
       };
     })();
@@ -355,6 +379,32 @@ export function CandlestickChart({
       cleanup?.();
     };
   }, [ohlcv, supportResistance, entryPrice, stopLoss, gaps, situation, height, isId, themeTick]);
+
+  /* Live pulse — deliberately keyed on `livePrice` alone so a tick updates the
+     forming bar in place instead of retriggering the (expensive) rebuild above.
+     Only today's bar moves; a stale-day last bar is left untouched. */
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    const base = formingBarRef.current;
+    if (!series || !base || livePrice == null) return;
+
+    const merged = mergeLiveBar(base, livePrice, wibDateString());
+    if (!merged) return;
+    formingBarRef.current = merged;
+
+    try {
+      series.update({
+        time: merged.time as never,
+        open: merged.open,
+        high: merged.high,
+        low: merged.low,
+        close: merged.close,
+      });
+    } catch {
+      // The series can be mid-teardown during a theme/history rebuild; the next
+      // tick lands on the fresh series, so a dropped update here is harmless.
+    }
+  }, [livePrice]);
 
   if (failed) {
     return (

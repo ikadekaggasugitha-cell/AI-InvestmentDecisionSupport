@@ -10,6 +10,8 @@ import { useTranslation } from "../i18n/translations";
 import { useAISignals, type AISignal } from "../hooks/useAISignals";
 import { useBrokerSummary } from "../hooks/useBrokerSummary";
 import { useTechnicals, type SituationInfo } from "../hooks/useTechnicals";
+import type { LiveMarketData } from "../hooks/useLiveMarket";
+import { DataFreshnessBadge } from "./DataFreshnessBadge";
 import { AdvisorChat } from "./AdvisorChat";
 import { BrokerSummaryPanel } from "./BrokerSummaryPanel";
 import { EntrySignalCard } from "./EntrySignalCard";
@@ -463,6 +465,7 @@ function SignalCard({
   onToggle,
   isId,
   t,
+  market,
 }: {
   rec: AISignal;
   isOpen: boolean;
@@ -471,12 +474,23 @@ function SignalCard({
   // Derived from the hook rather than widened to (key: string), so a typo in a
   // translation key fails the type check instead of rendering the key itself.
   t: ReturnType<typeof useTranslation>["t"];
+  market: LiveMarketData;
 }) {
   const cfg = TIER_CFG[rec.probabilityTier as Tier];
   const Icon = cfg.icon;
   const upPos = rec.upside >= 0;
 
   const technicals = useTechnicals(rec.symbol, 120, isOpen);
+
+  // Live last-trade for this symbol, fed to the chart to pulse today's forming
+  // candle. Gated to the honest live case only: a real backend feed, market
+  // open, and not the simulated/offline seed. Outside that the chart stays
+  // static rather than animating numbers that aren't the market's.
+  const isLiveFeed =
+    market.source === "backend_ws" &&
+    market.isMarketOpen &&
+    !market.freshness.isSimulated;
+  const livePrice = isLiveFeed ? (market.stocks[rec.symbol]?.price ?? null) : null;
   const broksum = useBrokerSummary(rec.symbol, 20, isOpen);
 
   // Prefer live technicals once loaded; fall back to whatever the signal
@@ -582,7 +596,15 @@ function SignalCard({
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 {t("ai_price_action")}
               </div>
-              <SituationBadge situation={technicals.situation} isId={isId} />
+              <div className="flex items-center gap-2">
+                <DataFreshnessBadge
+                  freshness={market.freshness}
+                  isConnected={market.source === "backend_ws"}
+                  locale={isId ? "id" : "en"}
+                  compact
+                />
+                <SituationBadge situation={technicals.situation} isId={isId} />
+              </div>
             </div>
             <SituationFacts situation={technicals.situation} isId={isId} />
             <Suspense
@@ -606,6 +628,7 @@ function SignalCard({
                 situation={technicals.situation}
                 height={280}
                 locale={isId ? "id" : "en"}
+                livePrice={livePrice}
               />
             </Suspense>
           </div>
@@ -812,7 +835,7 @@ function SignalCard({
   );
 }
 
-export function AIAdvisorView() {
+export function AIAdvisorView({ market }: { market: LiveMarketData }) {
   const { locale } = useApp();
   const { t } = useTranslation(locale);
   const isId = locale === "id";
@@ -947,6 +970,7 @@ export function AIAdvisorView() {
               onToggle={() => setExpanded(expanded === rec.id ? null : rec.id)}
               isId={isId}
               t={t}
+              market={market}
             />
           ))}
         </div>

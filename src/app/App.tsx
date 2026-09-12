@@ -161,7 +161,7 @@ function AppInner() {
               />
             </ErrorBoundary>
           )}
-          {view === "advisor"    && <ErrorBoundary key="advisor"  locale={locale}><AIAdvisorView /></ErrorBoundary>}
+          {view === "advisor"    && <ErrorBoundary key="advisor"  locale={locale}><AIAdvisorView market={market} /></ErrorBoundary>}
           {view === "risk"       && <ErrorBoundary key="risk"     locale={locale}><RiskView market={market} /></ErrorBoundary>}
           {view === "news"       && <ErrorBoundary key="news"     locale={locale}><NewsView news={news} loading={newsLoading} /></ErrorBoundary>}
           {view === "reports"    && <ErrorBoundary key="reports"  locale={locale}><ReportsView /></ErrorBoundary>}
