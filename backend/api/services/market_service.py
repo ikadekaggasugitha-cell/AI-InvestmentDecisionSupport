@@ -21,24 +21,144 @@ from api.models.market import (
 logger = logging.getLogger(__name__)
 
 # ── IDX universe metadata ───────────────────────────────────────────────────
+#
+# The universe is loaded from the `instruments` table at runtime (see
+# _load_universe), so the live snapshot covers the WHOLE listed board (~960
+# securities), not a hardcoded handful. `_FALLBACK_METADATA` below is only the
+# LAST-RESORT SEED: it lets the API boot and serve something sane if the DB is
+# unreachable before the first universe load. Once _load_universe succeeds,
+# `_IDX_METADATA` is replaced wholesale by the DB-backed dict.
 
-_IDX_METADATA: dict[str, dict[str, Any]] = {
-    "BBCA": {"name": "Bank Central Asia",        "sector": "Keuangan",        "sectorEn": "Financials",    "tier": 1, "mktCap": "Rp 1.212T", "pe": 21.4, "lotSize": 100, "portfolioLots": 2000, "defaultPrice": 6350},
-    "BBRI": {"name": "Bank Rakyat Indonesia",    "sector": "Keuangan",        "sectorEn": "Financials",    "tier": 1, "mktCap": "Rp 664T",   "pe": 13.8, "lotSize": 100, "portfolioLots": 3500, "defaultPrice": 3120},
-    "BMRI": {"name": "Bank Mandiri",             "sector": "Keuangan",        "sectorEn": "Financials",    "tier": 1, "mktCap": "Rp 538T",   "pe": 12.1, "lotSize": 100, "portfolioLots": 3000, "defaultPrice": 4170},
-    "TLKM": {"name": "Telkom Indonesia",         "sector": "Telekomunikasi",  "sectorEn": "Telecom",       "tier": 1, "mktCap": "Rp 291T",   "pe": 17.2, "lotSize": 100, "portfolioLots": 5000, "defaultPrice": 2620},
-    "ASII": {"name": "Astra International",      "sector": "Konglomerasi",    "sectorEn": "Conglomerate",  "tier": 1, "mktCap": "Rp 191T",   "pe": 11.3, "lotSize": 100, "portfolioLots": 2800, "defaultPrice": 4780},
-    "GOTO": {"name": "GoTo Gojek Tokopedia",     "sector": "Teknologi",       "sectorEn": "Technology",    "tier": 1, "mktCap": "Rp 73T",    "pe": None, "lotSize": 100, "portfolioLots": 0,    "defaultPrice": 50},
-    "BREN": {"name": "Barito Renewables Energy", "sector": "Energi",          "sectorEn": "Energy",        "tier": 1, "mktCap": "Rp 208T",   "pe": 48.2, "lotSize": 100, "portfolioLots": 1200, "defaultPrice": 3570},
-    "ADRO": {"name": "Adaro Energy Indonesia",   "sector": "Energi",          "sectorEn": "Energy",        "tier": 1, "mktCap": "Rp 80T",    "pe": 7.8,  "lotSize": 100, "portfolioLots": 4000, "defaultPrice": 2530},
-    "UNVR": {"name": "Unilever Indonesia",       "sector": "Konsumer",        "sectorEn": "Consumer",      "tier": 2, "mktCap": "Rp 117T",   "pe": 23.5, "lotSize": 100, "portfolioLots": 2200, "defaultPrice": 1775},
-    "ICBP": {"name": "Indofood CBP Sukses",     "sector": "Konsumer",        "sectorEn": "Consumer",      "tier": 2, "mktCap": "Rp 112T",   "pe": 18.9, "lotSize": 100, "portfolioLots": 1500, "defaultPrice": 7600},
-    "ANTM": {"name": "Aneka Tambang",           "sector": "Material",        "sectorEn": "Materials",     "tier": 2, "mktCap": "Rp 44T",    "pe": 14.6, "lotSize": 100, "portfolioLots": 6000, "defaultPrice": 3070},
-    "PTBA": {"name": "Bukit Asam",              "sector": "Energi",          "sectorEn": "Energy",        "tier": 2, "mktCap": "Rp 32T",    "pe": 6.4,  "lotSize": 100, "portfolioLots": 0,    "defaultPrice": 2360},
-    "KLBF": {"name": "Kalbe Farma",             "sector": "Kesehatan",       "sectorEn": "Healthcare",    "tier": 2, "mktCap": "Rp 76T",    "pe": 22.1, "lotSize": 100, "portfolioLots": 0,    "defaultPrice": 800},
-    "SMGR": {"name": "Semen Indonesia",         "sector": "Material",        "sectorEn": "Materials",     "tier": 3, "mktCap": "Rp 25T",    "pe": 15.3, "lotSize": 100, "portfolioLots": 0,    "defaultPrice": 1580},
-    "EMTK": {"name": "Elang Mahkota Teknologi", "sector": "Telekomunikasi", "sectorEn": "Telecom",       "tier": 3, "mktCap": "Rp 19T",    "pe": None, "lotSize": 100, "portfolioLots": 0,    "defaultPrice": 505},
+from api.services.symbols_service import SECTOR_EN
+
+_FALLBACK_METADATA: dict[str, dict[str, Any]] = {
+    "BBCA": {"name": "Bank Central Asia",        "sector": "Keuangan",        "sectorEn": "Financials",    "tier": 1, "mktCap": "Rp 1.212T", "pe": 21.4, "lotSize": 100, "defaultPrice": 6350},
+    "BBRI": {"name": "Bank Rakyat Indonesia",    "sector": "Keuangan",        "sectorEn": "Financials",    "tier": 1, "mktCap": "Rp 664T",   "pe": 13.8, "lotSize": 100, "defaultPrice": 3120},
+    "BMRI": {"name": "Bank Mandiri",             "sector": "Keuangan",        "sectorEn": "Financials",    "tier": 1, "mktCap": "Rp 538T",   "pe": 12.1, "lotSize": 100, "defaultPrice": 4170},
+    "TLKM": {"name": "Telkom Indonesia",         "sector": "Telekomunikasi",  "sectorEn": "Telecom",       "tier": 1, "mktCap": "Rp 291T",   "pe": 17.2, "lotSize": 100, "defaultPrice": 2620},
+    "ASII": {"name": "Astra International",      "sector": "Konglomerasi",    "sectorEn": "Conglomerate",  "tier": 1, "mktCap": "Rp 191T",   "pe": 11.3, "lotSize": 100, "defaultPrice": 4780},
+    "GOTO": {"name": "GoTo Gojek Tokopedia",     "sector": "Teknologi",       "sectorEn": "Technology",    "tier": 1, "mktCap": "Rp 73T",    "pe": None, "lotSize": 100, "defaultPrice": 50},
+    "BREN": {"name": "Barito Renewables Energy", "sector": "Energi",          "sectorEn": "Energy",        "tier": 1, "mktCap": "Rp 208T",   "pe": 48.2, "lotSize": 100, "defaultPrice": 3570},
+    "ADRO": {"name": "Adaro Energy Indonesia",   "sector": "Energi",          "sectorEn": "Energy",        "tier": 1, "mktCap": "Rp 80T",    "pe": 7.8,  "lotSize": 100, "defaultPrice": 2530},
+    "UNVR": {"name": "Unilever Indonesia",       "sector": "Konsumer",        "sectorEn": "Consumer",      "tier": 2, "mktCap": "Rp 117T",   "pe": 23.5, "lotSize": 100, "defaultPrice": 1775},
+    "ICBP": {"name": "Indofood CBP Sukses",     "sector": "Konsumer",        "sectorEn": "Consumer",      "tier": 2, "mktCap": "Rp 112T",   "pe": 18.9, "lotSize": 100, "defaultPrice": 7600},
+    "ANTM": {"name": "Aneka Tambang",           "sector": "Material",        "sectorEn": "Materials",     "tier": 2, "mktCap": "Rp 44T",    "pe": 14.6, "lotSize": 100, "defaultPrice": 3070},
+    "PTBA": {"name": "Bukit Asam",              "sector": "Energi",          "sectorEn": "Energy",        "tier": 2, "mktCap": "Rp 32T",    "pe": 6.4,  "lotSize": 100, "defaultPrice": 2360},
+    "KLBF": {"name": "Kalbe Farma",             "sector": "Kesehatan",       "sectorEn": "Healthcare",    "tier": 2, "mktCap": "Rp 76T",    "pe": 22.1, "lotSize": 100, "defaultPrice": 800},
+    "SMGR": {"name": "Semen Indonesia",         "sector": "Material",        "sectorEn": "Materials",     "tier": 3, "mktCap": "Rp 25T",    "pe": 15.3, "lotSize": 100, "defaultPrice": 1580},
+    "EMTK": {"name": "Elang Mahkota Teknologi", "sector": "Telekomunikasi", "sectorEn": "Telecom",       "tier": 3, "mktCap": "Rp 19T",    "pe": None, "lotSize": 100, "defaultPrice": 505},
 }
+
+# Portfolio holdings → lots, kept separate from the universe: these are the
+# operator's positions, legitimately fixed, and drive the portfolio-value line.
+# The universe itself carries no per-symbol lots (a 960-stock board has none).
+_PORTFOLIO_LOTS: dict[str, int] = {
+    "BBCA": 2000, "BBRI": 3500, "TLKM": 5000, "ASII": 2800, "BREN": 1200,
+    "ADRO": 4000, "BMRI": 3000, "UNVR": 2200, "ICBP": 1500, "ANTM": 6000,
+}
+
+# The live universe metadata, replaced by _load_universe from the DB. Starts as
+# the fallback so the service is usable before the first load.
+_IDX_METADATA: dict[str, dict[str, Any]] = dict(_FALLBACK_METADATA)
+_universe_loaded_at: datetime | None = None
+_UNIVERSE_TTL_SEC = 1800  # reload the board every 30 min; it changes slowly
+
+
+def _format_mktcap(cap: float | None) -> str:
+    """Indonesian-convention market-cap label. 1e12 IDR = 1 triliun."""
+    if not cap or cap <= 0:
+        return "—"
+    if cap >= 1e12:
+        return f"Rp {cap / 1e12:,.1f}T"
+    if cap >= 1e9:
+        return f"Rp {cap / 1e9:,.1f}M"   # miliar
+    return f"Rp {cap / 1e6:,.0f}Jt"      # juta
+
+
+async def _load_universe(force: bool = False) -> None:
+    """
+    Populate `_IDX_METADATA` from the `instruments` table joined with the last
+    daily close, so the live snapshot spans the whole listed board.
+
+    Tier is derived from market-cap rank (top 45 → 1, next 100 → 2, rest → 3),
+    matching the existing tier semantics (1 = large/liquid). Cached for
+    `_UNIVERSE_TTL_SEC`; a DB fault leaves the previous universe in place rather
+    than shrinking the board mid-session.
+    """
+    global _IDX_METADATA, _universe_loaded_at
+
+    now = datetime.now(timezone.utc)
+    if (
+        not force
+        and _universe_loaded_at is not None
+        and (now - _universe_loaded_at).total_seconds() < _UNIVERSE_TTL_SEC
+    ):
+        return
+
+    settings = get_settings()
+    if settings.use_mock_market:
+        return
+
+    try:
+        import asyncpg
+
+        conn = await asyncpg.connect(
+            settings.database_url.replace("postgresql+asyncpg://", "postgresql://"),
+            timeout=8,
+        )
+        try:
+            rows = await conn.fetch(
+                """
+                WITH latest AS (
+                    SELECT DISTINCT ON (symbol) symbol, close
+                    FROM ohlcv_daily ORDER BY symbol, bucket DESC
+                )
+                SELECT i.symbol, i.name, i.sector, i.listed_shares,
+                       l.close AS last_close
+                FROM instruments i
+                LEFT JOIN latest l ON l.symbol = i.symbol
+                WHERE i.is_active
+                """
+            )
+        finally:
+            await conn.close()
+    except Exception as exc:  # noqa: BLE001 — keep the previous universe on fault
+        logger.warning("market_service: universe load skipped — %s", exc)
+        return
+
+    if not rows:
+        logger.warning("market_service: instruments table empty — keeping fallback universe")
+        return
+
+    def _cap(r: Any) -> float:
+        c = float(r["last_close"]) if r["last_close"] is not None else 0.0
+        s = int(r["listed_shares"]) if r["listed_shares"] is not None else 0
+        return c * s
+
+    ranked = sorted(rows, key=_cap, reverse=True)
+    meta: dict[str, dict[str, Any]] = {}
+    for rank, r in enumerate(ranked):
+        sym = r["symbol"]
+        close = float(r["last_close"]) if r["last_close"] is not None else 0.0
+        sector = r["sector"] or "—"
+        tier = 1 if rank < 45 else (2 if rank < 145 else 3)
+        meta[sym] = {
+            "name": r["name"] or sym,
+            "sector": sector,
+            "sectorEn": SECTOR_EN.get(sector, sector),
+            "tier": tier,
+            "mktCap": _format_mktcap(_cap(r)),
+            "pe": None,
+            "lotSize": 100,
+            # Seed price: the real last close. 0 means never traded / no bar yet;
+            # such symbols are seeded at a nominal price and carry no live quote.
+            "defaultPrice": close if close > 0 else 50.0,
+        }
+
+    if meta:
+        _IDX_METADATA = meta
+        _universe_loaded_at = now
+        logger.info("market_service: universe loaded — %d instruments", len(meta))
 
 # ── State storage ─────────────────────────────────────────────────────────────
 
@@ -83,8 +203,16 @@ def is_market_open() -> bool:
 
 
 def _init_default_state() -> None:
-    """Initialises state from metadata if not yet populated."""
+    """
+    Seed a StockTick for every universe symbol that does not yet have one.
+
+    Non-destructive: symbols already carrying a (possibly live) tick are left
+    untouched, so this can run after every universe load to bring newly-added
+    board members in at their real last close without clobbering live quotes.
+    """
     for sym, meta in _IDX_METADATA.items():
+        if sym in _current_stocks:
+            continue
         price = float(meta["defaultPrice"])
         _history[sym] = [price] * 60
         _current_stocks[sym] = StockTick(
@@ -163,6 +291,14 @@ async def fetch_yahoo_market_data() -> bool:
     from ingestor.providers import MarketDataError, get_provider
 
     settings = get_settings()
+
+    # Load the full listed board from the DB (cached; refreshes every 30 min) so
+    # the snapshot spans ~960 securities, not the fallback handful. Seed any
+    # symbol that has no tick yet at its real last close, so the whole board is
+    # present even for names the live quote feed does not return.
+    await _load_universe()
+    _init_default_state()
+
     symbols = list(_IDX_METADATA.keys())
 
     try:
@@ -329,10 +465,10 @@ def generate_snapshot() -> MarketSnapshot:
         _init_default_state()
 
     portfolio_value = 0.0
-    for sym, stock in _current_stocks.items():
-        meta = _IDX_METADATA.get(sym)
-        if meta and meta.get("portfolioLots", 0) > 0:
-            portfolio_value += stock.price * meta["portfolioLots"] * meta["lotSize"]
+    for sym, lots in _PORTFOLIO_LOTS.items():
+        stock = _current_stocks.get(sym)
+        if stock and lots > 0:
+            portfolio_value += stock.price * lots * 100
 
     if portfolio_value == 0:
         portfolio_value = 13_120_000_000.0  # Baseline portfolio ~13.1B IDR

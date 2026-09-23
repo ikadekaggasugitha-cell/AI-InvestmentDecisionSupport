@@ -166,6 +166,19 @@ async def _load_cross_section(days: int) -> "pd.DataFrame":
     return frame
 
 
+async def _load_symbol_names() -> dict[str, str]:
+    """symbol → company name from the `instruments` table. {} on any DB fault."""
+    from api.core.db import get_pool
+
+    try:
+        pool = await get_pool()
+        rows = await pool.fetch("SELECT symbol, name FROM instruments WHERE name IS NOT NULL")
+    except Exception as exc:  # noqa: BLE001 — names are cosmetic, never fatal
+        logger.debug("signals: name lookup unavailable — %s", exc)
+        return {}
+    return {r["symbol"]: r["name"] for r in rows}
+
+
 async def _compute_live_signals() -> SignalsResponse:
     """
     Score the tracked universe with the trained model.
@@ -179,8 +192,7 @@ async def _compute_live_signals() -> SignalsResponse:
     features describe today.
     """
 
-    from api.services.market_service import _IDX_METADATA
-    from api.services.technicals_service import analyse, load_ohlcv
+    from api.services.technicals_service import analyse
     from ml.features.point_in_time import build_point_in_time_features
 
     settings = get_settings()
@@ -193,7 +205,6 @@ async def _compute_live_signals() -> SignalsResponse:
             "`python -m ml.training.train_signals_v2`"
         ) from exc
 
-    display_symbols = settings.tracked_symbols
     lookback = max(settings.ta_gap_lookback_days, 120)
 
     # ── Features are built over the FULL cross-section, not just the 15 we show
@@ -225,25 +236,35 @@ async def _compute_live_signals() -> SignalsResponse:
         universe_size, len(features),
     )
 
-    # Price action and last price for the symbols actually displayed.
+    # Score the WHOLE listed board, not a tracked handful. Last price and price
+    # action come from the cross-section already in memory — one query fed every
+    # symbol, instead of ~960 per-symbol round trips that would make this path
+    # "rewel". `analyse` (display-only trade plan) is derived from the same bars;
+    # a failure on one thin series is caught so it cannot abort the whole run.
     market_prices: dict[str, float] = {}
     technicals: dict[str, dict] = {}
-    for symbol in display_symbols:
-        bars, source = await load_ohlcv(symbol, days=lookback)
-        if bars.empty or source == "mock":
-            logger.warning("signals: no real bars for %s (source=%s)", symbol, source)
+    for symbol, group in cross_section.groupby("symbol"):
+        bars = group.sort_values("date")
+        if bars.empty:
             continue
-        market_prices[symbol] = float(bars.sort_values("time")["close"].iloc[-1])
-        # Display only — see PHASE10_DISPLAY_FEATURES; never a model input.
-        technicals[symbol] = analyse(bars)
+        close = bars["close"].iloc[-1]
+        if close is None or not (close > 0):
+            continue
+        market_prices[str(symbol)] = float(close)
+        # analyse expects a `time` column; the cross-section names it `date`.
+        try:
+            technicals[str(symbol)] = analyse(bars.rename(columns={"date": "time"}))
+        except Exception as exc:  # noqa: BLE001 — trade plan is a bonus, never fatal
+            logger.debug("signals: technicals skipped for %s — %s", symbol, exc)
 
     if not market_prices:
-        raise ModelUnavailable("no real bars available for any tracked symbol")
+        raise ModelUnavailable("no real bars available for any symbol")
 
-    # Score only what we display, but rank against the whole board.
+    # Score every symbol we have a price for; ranks were already computed against
+    # the whole board above.
     features = features[features["symbol"].isin(market_prices)]
     if features.empty:
-        raise ModelUnavailable("no tracked symbol survived feature construction")
+        raise ModelUnavailable("no symbol survived feature construction")
 
     # Latest row per symbol, indexed by symbol as SignalInference expects.
     latest = (
@@ -255,11 +276,15 @@ async def _compute_live_signals() -> SignalsResponse:
 
     response = engine.run(latest, market_prices, technicals=technicals)
 
-    # Names come from the universe metadata; the model only knows tickers.
+    # Names come from the `instruments` table (the model only knows tickers).
+    # Read from the DB, not market_service._IDX_METADATA: the Celery signal
+    # worker is a separate process where that in-memory cache is never loaded and
+    # would name only the fallback handful.
+    names = await _load_symbol_names()
     for signal in response.signals:
-        meta = _IDX_METADATA.get(signal.symbol)
-        if meta:
-            signal.name = meta["name"]
+        name = names.get(signal.symbol)
+        if name:
+            signal.name = name
 
     logger.info(
         "signals: scored %d symbols with model %s",

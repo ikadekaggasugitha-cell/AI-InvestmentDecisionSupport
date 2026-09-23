@@ -32,6 +32,21 @@ const WS_BASE = API_BASE.replace(/^http/, "ws");
 export const ENDPOINTS = {
   /** LightGBM + SHAP signal recommendations */
   signals:        `${API_BASE}/v1/signals`,
+  /** Full listed IDX board — browse/search/filter (~960 securities) */
+  symbols:        (params?: {
+    q?: string; sector?: string; sort?: string; limit?: number; offset?: number;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set("q", params.q);
+    if (params?.sector) qs.set("sector", params.sector);
+    if (params?.sort) qs.set("sort", params.sort);
+    if (params?.limit != null) qs.set("limit", String(params.limit));
+    if (params?.offset != null) qs.set("offset", String(params.offset));
+    const s = qs.toString();
+    return `${API_BASE}/v1/symbols${s ? `?${s}` : ""}`;
+  },
+  /** IDX-IC sectors with active-instrument counts */
+  sectors:        `${API_BASE}/v1/symbols/sectors`,
   /** GARCH / CVaR portfolio risk metrics */
   riskMetrics:    `${API_BASE}/v1/risk/portfolio`,
   /** WebSocket stream for live tick data */

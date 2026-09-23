@@ -55,6 +55,12 @@ logger = logging.getLogger(__name__)
 _STOCK_SUMMARY_URL = "https://www.idx.co.id/primary/TradingSummary/GetStockSummary"
 _ORIGIN = "https://www.idx.co.id/"
 
+# curl_cffi impersonation profiles, newest first. Bare "chrome" is deliberately
+# absent: idx.co.id now sits behind Cloudflare and challenges that fingerprint
+# with a 403 "Just a moment…" page. The provider rotates to the next profile
+# whenever a request comes back challenged. Verified against the live board.
+_IMPERSONATIONS = ("chrome131", "chrome124", "chrome120", "safari", "edge101")
+
 # One session's board comfortably exceeds 1000 rows; ask for all of it at once.
 _PAGE_LENGTH = 5000
 
@@ -97,30 +103,48 @@ class IdxProvider(MarketDataProvider):
 
     def __init__(self) -> None:
         self._session: Any = None
+        self._imp_index = 0
+        self._warmed = False
         self._last_request = 0.0
         self._lock = asyncio.Lock()
 
     # ── Session ───────────────────────────────────────────────────────────────
 
     def _ensure_session(self) -> Any:
-        if self._session is not None:
-            return self._session
-        try:
-            from curl_cffi import requests as curl_requests
-        except ImportError as exc:  # pragma: no cover — dependency is pinned
-            raise MarketDataError(
-                "curl_cffi is required for the IDX provider. "
-                "Install it: pip install curl_cffi"
-            ) from exc
+        if self._session is None:
+            try:
+                from curl_cffi import requests as curl_requests
+            except ImportError as exc:  # pragma: no cover — dependency is pinned
+                raise MarketDataError(
+                    "curl_cffi is required for the IDX provider. "
+                    "Install it: pip install curl_cffi"
+                ) from exc
 
-        session = curl_requests.Session(impersonate="chrome", timeout=40)
-        session.headers.update({
-            "Referer": _ORIGIN,
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "id-ID,id;q=0.9,en;q=0.8",
-        })
-        self._session = session
-        return session
+            impersonate = _IMPERSONATIONS[self._imp_index % len(_IMPERSONATIONS)]
+            session = curl_requests.Session(impersonate=impersonate, timeout=40)
+            session.headers.update({
+                "Referer": _ORIGIN,
+                "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "id-ID,id;q=0.9,en;q=0.8",
+            })
+            self._session = session
+            self._warmed = False
+            logger.info("idx: session using impersonate=%s", impersonate)
+
+        if not self._warmed:
+            # The JSON endpoints only clear once a plain homepage GET has planted
+            # the Cloudflare cookie; without it the first API call is challenged.
+            try:
+                self._session.get(_ORIGIN, timeout=40)
+            except Exception as exc:  # noqa: BLE001 — warmup is best-effort
+                logger.debug("idx: homepage warmup failed: %s", exc)
+            self._warmed = True
+
+        return self._session
+
+    def _rotate_impersonation(self) -> None:
+        """Move to the next impersonation profile after a Cloudflare challenge."""
+        self._imp_index += 1
 
     async def close(self) -> None:
         if self._session is not None:
@@ -129,6 +153,7 @@ class IdxProvider(MarketDataProvider):
             except Exception:  # noqa: BLE001
                 pass
             self._session = None
+            self._warmed = False
 
     async def _throttle(self) -> None:
         elapsed = time.monotonic() - self._last_request
@@ -145,17 +170,22 @@ class IdxProvider(MarketDataProvider):
                     return self._ensure_session().get(url, params=params, timeout=40)
 
                 resp = await asyncio.to_thread(_do)
-                if resp.status_code == 200:
-                    ctype = resp.headers.get("content-type", "")
-                    if "json" not in ctype:
-                        # A maintenance or block page returns 200 with HTML.
-                        # Parsing it as data would silently yield zero rows.
-                        logger.warning(
-                            "idx: expected JSON, got %s (attempt %d/%d)",
-                            ctype[:40], attempt + 1, self.MAX_RETRIES,
-                        )
-                    else:
-                        return resp.json()
+                ctype = resp.headers.get("content-type", "")
+                if resp.status_code == 200 and "json" in ctype:
+                    return resp.json()
+
+                # A 403 or an HTML body (maintenance/block page returned as 200)
+                # is a Cloudflare challenge against the current fingerprint.
+                # Parsing it as data would silently yield zero rows; the fix is a
+                # different impersonation, so rotate and rebuild the session.
+                if resp.status_code in (403, 503) or "json" not in ctype:
+                    logger.warning(
+                        "idx: HTTP %d ctype=%s — rotating impersonation "
+                        "(attempt %d/%d)",
+                        resp.status_code, ctype[:30], attempt + 1, self.MAX_RETRIES,
+                    )
+                    self._rotate_impersonation()
+                    await self.close()
                 else:
                     logger.warning(
                         "idx: HTTP %d (attempt %d/%d)",
@@ -168,6 +198,7 @@ class IdxProvider(MarketDataProvider):
                     "idx: request error %s (attempt %d/%d)",
                     type(exc).__name__, attempt + 1, self.MAX_RETRIES,
                 )
+                self._rotate_impersonation()
                 await self.close()
 
             if attempt < self.MAX_RETRIES - 1:

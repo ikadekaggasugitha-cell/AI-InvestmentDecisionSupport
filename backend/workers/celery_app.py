@@ -46,6 +46,7 @@ celery_app = Celery(
         "workers.ohlcv_worker",
         "workers.broksum_worker",
         "workers.monitoring_worker",
+        "workers.instruments_worker",
     ],
 )
 
@@ -87,6 +88,18 @@ celery_app.conf.update(
             "schedule": crontab(
                 minute="*/30",
                 hour="9-16",     # WIB
+                day_of_week="mon-fri",
+            ),
+        },
+        # Refresh the listed-board universe once per weekday, before the open.
+        # The board changes slowly (a few IPOs/delistings a month), so a daily
+        # pre-open sync keeps `instruments` current well ahead of anything that
+        # reads it, with nothing intraday to chase.
+        "refresh-instruments-daily": {
+            "task": "workers.instruments_worker.refresh_instruments",
+            "schedule": crontab(
+                minute="30",
+                hour="8",        # 08:30 WIB — before the 09:00 open
                 day_of_week="mon-fri",
             ),
         },

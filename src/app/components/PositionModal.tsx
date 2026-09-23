@@ -1,7 +1,7 @@
 import { useState, useEffect, type CSSProperties, type ReactNode } from "react";
 import { X, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
-import { IDX_STOCKS } from "../data/idxData";
 import type { PortfolioHolding } from "../hooks/usePortfolio";
+import { useUniverse } from "../hooks/useUniverse";
 import { LOT_MAX, PRICE_MAX } from "../constants";
 
 export type ModalMode = "add" | "edit" | "delete";
@@ -15,9 +15,6 @@ interface Props {
   onRemove:      (symbol: string, price: number) => void;
   onClose:       () => void;
 }
-
-const SYMBOLS = IDX_STOCKS.map((s) => s.symbol);
-const META = Object.fromEntries(IDX_STOCKS.map((s) => [s.symbol, s]));
 
 function fieldStyle(hasError: boolean): CSSProperties {
   return {
@@ -35,23 +32,36 @@ function fieldStyle(hasError: boolean): CSSProperties {
 }
 
 export function PositionModal({ mode, initialData, currentPrice, isId, onSave, onRemove, onClose }: Props) {
-  const [symbol,   setSymbol]   = useState(initialData?.symbol  ?? SYMBOLS[0]);
+  const universe = useUniverse();
+  const [symbol,   setSymbol]   = useState(initialData?.symbol  ?? "");
   const [lots,     setLots]     = useState(initialData?.lots?.toString()     ?? "");
   const [avgPrice, setAvgPrice] = useState(initialData?.avgPrice?.toString() ?? "");
   const [errors,   setErrors]   = useState<Record<string, string>>({});
 
-  /* Sync symbol → default price hint when in add mode and no price is entered yet */
+  /* Sync symbol → default price hint when in add mode and no price is entered yet.
+     The default price is the instrument's last close from the universe. */
   useEffect(() => {
     if (mode === "add") {
-      const meta = META[symbol];
-      if (meta && !avgPrice) setAvgPrice(meta.basePrice.toString());
+      const meta = universe.bySymbol[symbol.toUpperCase()];
+      if (meta?.lastClose && !avgPrice) setAvgPrice(String(Math.round(meta.lastClose)));
     }
-  }, [symbol, mode, avgPrice]);
+  }, [symbol, mode, avgPrice, universe.bySymbol]);
 
   function validate(): boolean {
     const e: Record<string, string> = {};
     const l = Number(lots);
     const p = Number(avgPrice);
+
+    if (mode === "add") {
+      const sym = symbol.toUpperCase().trim();
+      if (!sym) {
+        e.symbol = isId ? "Pilih kode saham" : "Select a stock symbol";
+      } else if (!universe.bySymbol[sym]) {
+        e.symbol = isId
+          ? "Kode saham tidak dikenal di BEI"
+          : "Unknown IDX symbol";
+      }
+    }
 
     if (!lots || !Number.isFinite(l) || l <= 0 || !Number.isInteger(l)) {
       e.lots = isId
@@ -77,11 +87,12 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
 
   function handleSave() {
     if (!validate()) return;
-    const meta = META[symbol];
+    const sym = symbol.toUpperCase().trim();
+    const meta = universe.bySymbol[sym];
     const safeLots  = Math.min(Math.max(1, Math.floor(Number(lots))),  LOT_MAX);
     const safePrice = Math.min(Math.max(1, Number(avgPrice)), PRICE_MAX);
     onSave({
-      symbol,
+      symbol:   sym,
       lots:     safeLots,
       avgPrice: safePrice,
       sector:   meta?.sector ?? "—",
@@ -182,20 +193,36 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
                   {isId ? "Kode Saham" : "Stock Symbol"}
                 </label>
                 {mode === "add" ? (
-                  <select
-                    value={symbol}
-                    onChange={(e) => setSymbol(e.target.value)}
-                    style={{ ...fieldStyle(false), cursor: "pointer" }}
-                  >
-                    {SYMBOLS.map((s) => (
-                      <option key={s} value={s}>
-                        {s} — {META[s]?.name}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <input
+                      list="idx-symbol-list"
+                      value={symbol}
+                      onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                      placeholder={isId ? "Ketik kode / nama, mis. BBCA" : "Type code / name, e.g. BBCA"}
+                      autoComplete="off"
+                      style={{ ...fieldStyle(!!errors.symbol), textTransform: "uppercase" }}
+                    />
+                    {/* Native datalist gives search-as-you-type over the whole
+                        ~960-stock board with no extra dependency. */}
+                    <datalist id="idx-symbol-list">
+                      {universe.symbols.map((s) => (
+                        <option key={s} value={s}>
+                          {universe.bySymbol[s]?.name ?? s}
+                        </option>
+                      ))}
+                    </datalist>
+                    {errors.symbol && (
+                      <div style={{ fontSize: 11, color: "var(--loss)", marginTop: 4 }}>{errors.symbol}</div>
+                    )}
+                    {!errors.symbol && universe.bySymbol[symbol.toUpperCase()]?.name && (
+                      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+                        {universe.bySymbol[symbol.toUpperCase()]?.name}
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div style={{ ...fieldStyle(false), color: "var(--muted-foreground)", pointerEvents: "none" }}>
-                    {symbol} — {META[symbol]?.name}
+                    {symbol} — {universe.bySymbol[symbol]?.name ?? ""}
                   </div>
                 )}
               </div>

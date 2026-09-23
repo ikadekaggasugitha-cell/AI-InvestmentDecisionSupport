@@ -27,7 +27,8 @@ from api.core.auth import get_current_user
 from api.core.config import get_settings
 from api.core.rate_limit import limiter
 from api.routers import (
-    advisor, auth, broksum, market_ws, news, portfolio, reports, risk, signals, technicals,
+    advisor, auth, broksum, market_ws, news, portfolio, reports, risk, signals, symbols,
+    technicals,
 )
 
 # ── Structured logging ────────────────────────────────────────────────────────
@@ -117,6 +118,18 @@ async def lifespan(app: FastAPI):
         mock_market=settings.use_mock_market,
         mock_portfolio=settings.use_mock_portfolio,
     )
+    # Load the full listed board and seed it at last close BEFORE the poller's
+    # first (slow, ~960-symbol) live fetch, so the WebSocket serves the whole
+    # universe within a second of boot instead of the fallback handful. Best
+    # effort: a DB fault leaves the fallback seed in place.
+    if not settings.use_mock_market:
+        try:
+            from api.services.market_service import _init_default_state, _load_universe
+            await _load_universe(force=True)
+            _init_default_state()
+        except Exception as exc:  # noqa: BLE001 — never block startup on this
+            logger.warning("universe_eager_load_failed", error=str(exc))
+
     poller = asyncio.create_task(_market_poller_task())
 
     # Warm the LightGBM model + SHAP explainer in the background so the first
@@ -233,6 +246,7 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     protected = [Depends(get_current_user)]
     app.include_router(auth.router)  # public: this is where tokens are issued
     app.include_router(signals.router, dependencies=protected)
+    app.include_router(symbols.router, dependencies=protected)
     app.include_router(risk.router, dependencies=protected)
     app.include_router(market_ws.router)
     app.include_router(portfolio.router, dependencies=protected)

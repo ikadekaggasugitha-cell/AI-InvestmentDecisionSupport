@@ -7,7 +7,12 @@ import { useTranslation } from "../i18n/translations";
 import type { LiveMarketData, StockTick } from "../hooks/useLiveMarket";
 import type { ExchangeRateData } from "../hooks/useExchangeRate";
 import { useAccumulationMap, type AccumulationBadgeData } from "../hooks/useAccumulationMap";
+import { useUniverse } from "../hooks/useUniverse";
 import { AccumulationBadge } from "./AccumulationBadge";
+import { StockDetailPanel } from "./StockDetailPanel";
+
+/** Quick-view lenses, Stockbit-style. */
+type QuickView = "all" | "gainers" | "losers" | "active" | "watchlist";
 
 interface Props {
   market:            LiveMarketData;
@@ -71,22 +76,27 @@ interface MarketRowProps {
   isId:      boolean;
   isEven:    boolean;
   isWatched: boolean;
+  board?:    string | null;
   onToggle:  (symbol: string) => void;
+  onSelect:  (symbol: string) => void;
   accum?:    AccumulationBadgeData;
   accumLoading?: boolean;
 }
 
 const MarketRow = memo(
-  function MarketRow({ stock, fx, isId, isEven, isWatched, onToggle, accum, accumLoading }: MarketRowProps) {
+  function MarketRow({ stock, fx, isId, isEven, isWatched, board, onToggle, onSelect, accum, accumLoading }: MarketRowProps) {
     const pos        = stock.changePct >= 0;
     const foreignPos = stock.foreignNet >= 0;
     const tierCfg    = TIER_CONFIG[stock.tier] ?? TIER_FALLBACK;
 
     return (
-      <tr style={{ borderBottom: "1px solid var(--border)", background: isEven ? "transparent" : "var(--muted)" }}>
+      <tr
+        onClick={() => onSelect(stock.symbol)}
+        style={{ borderBottom: "1px solid var(--border)", background: isEven ? "transparent" : "var(--muted)", cursor: "pointer" }}
+      >
         <td style={{ padding: "0 4px 0 12px", width: 28, textAlign: "center" }}>
           <button
-            onClick={() => onToggle(stock.symbol)}
+            onClick={(e) => { e.stopPropagation(); onToggle(stock.symbol); }}
             aria-label={isWatched
               ? (isId ? `Hapus ${stock.symbol} dari pantauan` : `Remove ${stock.symbol} from watchlist`)
               : (isId ? `Tambah ${stock.symbol} ke pantauan`  : `Add ${stock.symbol} to watchlist`)}
@@ -101,8 +111,22 @@ const MarketRow = memo(
           </button>
         </td>
         <td style={{ padding: "10px 12px" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
-            {stock.symbol}
+          <div className="flex items-center gap-1.5">
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+              {stock.symbol}
+            </span>
+            {board && (
+              <span
+                title={board}
+                style={{
+                  fontSize: 8, fontWeight: 600, color: "var(--muted-foreground)",
+                  background: "var(--muted)", borderRadius: 2, padding: "1px 4px",
+                  border: "1px solid var(--border)", whiteSpace: "nowrap",
+                }}
+              >
+                {board}
+              </span>
+            )}
           </div>
           <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 1, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {stock.name}
@@ -183,6 +207,7 @@ const MarketRow = memo(
     prev.isId                 === next.isId                 &&
     prev.isEven               === next.isEven               &&
     prev.isWatched            === next.isWatched            &&
+    prev.board                === next.board                &&
     prev.accumLoading         === next.accumLoading         &&
     prev.accum?.phase         === next.accum?.phase         &&
     prev.accum?.score         === next.accum?.score
@@ -191,10 +216,16 @@ const MarketRow = memo(
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 
 function parseMktCap(s: string): number {
-  if (s.endsWith("T")) return parseFloat(s) * 1e12;
-  if (s.endsWith("B")) return parseFloat(s) * 1e9;
-  if (s.endsWith("M")) return parseFloat(s) * 1e6;
-  return parseFloat(s);
+  // Matches the backend labels from market_service._format_mktcap:
+  //   "Rp 781.1T" (triliun), "Rp 539.2M" (miliar), "Rp 12Jt" (juta).
+  // Order matters: test "Jt" before the bare "T"/"M" single-letter suffixes.
+  const n = parseFloat(s.replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(n)) return 0;
+  if (s.includes("Jt")) return n * 1e6;
+  if (s.includes("T")) return n * 1e12;
+  if (s.includes("M")) return n * 1e9;   // miliar
+  if (s.includes("B")) return n * 1e9;   // legacy fallback label
+  return n;
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -223,8 +254,22 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
   const [sector,  setSector]  = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("mktCap");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [view,    setView]    = useState<QuickView>("all");
+  const [selected, setSelected] = useState<string | null>(null);
 
+  const universe = useUniverse();
   const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleSelect = useCallback((sym: string) => setSelected(sym), []);
+
+  // Quick-view lenses set a sensible default sort; column clicks still override.
+  const applyView = useCallback((v: QuickView) => {
+    setView(v);
+    if (v === "gainers")      { setSortKey("changePct"); setSortDir("desc"); }
+    else if (v === "losers")  { setSortKey("changePct"); setSortDir("asc"); }
+    else if (v === "active")  { setSortKey("volume");    setSortDir("desc"); }
+    else                      { setSortKey("mktCap");    setSortDir("desc"); }
+  }, []);
 
   const handleToggle = useCallback(
     (sym: string) => onToggleWatchlist(sym),
@@ -245,7 +290,7 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
   const sectors = useMemo(() => {
     const seen = new Set<string>();
     stocks.forEach((s) => seen.add(isId ? s.sector : s.sectorEn));
-    return ["all", "watchlist", ...Array.from(seen)];
+    return ["all", ...Array.from(seen).sort((a, b) => a.localeCompare(b))];
   }, [stocks, isId]);
 
   const filtered = useMemo(() => {
@@ -254,10 +299,14 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
         const q = search.toLowerCase();
         const matchSearch = s.symbol.toLowerCase().includes(q) || s.name.toLowerCase().includes(q);
         const matchSector =
-          sector === "all"       ? true :
-          sector === "watchlist" ? watchlist.has(s.symbol) :
-          (isId ? s.sector : s.sectorEn) === sector;
-        return matchSearch && matchSector;
+          sector === "all" ? true : (isId ? s.sector : s.sectorEn) === sector;
+        // Quick-view lens filter, on top of search + sector.
+        const matchView =
+          view === "watchlist" ? watchlist.has(s.symbol) :
+          view === "gainers"   ? s.changePct > 0 :
+          view === "losers"    ? s.changePct < 0 :
+          true;
+        return matchSearch && matchSector && matchView;
       })
       .sort((a, b) => {
         const dir = sortDir === "asc" ? 1 : -1;
@@ -283,7 +332,7 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
         const av = (a[sortKey] as number) ?? 0, bv = (b[sortKey] as number) ?? 0;
         return dir * (av - bv);
       });
-  }, [stocks, search, sector, sortKey, sortDir, isId, watchlist]);
+  }, [stocks, search, sector, sortKey, sortDir, isId, watchlist, view]);
 
   const rowVirtualizer = useVirtualizer({
     count: filtered.length,
@@ -309,7 +358,15 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
     else { setSortKey(key); setSortDir("desc"); }
   }
 
-  const showWatchlistEmpty = sector === "watchlist" && filtered.length === 0 && !search;
+  const showWatchlistEmpty = view === "watchlist" && filtered.length === 0 && !search;
+
+  const VIEW_TABS: { key: QuickView; label: string }[] = [
+    { key: "all",       label: isId ? "Semua" : "All" },
+    { key: "gainers",   label: isId ? "▲ Top Gainers" : "▲ Top Gainers" },
+    { key: "losers",    label: isId ? "▼ Top Losers" : "▼ Top Losers" },
+    { key: "active",    label: isId ? "Teraktif" : "Most Active" },
+    { key: "watchlist", label: `★ ${isId ? "Pantauan" : "Watchlist"}${watchlist.size > 0 ? ` (${watchlist.size})` : ""}` },
+  ];
 
   return (
     <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
@@ -336,6 +393,33 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
         })}
       </div>
 
+      {/* Quick-view tabs (Stockbit-style lenses) */}
+      <div className="flex gap-1.5 flex-wrap">
+        {VIEW_TABS.map((tab) => {
+          const active = view === tab.key;
+          const isWL = tab.key === "watchlist";
+          const isGain = tab.key === "gainers";
+          const isLose = tab.key === "losers";
+          const activeColor = isWL ? "#f59e0b" : isGain ? "var(--gain)" : isLose ? "var(--loss)" : "var(--primary)";
+          return (
+            <button
+              key={tab.key}
+              onClick={() => applyView(tab.key)}
+              style={{
+                fontSize: 12, fontWeight: 600,
+                padding: "6px 12px", borderRadius: 6,
+                background: active ? `color-mix(in srgb, ${activeColor} 12%, transparent)` : "var(--card)",
+                color: active ? activeColor : "var(--muted-foreground)",
+                border: `1px solid ${active ? activeColor : "var(--border)"}`,
+                cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <div
@@ -352,12 +436,7 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
         </div>
         <div className="flex gap-1.5 flex-wrap">
           {sectors.map((s) => {
-            const isWLTab = s === "watchlist";
-            const label   = s === "all"
-              ? t("mkt_all_sectors")
-              : isWLTab
-                ? `★ ${t("mkt_watchlist")}${watchlist.size > 0 ? ` (${watchlist.size})` : ""}`
-                : s;
+            const label = s === "all" ? t("mkt_all_sectors") : s;
             return (
               <button
                 key={s}
@@ -367,9 +446,9 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
                   fontFamily: "var(--font-mono)",
                   padding: "5px 10px",
                   borderRadius: 4,
-                  background: sector === s ? (isWLTab ? "rgba(245,158,11,0.1)" : "var(--accent)") : "var(--card)",
-                  color: sector === s ? (isWLTab ? "#f59e0b" : "var(--primary)") : "var(--muted-foreground)",
-                  border: `1px solid ${sector === s ? (isWLTab ? "#f59e0b" : "var(--primary)") : "var(--border)"}`,
+                  background: sector === s ? "var(--accent)" : "var(--card)",
+                  color: sector === s ? "var(--primary)" : "var(--muted-foreground)",
+                  border: `1px solid ${sector === s ? "var(--primary)" : "var(--border)"}`,
                   cursor: "pointer",
                   whiteSpace: "nowrap",
                 }}
@@ -379,6 +458,13 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
             );
           })}
         </div>
+      </div>
+
+      {/* Result count */}
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: -8 }}>
+        {isId
+          ? `Menampilkan ${filtered.length.toLocaleString("id-ID")} dari ${stocks.length.toLocaleString("id-ID")} saham`
+          : `Showing ${filtered.length.toLocaleString("en-US")} of ${stocks.length.toLocaleString("en-US")} stocks`}
       </div>
 
       {/* Table with virtual rows */}
@@ -446,7 +532,9 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
                     isId={isId}
                     isEven={virtualRow.index % 2 === 0}
                     isWatched={watchlist.has(stock.symbol)}
+                    board={universe.bySymbol[stock.symbol]?.board ?? null}
                     onToggle={handleToggle}
+                    onSelect={handleSelect}
                     accum={accumulation.map.get(stock.symbol)}
                     accumLoading={accumulation.loading}
                   />
@@ -475,6 +563,16 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
           )}
         </div>
       </div>
+
+      {/* Stock detail drawer */}
+      {selected && market.stocks[selected] && (
+        <StockDetailPanel
+          stock={market.stocks[selected]}
+          meta={universe.bySymbol[selected]}
+          isId={isId}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }

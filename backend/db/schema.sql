@@ -60,6 +60,31 @@ SELECT add_continuous_aggregate_policy('ohlcv_daily',
     if_not_exists => TRUE
 );
 
+-- ── Instrument universe (dimension table) ────────────────────────────────────
+-- One row per listed IDX security, with the metadata the exchange publishes.
+-- NOT a hypertable: no time axis, refreshed in place by the instruments worker
+-- from IDX GetCompanyProfiles. The refresh is upsert-only and never deletes, so
+-- a failed IDX fetch can never wipe the universe; vanished securities are flagged
+-- is_active=false instead of removed. See db/migrations/0003 for the rationale.
+CREATE TABLE IF NOT EXISTS instruments (
+    symbol         TEXT        PRIMARY KEY,   -- bare IDX code, e.g. 'BBCA'
+    name           TEXT,                      -- NamaEmiten, full company name
+    sector         TEXT,                      -- Sektor  (IDX-IC top level, 11 sectors)
+    sub_sector     TEXT,                      -- SubSektor
+    industry       TEXT,                      -- Industri
+    sub_industry   TEXT,                      -- SubIndustri
+    board          TEXT,                      -- PapanPencatatan (Utama, Pengembangan, …)
+    listing_date   DATE,                      -- TanggalPencatatan
+    listed_shares  BIGINT,                    -- shares outstanding, for market cap
+    status         TEXT,                      -- raw IDX Status code, kept for audit
+    is_active      BOOLEAN     NOT NULL DEFAULT TRUE,
+    source         TEXT        NOT NULL DEFAULT 'idx',
+    first_seen     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_instruments_sector ON instruments (sector);
+CREATE INDEX IF NOT EXISTS idx_instruments_active ON instruments (is_active) WHERE is_active;
+
 -- ── Signal outputs (immutable audit log) ─────────────────────────────────────
 -- NOTE: on a hypertable every unique index must contain the partitioning
 -- column, so the surrogate key is composite (generated_at, id). A bare
