@@ -10,6 +10,7 @@ rendered without its age reads as the current one.
 import asyncio
 import json
 import logging
+import random
 from datetime import datetime, timezone
 from typing import Any
 
@@ -175,6 +176,129 @@ _fetch_lock = asyncio.Lock()
 # which is how generate_snapshot() distinguishes "real feed" from "placeholder
 # state" — without it the UI cannot tell a live price from a seeded constant.
 _feed_meta: dict[str, Any] = {}
+
+# ── Intraday tick simulation ──────────────────────────────────────────────────
+# The Yahoo feed is delayed ~10 min and only re-polled once a minute, so between
+# polls every price is frozen. To give the board a live "running" feel (like
+# Stockbit) WITHOUT misrepresenting the data, we let prices breathe with a small
+# bounded random walk between real polls — but ONLY during market hours, always
+# anchored to the last REAL price, and re-synced to reality on every poll. The
+# movement between polls is an ESTIMATE, and the snapshot flags it
+# (`isIntradaySimulated`) so the UI can label it honestly.
+_anchor: dict[str, dict[str, float]] = {}   # symbol → real values at last poll
+_ihsg_anchor: dict[str, float] | None = None
+_intraday_simulated: bool = False           # True while the walk is driving prices
+
+
+def _idx_tick_size(price: float) -> int:
+    """IDX fraksi harga (post-2023 bands). Simulated prices snap to valid ticks
+    so the board moves in real order-book increments, not arbitrary fractions."""
+    if price < 200:
+        return 1
+    if price < 500:
+        return 2
+    if price < 2000:
+        return 5
+    if price < 5000:
+        return 10
+    return 25
+
+
+def simulate_intraday_tick() -> None:
+    """
+    Advance every stock (and IHSG) one small step around its real anchor.
+
+    Called ~every 2s by the intraday tick loop. A no-op outside market hours or
+    before the first real poll, so closed-market prices stay exactly at their
+    real EOD close. Mean-reverting toward the anchor and clamped to ±1.2% so the
+    estimate never wanders far from the last real print before the next re-sync.
+    """
+    global _intraday_simulated
+
+    if not is_market_open() or not _current_stocks:
+        _intraday_simulated = False
+        return
+
+    settings = get_settings()
+    if not getattr(settings, "market_simulate_intraday", True):
+        _intraday_simulated = False
+        return
+
+    for sym, tick in list(_current_stocks.items()):
+        anchor = _anchor.get(sym)
+        base = anchor["price"] if anchor else tick.price
+        if base <= 0:
+            continue
+        tick_size = _idx_tick_size(base)
+
+        # Random walk in ticks, pulled back toward the anchor.
+        revert = (base - tick.price) / tick_size * 0.2
+        move_ticks = round(revert + random.gauss(0.0, 0.9))
+        # Keep the whole board lively: when the draw would leave a stock flat,
+        # still nudge it one tick most of the time (biased toward the anchor), so
+        # nearly every name moves each cycle instead of ~half sitting still.
+        if move_ticks == 0 and random.random() < 0.75:
+            bias = 0.5 + max(-0.4, min(0.4, revert))
+            move_ticks = 1 if random.random() < bias else -1
+        move_ticks = max(-3, min(3, move_ticks))
+        new_price = tick.price + move_ticks * tick_size
+        # Clamp near the anchor so the estimate stays honest — but never tighter
+        # than ±2 ticks, or sub-100 "gocap" stocks (where one tick already
+        # exceeds 1.2%) could never move at all and would sit frozen.
+        band = max(base * 0.012, tick_size * 2)
+        new_price = max(base - band, min(base + band, new_price))
+        if new_price <= 0 or new_price == tick.price:
+            continue
+
+        prev_close = tick.prevClose or base
+        change = new_price - prev_close
+        change_pct = (change / prev_close * 100.0) if prev_close else 0.0
+
+        hist = _history.setdefault(sym, [new_price] * 60)
+        hist.append(new_price)
+        if len(hist) > 60:
+            hist.pop(0)
+
+        _current_stocks[sym] = tick.model_copy(update={
+            "price": round(new_price, 0),
+            "change": round(change, 0),
+            "changePct": round(change_pct, 2),
+            "high": round(max(tick.high, new_price), 0),
+            "low": round(min(tick.low, new_price) if tick.low > 0 else new_price, 0),
+            "history": list(hist),
+        })
+
+    # IHSG breathes too, anchored to its real value.
+    global _ihsg_current
+    if _ihsg_anchor:
+        base = _ihsg_anchor["value"]
+        prev = _ihsg_anchor["prevClose"]
+        step = random.gauss(0.0, base * 0.0002)          # ~0.02% per tick
+        revert = (base - _ihsg_current.value) * 0.2
+        val = _ihsg_current.value + step + revert
+        val = max(base * 0.99, min(base * 1.01, val))
+        change = val - prev
+        _ihsg_current = IhsgSnapshot(
+            value=round(val, 2),
+            prevClose=round(prev, 2),
+            change=round(change, 2),
+            changePct=round((change / prev * 100.0) if prev else 0.0, 2),
+        )
+
+    _intraday_simulated = True
+
+
+def _reanchor() -> None:
+    """Snapshot the current REAL prices as the anchors the tick walk reverts to.
+    Called at the end of every successful real poll, so simulation always starts
+    from — and returns to — reality."""
+    global _ihsg_anchor
+    for sym, tick in _current_stocks.items():
+        _anchor[sym] = {
+            "price": float(tick.price),
+            "prevClose": float(tick.prevClose or tick.price),
+        }
+    _ihsg_anchor = {"value": float(_ihsg_current.value), "prevClose": float(_ihsg_current.prevClose)}
 
 
 def is_market_open() -> bool:
@@ -414,6 +538,11 @@ async def fetch_yahoo_market_data() -> bool:
         applied, len(symbols), batch.delay_seconds, batch.market_state,
     )
 
+    # Re-anchor the intraday walk to these fresh REAL prices, so any simulated
+    # ticks between now and the next poll revert toward reality, not toward a
+    # previous estimate.
+    _reanchor()
+
     # Publish the fresh snapshot to Redis so out-of-process consumers see it.
     # Written last, after _feed_meta is set, so the published payload carries
     # the correct provenance rather than the previous poll's.
@@ -514,4 +643,7 @@ def generate_snapshot() -> MarketSnapshot:
         delaySeconds=delay,
         isDelayed=delay > 0,
         sourceLabel=_feed_meta.get("source_label", ""),
+        # True when prices are currently breathing via the intraday walk between
+        # real polls. The UI uses this to label movement as estimated.
+        isIntradaySimulated=_intraday_simulated,
     )

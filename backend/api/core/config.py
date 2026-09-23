@@ -95,6 +95,13 @@ class Settings(BaseSettings):
     market_poll_interval_closed_sec: int = 900
     # Slack beyond the vendor's declared delay before a quote is called stale.
     market_stale_tolerance_sec: int = 300
+    # Let prices "breathe" with a small bounded random walk between real polls,
+    # during market hours only, anchored to the last real price and re-synced on
+    # each poll. Gives a Stockbit-like live feel; the snapshot flags it as
+    # simulated so the UI can label it. Set false for strictly-real display.
+    market_simulate_intraday: bool = True
+    # How often the intraday tick loop steps prices, in seconds.
+    market_tick_interval_sec: float = 2.0
 
     # MLflow
     mlflow_tracking_uri: str = "http://localhost:5000"

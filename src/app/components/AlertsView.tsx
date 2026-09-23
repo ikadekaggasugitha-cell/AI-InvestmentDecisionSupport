@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Zap, ShieldAlert, Landmark, Scale, Bell, X, Check } from "lucide-react";
 
 /**
@@ -21,7 +20,10 @@ export type AlertItem = {
 };
 
 export interface AlertsViewProps {
+  /** Non-dismissed alerts to render (read/unread state is owned by useAlerts). */
   alerts: readonly AlertItem[];
+  onDismiss: (id: number) => void;
+  onClearAll: () => void;
   locale?: "id" | "en";
 }
 
@@ -40,13 +42,14 @@ const SEVERITY = {
 
 const ORDER: Array<AlertItem["severity"]> = ["high", "medium", "low"];
 
-export function AlertsView({ alerts, locale = "id" }: AlertsViewProps) {
+export function AlertsView({ alerts, onDismiss, onClearAll, locale = "id" }: AlertsViewProps) {
   const isId = locale === "id";
-  const [dismissed, setDismissed] = useState<Set<number>>(new Set());
 
-  const visible = alerts.filter((a) => !dismissed.has(a.id));
-  const dismiss = (id: number) => setDismissed((s) => new Set(s).add(id));
-  const clearAll = () => setDismissed(new Set(alerts.map((a) => a.id)));
+  // `alerts` is already the non-dismissed set (owned by useAlerts and persisted),
+  // so the list, the header count, and the sidebar badge all read from one source.
+  const visible = alerts;
+  const dismiss = onDismiss;
+  const clearAll = onClearAll;
 
   return (
     <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">

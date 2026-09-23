@@ -83,6 +83,11 @@ export function DataFreshnessBadge({
     detail = ageSeconds !== null
       ? (isId ? `data ${formatAge(ageSeconds, true)} lalu` : `${formatAge(ageSeconds, false)} old`)
       : freshness.label;
+    // When the board is breathing between real polls, say so — the movement on
+    // screen is an estimate anchored to the last real price, not a live tick.
+    if (freshness.isIntradaySimulated) {
+      detail += isId ? " · gerak intraday estimasi" : " · intraday estimated";
+    }
   } else {
     detail = ageSeconds !== null
       ? (isId ? `${formatAge(ageSeconds, true)} lalu` : `${formatAge(ageSeconds, false)} ago`)
@@ -102,6 +107,10 @@ export function DataFreshnessBadge({
       (isId
         ? `Feed tertunda ${Math.round(freshness.delaySeconds / 60)} menit. Realtime memerlukan feed berlisensi.`
         : `Feed delayed ${Math.round(freshness.delaySeconds / 60)} minutes. Real time requires a licensed feed.`),
+    freshness.isIntradaySimulated &&
+      (isId
+        ? "Pergerakan harga antar-refresh disimulasikan (random-walk kecil di-anchor ke harga real, sinkron ulang tiap ~60 dtk)."
+        : "Movement between refreshes is simulated (small random-walk anchored to the real price, re-synced every ~60s)."),
   ]
     .filter(Boolean)
     .join("\n");

@@ -570,6 +570,8 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
           stock={market.stocks[selected]}
           meta={universe.bySymbol[selected]}
           isId={isId}
+          isWatched={watchlist.has(selected)}
+          onToggleWatchlist={onToggleWatchlist}
           onClose={() => setSelected(null)}
         />
       )}

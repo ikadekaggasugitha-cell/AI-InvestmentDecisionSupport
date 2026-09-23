@@ -85,6 +85,10 @@ class MarketSnapshot(BaseModel):
     delaySeconds: int = 0             # vendor-declared feed delay
     isDelayed: bool = False
     sourceLabel: str = ""             # vendor's own wording, e.g. "Delayed Quote"
+    # True when intraday movement between real polls is a bounded simulation
+    # anchored to the last real price (market hours only). The UI labels it so a
+    # user never mistakes the "breathing" for real tick-by-tick data.
+    isIntradaySimulated: bool = False
 
 
 class MarketTickMessage(BaseModel):

@@ -53,6 +53,12 @@ export interface DataFreshness {
   isDelayed: boolean;
   /** True when the numbers are generated rather than observed. */
   isSimulated: boolean;
+  /**
+   * True when intraday movement between real polls is a bounded simulation
+   * anchored to the last real price (market hours). The prices are real at each
+   * ~60s re-sync; the "breathing" in between is an estimate, so the UI labels it.
+   */
+  isIntradaySimulated: boolean;
 }
 
 export interface LiveMarketData {
@@ -80,6 +86,7 @@ export const SIMULATED_FRESHNESS: DataFreshness = {
   delaySeconds: 0,
   isDelayed: false,
   isSimulated: true,
+  isIntradaySimulated: false,
 };
 
 export type MarketDataProvider = () => LiveMarketData;
@@ -296,6 +303,7 @@ export function useLiveMarket(): LiveMarketData {
                     isSimulated:
                       snapshot.dataSource === "placeholder" ||
                       snapshot.dataSource === "mock",
+                    isIntradaySimulated: Boolean(snapshot.isIntradaySimulated),
                   },
                 };
               });

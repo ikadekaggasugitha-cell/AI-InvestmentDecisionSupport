@@ -1,18 +1,30 @@
-import { Suspense, lazy, useEffect } from "react";
-import { X, ChevronUp, ChevronDown } from "lucide-react";
+import { Suspense, lazy, useEffect, useState } from "react";
+import { X, ChevronUp, ChevronDown, Star } from "lucide-react";
 import type { StockTick } from "../hooks/useLiveMarket";
 import type { UniverseEntry } from "../hooks/useUniverse";
+import type { AISignal } from "../hooks/useAISignals";
 import { useTechnicals } from "../hooks/useTechnicals";
+import { ENDPOINTS, USE_LIVE_API, apiFetch, FETCH_TIMEOUT_MS } from "../config/api";
 import { EntrySignalCard } from "./EntrySignalCard";
 
 const CandlestickChart = lazy(() =>
   import("./CandlestickChart").then((m) => ({ default: m.CandlestickChart })),
 );
 
+/** Probability-tier presentation: colour + bilingual label. */
+const TIER_UI: Record<AISignal["probabilityTier"], { color: string; id: string; en: string }> = {
+  VERY_HIGH: { color: "var(--gain)",    id: "Probabilitas Sangat Tinggi", en: "Very High Probability" },
+  HIGH:      { color: "var(--gain)",    id: "Probabilitas Tinggi",        en: "High Probability" },
+  NEUTRAL:   { color: "var(--neutral)", id: "Probabilitas Netral",        en: "Neutral Probability" },
+  LOW:       { color: "var(--loss)",    id: "Probabilitas Rendah",        en: "Low Probability" },
+};
+
 interface Props {
   stock: StockTick;
   meta?: UniverseEntry;
   isId: boolean;
+  isWatched: boolean;
+  onToggleWatchlist: (symbol: string) => void;
   onClose: () => void;
 }
 
@@ -24,10 +36,30 @@ interface Props {
  * `EntrySignalCard`. The header stats come from the live tick so the number here
  * matches the table row that opened it.
  */
-export function StockDetailPanel({ stock, meta, isId, onClose }: Props) {
+export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchlist, onClose }: Props) {
   const tech = useTechnicals(stock.symbol, 120, true);
   const pos = stock.changePct >= 0;
   const foreignPos = stock.foreignNet >= 0;
+
+  // AI signal for this one symbol — fetched lazily so opening the panel does not
+  // pull the whole ~960-entry signals list.
+  const [signal, setSignal] = useState<AISignal | null>(null);
+  useEffect(() => {
+    if (!USE_LIVE_API) return;
+    let alive = true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    apiFetch(ENDPOINTS.signalFor(stock.symbol), { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) setSignal(d); })
+      .catch(() => { if (alive) setSignal(null); })
+      .finally(() => clearTimeout(timer));
+    return () => { alive = false; controller.abort(); clearTimeout(timer); };
+  }, [stock.symbol]);
+
+  // Day-range position: where the last price sits between the session low & high.
+  const range = Math.max(0, stock.high - stock.low);
+  const rangePct = range > 0 ? Math.min(100, Math.max(0, ((stock.price - stock.low) / range) * 100)) : 50;
 
   // Close on Escape — a drawer that traps the user is worse than no drawer.
   useEffect(() => {
@@ -100,6 +132,16 @@ export function StockDetailPanel({ stock, meta, isId, onClose }: Props) {
               </div>
             </div>
             <button
+              onClick={() => onToggleWatchlist(stock.symbol)}
+              aria-label={isWatched
+                ? (isId ? "Hapus dari pantauan" : "Remove from watchlist")
+                : (isId ? "Tambah ke pantauan" : "Add to watchlist")}
+              title={isId ? "Pantauan" : "Watchlist"}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 4, lineHeight: 0, color: isWatched ? "#f59e0b" : "var(--muted-foreground)" }}
+            >
+              <Star size={17} fill={isWatched ? "#f59e0b" : "none"} />
+            </button>
+            <button
               onClick={onClose}
               aria-label={isId ? "Tutup" : "Close"}
               style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted-foreground)", padding: 4 }}
@@ -131,6 +173,65 @@ export function StockDetailPanel({ stock, meta, isId, onClose }: Props) {
               livePrice={stock.price}
             />
           </Suspense>
+
+          {/* AI signal — model uprob, tier, confidence, upside */}
+          {signal && (
+            <div style={{ background: "var(--muted)", borderRadius: 6, padding: 12, border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  {isId ? "Sinyal AI" : "AI Signal"}
+                </span>
+                <span
+                  style={{
+                    fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
+                    color: TIER_UI[signal.probabilityTier].color,
+                    background: `color-mix(in srgb, ${TIER_UI[signal.probabilityTier].color} 12%, transparent)`,
+                    border: `1px solid ${TIER_UI[signal.probabilityTier].color}`,
+                  }}
+                >
+                  {isId ? TIER_UI[signal.probabilityTier].id : TIER_UI[signal.probabilityTier].en}
+                </span>
+              </div>
+              <div className="flex items-end gap-5">
+                <div>
+                  <div style={{ fontSize: 26, fontWeight: 700, fontFamily: "var(--font-mono)", color: TIER_UI[signal.probabilityTier].color, lineHeight: 1 }}>
+                    {signal.uprob}%
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+                    {isId ? "Probabilitas Naik" : "Upward Prob."}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>{signal.confidence}%</div>
+                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{isId ? "Keyakinan" : "Confidence"}</div>
+                </div>
+                {signal.upside !== 0 && (
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--font-mono)", color: signal.upside >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                      {signal.upside >= 0 ? "+" : ""}{signal.upside.toFixed(1)}%
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{isId ? "Potensi" : "Upside"}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Day range: low ──●── high */}
+          {range > 0 && (
+            <div>
+              <div className="flex items-center justify-between" style={{ fontSize: 10, color: "var(--muted-foreground)", marginBottom: 4 }}>
+                <span>{isId ? "Rentang Hari" : "Day Range"}</span>
+              </div>
+              <div style={{ position: "relative", height: 6, background: "var(--muted)", borderRadius: 3 }}>
+                <div style={{ position: "absolute", top: "50%", left: `${rangePct}%`, width: 10, height: 10, borderRadius: "50%", background: pos ? "var(--gain)" : "var(--loss)", transform: "translate(-50%, -50%)", border: "2px solid var(--background)" }} />
+              </div>
+              <div className="flex items-center justify-between" style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)", marginTop: 4 }}>
+                <span>{stock.low.toLocaleString("id-ID")}</span>
+                <span>{stock.high.toLocaleString("id-ID")}</span>
+              </div>
+            </div>
+          )}
 
           {/* Key stats */}
           <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>

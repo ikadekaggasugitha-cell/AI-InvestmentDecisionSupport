@@ -132,6 +132,26 @@ async def lifespan(app: FastAPI):
 
     poller = asyncio.create_task(_market_poller_task())
 
+    # Intraday tick loop: between the poller's (slow) real fetches, nudge prices
+    # with a bounded, anchored random walk so the board visibly "runs" during
+    # market hours. A no-op when the market is closed or simulation is disabled.
+    async def _intraday_tick_task() -> None:
+        from api.services.market_service import simulate_intraday_tick
+
+        interval = max(0.5, float(settings.market_tick_interval_sec))
+        while True:
+            try:
+                await asyncio.sleep(interval)
+                if settings.market_simulate_intraday and not settings.use_mock_market:
+                    simulate_intraday_tick()
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:  # noqa: BLE001 — a tick fault must not kill the loop
+                logger.warning("intraday_tick_task_error", error=str(exc))
+                await asyncio.sleep(2.0)
+
+    ticker = asyncio.create_task(_intraday_tick_task())
+
     # Warm the LightGBM model + SHAP explainer in the background so the first
     # /v1/signals request isn't a multi-second cold load that trips the
     # frontend's 10s fetch timeout and shows the "data simulasi" banner. Runs in
@@ -153,10 +173,15 @@ async def lifespan(app: FastAPI):
 
     yield
     poller.cancel()
+    ticker.cancel()
     if warmup:
         warmup.cancel()
     try:
         await poller
+    except asyncio.CancelledError:
+        pass
+    try:
+        await ticker
     except asyncio.CancelledError:
         pass
 

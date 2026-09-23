@@ -23,7 +23,7 @@ import { useNews } from "./hooks/useNews";
 import { usePortfolio } from "./hooks/usePortfolio";
 import { useWatchlist } from "./hooks/useWatchlist";
 import { useWindowWidth } from "./hooks/useWindowWidth";
-import { ALERTS_DATA } from "./data/idxData";
+import { useAlerts } from "./hooks/useAlerts";
 import { useTranslation } from "./i18n/translations";
 import { Toaster } from "./components/ui/sonner";
 import { onAuthExpired } from "./config/api";
@@ -86,7 +86,16 @@ function AppInner() {
     });
   }, [t]);
 
-  const alertCount = ALERTS_DATA.filter((a) => a.severity === "high").length;
+  const alertsHook = useAlerts();
+  const alertCount = alertsHook.unreadCount;
+
+  // Opening the Peringatan view marks everything read, so the badge clears the
+  // moment the user looks at their alerts (and stays cleared — the read state is
+  // persisted). This is what the badge count is supposed to track.
+  useEffect(() => {
+    if (view === "alerts") alertsHook.markAllRead();
+  }, [view, alertsHook.markAllRead]);
+
   const dashSubtitle = useMemo(() => formatDashboardSubtitle(locale), [locale]);
 
   const viewTitles: Record<ViewType, { title: string; subtitle: string }> = {
@@ -166,7 +175,7 @@ function AppInner() {
           {view === "news"       && <ErrorBoundary key="news"     locale={locale}><NewsView news={news} loading={newsLoading} /></ErrorBoundary>}
           {view === "reports"    && <ErrorBoundary key="reports"  locale={locale}><ReportsView /></ErrorBoundary>}
           {view === "settings"   && <ErrorBoundary key="settings" locale={locale}><SettingsView fx={fx} /></ErrorBoundary>}
-          {view === "alerts"     && <ErrorBoundary key="alerts"   locale={locale}><AlertsView alerts={ALERTS_DATA} locale={locale} /></ErrorBoundary>}
+          {view === "alerts"     && <ErrorBoundary key="alerts"   locale={locale}><AlertsView alerts={alertsHook.visibleAlerts} onDismiss={alertsHook.dismiss} onClearAll={alertsHook.clearAll} locale={locale} /></ErrorBoundary>}
           </Suspense>
       </div>
       <Toaster theme={isDark ? "dark" : "light"} position="top-right" richColors />

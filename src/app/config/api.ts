@@ -32,6 +32,8 @@ const WS_BASE = API_BASE.replace(/^http/, "ws");
 export const ENDPOINTS = {
   /** LightGBM + SHAP signal recommendations */
   signals:        `${API_BASE}/v1/signals`,
+  /** AI signal for a single symbol (stock detail panel) */
+  signalFor:      (symbol: string) => `${API_BASE}/v1/signals/${symbol}`,
   /** Full listed IDX board — browse/search/filter (~960 securities) */
   symbols:        (params?: {
     q?: string; sector?: string; sort?: string; limit?: number; offset?: number;

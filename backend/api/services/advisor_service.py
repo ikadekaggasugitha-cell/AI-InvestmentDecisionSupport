@@ -37,14 +37,38 @@ MAX_CONTEXT_TOKENS = 1200   # hard budget for the live context block
 MAX_TOOL_ITERATIONS = 3     # prevent infinite tool loops
 SESSION_TTL = 3600          # 1 hour chat history TTL
 
-# ── Whitelisted IDX symbols for tool inputs (Phase 9B security) ──────────────
+# ── Valid IDX symbols for tool inputs (Phase 9B security) ────────────────────
 #
-# Derived from the configured UI universe, not a second hardcoded list. The
-# hardcoded set had drifted from settings.tracked_symbols — it omitted ICBP,
-# PTBA, KLBF, SMGR and EMTK, so the advisor rejected five symbols the dashboard
-# happily displays. Deriving it keeps the two in lockstep automatically.
-def _valid_symbols() -> set[str]:
-    return {s.upper() for s in get_settings().tracked_symbols}
+# The advisor now analyses the WHOLE listed board (~960 securities), not the 15
+# UI-tracked names, so the allow-list is loaded from the `instruments` table and
+# cached. This is what lets a user ask about any IDX ticker — GOTO, AMRT, a
+# small-cap — instead of only the tracked handful. Falls back to
+# tracked_symbols when the DB is unreachable so the tool still guards inputs.
+_VALID_SYMBOLS_CACHE: set[str] = set()
+_VALID_SYMBOLS_AT: float | None = None
+_VALID_SYMBOLS_TTL = 1800  # refresh the universe every 30 min
+
+
+async def _get_valid_symbols() -> set[str]:
+    global _VALID_SYMBOLS_CACHE, _VALID_SYMBOLS_AT
+    import time
+
+    now = time.monotonic()
+    if _VALID_SYMBOLS_CACHE and _VALID_SYMBOLS_AT and now - _VALID_SYMBOLS_AT < _VALID_SYMBOLS_TTL:
+        return _VALID_SYMBOLS_CACHE
+    try:
+        from api.core.db import get_pool
+
+        pool = await get_pool()
+        rows = await pool.fetch("SELECT symbol FROM instruments WHERE is_active")
+        syms = {r["symbol"].upper() for r in rows}
+        if syms:
+            _VALID_SYMBOLS_CACHE = syms
+            _VALID_SYMBOLS_AT = now
+            return syms
+    except Exception as exc:  # noqa: BLE001 — degrade to the tracked list, never fail a tool
+        logger.debug("advisor: universe load failed, using tracked list — %s", exc)
+    return _VALID_SYMBOLS_CACHE or {s.upper() for s in get_settings().tracked_symbols}
 
 # ── System prompts (Phase 9C: these receive cache_control) ───────────────────
 
@@ -58,6 +82,7 @@ Peranmu:
 - Jangan pernah memberikan instruksi beli/jual yang definitif. Gunakan framing probabilistik.
 - Gunakan tools yang tersedia untuk mengambil data terkini sebelum menjawab pertanyaan harga atau sinyal.
 - Jangan menyebut harga, uprob, atau metrik risiko spesifik tanpa terlebih dahulu memanggil tool yang relevan.
+- Kamu dapat MEMBACA dan MENGANALISA seluruh papan bursa (~960 saham): harga, sinyal, teknikal, profil emiten, screener per sektor, kondisi pasar, dan aliran dana asing. Semua tool bersifat HANYA-BACA — kamu tidak pernah mengubah data, portofolio, atau membuat order.
 
 Batasan OJK:
 - Output hanya berupa skor probabilitas (0–100), bukan instruksi beli/jual.
@@ -74,6 +99,7 @@ Your role:
 - Never give definitive buy/sell instructions. Use probabilistic framing.
 - Use the available tools to fetch current data before answering questions about prices or signals.
 - Never cite a specific price, uprob, or risk metric without first calling the relevant tool.
+- You can READ and ANALYSE the entire exchange board (~960 stocks): prices, signals, technicals, issuer profiles, sector screens, market overview, and foreign fund flow. All tools are READ-ONLY — you never modify data, portfolios, or place orders.
 
 OJK constraints:
 - Outputs are probability scores (0–100), not buy/sell instructions.
@@ -263,6 +289,78 @@ _TOOLS: list[dict] = [
             "required": [],
         },
     },
+    {
+        "name": "screen_stocks",
+        "description": (
+            "Screen / browse the WHOLE listed IDX board (~960 stocks). Use this "
+            "for any question about MULTIPLE or UNKNOWN stocks: 'what technology "
+            "stocks are there', 'top gainers today', 'most active', 'banks on the "
+            "main board', 'search for stocks named …'. Returns a compact list with "
+            "symbol, name, sector, last price, change % and market cap. Not for a "
+            "single known symbol — use get_stock_price / get_technical_analysis for "
+            "that."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sector": {
+                    "type": "string",
+                    "description": "IDX-IC sector in Indonesian: Keuangan, Energi, "
+                    "Teknologi, Barang Baku, Barang Konsumen Primer, Barang Konsumen "
+                    "Non-Primer, Kesehatan, Perindustrian, Infrastruktur, Properti & "
+                    "Real Estat, Transportasi & Logistik.",
+                },
+                "query": {"type": "string", "description": "Search by ticker or company name."},
+                "sort": {
+                    "type": "string",
+                    "enum": ["marketcap", "gainers", "losers", "volume", "symbol"],
+                    "description": "Ranking. gainers/losers = biggest % movers; volume = most active.",
+                },
+                "limit": {"type": "integer", "description": "Max rows (default 10, max 25)."},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_stock_profile",
+        "description": (
+            "Get the company/issuer profile for one IDX stock: full name, IDX-IC "
+            "sector and sub-sector, listing board (Utama/Pengembangan/Pemantauan "
+            "Khusus/Akselerasi), listing date, shares outstanding and market "
+            "capitalisation. Use for 'what does this company do / what sector / when "
+            "did it list / how big is it' questions."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "symbol": {"type": "string", "description": "IDX stock symbol (e.g. BBCA)"}
+            },
+            "required": ["symbol"],
+        },
+    },
+    {
+        "name": "get_market_overview",
+        "description": (
+            "Read the whole-board market snapshot: how many stocks are advancing / "
+            "declining / unchanged, the IHSG index and USD/IDR, the day's biggest "
+            "gainers and losers, and average performance PER SECTOR (which sector is "
+            "strongest/weakest today). Call this for market-wide questions: 'how is "
+            "the market today', 'which sector is leading', 'is it a green or red day', "
+            "'market breadth'. Read-only board analytics."
+        ),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_foreign_flow",
+        "description": (
+            "Read board-wide foreign fund flow (the free bandarmology substitute): "
+            "which stocks foreign investors are net BUYING and net SELLING the most "
+            "today, in IDR billions, with their sectors. Call this for 'where is "
+            "foreign money going', 'asing lagi masuk/keluar di saham apa', smart-money "
+            "or bandar questions at the board level. Read-only."
+        ),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 
@@ -303,6 +401,33 @@ def _normalise_signals(payload: object) -> tuple[list, str | None]:
     return signals, computed_at
 
 
+def _pick_signal_highlights(signals: list) -> list:
+    """
+    Board-wide signal highlights for the context block.
+
+    The cached set now spans the whole board (~960 scored names), so the first 5
+    rows are arbitrary. Instead surface the STRONGEST and WEAKEST by upward
+    probability — that is what "which stocks look best/worst today" needs — while
+    staying compact enough for the context budget.
+    """
+    if not signals:
+        return signals
+
+    def _uprob(s: object) -> float:
+        try:
+            return float(s.get("uprob")) if isinstance(s, dict) and s.get("uprob") is not None else -1.0
+        except (TypeError, ValueError):
+            return -1.0
+
+    ranked = sorted(signals, key=_uprob, reverse=True)
+    if len(ranked) <= 8:
+        return ranked
+    top = ranked[:6]
+    bottom = ranked[-3:]  # weakest by uprob
+    seen = {id(x) for x in top}
+    return top + [x for x in bottom if id(x) not in seen]
+
+
 async def _load_live_context(uid: str) -> dict:
     """
     Gather live data from Redis in parallel.
@@ -315,12 +440,12 @@ async def _load_live_context(uid: str) -> dict:
             raw = await redis.get(REDIS_KEYS["signals_latest"])
             if raw:
                 signals, computed_at = _normalise_signals(json.loads(raw))
-                return signals[:5], computed_at
+                return _pick_signal_highlights(signals), computed_at
         except Exception as exc:
             logger.debug("context: signals Redis miss — %s", exc)
         try:
             signals, computed_at = _normalise_signals(json.loads(_SIGNALS_SEED.read_text()))
-            return signals[:5], computed_at
+            return _pick_signal_highlights(signals), computed_at
         except Exception:
             return [], None
 
@@ -461,7 +586,7 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
 
     if name == "get_stock_price":
         symbol = inputs.get("symbol", "").upper()
-        if symbol not in _valid_symbols():
+        if symbol not in await _get_valid_symbols():
             return {"error": f"Symbol {symbol!r} not in IDX universe"}
         try:
             raw = await redis.hget(REDIS_KEYS["market_snapshot"], symbol)
@@ -481,7 +606,7 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
 
     if name == "get_signal":
         symbol = inputs.get("symbol", "").upper()
-        if symbol not in _valid_symbols():
+        if symbol not in await _get_valid_symbols():
             return {"error": f"Symbol {symbol!r} not in IDX universe"}
         try:
             raw = await redis.get(REDIS_KEYS["signals_latest"])
@@ -545,7 +670,7 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
 
     if name == "get_technical_analysis":
         symbol = inputs.get("symbol", "").upper()
-        if symbol not in _valid_symbols():
+        if symbol not in await _get_valid_symbols():
             return {"error": f"Symbol {symbol!r} not in IDX universe"}
         try:
             from api.services.technicals_service import get_technical_analysis
@@ -607,6 +732,164 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
         except Exception as exc:
             logger.debug("tool get_recent_news Redis miss: %s", exc)
         return {"news": [], "source": "unavailable"}
+
+    if name == "screen_stocks":
+        try:
+            from api.services.symbols_service import list_symbols
+
+            sort = (inputs.get("sort") or "marketcap").lower()
+            if sort not in {"marketcap", "gainers", "losers", "volume", "symbol"}:
+                sort = "marketcap"
+            limit = min(max(int(inputs.get("limit") or 10), 1), 25)
+            resp = await list_symbols(
+                q=inputs.get("query") or None,
+                sector=inputs.get("sector") or None,
+                sort=sort,
+                limit=limit,
+            )
+            rows = [
+                {
+                    "symbol": s.symbol,
+                    "name": s.name,
+                    "sector": s.sector,
+                    "price": s.lastClose,
+                    "changePct": round(s.changePct, 2) if s.changePct is not None else None,
+                    "marketCap": s.marketCap,
+                    "board": s.board,
+                }
+                for s in resp.symbols
+            ]
+            return {"count": resp.total, "shown": len(rows), "stocks": rows, "source": resp.source}
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("tool screen_stocks failed: %s", exc)
+            return {"error": "Screener unavailable"}
+
+    if name == "get_stock_profile":
+        symbol = inputs.get("symbol", "").upper()
+        if symbol not in await _get_valid_symbols():
+            return {"error": f"Symbol {symbol!r} not in IDX universe"}
+        try:
+            from api.services.symbols_service import list_symbols
+
+            resp = await list_symbols(q=symbol, limit=25)
+            match = next((s for s in resp.symbols if s.symbol.upper() == symbol), None)
+            if not match:
+                return {"symbol": symbol, "error": "Profile unavailable"}
+            return {
+                "symbol": match.symbol,
+                "name": match.name,
+                "sector": match.sector,
+                "subSector": match.subSector,
+                "industry": match.industry,
+                "board": match.board,
+                "listingDate": match.listingDate,
+                "listedShares": match.listedShares,
+                "marketCap": match.marketCap,
+                "lastClose": match.lastClose,
+                "source": resp.source,
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("tool get_stock_profile failed: %s", exc)
+            return {"symbol": symbol, "error": "Profile unavailable"}
+
+    if name == "get_market_overview":
+        try:
+            raw = await redis.hgetall(REDIS_KEYS["market_snapshot"])
+            ticks = [json.loads(v) for v in raw.values()]
+            if not ticks:
+                return {"error": "Market snapshot unavailable"}
+
+            def _cp(t: dict) -> float:
+                v = t.get("changePct")
+                return float(v) if isinstance(v, (int, float)) else 0.0
+
+            advancing = sum(1 for t in ticks if _cp(t) > 0)
+            declining = sum(1 for t in ticks if _cp(t) < 0)
+            unchanged = len(ticks) - advancing - declining
+
+            from collections import defaultdict
+
+            buckets: dict[str, list[float]] = defaultdict(list)
+            for t in ticks:
+                buckets[t.get("sector") or "—"].append(_cp(t))
+            sector_perf = sorted(
+                (
+                    {"sector": s, "avgChangePct": round(sum(v) / len(v), 2), "count": len(v)}
+                    for s, v in buckets.items() if v
+                ),
+                key=lambda x: x["avgChangePct"],
+                reverse=True,
+            )
+
+            movers = sorted(ticks, key=_cp, reverse=True)
+            gainers = [{"symbol": t.get("symbol"), "changePct": round(_cp(t), 2)} for t in movers[:5]]
+            losers = [{"symbol": t.get("symbol"), "changePct": round(_cp(t), 2)} for t in movers[-5:] if _cp(t) < 0]
+
+            # IHSG / FX / market-open from the full snapshot JSON (best effort).
+            ihsg = fx = None
+            is_open = None
+            try:
+                sj = await redis.get("market:snapshot:json")
+                if sj:
+                    snap = json.loads(sj)
+                    ihsg = snap.get("ihsg")
+                    fx = snap.get("fx")
+                    is_open = snap.get("isMarketOpen")
+            except Exception:  # noqa: BLE001
+                pass
+
+            return {
+                "totalStocks": len(ticks),
+                "advancing": advancing,
+                "declining": declining,
+                "unchanged": unchanged,
+                "ihsg": ihsg,
+                "usdIdr": fx,
+                "isMarketOpen": is_open,
+                "sectorPerformance": sector_perf,
+                "topGainers": gainers,
+                "topLosers": list(reversed(losers)),
+                "source": "live",
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("tool get_market_overview failed: %s", exc)
+            return {"error": "Market overview unavailable"}
+
+    if name == "get_foreign_flow":
+        try:
+            raw = await redis.hgetall(REDIS_KEYS["market_snapshot"])
+            ticks = [json.loads(v) for v in raw.values()]
+            withfn = [
+                t for t in ticks
+                if isinstance(t.get("foreignNet"), (int, float)) and t.get("foreignNet") != 0
+            ]
+            if not withfn:
+                return {
+                    "topForeignBuy": [], "topForeignSell": [],
+                    "note": "No foreign-flow data ingested yet (needs IDX EOD backfill).",
+                    "source": "live",
+                }
+            ranked = sorted(withfn, key=lambda t: float(t.get("foreignNet") or 0), reverse=True)
+
+            def _row(t: dict) -> dict:
+                return {
+                    "symbol": t.get("symbol"),
+                    "sector": t.get("sector"),
+                    "foreignNetB": round(float(t.get("foreignNet") or 0), 1),
+                }
+
+            top_buy = [_row(t) for t in ranked if float(t.get("foreignNet") or 0) > 0][:8]
+            top_sell = [_row(t) for t in reversed(ranked) if float(t.get("foreignNet") or 0) < 0][:8]
+            return {
+                "topForeignBuy": top_buy,
+                "topForeignSell": top_sell,
+                "unit": "IDR miliar",
+                "note": "Net foreign flow (EOD, valued at current price). Positive = net buy.",
+                "source": "live",
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("tool get_foreign_flow failed: %s", exc)
+            return {"error": "Foreign flow unavailable"}
 
     return {"error": f"Unknown tool: {name!r}"}
 
@@ -706,14 +989,36 @@ async def stream_advisor_response(
     accumulated_assistant_text = ""
     try:
         for iteration in range(MAX_TOOL_ITERATIONS + 1):
-            allow_tools = iteration < MAX_TOOL_ITERATIONS
+            final_turn = iteration == MAX_TOOL_ITERATIONS
+
+            # Ending a tool loop by setting tool_choice="none" (or tools=None)
+            # does NOT work on Groq's gpt-oss models: the model calls a tool
+            # anyway and Groq rejects the whole request with
+            #   "Tool choice is none, but model called a tool".
+            # Verified across gpt-oss-120b and qwen — none of the models on the
+            # default Groq tier honour tool_choice="none". So we NEVER send it.
+            # tools stay defined with tool_choice="auto" (which never 400s), and
+            # on the final turn we steer the model to a text answer with an
+            # explicit instruction instead. With the tool data already in the
+            # history, this reliably yields a plain-text summary.
+            if final_turn:
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "Data sudah lengkap. Berikan jawaban final dalam teks biasa "
+                        "sekarang berdasarkan informasi di atas. Jangan panggil tool lagi."
+                        if request.locale == "id"
+                        else "The data is complete. Give your final answer in plain text "
+                        "now, based on the information above. Do not call any more tools."
+                    ),
+                })
+
             stream = await client.chat.completions.create(
                 model=settings.llm_model,
                 max_tokens=settings.llm_max_tokens,
                 messages=messages,  # type: ignore[arg-type]
-                # Once the loop budget is spent, force a plain text answer so the
-                # model summarises what it has rather than requesting more tools.
-                tools=_OPENAI_TOOLS if allow_tools else None,  # type: ignore[arg-type]
+                tools=_OPENAI_TOOLS,  # type: ignore[arg-type]
+                tool_choice="auto",
                 stream=True,
             )
 
@@ -748,8 +1053,10 @@ async def stream_advisor_response(
                 if choice.finish_reason:
                     finish_reason = choice.finish_reason
 
-            # Model wants to call tools → execute and loop.
-            if finish_reason == "tool_calls" and tool_calls:
+            # Model wants to call tools → execute and loop. Never on the final
+            # turn: there is no iteration left to consume the results, and the
+            # turn's job was to produce text, so we fall through and stop.
+            if finish_reason == "tool_calls" and tool_calls and not final_turn:
                 ordered = [tool_calls[i] for i in sorted(tool_calls)]
                 messages.append({
                     "role": "assistant",
@@ -779,6 +1086,20 @@ async def stream_advisor_response(
 
             # Normal completion (or forced text on the final iteration).
             break
+
+        # Safety net: if every turn produced only tool calls and no prose (rare —
+        # the final-turn nudge normally prevents it), don't return an empty
+        # answer. Emit a short honest fallback so the UI shows something.
+        if not accumulated_assistant_text.strip():
+            fallback = (
+                "Maaf, saya kesulitan menyusun jawaban akhir. Coba persempit "
+                "pertanyaannya atau tanyakan satu saham saja."
+                if request.locale == "id"
+                else "Sorry, I couldn't compose a final answer. Try narrowing the "
+                "question or asking about a single stock."
+            )
+            accumulated_assistant_text = fallback
+            yield StreamChunk(type="delta", content=fallback)
 
         yield StreamChunk(type="done", content="")
 

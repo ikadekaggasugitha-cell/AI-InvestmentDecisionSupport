@@ -122,6 +122,22 @@ async def get_signals() -> SignalsResponse:
     return response
 
 
+async def get_signal_for(symbol: str):
+    """
+    One symbol's AI signal, or None if it was not scored.
+
+    Reads the same cached signals set as get_signals() and filters in memory —
+    so the stock-detail panel gets a single lightweight signal without the whole
+    ~960-entry list travelling over the wire on every open.
+    """
+    symbol = symbol.upper()
+    response = await get_signals()
+    for sig in response.signals:
+        if sig.symbol.upper() == symbol:
+            return sig
+    return None
+
+
 class ModelUnavailable(RuntimeError):
     """The model cannot be served: no artefact, or no data to score with."""
 
