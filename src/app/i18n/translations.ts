@@ -80,8 +80,8 @@ const translations = {
 
     /* AI Advisor */
     ai_title: "AI Advisor",
-    ai_subtitle: "Model Kuantitatif AIDSS v4.2 — sinyal investasi aktif",
-    ai_model_accuracy: "Akurasi Model",
+    ai_subtitle: "Sinyal kuantitatif berbasis probabilitas",
+    ai_model_auc: "AUC Model",
     ai_active_signals: "Sinyal Aktif",
     ai_avg_confidence: "Keyakinan Rata-rata",
     ai_last_updated: "Terakhir Diperbarui",
@@ -291,8 +291,8 @@ const translations = {
 
     /* AI Advisor */
     ai_title: "AI Advisor",
-    ai_subtitle: "AIDSS Quantitative Model v4.2 — active investment signals",
-    ai_model_accuracy: "Model Accuracy",
+    ai_subtitle: "Probabilistic quantitative signals",
+    ai_model_auc: "Model AUC",
     ai_active_signals: "Active Signals",
     ai_avg_confidence: "Avg Confidence",
     ai_last_updated: "Last Updated",

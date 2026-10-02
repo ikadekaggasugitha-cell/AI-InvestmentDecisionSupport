@@ -18,7 +18,11 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4096, description="User question in Bahasa Indonesia or English")
     history: list[ChatMessage] = Field(default_factory=list, max_length=20, description="Previous turns (newest last)")
     locale: Literal["id", "en"] = "id"
-    uid: str = Field(default="default", description="Portfolio user ID for context enrichment")
+    # No `uid` field. It was a caller-supplied portfolio identity, which let any
+    # authenticated caller ask the advisor questions about a portfolio they do
+    # not own. The router now resolves the portfolio from the caller's token and
+    # passes it separately. Pydantic ignores unknown keys by default, so a client
+    # still sending `uid` is harmless — it is simply no longer read.
     # Phase 9D: optional session ID for Redis-backed history persistence
     session_id: str | None = Field(default=None, description="Session UUID for persistent conversation history")
 

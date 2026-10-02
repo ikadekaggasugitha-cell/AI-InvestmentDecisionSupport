@@ -30,10 +30,18 @@ type SortDir = "asc" | "desc";
 
 /* ── Module-level constants ───────────────────────────────────────────────── */
 
+/**
+ * Tier is derived from market-cap rank in market_service._load_universe
+ * (rank < 45 → 1, < 145 → 2, else 3). It is a size band, not an exchange index
+ * classification, and it says nothing about data freshness — the previous
+ * tooltips ("LQ45 · Real-time", "Kompas100 · EOD") claimed both an index
+ * membership and a feed characteristic the tier does not carry. The actual
+ * freshness is reported by DataFreshnessBadge.
+ */
 const TIER_CONFIG: Record<number, { label: string; color: string; bg: string; title: string }> = {
-  1: { label: "T1", color: "#00d4aa", bg: "rgba(0,212,170,0.1)", title: "LQ45 · Real-time" },
-  2: { label: "T2", color: "#4da6ff", bg: "rgba(77,166,255,0.1)", title: "Kompas100 · EOD" },
-  3: { label: "T3", color: "#8b9cb0", bg: "rgba(139,156,176,0.1)", title: "Small-Cap · On-Demand" },
+  1: { label: "T1", color: "#00d4aa", bg: "rgba(0,212,170,0.1)", title: "Tier 1 · 45 saham berkapitalisasi terbesar" },
+  2: { label: "T2", color: "#4da6ff", bg: "rgba(77,166,255,0.1)", title: "Tier 2 · peringkat 45–145 berdasarkan kapitalisasi pasar" },
+  3: { label: "T3", color: "#8b9cb0", bg: "rgba(139,156,176,0.1)", title: "Tier 3 · di luar 145 teratas berdasarkan kapitalisasi pasar" },
 };
 const TIER_FALLBACK = { label: "T?", color: "#8b9cb0", bg: "transparent", title: "" };
 

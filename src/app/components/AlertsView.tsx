@@ -1,4 +1,4 @@
-import { Zap, ShieldAlert, Landmark, Scale, Bell, X, Check } from "lucide-react";
+import { Zap, ShieldAlert, Landmark, Scale, Bell, X, Check, FlaskConical } from "lucide-react";
 
 /**
  * Alerts ("Peringatan") panel.
@@ -11,20 +11,30 @@ import { Zap, ShieldAlert, Landmark, Scale, Bell, X, Check } from "lucide-react"
 
 export type AlertItem = {
   id: number;
+  /** Stable identity for read/dismiss persistence across refetches. */
+  key: string;
   type: "signal" | "risk" | "macro" | "rebalance";
   severity: "high" | "medium" | "low";
   msgId: string;
   msgEn: string;
   timeId: string;
   timeEn: string;
+  symbol?: string | null;
 };
 
 export interface AlertsViewProps {
   /** Non-dismissed alerts to render (read/unread state is owned by useAlerts). */
   alerts: readonly AlertItem[];
-  onDismiss: (id: number) => void;
+  onDismiss: (key: string) => void;
   onClearAll: () => void;
   locale?: "id" | "en";
+  /**
+   * False when the feed is the bundled seed rather than conditions derived from
+   * live signals, movers, foreign flow, risk and news. The seed alerts are shaped
+   * exactly like real ones, so without this the view cannot tell a quiet market
+   * from a backend that is down.
+   */
+  isLive?: boolean;
 }
 
 const TYPE_ICON = {
@@ -42,7 +52,7 @@ const SEVERITY = {
 
 const ORDER: Array<AlertItem["severity"]> = ["high", "medium", "low"];
 
-export function AlertsView({ alerts, onDismiss, onClearAll, locale = "id" }: AlertsViewProps) {
+export function AlertsView({ alerts, onDismiss, onClearAll, locale = "id", isLive = false }: AlertsViewProps) {
   const isId = locale === "id";
 
   // `alerts` is already the non-dismissed set (owned by useAlerts and persisted),
@@ -53,6 +63,19 @@ export function AlertsView({ alerts, onDismiss, onClearAll, locale = "id" }: Ale
 
   return (
     <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+      {!isLive && alerts.length > 0 && (
+        <div
+          className="flex items-center gap-2 rounded p-3"
+          style={{ background: "rgba(245,158,11,0.10)", border: "1px solid var(--warning)", color: "var(--warning)", fontSize: 11 }}
+        >
+          <FlaskConical size={13} style={{ flexShrink: 0 }} />
+          <span>
+            {isId
+              ? "Peringatan contoh — feed langsung tidak dapat dihubungi. Sistem mencoba menyambung kembali otomatis."
+              : "Sample alerts — the live feed could not be reached. The system reconnects automatically."}
+          </span>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
           {visible.length > 0
@@ -92,7 +115,7 @@ export function AlertsView({ alerts, onDismiss, onClearAll, locale = "id" }: Ale
               {group.map((a) => {
                 const Icon = TYPE_ICON[a.type] ?? Bell;
                 return (
-                  <div key={a.id} className="flex items-start gap-3 rounded px-4 py-3"
+                  <div key={a.key} className="flex items-start gap-3 rounded px-4 py-3"
                     style={{ background: "var(--card)", border: "1px solid var(--border)", borderLeft: `3px solid ${cfg.color}` }}>
                     <div className="flex items-center justify-center rounded flex-shrink-0"
                       style={{ width: 32, height: 32, background: cfg.bg }}>
@@ -112,7 +135,7 @@ export function AlertsView({ alerts, onDismiss, onClearAll, locale = "id" }: Ale
                       </div>
                     </div>
                     <button
-                      onClick={() => dismiss(a.id)}
+                      onClick={() => dismiss(a.key)}
                       aria-label={isId ? "Tutup peringatan" : "Dismiss alert"}
                       className="flex items-center justify-center rounded flex-shrink-0"
                       style={{ width: 26, height: 26, background: "transparent", border: "none", color: "var(--muted-foreground)", cursor: "pointer" }}

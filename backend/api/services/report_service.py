@@ -98,12 +98,12 @@ def _num(v, suffix: str = "", dp: int = 2) -> str:
         return "—"
 
 
-async def _performance_story(styles, title_key: str):
+async def _performance_story(styles, title_key: str, portfolio_id: str):
     from api.services.portfolio_service import get_portfolio_optimisation
 
     story = []
     try:
-        r = await get_portfolio_optimisation(uid="default")
+        r = await get_portfolio_optimisation(uid=portfolio_id)
         m = r.metrics
         story.append(Paragraph(
             f"Expected return {_num(m.expectedReturn, '%')} · Volatility "
@@ -125,12 +125,12 @@ async def _performance_story(styles, title_key: str):
     return story
 
 
-async def _risk_story(styles):
+async def _risk_story(styles, portfolio_id: str):
     from api.services.risk_service import get_risk_metrics
 
     story = []
     try:
-        r = await get_risk_metrics(portfolio_id="default")
+        r = await get_risk_metrics(portfolio_id=portfolio_id)
         k = r.risk
         story.append(_table(
             ["Metric", "Value"],
@@ -164,12 +164,12 @@ async def _risk_story(styles):
     return story
 
 
-async def _tax_loss_story(styles):
+async def _tax_loss_story(styles, portfolio_id: str):
     from api.services.portfolio_service import get_portfolio_optimisation
 
     story = []
     try:
-        r = await get_portfolio_optimisation(uid="default")
+        r = await get_portfolio_optimisation(uid=portfolio_id)
         losers = [w for w in r.weights if w.expectedReturn < 0]
         story.append(Paragraph(
             f"{len(losers)} position(s) with a negative expected return — candidates for "
@@ -210,8 +210,14 @@ async def _signal_audit_story(styles):
     return story
 
 
-async def generate_pdf(report_type: ReportType) -> bytes:
-    """Render one report to PDF bytes from current live data."""
+async def generate_pdf(report_type: ReportType, portfolio_id: str) -> bytes:
+    """Render one report to PDF bytes from current live data.
+
+    `portfolio_id` is the caller's own portfolio, resolved by the router from
+    their token. It was previously hardcoded to "default", so any authenticated
+    user could download a PDF of the risk metrics and allocation belonging to
+    whoever owned that portfolio.
+    """
     styles = getSampleStyleSheet()
     d = _DEFS[report_type]
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -225,11 +231,11 @@ async def generate_pdf(report_type: ReportType) -> bytes:
     ]
 
     if report_type in (ReportType.performance, ReportType.quarterly):
-        story += await _performance_story(styles, report_type.value)
+        story += await _performance_story(styles, report_type.value, portfolio_id)
     elif report_type == ReportType.risk:
-        story += await _risk_story(styles)
+        story += await _risk_story(styles, portfolio_id)
     elif report_type == ReportType.tax_loss:
-        story += await _tax_loss_story(styles)
+        story += await _tax_loss_story(styles, portfolio_id)
     elif report_type == ReportType.signal_audit:
         story += await _signal_audit_story(styles)
 

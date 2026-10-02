@@ -14,7 +14,6 @@ moves, and the model does not retrain itself between runs, so a daily check
 would only re-report the same number.
 """
 
-import json
 import logging
 
 from workers.celery_app import celery_app
@@ -22,6 +21,27 @@ from api.core.config import get_settings
 from api.core.redis_client import REDIS_KEYS
 
 logger = logging.getLogger(__name__)
+
+
+def _record_drift_status(payload: dict) -> None:
+    """
+    Persist the run's outcome to `drift:latest`, success or skip.
+
+    Only successful runs used to be cached, so a weekly skip left nothing to
+    read anywhere: the reason existed in one log line and nowhere else, which
+    made "drift monitoring has been inert for months" indistinguishable from
+    "drift was checked and found stable". The key already has no TTL, so the
+    last run's outcome stands until the next one replaces it.
+    """
+    import json as _json
+
+    try:
+        import redis as sync_redis
+
+        r = sync_redis.from_url(get_settings().redis_url, decode_responses=True)
+        r.set(REDIS_KEYS["drift_latest"], _json.dumps(payload))
+    except Exception as exc:  # noqa: BLE001 — never lose the finding to a cache
+        logger.warning("monitoring_worker: could not record drift status — %s", exc)
 
 # Days of live bars to build the "current" feature distribution from. Wide
 # enough that the point-in-time features (60-day windows) are fully formed.
@@ -84,12 +104,16 @@ def check_drift(self) -> dict:
     settings = get_settings()
     if settings.use_mock_signals:
         logger.info("monitoring_worker: mock mode — skipping drift check")
-        return {"status": "skipped", "reason": "use_mock_signals=true"}
+        outcome = {"status": "skipped", "reason": "use_mock_signals=true"}
+        _record_drift_status(outcome)
+        return outcome
 
     bundle = _load_latest_bundle()
     if bundle is None:
         logger.info("monitoring_worker: no trained model — nothing to monitor")
-        return {"status": "skipped", "reason": "no_model"}
+        outcome = {"status": "skipped", "reason": "no_model"}
+        _record_drift_status(outcome)
+        return outcome
 
     baseline = bundle.get("feature_baseline")
     if not baseline:
@@ -98,7 +122,18 @@ def check_drift(self) -> dict:
             "`python -m ml.training.train_signals_v2` to enable drift monitoring",
             bundle.get("version"),
         )
-        return {"status": "skipped", "reason": "no_baseline"}
+        outcome = {
+            "status": "skipped",
+            "reason": "no_baseline",
+            "model_version": bundle.get("version"),
+            "detail": (
+                "Model carries no feature_baseline, so PSI has no reference to "
+                "compare against. Retrain with "
+                "`python -m ml.training.train_signals_v2`."
+            ),
+        }
+        _record_drift_status(outcome)
+        return outcome
 
     feature_columns = bundle["features"]
     reference_df = pd.DataFrame(baseline)
@@ -111,20 +146,20 @@ def check_drift(self) -> dict:
 
     if current_df.empty:
         logger.info("monitoring_worker: no live features (empty ohlcv?) — skipping")
-        return {"status": "skipped", "reason": "no_current_features"}
+        outcome = {
+            "status": "skipped",
+            "reason": "no_current_features",
+            "model_version": bundle.get("version"),
+        }
+        _record_drift_status(outcome)
+        return outcome
 
     result = check_feature_drift(reference_df, current_df, feature_columns)
     result["model_version"] = bundle.get("version")
 
-    try:
-        import redis as sync_redis
-
-        r = sync_redis.from_url(settings.redis_url, decode_responses=True)
-        r.set(REDIS_KEYS["drift_latest"], json.dumps(result))
-    except Exception as exc:
-        # A cache write failure must not lose the finding — it is already logged
-        # by check_feature_drift. Report ok; the report simply is not cached.
-        logger.warning("monitoring_worker: could not cache drift report — %s", exc)
+    # A cache write failure must not lose the finding — check_feature_drift has
+    # already logged it. Report ok; the report simply is not cached.
+    _record_drift_status(result)
 
     logger.info(
         "monitoring_worker: drift check done — max_psi=%.4f needs_retraining=%s",

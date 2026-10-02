@@ -17,6 +17,7 @@ from api.models.reports import (
     ReportListResponse,
     ReportType,
 )
+from api.services.portfolio_access import resolve_portfolio_id
 from api.services.report_service import generate_pdf, list_reports
 
 router = APIRouter(prefix="/v1/reports", tags=["reports"])
@@ -34,10 +35,11 @@ async def reports_list_endpoint(_user: CurrentUser) -> ReportListResponse:
     summary="Generate a report and return its metadata",
 )
 async def reports_generate_endpoint(
-    _user: CurrentUser, report_type: ReportType,
+    user: CurrentUser, report_type: ReportType,
 ) -> ReportGenerateResponse:
     """Render the PDF now (from live data) and report its size; fetch via /download."""
-    pdf = await generate_pdf(report_type)
+    portfolio_id = await resolve_portfolio_id(user.sub)
+    pdf = await generate_pdf(report_type, portfolio_id)
     return ReportGenerateResponse(
         type=report_type,
         status="ready",
@@ -48,10 +50,11 @@ async def reports_generate_endpoint(
 
 @router.get("/{report_type}/download", summary="Download a report as PDF")
 async def reports_download_endpoint(
-    _user: CurrentUser, report_type: ReportType,
+    user: CurrentUser, report_type: ReportType,
 ) -> StreamingResponse:
     """Stream a freshly-rendered PDF as a file attachment."""
-    pdf = await generate_pdf(report_type)
+    portfolio_id = await resolve_portfolio_id(user.sub)
+    pdf = await generate_pdf(report_type, portfolio_id)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
     filename = f"aidss-{report_type.value}-{stamp}.pdf"
     return StreamingResponse(

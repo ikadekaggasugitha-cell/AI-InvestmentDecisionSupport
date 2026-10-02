@@ -24,7 +24,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from collections import Counter
 
 
 async def _run(with_ohlcv: bool, days: int | None) -> int:

@@ -210,8 +210,8 @@ class TestLLMRequest:
         with patch("api.services.advisor_service.get_settings", return_value=stub):
             from api.models.advisor import ChatRequest
             from api.services.advisor_service import stream_advisor_response
-            req = ChatRequest(message="Test", uid="default", locale="id")
-            chunks = [c async for c in stream_advisor_response(req)]
+            req = ChatRequest(message="Test", locale="id")
+            chunks = [c async for c in stream_advisor_response(req, "default")]
 
         assert chunks, "expected at least one chunk"
         assert chunks[0].type == "error"
@@ -248,9 +248,9 @@ class TestLLMRequest:
 
             from api.models.advisor import ChatRequest
             from api.services.advisor_service import stream_advisor_response
-            req = ChatRequest(message="Bagaimana portofolio saya?", uid="default", locale="id")
+            req = ChatRequest(message="Bagaimana portofolio saya?", locale="id")
 
-            out = [c async for c in stream_advisor_response(req)]
+            out = [c async for c in stream_advisor_response(req, "default")]
 
         get_settings.cache_clear()
 

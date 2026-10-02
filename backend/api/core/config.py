@@ -25,6 +25,8 @@ _LLM_BASE_URLS = {
     # Anthropic ships an OpenAI-compatible layer, so the legacy Claude path runs
     # through the same client. Set LLM_MODEL to a Claude id (e.g. claude-sonnet-4-6).
     "anthropic": "https://api.anthropic.com/v1/",
+    # OX Alpha by Tokenra — OpenAI-compatible endpoint for ox-alpha models.
+    "oxalpha": "https://tokenra.io/v1",
 }
 
 
@@ -255,17 +257,21 @@ class Settings(BaseSettings):
     #   ollama     — 100% local, no key. Run `ollama serve` + `ollama pull <model>`
     #   openai     — OpenAI proper. Key: OPENAI_API_KEY
     #   anthropic  — legacy Claude path (uses ANTHROPIC_API_KEY below)
+    #   oxalpha    — OX Alpha by Tokenra. Key: OXALPHA_API_KEY
+    #                Model: ox-alpha-2 (supports tool-calling)
     llm_provider: str = "groq"
     # Generic key override; if empty, the provider-specific key below is used.
     llm_api_key: str = ""
     groq_api_key: str = ""
     openrouter_api_key: str = ""
     openai_api_key: str = ""
+    oxalpha_api_key: str = ""
     # Empty → derived from the provider (see llm_resolved_base_url).
     llm_base_url: str = ""
     # A powerful, tool-capable default that exists on Groq's free tier. Override
     # with LLM_MODEL for any other provider (e.g. "llama3.1" for ollama,
-    # "deepseek/deepseek-chat-v3:free" for openrouter, "gpt-4o-mini" for openai).
+    # "deepseek/deepseek-chat-v3:free" for openrouter, "gpt-4o-mini" for openai,
+    # "ox-alpha-2" for oxalpha).
     llm_model: str = "openai/gpt-oss-120b"
     llm_max_tokens: int = 2048
 
@@ -392,6 +398,7 @@ class Settings(BaseSettings):
             "openrouter": self.openrouter_api_key,
             "openai": self.openai_api_key,
             "anthropic": self.anthropic_api_key,
+            "oxalpha": self.oxalpha_api_key,
         }.get(self.llm_provider, "")
         if self.llm_provider == "ollama":
             return per_provider or "ollama"  # local server ignores the key

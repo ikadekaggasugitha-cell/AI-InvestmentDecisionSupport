@@ -15,8 +15,13 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
+
+# A quote this far behind the batch is excluded from the reported feed age and
+# counted instead. One full trading week: past that the security is suspended
+# long-term or dead, not the feed lagging.
+_OUTDATED_AFTER_DAYS = 7
 
 MarketState = Literal["REGULAR", "CLOSED", "PRE", "POST", "UNKNOWN"]
 
@@ -104,6 +109,56 @@ class QuoteBatch:
     def oldest_as_of(self) -> datetime | None:
         stamps = [q.as_of for q in self.quotes.values() if q.as_of]
         return min(stamps) if stamps else None
+
+    @property
+    def representative_as_of(self) -> datetime | None:
+        """
+        The exchange timestamp that actually describes this batch.
+
+        `oldest_as_of` answers "what is the worst timestamp in here", which is a
+        fair question but the wrong one for a whole-board snapshot. A single
+        delisted name poisons it: on this project one 17-month-old quote among
+        248 dragged the reported feed age to 819 days while the median quote was
+        1.7 hours old, so the freshness badge claimed the data was stale when the
+        feed was perfectly healthy.
+
+        The median is used because the board is overwhelmingly alive and the
+        outliers are a handful of securities that stopped trading. It is a
+        statement about the batch, not about any one symbol — a per-symbol age is
+        still available on each `Quote`.
+
+        Falls back to the oldest when there is no majority to speak of (one or
+        two quotes), where median and min coincide anyway.
+        """
+        stamps = [q.as_of for q in self.quotes.values() if q.as_of]
+        if not stamps:
+            return None
+        if len(stamps) <= 2:
+            return min(stamps)
+        stamps.sort()
+        return stamps[len(stamps) // 2]
+
+    @property
+    def outdated_symbols(self) -> list[str]:
+        """
+        Symbols whose quote is more than `_OUTDATED_AFTER_DAYS` behind the batch.
+
+        A reporting heuristic, not a data-quality verdict. Beyond a full trading
+        week the quote is either a long-suspended security or genuinely dead
+        (merger, delisting) — and this project keeps delisted names in
+        `instruments` with `is_active=TRUE` so that history and watchlists still
+        resolve. Either way the count is worth surfacing rather than letting a
+        few dead tickers speak for the other ~950.
+        """
+        reference = self.representative_as_of
+        if reference is None:
+            return []
+        cutoff = reference - timedelta(days=_OUTDATED_AFTER_DAYS)
+        return sorted(
+            symbol
+            for symbol, quote in self.quotes.items()
+            if quote.as_of is not None and quote.as_of < cutoff
+        )
 
     @property
     def market_state(self) -> MarketState:

@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { ExternalLink, RefreshCw, WifiOff } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import type { NewsItem } from "../hooks/useNews";
 
-interface Props { news: NewsItem[]; loading: boolean; }
+interface Props { news: NewsItem[]; loading: boolean; isLive: boolean; }
 
 const CAT_COLORS: Record<string, string> = {
   market:    "var(--neutral)",
@@ -29,7 +29,7 @@ function catLabel(cat: string, locale: string): string {
   return locale === "id" ? map[cat]?.[0] : map[cat]?.[1] ?? cat;
 }
 
-export function NewsView({ news, loading }: Props) {
+export function NewsView({ news, loading, isLive }: Props) {
   const { locale, isDark } = useApp();
   const id = locale === "id";
 
@@ -50,12 +50,23 @@ export function NewsView({ news, loading }: Props) {
             {id ? "Berita Pasar" : "Market News"}
           </h2>
           <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
-            {id ? "Berita real-time saham Indonesia" : "Real-time Indonesian equity news"}
+            {isLive
+              ? id ? "Keterbukaan informasi IDX — diambil sekali saat halaman dibuka" : "IDX disclosures — fetched once when this page opened"
+              : id ? "Sumber contoh — feed IDX tidak terjangkau" : "Sample content — IDX feed unreachable"}
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--muted-foreground)", fontSize: 11 }}>
-          <RefreshCw size={12} />
-          {id ? "Otomatis diperbarui" : "Auto-refreshing"}
+        <div
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            color: isLive ? "var(--muted-foreground)" : "var(--warning)",
+            fontSize: 11,
+          }}
+          title={isLive
+            ? (id ? "Daftar diambil sekali; Load ulang untuk mengambil ulang" : "Fetched once; reload to fetch again")
+            : (id ? "Feed IDX tidak dapat dihubungi" : "IDX feed could not be reached")}
+        >
+          {isLive ? <RefreshCw size={12} /> : <WifiOff size={12} />}
+          {isLive ? (id ? "Muat ulang untuk memperbarui" : "Reload to refresh") : (id ? "Feed tidak terjangkau" : "Feed unreachable")}
         </div>
       </div>
 

@@ -28,6 +28,12 @@ export interface ReportsResult {
   generating: ReportType | null;
   /** type currently downloading (Unduh), or null. */
   downloading: ReportType | null;
+  /**
+   * False when the catalogue is the bundled OFFLINE list because the backend
+   * could not be reached. The view previously hardcoded a "Live" data-source
+   * tile, which stayed "Live" in exactly the case where nothing was live.
+   */
+  isLive: boolean;
   generate: (type: ReportType) => Promise<void>;
   download: (type: ReportType) => Promise<void>;
 }
@@ -48,6 +54,7 @@ export function useReports(): ReportsResult {
   const [reports, setReports] = useState<ReportMeta[]>(USE_LIVE_API ? [] : OFFLINE);
   const [loading, setLoading] = useState(USE_LIVE_API);
   const [error, setError] = useState<string | null>(null);
+  const [isLive, setIsLive] = useState(false);
   const [generating, setGenerating] = useState<ReportType | null>(null);
   const [downloading, setDownloading] = useState<ReportType | null>(null);
 
@@ -62,12 +69,16 @@ export function useReports(): ReportsResult {
         const res = await apiFetch(ENDPOINTS.reports, { signal: controller.signal });
         if (!res.ok) throw new Error(`reports HTTP ${res.status}`);
         const data = await res.json();
-        if (!cancelled) setReports(Array.isArray(data?.reports) ? data.reports : OFFLINE);
+        if (!cancelled) {
+          setReports(Array.isArray(data?.reports) ? data.reports : OFFLINE);
+          setIsLive(true);
+        }
       } catch (err) {
         if (cancelled) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Unknown error");
         setReports(OFFLINE); // still render the catalogue
+        setIsLive(false);
       } finally {
         if (!cancelled) setLoading(false);
         clearTimeout(timeout);
@@ -123,5 +134,5 @@ export function useReports(): ReportsResult {
     }
   }, [triggerDownload]);
 
-  return { reports, loading, error, generating, downloading, generate, download };
+  return { reports, loading, error, isLive, generating, downloading, generate, download };
 }

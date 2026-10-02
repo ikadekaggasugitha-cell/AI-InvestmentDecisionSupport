@@ -16,7 +16,8 @@ The trained model artifact is saved to:
 
 import argparse
 import logging
-from datetime import datetime
+import warnings
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,17 @@ logger = logging.getLogger(__name__)
 
 MODELS_DIR = Path(__file__).parent.parent.parent / "models"
 MODELS_DIR.mkdir(exist_ok=True)
+
+warnings.warn(
+    "ml.training.train_signals is superseded by ml.training.train_signals_v2. It "
+    "builds features with ml.features.engineer while the serving path uses "
+    "ml.features.point_in_time, labels the last 5 rows of each symbol as 0 rather "
+    "than dropping them, has no quality gate — so it will write a model that no "
+    "longer matches how signals are computed, and one that ships even if it is "
+    "no better than chance. Use train_signals_v2.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 LGB_PARAMS: dict[str, Any] = {
@@ -163,7 +175,11 @@ def train(
         logger.info("Walk-forward mean AUC: %.4f", mean_auc)
 
         # Save and register best model
-        version = datetime.now().strftime("%Y%m%d_%H%M")
+        # Second resolution and UTC, matching train_signals_v2 and what
+        # signal_inference._parse_model_version expects. The old minute-resolution
+        # local-time string was the one shape that parser could not read, which
+        # left age_days=None and is_stale permanently False.
+        version = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         model_path = MODELS_DIR / f"lgbm_signals_{version}.pkl"
         joblib.dump({"model": best_model, "features": FEATURE_COLUMNS, "version": version}, model_path)
         mlflow.lightgbm.log_model(best_model, artifact_path="model")

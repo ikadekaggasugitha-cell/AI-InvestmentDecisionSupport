@@ -51,7 +51,7 @@ const EMPTY: PortfolioOptimisationResult = {
  * endpoints (Black-Litterman + HRP), so polled less aggressively. */
 const REFRESH_MS = 120_000;
 
-export function usePortfolioOptimisation(uid = "default"): PortfolioOptimisationResult {
+export function usePortfolioOptimisation(): PortfolioOptimisationResult {
   const [state, setState] = useState<PortfolioOptimisationResult>(EMPTY);
 
   useEffect(() => {
@@ -69,7 +69,7 @@ export function usePortfolioOptimisation(uid = "default"): PortfolioOptimisation
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       try {
-        const res = await apiFetch(ENDPOINTS.portfolio(uid), { signal: controller.signal });
+        const res = await apiFetch(ENDPOINTS.portfolio(), { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
@@ -107,7 +107,7 @@ export function usePortfolioOptimisation(uid = "default"): PortfolioOptimisation
       cancelled = true;
       clearInterval(interval);
     };
-  }, [uid]);
+  }, []);
 
   return state;
 }

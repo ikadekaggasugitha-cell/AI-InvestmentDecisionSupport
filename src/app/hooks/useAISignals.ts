@@ -120,6 +120,21 @@ export type AISignal = {
   brokerSummary?: BrokerSummarySnapshot | null;
 };
 
+export interface ModelMetrics {
+  /** Mean out-of-sample AUC across walk-forward folds. */
+  meanAuc: number | null;
+  /** Mean precision lift of the top decile over the base rate. */
+  decileLift: number | null;
+  /** Fraction of folds scoring above chance (AUC > 0.5). */
+  foldsAboveChance: number | null;
+  /** Share of 5-day windows that were up, as the model saw it. */
+  baseRate: number | null;
+  gatesPassed: boolean | null;
+  trainedAt: string | null;
+  rows: number | null;
+  symbols: number | null;
+}
+
 export interface AISignalsResult {
   signals: AISignal[];
   loading: boolean;
@@ -132,6 +147,14 @@ export interface AISignalsResult {
    * everything behind a full-screen error.
    */
   isLive: boolean;
+  /**
+   * What the trained model actually scored, read from the backend's training
+   * report. `null` on the seed path, because no model produced seed data — the
+   * view renders a dash there rather than inventing a figure.
+   */
+  modelMetrics: ModelMetrics | null;
+  /** Artefact version the backend loaded, e.g. "20260816_080420". "seed-v1.0" on the seed path. */
+  modelVersion: string | null;
 }
 
 /** How often live signals are re-polled, in ms. */
@@ -156,6 +179,38 @@ const SEED_SIGNALS: AISignal[] = AI_RECOMMENDATIONS.map((r) => {
   return extra ? { ...r, ...extra } : { ...r };
 });
 
+/**
+ * Pull the model-quality block off a signals payload.
+ *
+ * Every numeric field is read through `numOrNull`, so a missing or
+ * non-numeric value becomes null instead of NaN. `NaN` is the failure mode
+ * worth avoiding here: it renders as "NaN" in the tile and, unlike a dash, looks
+ * like a number the model produced.
+ */
+function readModelMetrics(parsed: unknown): ModelMetrics | null {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const raw = (parsed as { modelMetrics?: unknown }).modelMetrics;
+  if (!raw || typeof raw !== "object") return null;
+
+  const r = raw as Record<string, unknown>;
+  const numOrNull = (k: string): number | null =>
+    typeof r[k] === "number" && Number.isFinite(r[k] as number) ? (r[k] as number) : null;
+  const strOrNull = (k: string): string | null =>
+    typeof r[k] === "string" ? (r[k] as string) : null;
+  const intOrNull = (k: string): number | null => numOrNull(k);
+
+  return {
+    meanAuc: numOrNull("meanAuc"),
+    decileLift: numOrNull("decileLift"),
+    foldsAboveChance: numOrNull("foldsAboveChance"),
+    baseRate: numOrNull("baseRate"),
+    gatesPassed: typeof r.gatesPassed === "boolean" ? r.gatesPassed : null,
+    trainedAt: strOrNull("trainedAt"),
+    rows: intOrNull("rows"),
+    symbols: intOrNull("symbols"),
+  };
+}
+
 /* ── Hook ────────────────────────────────────────────────────────────────── */
 
 /**
@@ -173,6 +228,8 @@ export function useAISignals(): AISignalsResult {
   const [loading, setLoading]         = useState(USE_LIVE_API);
   const [error, setError]             = useState<string | null>(null);
   const [isLive, setIsLive]           = useState(false);
+  const [modelMetrics, setModelMetrics] = useState<ModelMetrics | null>(null);
+  const [modelVersion, setModelVersion] = useState<string | null>(null);
   const [lastFetched, setLastFetched] = useState<string | null>(
     USE_LIVE_API ? null : new Date().toISOString()
   );
@@ -202,6 +259,11 @@ export function useAISignals(): AISignalsResult {
           setLastFetched(new Date().toISOString());
           setIsLive(true);
           setError(null);
+          // Absent on the seed path by design; a live payload from a model with
+          // no report in its bundle leaves the fields null rather than zero.
+          setModelMetrics(readModelMetrics(parsed));
+          const version = (parsed as Record<string, unknown>).modelVersion;
+          setModelVersion(typeof version === "string" ? version : null);
         }
       } catch (err) {
         if (!cancelled) {
@@ -213,6 +275,10 @@ export function useAISignals(): AISignalsResult {
           // badge rather than a blank error page, and the next poll recovers
           // automatically once the backend is reachable again.
           setSignals((prev) => (prev.length ? prev : SEED_SIGNALS));
+          // No live payload means no model report. Leaving the last known
+          // figures on screen would attribute a model's scores to seed data.
+          setModelMetrics(null);
+          setModelVersion(null);
         }
       } finally {
         if (!cancelled && isFirst) setLoading(false);
@@ -228,5 +294,5 @@ export function useAISignals(): AISignalsResult {
     };
   }, []);
 
-  return { signals, loading, error, lastFetched, isLive };
+  return { signals, loading, error, lastFetched, isLive, modelMetrics, modelVersion };
 }

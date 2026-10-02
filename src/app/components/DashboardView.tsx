@@ -3,10 +3,11 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-import { TrendingUp, TrendingDown, Activity, DollarSign, ChevronUp, ChevronDown, AlertCircle, Zap } from "lucide-react";
+import { TrendingUp, TrendingDown, Activity, DollarSign, ChevronUp, ChevronDown, AlertCircle, Zap, FlaskConical } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "../i18n/translations";
-import { SECTOR_ALLOCATION, RECENT_TRANSACTIONS, ALERTS_DATA } from "../data/idxData";
+import { SECTOR_ALLOCATION, RECENT_TRANSACTIONS } from "../data/idxData";
+import type { AlertItem } from "./AlertsView";
 import { fmtIdr, fmtAmount } from "../utils/formatting";
 import type { PortfolioHolding, Transaction } from "../hooks/usePortfolio";
 import type { LiveMarketData } from "../hooks/useLiveMarket";
@@ -19,6 +20,14 @@ interface Props {
   transactions: Transaction[];
   /** Open a stock in Markets (holding/transaction rows are drill-downs). */
   onSelectSymbol?: (symbol: string) => void;
+  /**
+   * The live alert feed, owned by useAlerts in App. This panel used to render
+   * the bundled ALERTS_DATA seed directly with no live/simulated marker, so the
+   * dashboard and the Alerts view showed lists with the same heading and
+   * different sources, and a backend outage looked like a quiet market.
+   */
+  alerts: readonly AlertItem[];
+  alertsIsLive: boolean;
 }
 
 const ALERT_ICONS: Record<string, ElementType> = {
@@ -28,7 +37,7 @@ const ALERT_COLORS: Record<string, string> = {
   high: "var(--loss)", medium: "var(--warning)", low: "var(--neutral)",
 };
 
-export function DashboardView({ market, fx, holdings, transactions, onSelectSymbol }: Props) {
+export function DashboardView({ market, fx, holdings, transactions, onSelectSymbol, alerts, alertsIsLive }: Props) {
   const { locale } = useApp();
   const { t }      = useTranslation(locale);
   const isId       = locale === "id";
@@ -302,27 +311,48 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
 
         {/* AI alerts */}
         <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 12 }}>
-            {t("dash_ai_alerts")}
+          <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+              {t("dash_ai_alerts")}
+            </div>
+            {!alertsIsLive && (
+              <span
+                className="flex items-center gap-1"
+                style={{ fontSize: 10, color: "var(--warning)" }}
+                title={isId
+                  ? "Feed langsung tidak dapat dihubungi; daftar di bawah adalah data contoh."
+                  : "Live feed unreachable; the list below is sample data."}
+              >
+                <FlaskConical size={10} />
+                {isId ? "Data contoh" : "Sample data"}
+              </span>
+            )}
           </div>
           <div className="flex flex-col gap-2">
-            {ALERTS_DATA.map((alert) => {
+            {/* Top 5 of the live feed. Provenance is stated because the seed
+                alerts are shaped exactly like real ones. */}
+            {alerts.slice(0, 5).map((alert) => {
               const Icon  = ALERT_ICONS[alert.type] ?? AlertCircle;
               const color = ALERT_COLORS[alert.severity] ?? "var(--muted-foreground)";
               return (
-                <div key={alert.id} className="flex gap-2.5 p-2 rounded" style={{ background: "var(--muted)" }}>
+                <div key={alert.key} className="flex gap-2.5 p-2 rounded" style={{ background: "var(--muted)" }}>
                   <Icon size={12} style={{ color, flexShrink: 0, marginTop: 2 }} />
                   <div>
                     <div style={{ fontSize: 11, color: "var(--foreground)", lineHeight: 1.4 }}>
                       {isId ? alert.msgId : alert.msgEn}
                     </div>
                     <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
-                      {isId ? alert.timeId : alert.timeEn}
+                      {alert.timeId || alert.timeEn}
                     </div>
                   </div>
                 </div>
               );
             })}
+            {alerts.length === 0 && (
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", padding: "8px 2px" }}>
+                {isId ? "Tidak ada peringatan aktif." : "No active alerts."}
+              </div>
+            )}
           </div>
         </div>
 

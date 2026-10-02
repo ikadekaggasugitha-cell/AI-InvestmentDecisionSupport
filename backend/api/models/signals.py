@@ -93,12 +93,41 @@ class AISignal(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class ModelMetrics(BaseModel):
+    """
+    What the trained model actually scored, straight from the bundle's report.
+
+    This exists because the UI used to render a hardcoded "Model Accuracy 84.7%"
+    that was never computed from anything. There is no accuracy figure in the
+    training report at all — and there should not be: the label is imbalanced
+    (~39% of 5-day windows are up), so accuracy measures calibration against the
+    imbalance rather than discrimination, which is why the training gate measures
+    walk-forward AUC and top-decile lift instead. Exposing the real numbers under
+    their real names is more useful to a reader than a fabricated one.
+
+    All fields are optional: the seed path sets modelMetrics to None rather than
+    inventing figures for a model that was never trained.
+    """
+
+    meanAuc: float | None = None
+    decileLift: float | None = None
+    foldsAboveChance: float | None = None
+    baseRate: float | None = None
+    gatesPassed: bool | None = None
+    trainedAt: str | None = None
+    rows: int | None = None
+    symbols: int | None = None
+
+
 class SignalsResponse(BaseModel):
     """Envelope returned by GET /v1/signals"""
     signals: list[AISignal]
     generatedAt: str   # ISO timestamp
     modelVersion: str
     source: Literal["live", "mock"] = "mock"
+    # None on the seed path: there is no trained model behind seed data, and a
+    # number in this block would read as a measurement that never happened.
+    modelMetrics: ModelMetrics | None = None
 
     # Point-in-time feature vector per symbol, as scored. A PrivateAttr so it is
     # excluded from model_dump()/model_dump_json() — it must never reach the API

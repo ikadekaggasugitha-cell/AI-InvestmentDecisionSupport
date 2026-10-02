@@ -80,7 +80,9 @@ class MarketSnapshot(BaseModel):
     # the quote itself — the two differ by the vendor delay, and only the second
     # one answers "how old is this price".
     dataSource: str = "mock"          # provider id, or "mock"
-    dataAsOf: datetime | None = None  # exchange timestamp of the oldest quote
+    # Representative exchange timestamp for the batch (the median quote, so a few
+    # dead securities cannot describe the whole board) — not the oldest.
+    dataAsOf: datetime | None = None
     dataAgeSeconds: float | None = None
     delaySeconds: int = 0             # vendor-declared feed delay
     isDelayed: bool = False
@@ -89,6 +91,11 @@ class MarketSnapshot(BaseModel):
     # anchored to the last real price (market hours only). The UI labels it so a
     # user never mistakes the "breathing" for real tick-by-tick data.
     isIntradaySimulated: bool = False
+    # Symbols whose quote trails the batch by more than a trading week —
+    # long-suspended or delisted names the board still carries so history resolves.
+    # Reported rather than excluded: the feed age above is robust to them, but
+    # their existence is worth knowing and averaging it away would hide it.
+    outdatedSymbols: list[str] = []
 
 
 class MarketTickMessage(BaseModel):

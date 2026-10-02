@@ -53,7 +53,7 @@ function AppInner() {
   const market        = useLiveMarket();
   // Convert at the feed's USD/IDR, not an invented one.
   const fx            = useExchangeRate(market.fx);
-  const { news, loading: newsLoading } = useNews();
+  const { news, loading: newsLoading, isLive: newsIsLive } = useNews();
   const portfolio     = usePortfolio();
   const watchlistHook = useWatchlist();
   const windowWidth   = useWindowWidth();
@@ -145,6 +145,8 @@ function AppInner() {
                 holdings={portfolio.holdings}
                 transactions={portfolio.transactions}
                 onSelectSymbol={selectSymbol}
+                alerts={alertsHook.visibleAlerts}
+                alertsIsLive={alertsHook.isLive}
               />
             </ErrorBoundary>
           )}
@@ -172,10 +174,10 @@ function AppInner() {
           )}
           {view === "advisor"    && <ErrorBoundary key="advisor"  locale={locale}><AIAdvisorView market={market} /></ErrorBoundary>}
           {view === "risk"       && <ErrorBoundary key="risk"     locale={locale}><RiskView market={market} /></ErrorBoundary>}
-          {view === "news"       && <ErrorBoundary key="news"     locale={locale}><NewsView news={news} loading={newsLoading} /></ErrorBoundary>}
+          {view === "news"       && <ErrorBoundary key="news"     locale={locale}><NewsView news={news} loading={newsLoading} isLive={newsIsLive} /></ErrorBoundary>}
           {view === "reports"    && <ErrorBoundary key="reports"  locale={locale}><ReportsView /></ErrorBoundary>}
           {view === "settings"   && <ErrorBoundary key="settings" locale={locale}><SettingsView fx={fx} /></ErrorBoundary>}
-          {view === "alerts"     && <ErrorBoundary key="alerts"   locale={locale}><AlertsView alerts={alertsHook.visibleAlerts} onDismiss={alertsHook.dismiss} onClearAll={alertsHook.clearAll} locale={locale} /></ErrorBoundary>}
+          {view === "alerts"     && <ErrorBoundary key="alerts"   locale={locale}><AlertsView alerts={alertsHook.visibleAlerts} onDismiss={alertsHook.dismiss} onClearAll={alertsHook.clearAll} locale={locale} isLive={alertsHook.isLive} /></ErrorBoundary>}
           </Suspense>
       </div>
       <Toaster theme={isDark ? "dark" : "light"} position="top-right" richColors />

@@ -35,21 +35,18 @@ export const PORTFOLIO_HOLDINGS = [
   { symbol: "ANTM", lots: 6000, avgPrice: 1540,  sector: "Material"  },
 ] as const;
 
-/* 12-month portfolio history (IDR) */
-export const PORTFOLIO_HISTORY = [
-  { date: "Jul '25", value: 9_842_000_000,  benchmark: 9_620_000_000  },
-  { date: "Agu '25", value: 9_610_000_000,  benchmark: 9_420_000_000  },
-  { date: "Sep '25", value: 10_125_000_000, benchmark: 9_880_000_000  },
-  { date: "Okt '25", value: 10_580_000_000, benchmark: 10_210_000_000 },
-  { date: "Nov '25", value: 10_340_000_000, benchmark: 10_080_000_000 },
-  { date: "Des '25", value: 11_020_000_000, benchmark: 10_640_000_000 },
-  { date: "Jan '26", value: 10_780_000_000, benchmark: 10_390_000_000 },
-  { date: "Feb '26", value: 11_360_000_000, benchmark: 10_920_000_000 },
-  { date: "Mar '26", value: 11_640_000_000, benchmark: 11_190_000_000 },
-  { date: "Apr '26", value: 11_920_000_000, benchmark: 11_470_000_000 },
-  { date: "Mei '26", value: 12_240_000_000, benchmark: 11_680_000_000 },
-  { date: "Jun '26", value: 12_580_000_000, benchmark: 11_890_000_000 },
-] as const;
+/* 12-month portfolio history (IDR)
+ *
+ * Removed. The Portfolio page drew this bundled sample as its equity curve with
+ * no provenance marker, beside a live allocation table — a chart of a portfolio
+ * history that never happened. GET /v1/portfolio/equity now computes the real
+ * thing from session closes times held lots, and serves an empty `points` list
+ * when there is not enough history rather than inventing a substitute.
+ *
+ * Left as prose rather than code so it is not re-wired back as a fallback: a
+ * viewer could not tell which curve they were looking at, which is the whole
+ * problem it caused.
+ */
 
 export const SECTOR_ALLOCATION = [
   { name: "Keuangan",       nameEn: "Financials",   value: 40.2, color: "#4da6ff" },

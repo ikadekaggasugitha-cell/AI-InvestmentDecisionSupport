@@ -33,3 +33,5 @@ done
 | :--- | :--- | :--- |
 | `0001_signals_probability_tier.sql` | GAP-01 | `signals.action` → `signals.probability_tier`, rewrite existing rows, swap CHECK |
 | `0002_signals_unique_symbol_time.sql` | GAP-09 | unique index on `signals(symbol, generated_at)` for idempotent audit writes |
+| `0003_instruments_universe.sql` | GAP-10 | `instruments` dimension table — the full IDX board with sectors, upsert-only so a failed fetch can never wipe it |
+| `0004_portfolios.sql` | SEC-01 | `portfolios` table with `owner_sub` so portfolio identity can be ownership-checked. The portfolio-scoped endpoints previously took their identity from a query parameter any caller could set, and no table existed to check against. Partial unique index on `(owner_sub) WHERE is_default` makes find-or-create of a default portfolio a single statement. |

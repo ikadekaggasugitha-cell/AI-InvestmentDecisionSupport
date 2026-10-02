@@ -1,4 +1,4 @@
-import { FileBarChart2, Download, Calendar, TrendingUp, Loader2 } from "lucide-react";
+import {  FileBarChart2, Calendar, Download, FlaskConical, Loader2 , TrendingUp } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { useReports, type ReportType } from "../hooks/useReports";
 
@@ -23,12 +23,20 @@ const typeColors: Record<ReportType, string> = {
 export function ReportsView() {
   const { locale } = useApp();
   const isId = locale === "id";
-  const { reports, loading, error, generating, downloading, generate, download } = useReports();
+  const { reports, loading, error, isLive, generating, downloading, generate, download } = useReports();
 
   const stats = [
     { label: isId ? "Jenis Laporan" : "Report Types", value: String(reports.length || 5), icon: FileBarChart2, color: "var(--neutral)" },
     { label: isId ? "Format" : "Format", value: "PDF", icon: Calendar, color: "var(--chart-4)" },
-    { label: isId ? "Sumber Data" : "Data Source", value: isId ? "Langsung" : "Live", icon: TrendingUp, color: "var(--gain)" },
+    // Driven by whether the catalogue actually came from the backend. This used
+    // to be a hardcoded "Live", which stayed "Live" in precisely the case where
+    // the backend was unreachable and OFFLINE was rendered instead.
+    {
+      label: isId ? "Sumber Data" : "Data Source",
+      value: isLive ? (isId ? "Langsung" : "Live") : (isId ? "Data contoh" : "Sample"),
+      icon: isLive ? TrendingUp : FlaskConical,
+      color: isLive ? "var(--gain)" : "var(--warning)",
+    },
   ];
 
   return (

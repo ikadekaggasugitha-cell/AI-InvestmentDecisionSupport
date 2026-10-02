@@ -924,9 +924,15 @@ async def _save_session_history(session_id: str, history: list[ChatMessage]) -> 
 
 async def stream_advisor_response(
     request: ChatRequest,
+    portfolio_id: str,
 ) -> AsyncIterator[StreamChunk]:
     """
     Stream an LLM response for the given chat request.
+
+    `portfolio_id` is resolved by the router from the caller's token. It used to
+    be read off `request.uid`, a caller-supplied field, which let any
+    authenticated caller point the context enrichment and the portfolio tools at
+    a portfolio they do not own.
 
     Speaks an OpenAI-compatible chat/completions API, so the active provider
     (Groq / OpenRouter / Ollama / OpenAI — see LLM_PROVIDER) is transparent to
@@ -965,7 +971,7 @@ async def stream_advisor_response(
         history = await _load_session_history(request.session_id)
 
     # ── Phase 9A: Assemble live context ─────────────────────────────────────────
-    ctx = await _load_live_context(request.uid)
+    ctx = await _load_live_context(portfolio_id)
     context_block = _build_context_block(ctx)
     base_system = (
         (_SYSTEM_ID if request.locale == "id" else _SYSTEM_EN)
@@ -1076,7 +1082,7 @@ async def stream_advisor_response(
                     except json.JSONDecodeError:
                         args = {}
                     logger.info("advisor: executing tool=%s inputs=%s", s["name"], args)
-                    result = await _execute_tool(s["name"], args, request.uid)
+                    result = await _execute_tool(s["name"], args, portfolio_id)
                     messages.append({
                         "role": "tool",
                         "tool_call_id": s["id"],

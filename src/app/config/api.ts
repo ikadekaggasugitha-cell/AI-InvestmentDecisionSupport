@@ -49,6 +49,8 @@ export const ENDPOINTS = {
   },
   /** IDX-IC sectors with active-instrument counts */
   sectors:        `${API_BASE}/v1/symbols/sectors`,
+  /** Live Peringatan feed (signals, movers, foreign flow, risk, news) */
+  alerts:         `${API_BASE}/v1/alerts`,
   /** GARCH / CVaR portfolio risk metrics */
   riskMetrics:    `${API_BASE}/v1/risk/portfolio`,
   /** WebSocket stream for live tick data */
@@ -78,8 +80,11 @@ export const ENDPOINTS = {
   news:           (limit = 20, daysBack = 7) =>
     `${API_BASE}/v1/news?limit=${limit}&daysBack=${daysBack}`,
   /** Black-Litterman + HRP portfolio weights */
-  portfolio:      (uid = "default") =>
-    `${API_BASE}/v1/portfolio/optimise?uid=${uid}`,
+  // No portfolio id in the path or query. The backend resolves the portfolio
+  // from the caller's token and checks ownership; a client-supplied id is both
+  // redundant and the vector for reading another portfolio's allocation.
+  portfolio:      () => `${API_BASE}/v1/portfolio/optimise`,
+  portfolioEquity: (days = 252) => `${API_BASE}/v1/portfolio/equity?days=${days}`,
   /** Claude-powered Q&A, server-sent events */
   advisorChat:    `${API_BASE}/v1/advisor/chat`,
 } as const;

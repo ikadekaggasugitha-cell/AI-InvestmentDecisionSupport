@@ -87,7 +87,61 @@ class TestQuoteBatch:
         assert len(batch) == 0
         assert batch.delay_seconds == 0
         assert batch.oldest_as_of is None
+        assert batch.representative_as_of is None
+        assert batch.outdated_symbols == []
         assert batch.market_state == "UNKNOWN"
+
+    def test_representative_ignores_a_handful_of_dead_securities(self):
+        """
+        The regression this exists for. This board keeps delisted names so that
+        history and watchlists still resolve, and one of them was 607 days old
+        among 248 quotes whose median was 1.7 hours. `oldest_as_of` reported
+        607 days, so the freshness badge told a user their data was two years old
+        while the feed was healthy.
+        """
+        now = datetime.now(timezone.utc)
+        quotes = {
+            f"LIVE{i}": _quote(symbol=f"LIVE{i}", as_of=now - timedelta(minutes=5))
+            for i in range(20)
+        }
+        quotes["DEAD"] = _quote(symbol="DEAD", as_of=now - timedelta(days=607))
+        batch = QuoteBatch(quotes=quotes)
+
+        assert batch.oldest_as_of == now - timedelta(days=607)
+        assert batch.representative_as_of == now - timedelta(minutes=5)
+        assert batch.outdated_symbols == ["DEAD"]
+
+    def test_representative_handles_a_tiny_batch(self):
+        """With one or two quotes there is no majority, so min is the honest
+        answer and it coincides with the median anyway."""
+        now = datetime.now(timezone.utc)
+        assert QuoteBatch(quotes={"A": _quote(as_of=now)}).representative_as_of == now
+        two = QuoteBatch(quotes={
+            "A": _quote(symbol="A", as_of=now),
+            "B": _quote(symbol="B", as_of=now - timedelta(days=3)),
+        })
+        assert two.representative_as_of == now - timedelta(days=3)
+
+    def test_quotes_without_a_timestamp_are_not_counted_as_outdated(self):
+        """A missing as_of is unknown, not stale — treating it as stale would put
+        a name on the delisted list for no evidence."""
+        now = datetime.now(timezone.utc)
+        batch = QuoteBatch(quotes={
+            "A": _quote(symbol="A", as_of=now),
+            "B": _quote(symbol="B", as_of=None),
+        })
+        assert batch.outdated_symbols == []
+
+    def test_outdated_uses_a_full_trading_week_not_an_instant(self):
+        """A Friday-evening quote is two days old and perfectly normal. Only a
+        week-plus gap means suspended or dead."""
+        now = datetime.now(timezone.utc)
+        batch = QuoteBatch(quotes={
+            "A": _quote(symbol="A", as_of=now),
+            "WEEKEND": _quote(symbol="WEEKEND", as_of=now - timedelta(days=3)),
+            "SUSPENDED": _quote(symbol="SUSPENDED", as_of=now - timedelta(days=30)),
+        })
+        assert batch.outdated_symbols == ["SUSPENDED"]
 
 
 class TestBarValidation:

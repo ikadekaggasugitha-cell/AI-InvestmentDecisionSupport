@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import time
@@ -11,6 +12,8 @@ from api.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 _pool: aioredis.ConnectionPool | None = None
+# The event loop that created _pool. See get_redis_pool for why it is tracked here.
+_pool_loop: asyncio.AbstractEventLoop | None = None
 
 # Throttle the "cache unavailable" warning. Without this, running without Redis
 # emits a stack-trace-sized warning on every single cache read, burying the
@@ -32,7 +35,39 @@ def _warn_cache_unavailable(op: str, key: str, exc: Exception) -> None:
 
 
 def get_redis_pool() -> aioredis.ConnectionPool:
-    global _pool
+    """
+    The process-wide pool, creating it on first call and rebuilding it if the
+    cached one belongs to a different event loop.
+
+    The loop check is not defensive noise. redis-py hands out connections bound
+    to the loop that first used the pool, so carrying a pool into a second
+    asyncio.run() fails every operation with "Event loop is closed" or "attached
+    to a different loop". Any script that awaits Redis in more than one loop hits
+    this — scripts.daily_update did, and its cache-invalidation step was silently
+    skipped, leaving stale technicals in Redis after a data refresh.
+    broksum_worker hit the same wall and worked around it locally by merging its
+    two asyncio.run() calls, which is a fragile way to avoid a general problem.
+
+    The owning loop is tracked here rather than read off the pool: redis-py
+    exposes no such attribute, and depending on its internals would break on the
+    next release.
+
+    The server runs one loop for its lifetime, so this is a no-op there. It only
+    fires for short-lived multi-loop processes — exactly where the failure was
+    invisible.
+    """
+    global _pool, _pool_loop
+    try:
+        current = asyncio.get_running_loop()
+    except RuntimeError:
+        current = None
+
+    if _pool is not None and current is not None and _pool_loop is not current:
+        # Detach rather than close: the old loop is already gone, so closing it
+        # would need that loop to run on.
+        _pool = None
+        _pool_loop = None
+
     if _pool is None:
         settings = get_settings()
         _pool = aioredis.ConnectionPool.from_url(
@@ -40,6 +75,7 @@ def get_redis_pool() -> aioredis.ConnectionPool:
             max_connections=20,
             decode_responses=True,
         )
+        _pool_loop = current
     return _pool
 
 
@@ -146,6 +182,7 @@ REDIS_KEYS = {
     # populated risk:portfolio:default the optimiser read a RiskMetricsResult
     # back and 500'd on validation. Separate namespaces keep them from colliding.
     "portfolio_optimise": "portfolio:optimise:{uid}",  # STRING PortfolioOptimisationResponse TTL 3600s
+    "portfolio_equity":    "portfolio:equity:{days}",    # STRING EquityCurveResponse TTL 3600s
     "sentiment":       "sentiment:{doc_hash}",      # STRING  float  TTL 86400s
     "intraday":        "market:intraday",            # STRING  IntradayPoint[]
     # Phase 9A: news retrieval for advisor RAG context

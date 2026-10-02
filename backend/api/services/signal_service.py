@@ -93,6 +93,9 @@ async def get_signals() -> SignalsResponse:
             generatedAt=datetime.now(timezone.utc).isoformat(),
             modelVersion="seed-v1.0",
             source="mock",
+            # modelMetrics deliberately left None. No model produced this data,
+            # so there is no AUC or decile lift to report. A number here would
+            # read as a measurement of a model that does not exist.
         )
         # Cache the mock data so repeated requests stay fast
         await redis_set_json(
@@ -116,6 +119,8 @@ async def get_signals() -> SignalsResponse:
             generatedAt=datetime.now(timezone.utc).isoformat(),
             modelVersion="seed-v1.0",
             source="mock",
+            # modelMetrics stays None for the same reason as the mock branch
+            # above: no trained model scored this, so no model figures exist.
         )
 
     await redis_set_json(REDIS_KEYS["signals_latest"], response.model_dump(), ttl=SIGNALS_TTL)

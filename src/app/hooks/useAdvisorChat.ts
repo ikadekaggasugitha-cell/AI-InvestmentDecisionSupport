@@ -83,7 +83,7 @@ export function useAdvisorChat(locale: "id" | "en" = "id"): AdvisorChatResult {
         const res = await apiFetch(ENDPOINTS.advisorChat, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: trimmed, history, locale, uid: "default" }),
+          body: JSON.stringify({ message: trimmed, history, locale }),
           signal: controller.signal,
         });
 

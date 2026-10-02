@@ -27,8 +27,8 @@ from api.core.auth import get_current_user
 from api.core.config import get_settings
 from api.core.rate_limit import limiter
 from api.routers import (
-    advisor, auth, broksum, market_ws, news, portfolio, reports, risk, signals, symbols,
-    technicals,
+    advisor, alerts, auth, broksum, market_ws, news, portfolio, reports, risk, signals,
+    symbols, technicals,
 )
 
 # ── Structured logging ────────────────────────────────────────────────────────
@@ -280,6 +280,7 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     app.include_router(technicals.router, dependencies=protected)
     app.include_router(news.router, dependencies=protected)
     app.include_router(reports.router, dependencies=protected)
+    app.include_router(alerts.router, dependencies=protected)
 
     # ── Prometheus metrics (Phase 8) ──────────────────────────────────────────
     if settings.metrics_enabled:
@@ -400,6 +401,46 @@ Set `AUTH_BYPASS=true` in `.env` for development.
             if not settings.use_mock_signals:
                 checks["model"] = "absent — run `python -m ml.training.train_signals_v2`"
                 degraded = True
+
+        # Drift monitoring liveness. The weekly PSI check only reports when it
+        # runs, and every one of its four skip paths used to be visible solely in
+        # a worker log line. A model whose bundle predates `feature_baseline`
+        # therefore drifts indefinitely with nothing to say so — which is exactly
+        # the state the check exists to prevent. Surfaced here so "inert" and
+        # "checked and stable" are distinguishable without reading logs.
+        #
+        # Informational: drift is a slow-moving signal and its absence says
+        # nothing about whether this instance can serve. Never degrades.
+        try:
+            from api.core.redis_client import REDIS_KEYS, redis_get_json
+
+            drift = await redis_get_json(REDIS_KEYS["drift_latest"])
+            if drift is None:
+                checks["drift"] = (
+                    "no report yet — the weekly check has not run"
+                )
+            elif drift.get("status") == "skipped":
+                reason = drift.get("reason", "unknown")
+                checks["drift"] = f"INERT — {reason}"
+                if reason == "no_baseline":
+                    checks["drift"] += (
+                        "; PSI has no reference sample, retrain with "
+                        "`python -m ml.training.train_signals_v2`"
+                    )
+            else:
+                max_psi = drift.get("max_psi")
+                needs = drift.get("needs_retraining")
+                drifted = drift.get("drifted_features") or []
+                checks["drift"] = {
+                    "status": "ok",
+                    "checked_at": drift.get("checked_at"),
+                    "model_version": drift.get("model_version"),
+                    "max_psi": max_psi,
+                    "needs_retraining": bool(needs),
+                    "drifted_features": drifted,
+                }
+        except Exception as exc:  # noqa: BLE001 — a monitoring check never fails health
+            checks["drift"] = f"unavailable: {type(exc).__name__}"
 
         # Market feed freshness — reported, never fatal.
         try:

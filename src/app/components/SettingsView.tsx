@@ -145,8 +145,20 @@ export function SettingsView({ fx }: Props) {
             <DollarSign size={16} style={{ color: "var(--neutral)" }} />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 8 }}>
-              {id ? "Kurs USD/IDR Real-time" : "Live USD/IDR Exchange Rate"}
+            <div className="flex items-center gap-2" style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 8 }}>
+              {fx.isLive
+                ? (id ? "Kurs USD/IDR Real-time" : "Live USD/IDR Exchange Rate")
+                : (id ? "Kurs USD/IDR (placeholder)" : "USD/IDR Rate (placeholder)")}
+              {!fx.isLive && (
+                <span
+                  style={{ fontSize: 10, color: "var(--warning)", fontWeight: 400 }}
+                  title={id
+                    ? "Feed forex belum pernah perkirakan; angka di bawah bukan kurs pasar."
+                    : "The forex feed has never reported; the figure below is not a market rate."}
+                >
+                  {id ? "belum ada feed" : "no feed yet"}
+                </span>
+              )}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
               <RateItem label={id ? "Kurs Saat Ini" : "Current Rate"} value={`Rp ${fx.usdIdr.toLocaleString("id-ID")}`} />
@@ -154,9 +166,18 @@ export function SettingsView({ fx }: Props) {
               <RateItem label="%" value={`${fx.changePct >= 0 ? "+" : ""}${fx.changePct.toFixed(3)}%`} positive={fx.changePct <= 0} />
             </div>
             <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "12px 0 0" }}>
-              {id
-                ? "Kurs diperbarui setiap 8 detik menggunakan simulasi pasar forex real-time. Rupiah melemah (+IDR) berarti potensi kerugian untuk investor Indonesia."
-                : "Rate updates every 8 seconds using real-time forex market simulation. Rupiah weakening (+IDR per USD) represents purchasing power loss for IDR-based portfolios."}
+              {/* Describes what the hook actually does. It used to promise an
+                  8-second simulated forex update loop that no longer exists, and
+                  said so regardless of whether a rate had ever been fetched. The
+                  rate is pushed over the market WebSocket with the equity
+                  snapshot, so it is as fresh as that snapshot and no fresher. */}
+              {fx.isLive
+                ? (id
+                    ? "Kurs dikirim bersama snapshot pasar, jadi kesegaran kurs mengikuti feed pasar. Rupiah melemah (+IDR) berarti potensi kerugian bagi investor Indonesia."
+                    : "The rate arrives with the market snapshot, so it refreshes whenever the feed does. Rupiah weakening (+IDR per USD) represents purchasing power loss for IDR-based portfolios.")
+                : (id
+                    ? "Feed forex belum pernah terkirim, jadi angka di atas bukan kurs pasar. Muat ulang setelah backend terhubung."
+                    : "The forex feed has not reported yet, so the figure above is not a market rate. Reload once the backend is connected.")}
             </p>
           </div>
         </div>
@@ -202,12 +223,15 @@ export function SettingsView({ fx }: Props) {
           }}
         >
           {[
-            [id ? "Versi Aplikasi" : "App Version", "4.2.1"],
-            [id ? "Model AI" : "AI Model",          "AIDSS Quant v4.2"],
-            [id ? "Sumber Data" : "Data Source",    "IDX / Yahoo Finance"],
-            [id ? "Bursa" : "Exchange",             "BEI (IDX)"],
-            [id ? "Zona Waktu" : "Timezone",        "WIB (UTC+7)"],
-            [id ? "Terakhir Latih" : "Last Trained","20 Jul 2026"],
+            // Only facts this component can actually know. "App Version 4.2.1",
+            // "AIDSS Quant v4.2" and "Terakhir Latih 20 Jul 2026" were hardcoded
+            // here and stayed identical whatever model was serving. They are
+            // gone rather than relabelled: the live model figures are shown on
+            // the Advisor view's AUC tile, which reads them from the backend.
+            [id ? "Sumber Data" : "Data Source",     "IDX / Yahoo Finance"],
+            [id ? "Bursa" : "Exchange",              "BEI (IDX)"],
+            [id ? "Zona Waktu" : "Timezone",         "WIB (UTC+7)"],
+            [id ? "Status Feed" : "Feed Status",     fx.isLive ? (id ? "Directo (tertunda)" : "Direct (delayed)") : (id ? "Belum terhubung" : "Not connected")],
           ].map(([label, value]) => (
             <div key={label} style={{ background: "var(--muted)", borderRadius: 6, padding: "10px 14px" }}>
               <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</div>

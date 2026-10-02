@@ -9,7 +9,7 @@ Optimisation pipeline:
   1. Black-Litterman: construct prior from CAPM, blend with LightGBM views
   2. HRP: build dendrogram on residual correlation matrix, allocate via
      inverse-variance weighting within clusters
-  3. Post-process: round to tradeable lot sizes, enforce 5% max per position
+  3. Post-process: round to tradeable lot sizes, enforce MAX_WEIGHT per position
 
 Uses PyPortfolioOpt for BL and HRP implementations.
 """
@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
+from api.core.holdings import CAPITAL_IDR, DISPLAY_NAMES
 from api.models.portfolio import (
     AllocationWeight,
     OptimisationMetrics,
@@ -29,22 +30,14 @@ from api.models.portfolio import (
 logger = logging.getLogger(__name__)
 
 # ── IDX universe reference ────────────────────────────────────────────────────
-IDX_NAMES: dict[str, str] = {
-    "BBCA": "Bank Central Asia",
-    "BBRI": "Bank Rakyat Indonesia",
-    "BMRI": "Bank Mandiri",
-    "TLKM": "Telkom Indonesia",
-    "ASII": "Astra International",
-    "ADRO": "Adaro Energy Indonesia",
-    "BREN": "Barito Renewables Energy",
-    "GOTO": "GoTo Gojek Tokopedia",
-    "ANTM": "Aneka Tambang",
-    "UNVR": "Unilever Indonesia",
-}
+# Sourced from api.core/holdings so the optimiser optimises the positions the
+# risk engine measures. This copy used to omit ICBP while the holdings included
+# it, which silently dropped a held symbol from the price frame.
+IDX_NAMES: dict[str, str] = DISPLAY_NAMES
 
 # Minimum position lot count (IDX: 1 lot = 100 shares)
 MIN_LOTS = 1
-PORTFOLIO_CAPITAL_IDR = 12_480_000_000.0   # ~12.48B IDR
+PORTFOLIO_CAPITAL_IDR = CAPITAL_IDR        # ~12.48B IDR
 MAX_WEIGHT = 0.30                           # 30% max per position (OJK concentration limit)
 MIN_WEIGHT = 0.01                           # 1% minimum meaningful allocation
 

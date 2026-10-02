@@ -111,6 +111,17 @@ export function DataFreshnessBadge({
       (isId
         ? "Pergerakan harga antar-refresh disimulasikan (random-walk kecil di-anchor ke harga real, sinkron ulang tiap ~60 dtk)."
         : "Movement between refreshes is simulated (small random-walk anchored to the real price, re-synced every ~60s)."),
+    // The age above is the median quote, so a few dead securities cannot make the
+    // whole board look stale. Saying so is the point: without this line the
+    // robust number reads as "nothing is out of date".
+    // Optional-chained deliberately. The frontend and backend deploy
+    // independently, so a freshly built bundle can be served by a backend that
+    // predates this field; reading `.length` on undefined would blank the whole
+    // freshness badge rather than omit one line.
+    (freshness.outdatedSymbols?.length ?? 0) > 0 &&
+      (isId
+        ? `${freshness.outdatedSymbols.length} saham tidak diperdagangkan >1 pekan (suspensi/delisting): ${freshness.outdatedSymbols.slice(0, 8).join(", ")}${freshness.outdatedSymbols.length > 8 ? ", …" : ""}.`
+        : `${freshness.outdatedSymbols.length} securities have not traded for over a week (suspended/delisted): ${freshness.outdatedSymbols.slice(0, 8).join(", ")}${freshness.outdatedSymbols.length > 8 ? ", …" : ""}.`),
   ]
     .filter(Boolean)
     .join("\n");

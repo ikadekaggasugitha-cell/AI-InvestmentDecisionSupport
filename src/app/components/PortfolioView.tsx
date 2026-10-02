@@ -3,10 +3,13 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar,
 } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign, BarChart2, Plus, Pencil, Trash2 } from "lucide-react";
+import {  TrendingUp, BarChart2, DollarSign, FlaskConical, Pencil, Plus, Trash2 , TrendingDown } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "../i18n/translations";
-import { SECTOR_ALLOCATION, PORTFOLIO_HISTORY } from "../data/idxData";
+import { SECTOR_ALLOCATION } from "../data/idxData";
+import { usePortfolioOptimisation } from "../hooks/usePortfolioOptimisation";
+import { useEquityCurve } from "../hooks/useEquityCurve";
+import { useUniverse } from "../hooks/useUniverse";
 import { PositionModal, type ModalMode } from "./PositionModal";
 import { fmtIdr, fmtAmount } from "../utils/formatting";
 import type { PortfolioHolding } from "../hooks/usePortfolio";
@@ -28,6 +31,35 @@ export function PortfolioView({ market, fx, holdings, onAdd, onUpdate, onRemove 
   const { t }      = useTranslation(locale);
   const isId       = locale === "id";
   const fmt        = useCallback((n: number) => fmtAmount(n, fx.showUsd, fx.usdIdr), [fx.showUsd, fx.usdIdr]);
+
+  /* Sector donut — derived from the live allocation, not a bundled constant.
+     The weights come from /v1/portfolio/optimise and the sector labels from the
+     instrument universe, so the ring and the allocation table below it always
+     describe the same portfolio. Previously this rendered SECTOR_ALLOCATION, a
+     hardcoded 40/16/14/11/10/7 split that contradicted the live weights sitting
+     on the same screen. Falls back to the seed split when there is no live
+     weight to aggregate, and says so. */
+  const { weights, source: allocSource } = usePortfolioOptimisation();
+  const equity = useEquityCurve(252);
+  const { bySymbol } = useUniverse();
+
+  const sectorData = useMemo(() => {
+    if (weights.length > 0) {
+      const bySector = new Map<string, number>();
+      for (const w of weights) {
+        const entry = bySymbol[w.symbol];
+        const key = entry?.sectorEn || entry?.sector || w.symbol;
+        bySector.set(key, (bySector.get(key) ?? 0) + w.weightPct);
+      }
+      const palette = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)",
+                       "var(--chart-4)", "var(--chart-5)", "var(--warning)"];
+      return [...bySector.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, value], i) => ({ name, value: +value.toFixed(1), color: palette[i % palette.length] }));
+    }
+    return SECTOR_ALLOCATION.map((s) => ({ name: isId ? s.name : s.nameEn, value: s.value, color: s.color }));
+  }, [weights, bySymbol, isId]);
+  const sectorIsLive = weights.length > 0 && allocSource !== "mock";
 
   /* Modal state */
   const [modalMode,   setModalMode]   = useState<ModalMode | null>(null);
@@ -78,11 +110,6 @@ export function PortfolioView({ market, fx, holdings, onAdd, onUpdate, onRemove 
     { label: t("dash_daily_pnl"),       value: `${dailyPnL >= 0 ? "+" : ""}${fmt(Math.abs(dailyPnL))}`, sub: `${dailyPnLPct >= 0 ? "+" : ""}${(dailyPnLPct * 100).toFixed(2)}% ${isId ? "hari ini" : "today"}`, color: dailyPnL >= 0 ? "var(--gain)" : "var(--loss)", icon: dailyPnL >= 0 ? TrendingUp : TrendingDown },
     { label: t("port_weighted_return"), value: `${weightedRet >= 0 ? "+" : ""}${(weightedRet * 100).toFixed(1)}%`, sub: `${positions.length} ${isId ? "posisi aktif" : "active positions"}`, color: "var(--chart-4)", icon: BarChart2 },
   ];
-
-  const sectorData = useMemo(
-    () => SECTOR_ALLOCATION.map((s) => ({ name: isId ? s.name : s.nameEn, value: s.value, color: s.color })),
-    [isId]
-  );
 
   const returnsBar = useMemo(
     () => positions.map((p) => ({ symbol: p.symbol, ret: +(p.pnlPct * 100).toFixed(1) })),
@@ -136,27 +163,78 @@ export function PortfolioView({ market, fx, holdings, onAdd, onUpdate, onRemove 
       {/* Equity curve + donut */}
       <div className="grid gap-4 grid-cols-1 xl:grid-cols-[1fr_296px]">
         <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 2 }}>{t("port_equity_curve")}</div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 16 }}>{t("port_equity_sub")}</div>
-          <ResponsiveContainer width="100%" height={196}>
-            {/* Spread to a mutable array: Recharts types `data` as any[], and a
-                readonly const array is not assignable to it. */}
-            <AreaChart data={[...PORTFOLIO_HISTORY]} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} tickFormatter={yFmt} width={64} />
-              <Tooltip
-                contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}
-                formatter={(v: number, name: string) => name === "value" ? tooltipFmt(v) : benchFmt(v)}
-              />
-              <Area type="monotone" dataKey="value"     stroke="var(--neutral)"          strokeWidth={1.5} fill="var(--neutral)"          fillOpacity={0.08} dot={false} />
-              <Area type="monotone" dataKey="benchmark" stroke="var(--muted-foreground)" strokeWidth={1}   fill="var(--muted-foreground)" fillOpacity={0.04} dot={false} strokeDasharray="4 2" />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div className="flex items-center gap-2" style={{ marginBottom: 2 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{t("port_equity_curve")}</div>
+            {equity.isLive ? (
+              <span
+                style={{ fontSize: 10, color: "var(--muted-foreground)" }}
+                title={isId
+                  ? "Nilai portofolio dari harga penutupan sesi dikali lot yang dimiliki."
+                  : "Portfolio value from real session closes times held lots."}
+              >
+                {isId ? "dari harga penutupan" : "from session closes"}
+              </span>
+            ) : (
+              <span
+                style={{ fontSize: 10, color: "var(--warning)", display: "flex", alignItems: "center", gap: 3 }}
+                title={isId
+                  ? "Riwayat harga belum cukup untuk menghitung kurva. Tidak ada kurva pengganti yang ditampilkan."
+                  : "Not enough price history to compute a curve. No substitute curve is drawn."}
+              >
+                <FlaskConical size={10} />
+                {isId ? "belum tersedia" : "unavailable"}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 16 }}>
+            {equity.isLive && equity.totalReturn !== null
+              ? (isId
+                  ? `${equity.points.length} sesi · ${(equity.totalReturn * 100).toFixed(2)}% vs ${equity.startValue !== null ? fmt(equity.startValue) : "—"}`
+                  : `${equity.points.length} sessions · ${(equity.totalReturn * 100).toFixed(2)}% from ${equity.startValue !== null ? fmt(equity.startValue) : "—"}`)
+              : t("port_equity_sub")}
+          </div>
+          {equity.points.length > 0 ? (
+            <ResponsiveContainer width="100%" height={196}>
+              <AreaChart data={equity.points} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="date" tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} tickFormatter={yFmt} width={64} />
+                <Tooltip
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}
+                  formatter={(v: number, name: string) => name === "value" ? tooltipFmt(v) : benchFmt(v)}
+                />
+                <Area type="monotone" dataKey="value"     stroke="var(--neutral)"          strokeWidth={1.5} fill="var(--neutral)"          fillOpacity={0.08} dot={false} />
+                {equity.benchmarkSource && (
+                  <Area type="monotone" dataKey="benchmark" stroke="var(--muted-foreground)" strokeWidth={1}   fill="var(--muted-foreground)" fillOpacity={0.04} dot={false} strokeDasharray="4 2" />
+                )}
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div
+              className="flex flex-col items-center justify-center"
+              style={{ height: 196, color: "var(--muted-foreground)", fontSize: 11, textAlign: "center", gap: 6 }}
+            >
+              {equity.loading
+                ? (isId ? "Memuat kurva…" : "Loading curve…")
+                : equity.error
+                  ? (isId ? "Kurva tidak dapat dimuat." : "Curve could not be loaded.")
+                  : (isId ? "Riwayat harga belum cukup untuk menghitung kurva." : "Not enough price history to compute a curve.")}
+            </div>
+          )}
         </div>
 
         <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 2 }}>{t("port_sector_alloc")}</div>
+          <div className="flex items-center gap-2" style={{ marginBottom: 2 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{t("port_sector_alloc")}</div>
+            <span
+              style={{ fontSize: 10, color: "var(--muted-foreground)" }}
+              title={sectorIsLive
+                ? (isId ? "Dihitung dari bobot alokasi langsung." : "Aggregated from the live allocation weights.")
+                : (isId ? "Bobot langsung belum tersedia — memakai sebaran contoh." : "No live weights yet — showing the sample split.")}
+            >
+              {sectorIsLive ? (isId ? "dari alokasi live" : "from live allocation") : (isId ? "data contoh" : "sample data")}
+            </span>
+          </div>
           <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8 }}>{t("port_alloc_sub")}</div>
           <ResponsiveContainer width="100%" height={130}>
             <PieChart>

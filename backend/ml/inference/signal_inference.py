@@ -18,7 +18,7 @@ import shap
 
 from api.core.config import get_settings
 from api.models.broksum import BrokerSummarySnapshot
-from api.models.signals import AISignal, ShapFactor, SignalsResponse
+from api.models.signals import AISignal, ModelMetrics, ShapFactor, SignalsResponse
 from api.models.technicals import GapInfo, SRLevel, TrendInfo
 from ml.inference.trade_plan import _build_technical_note, _compute_trade_plan
 
@@ -29,14 +29,37 @@ def _parse_model_version(version: str) -> datetime | None:
     """
     Recover the training timestamp from a version string.
 
-    Models are versioned `YYYYMMDD_HHMMSS` (see train_signals_v2). Parsing that
-    is more reliable than the file mtime, which a `cp`/deploy resets to now and
-    would make an old model look freshly trained. Returns None for the
-    "unknown" placeholder or any non-conforming version.
+    Parsing the version is more reliable than the file mtime, which a `cp`/deploy
+    resets to now and would make an old model look freshly trained. Returns None
+    for the "unknown" placeholder or any non-conforming version.
+
+    Two shapes are accepted: `YYYYMMDD_HHMMSS` from train_signals_v2, and
+    `YYYYMMDD_HHMM` from the superseded train_signals. Accepting the short form
+    matters more than it looks: on the short form the parse returns None,
+    `trained_at` becomes None, `age_days` becomes None and `is_stale` is
+    permanently False — so a model drifting for months would never be flagged. A
+    slightly imprecise timestamp still ages; a missing one never does.
+
+    The time part is dispatched on its length rather than by trying
+    strptime formats in a loop. `%M` and `%S` each also match a single digit, so
+    strptime('20260816_0804', '%Y%m%d_%H%M%S') SUCCEEDS as 08:00:04 instead of
+    failing — a silent four-minute misparse that a try/except fallback would
+    never surface.
     """
+    if not isinstance(version, str):
+        return None
+    date_part, sep, time_part = version.partition("_")
+    if not sep or not date_part.isdigit() or not time_part.isdigit():
+        return None
+    if len(time_part) == 6:
+        fmt = "%Y%m%d_%H%M%S"
+    elif len(time_part) == 4:
+        fmt = "%Y%m%d_%H%M"
+    else:
+        return None
     try:
-        return datetime.strptime(version, "%Y%m%d_%H%M%S").replace(tzinfo=timezone.utc)
-    except (ValueError, TypeError):
+        return datetime.strptime(version, fmt).replace(tzinfo=timezone.utc)
+    except ValueError:
         return None
 
 
@@ -159,6 +182,9 @@ class SignalInference:
         self.features = model_bundle["features"]
         self.version = model_bundle.get("version", "unknown")
         self.report = model_bundle.get("report", {})
+        # Per-feature reference sample for the weekly PSI drift check. Absent in
+        # artifacts trained before train_signals_v2 began storing it.
+        self._bundle_baseline = model_bundle.get("feature_baseline")
         self.trained_at = _parse_model_version(self.version)
         self._explainer = shap.TreeExplainer(self.model)
 
@@ -174,6 +200,18 @@ class SignalInference:
         """True once the model is older than settings.model_max_age_days."""
         age = self.age_days
         return age is not None and age > get_settings().model_max_age_days
+
+    @property
+    def has_drift_baseline(self) -> bool:
+        """
+        Whether the bundle carries the per-feature reference sample the weekly
+        PSI check compares against.
+
+        Stored by train_signals_v2 (`_build_feature_baseline`) so it ships with
+        the model. Absence does not affect scoring at all — it only means drift
+        monitoring cannot run, which is why it is reported rather than defaulted.
+        """
+        return bool(self.report is not None and (self._bundle_baseline or {}))
 
     def _predict_proba(self, X: pd.DataFrame) -> np.ndarray:
         """
@@ -218,6 +256,18 @@ class SignalInference:
             logger.info(
                 "Loaded model: %s (version=%s, age=%sd)",
                 model_path, engine.version, engine.age_days,
+            )
+        if not engine.has_drift_baseline:
+            # Serving is unaffected — this is a monitoring capability, not a
+            # scoring one. But without it the weekly PSI check skips forever
+            # with the reason buried in one log line, so a model can drift out of
+            # its training regime with no signal at all. Artifacts trained
+            # before the baseline was added all look like this.
+            logger.warning(
+                "Model %s carries no feature_baseline — drift monitoring is INERT "
+                "and check_drift will skip every week. Retrain with "
+                "`python -m ml.training.train_signals_v2` to restore it.",
+                engine.version,
             )
         return engine
 
@@ -368,6 +418,33 @@ class SignalInference:
             generatedAt=datetime.now(timezone.utc).isoformat(),
             modelVersion=self.version,
             source="live",
+            modelMetrics=self.model_metrics(),
         )
         response._features_by_symbol = features_by_symbol
         return response
+
+    def model_metrics(self) -> ModelMetrics:
+        """
+        The figures this model actually scored, read from its training report.
+
+        Serves the UI's model-quality tiles. Every field is None when the report
+        is missing a key rather than defaulted to zero, so an absent measurement
+        stays absent instead of presenting as a perfect or zero score.
+        """
+        report = self.report or {}
+
+        def num(key: str) -> float | None:
+            value = report.get(key)
+            return None if value is None else float(value)
+
+        gates = report.get("passed_gates")
+        return ModelMetrics(
+            meanAuc=num("mean_auc"),
+            decileLift=num("mean_decile_lift"),
+            foldsAboveChance=num("folds_above_chance"),
+            baseRate=num("base_rate"),
+            gatesPassed=None if gates is None else bool(gates),
+            trainedAt=report.get("trained_at"),
+            rows=report.get("rows"),
+            symbols=report.get("symbols"),
+        )

@@ -12,21 +12,32 @@ Usage:
     python -m db.migrate --status        # list applied vs pending, apply nothing
     DATABASE_URL=... python -m db.migrate
 
-It intentionally has no dependency beyond psycopg2 (already required) so it can
-run in a release step or a one-shot container without the app's full stack.
+Dependencies are psycopg2 plus pydantic-settings, both already in
+requirements.txt and requirements-test.txt. The second one is not incidental: the
+runner now reads DATABASE_URL through the app's own Settings so the two can
+never point at different databases. It previously read os.environ directly,
+which meant an operator whose .env moved the port to 55432 (as this project's
+own .env does, because 5432 is often taken) got a migration run against
+localhost:5432 — a different server, or nothing at all — while the app talked to
+55432. The failure mode is loud, but it looks like the database is down rather
+than like the runner is misconfigured.
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import os
 import sys
 from pathlib import Path
 
 import psycopg2
 
 _MIGRATIONS_DIR = Path(__file__).parent / "migrations"
+
+# backend/.env, resolved next to this file rather than against the process CWD.
+# The app resolves its own .env relative to CWD, so this is strictly more
+# forgiving than the app: `python -m db.migrate` works from the repo root too.
+_ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
 
 _LEDGER_DDL = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -38,9 +49,23 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 
 def _dsn() -> str:
-    url = os.environ.get("DATABASE_URL", "postgresql://aidss:aidss@localhost:5432/aidss")
+    """
+    The DSN, resolved the same way the app resolves it.
+
+    pydantic-settings precedence is environment variable over .env file over the
+    field default, so `DATABASE_URL=... python -m db.migrate` still overrides,
+    and an absent key still falls back to the documented default. What it no
+    longer does is silently ignore .env and land on the default port.
+    """
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+
+    class _MigrationSettings(BaseSettings):
+        model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
+
+        database_url: str = "postgresql+asyncpg://aidss:aidss@localhost:5432/aidss"
+
     # Accept the app's async DSN form and normalise it for psycopg2.
-    return url.replace("postgresql+asyncpg://", "postgresql://")
+    return _MigrationSettings().database_url.replace("postgresql+asyncpg://", "postgresql://")
 
 
 def _discover() -> list[Path]:

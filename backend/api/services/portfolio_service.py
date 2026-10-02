@@ -12,6 +12,7 @@ yet populated — so a fresh deployment degrades gracefully instead of 500ing.
 
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,7 @@ import pandas as pd
 
 from api.core.config import get_settings
 from api.core.redis_client import get_redis, redis_get_json, redis_set_json, REDIS_KEYS
-from api.models.portfolio import PortfolioOptimisationResponse
+from api.models.portfolio import EquityCurveResponse, PortfolioOptimisationResponse
 
 logger = logging.getLogger(__name__)
 
@@ -196,3 +197,180 @@ async def _load_market_prices(prices: pd.DataFrame) -> dict[str, float]:
         except (ValueError, TypeError):
             continue
     return last_close
+
+
+# ── Equity curve ─────────────────────────────────────────────────────────────
+
+_EQUITY_TTL = 3600  # 1 hour, matching the optimiser
+_MIN_EQUITY_DAYS = 2  # one point is not a curve
+
+
+async def get_equity_curve_cached(days: int = 252) -> EquityCurveResponse:
+    """
+    get_equity_curve behind the Redis cache.
+
+    Keyed on the day count, not on the portfolio: the curve is a pure function
+    of the holdings and the price history, both of which change once a day, so
+    a per-portfolio key would only multiply cache entries without changing the
+    result while positions are still the seeded ones.
+    """
+    from api.core.redis_client import REDIS_KEYS
+
+    # .format(), not an f-string: the key template carries a {days} placeholder,
+    # and concatenation produced the literal key "portfolio:equity:{days}:60".
+    key = REDIS_KEYS["portfolio_equity"].format(days=int(days))
+    cached_response = await redis_get_json(key)
+    if cached_response:
+        return EquityCurveResponse(**cached_response)
+
+    response = await get_equity_curve(days)
+    await redis_set_json(key, response.model_dump(), ttl=_EQUITY_TTL)
+    return response
+
+
+async def get_equity_curve(days: int = 252) -> EquityCurveResponse:
+    """
+    Realised portfolio value over time, from actual closes times actual lots.
+
+    The Portfolio page used to draw a bundled 12-month sample (`PORTFOLIO_HISTORY`
+    in the frontend) labelled with nothing, sitting next to a live allocation
+    table. This is the honest version of that chart: every point is a real
+    session close multiplied by the held lots.
+
+    Holdings come from api/core/holdings, the same source risk_service uses, so
+    the curve and the risk metrics describe one portfolio. There is a test
+    asserting exactly that, because the two drifting apart is exactly the bug
+    this codebase had once with the risk worker's private copy.
+
+    The benchmark is the composite index, fetched from the quote provider because
+    `ohlcv` holds listed equities only. It is rebased to the portfolio's first
+    value so both lines share a scale; a raw index level beside a rupiah total
+    would look comparable and mean nothing.
+    """
+    from api.core.holdings import PORTFOLIO_LOTS
+    from api.models.portfolio import EquityCurveResponse, EquityPoint
+
+    settings = get_settings()
+    days = max(int(days), _MIN_EQUITY_DAYS)
+
+    if settings.use_mock_market:
+        return _empty_equity(days, "mock")
+
+    prices = await _load_price_matrix(sorted(PORTFOLIO_LOTS), days)
+    if prices.empty or len(prices) < _MIN_EQUITY_DAYS:
+        logger.warning(
+            "portfolio_service: only %d sessions of holdings history — no equity curve",
+            0 if prices.empty else len(prices),
+        )
+        return _empty_equity(days, "mock")
+
+    # 1 lot = 100 shares.
+    lots = pd.Series({s: n * 100 for s, n in PORTFOLIO_LOTS.items()})
+    held = [s for s in prices.columns if s in lots.index]
+    if not held:
+        return _empty_equity(days, "mock")
+
+    value = (prices[held] * lots[held]).sum(axis=1)
+    # Localise before anything is compared against provider data. The DB stores
+    # `time::date`, so this side comes back tz-naive, while every provider bar is
+    # tz-aware UTC. A naive Timestamp never equals an aware one, so the reindex
+    # below matched nothing and the benchmark vanished on a range whose two ends
+    # printed identically. Session closes are defined as midnight UTC, so
+    # attaching UTC here is exact rather than a convenience.
+    value.index = pd.to_datetime(value.index, utc=True)
+
+    # Index series, rebase-to-start so it shares the portfolio's scale.
+    #
+    # The provider's window is anchored to *now*, not to the data we hold, so
+    # asking it for "the last N days" returns a range that can miss ours
+    # entirely. That is not hypothetical: with a hole in the stored history the
+    # two windows were 0 sessions apart and the benchmark silently vanished.
+    # So derive the request from the portfolio's own date range instead.
+    benchmark: pd.Series | None = None
+    try:
+        from ingestor.providers import get_provider
+
+        first_date, last_date = value.index.min(), value.index.max()
+        span_calendar_days = int((last_date - first_date).days) + 1  # both tz-aware UTC now
+        # get_daily_bars expands its own request to ~1.5x the requested count in
+        # calendar days, plus a 10-day margin for holidays.
+        trading_days_needed = max(days, int((span_calendar_days - 10) / 1.5) + 1)
+
+        # Shared instance — do not close it. Awaited directly: this is already
+        # an async function, so wrapping this in asyncio.run() would raise
+        # "cannot be called from a running event loop" and silently cost the
+        # curve its benchmark.
+        bars = await get_provider().get_daily_bars("^JKSE", trading_days_needed)
+        if not bars:
+            logger.warning("portfolio_service: ^JKSE returned no bars — curve has no benchmark")
+        else:
+            idx = pd.Series(
+                [b.close for b in bars], index=pd.to_datetime([b.date for b in bars])
+            )
+            idx = idx[~idx.index.duplicated(keep="last")].sort_index()
+            benchmark = idx.reindex(value.index).ffill()
+            if benchmark.dropna().empty:
+                # Two very different causes, so say which. "Your history is
+                # stale" sent the wrong way when the real problem was a hole in
+                # the middle of the range: the end was current, so the daily
+                # update had nothing to add and the gap never closed.
+                overlap = len(set(value.index) & set(idx.index))
+                logger.warning(
+                    "portfolio_service: no benchmark — ^JKSE covers %s..%s but the "
+                    "portfolio's bars cover %s..%s (%d overlapping sessions). Our "
+                    "history starts %d days before the index window does, so this "
+                    "is a gap in the stored bars, not a stale tail: backfill it "
+                    "with `python -m scripts.daily_update --days N`.",
+                    idx.index.min().date(), idx.index.max().date(),
+                    first_date.date(), last_date.date(), overlap,
+                    (datetime.now(timezone.utc).date() - first_date.date()).days,
+                )
+    except Exception as exc:  # noqa: BLE001 — the curve is useful without it
+        logger.warning("portfolio_service: ^JKSE fetch failed, curve has no benchmark — %s", exc)
+
+    start = float(value.iloc[0])
+    rebased = None
+    if benchmark is not None and len(benchmark.dropna()):
+        first = float(benchmark.dropna().iloc[0])
+        if first > 0:
+            rebased = benchmark / first * start
+
+    changes = value.pct_change()
+    points = [
+        EquityPoint(
+            date=idx.strftime("%Y-%m-%d"),
+            value=round(float(val), 2),
+            benchmark=round(float(rebased.loc[idx]), 2) if rebased is not None and pd.notna(rebased.get(idx)) else None,
+            ret=round(float(changes.loc[idx]), 6) if pd.notna(changes.loc[idx]) else None,
+        )
+        for idx, val in value.items()
+    ]
+
+    return EquityCurveResponse(
+        points=points,
+        days=days,
+        startValue=round(start, 2),
+        endValue=round(float(value.iloc[-1]), 2),
+        totalReturn=round(float(value.iloc[-1] / start - 1), 6) if start else None,
+        computedAt=datetime.now(timezone.utc).isoformat(),
+        source="live",
+        benchmarkSource="^JKSE" if rebased is not None else None,
+    )
+
+
+def _empty_equity(days: int, source: str) -> "EquityCurveResponse":
+    """
+    No points, and no fabricated ones.
+
+    The alternative — returning a straight line or a random walk — would render a
+    confident-looking chart of a portfolio history that does not exist, next to
+    live figures. The frontend shows its empty state instead.
+    """
+    from api.models.portfolio import EquityCurveResponse
+
+    return EquityCurveResponse(
+        points=[],
+        days=days,
+        computedAt=datetime.now(timezone.utc).isoformat(),
+        source=source,
+    )

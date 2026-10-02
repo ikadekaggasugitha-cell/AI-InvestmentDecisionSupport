@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ENDPOINTS, authToken, signalAuthExpired } from "../config/api";
+import { ENDPOINTS, USE_LIVE_API, authToken, signalAuthExpired } from "../config/api";
 import { IDX_STOCKS, PORTFOLIO_HOLDINGS } from "../data/idxData";
 import type { LiveFxRate } from "./useExchangeRate";
 
@@ -46,7 +46,12 @@ export interface DataFreshness {
   provider: string;
   /** Vendor's own wording, e.g. "Delayed Quote". */
   label: string;
-  /** Exchange timestamp of the oldest quote in the snapshot. */
+  /**
+   * Exchange timestamp describing the batch. This is the *median* quote, not the
+   * oldest: the board retains delisted names so history resolves, and one of them
+   * was 607 days old among quotes whose median was 1.7 hours. Using the oldest
+   * made the badge claim two-year-old data from a healthy feed.
+   */
   asOf: Date | null;
   /** Vendor-declared feed delay, in seconds. 0 = real time. */
   delaySeconds: number;
@@ -59,6 +64,12 @@ export interface DataFreshness {
    * ~60s re-sync; the "breathing" in between is an estimate, so the UI labels it.
    */
   isIntradaySimulated: boolean;
+  /**
+   * Symbols whose quote trails the batch by more than a trading week —
+   * long-suspended or delisted names. Surfaced so the robust age above is not
+   * read as "nothing is stale".
+   */
+  outdatedSymbols: string[];
 }
 
 export interface LiveMarketData {
@@ -87,6 +98,7 @@ export const SIMULATED_FRESHNESS: DataFreshness = {
   isDelayed: false,
   isSimulated: true,
   isIntradaySimulated: false,
+  outdatedSymbols: [],
 };
 
 export type MarketDataProvider = () => LiveMarketData;
@@ -212,6 +224,14 @@ export function useLiveMarket(): LiveMarketData {
 
   /* 1. WebSocket Connect & Reconnect loop to FastAPI backend */
   useEffect(() => {
+    // VITE_USE_LIVE_API=false means "serve the labelled seed path". This hook
+    // is the one transport that was ignoring it: it opened a socket to the real
+    // backend anyway, so an offline build could show live prices and a LIVE or
+    // DELAYED badge sitting next to twelve panels of seed data. Short-circuit
+    // before the socket is ever constructed and the state stays on its
+    // `offline_baseline` value, which the badge reports as SIMULATED.
+    if (!USE_LIVE_API) return;
+
     let reconnectTimeout: ReturnType<typeof setTimeout>;
     let isUnmounted = false;
     // Backoff so a downed backend is not hammered every 5s forever. Grows
@@ -304,6 +324,9 @@ export function useLiveMarket(): LiveMarketData {
                       snapshot.dataSource === "placeholder" ||
                       snapshot.dataSource === "mock",
                     isIntradaySimulated: Boolean(snapshot.isIntradaySimulated),
+                    outdatedSymbols: Array.isArray(snapshot.outdatedSymbols)
+                      ? (snapshot.outdatedSymbols as string[])
+                      : [],
                   },
                 };
               });

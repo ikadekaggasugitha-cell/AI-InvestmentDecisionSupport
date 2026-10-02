@@ -187,6 +187,18 @@ class RiskEngine:
         common = [s for s in weight_series.index if s in returns.columns]
         return (returns[common] * weight_series[common]).sum(axis=1)
 
+    def portfolio_returns(self) -> pd.Series:
+        """
+        The portfolio's daily return series, indexed by date.
+
+        Exposed so a caller can backtest against the same series the metrics were
+        computed from. Reaching for `_compute_returns()` and `_portfolio_returns()`
+        from a worker produced the right numbers only by accident; this states the
+        intent, and guarantees a backtest cannot silently use a different series
+        than the VaR it is testing.
+        """
+        return self._portfolio_returns(self._compute_returns())
+
     def compute(self) -> RiskMetricsResponse:
         returns = self._compute_returns()
         port_ret = self._portfolio_returns(returns)

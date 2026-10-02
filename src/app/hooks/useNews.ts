@@ -102,15 +102,15 @@ function minutesSince(iso: string): number {
   return Math.max(0, Math.round((Date.now() - t) / 60_000));
 }
 
-async function fetchIdxDisclosures(): Promise<NewsItem[]> {
-  if (!USE_LIVE_API) return [];
+async function fetchIdxDisclosures(): Promise<{ items: NewsItem[]; ok: boolean }> {
+  if (!USE_LIVE_API) return { items: [], ok: false };
   try {
     const res = await apiFetch(ENDPOINTS.news(20), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-    if (!res.ok) return [];
+    if (!res.ok) return { items: [], ok: false };
     const data = await res.json();
-    if (data?.source !== "idx" || !Array.isArray(data?.items)) return [];
+    if (data?.source !== "idx" || !Array.isArray(data?.items)) return { items: [], ok: false };
 
-    return (data.items as ApiNewsItem[]).map((item, i) => ({
+    const mapped: NewsItem[] = (data.items as ApiNewsItem[]).map((item, i) => ({
       id: `idx-${item.id}`,
       // IDX files in Indonesian and publishes no English version. The same
       // title is used for both locales rather than machine-translating a legal
@@ -132,22 +132,32 @@ async function fetchIdxDisclosures(): Promise<NewsItem[]> {
       minsAgo: minutesSince(item.publishedAt),
       isFresh: i === 0,
     }));
+    // `source === "idx"` is what the backend sets when it actually reached the
+    // IDX feed, so a truthy check is more precise than "did we get rows".
+    return { items: mapped, ok: data.source === "idx" };
   } catch {
-    return [];
+    return { items: [], ok: false };
   }
 }
 
 export function useNews() {
   const [news, setNews]       = useState<NewsItem[]>(ALL_NEWS);
   const [loading, setLoading] = useState(true);
+  // Distinguishes "the IDX feed answered and had no filings" from "we could not
+  // ask". Without it a backend outage renders as a quiet news day: eleven bundled
+  // items, indistinguishable from a real feed, with the view also claiming to be
+  // auto-refreshing. Note the list is fetched ONCE — the interval below only ages
+  // the existing items, it does not re-request.
+  const [isLive, setIsLive]   = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      const live = await fetchIdxDisclosures();
+      const { items, ok } = await fetchIdxDisclosures();
       if (!cancelled) {
-        setNews(live.length > 0 ? [...live, ...ALL_NEWS] : ALL_NEWS);
+        setNews(items.length > 0 ? [...items, ...ALL_NEWS] : ALL_NEWS);
+        setIsLive(ok);
         setLoading(false);
       }
     }
@@ -168,5 +178,5 @@ export function useNews() {
     };
   }, []);
 
-  return { news, loading };
+  return { news, loading, isLive };
 }

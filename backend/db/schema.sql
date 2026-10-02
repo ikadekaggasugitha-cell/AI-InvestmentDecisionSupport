@@ -85,6 +85,34 @@ CREATE TABLE IF NOT EXISTS instruments (
 CREATE INDEX IF NOT EXISTS idx_instruments_sector ON instruments (sector);
 CREATE INDEX IF NOT EXISTS idx_instruments_active ON instruments (is_active) WHERE is_active;
 
+-- ── Portfolios (ownable rows) ────────────────────────────────────────────────
+-- A portfolio is a real row so ownership can be enforced. Before this, every
+-- portfolio-scoped endpoint took its identity from a query parameter any caller
+-- could set, and Redis keys were the only place a portfolio existed — so there
+-- was nothing to check access against. See db/migrations/0004 for the rationale.
+--
+-- owner_sub is TokenPayload.sub, TEXT not a UUID key, because the SaaS `users`
+-- table (migration 0005) does not exist yet. When it lands this table gains
+-- `user_id UUID REFERENCES users(id)` alongside owner_sub — additive, not a
+-- replacement — and owner_sub is retired only after every deployed principal
+-- has a users row. 0004 documents the exact follow-up, including why the
+-- dev-bypass principal ("dev-user") has no account to join on.
+-- Plain dimension table — no time axis, updated in place.
+CREATE TABLE IF NOT EXISTS portfolios (
+    id          TEXT        PRIMARY KEY,        -- e.g. 'pf_3f9c1a2b4d5e'
+    owner_sub   TEXT        NOT NULL,           -- TokenPayload.sub
+    name        TEXT        NOT NULL DEFAULT 'Default',
+    lots_json   JSONB       NOT NULL DEFAULT '{}'::jsonb,  -- {symbol: lots}
+    is_default  BOOLEAN     NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Lets auto-provisioning find-or-create a default in one statement instead of
+-- counting rows, and keeps two concurrent first requests from creating two.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_portfolios_one_default
+    ON portfolios (owner_sub) WHERE is_default;
+CREATE INDEX IF NOT EXISTS idx_portfolios_owner ON portfolios (owner_sub);
+
 -- ── Signal outputs (immutable audit log) ─────────────────────────────────────
 -- NOTE: on a hypertable every unique index must contain the partitioning
 -- column, so the surrogate key is composite (generated_at, id). A bare

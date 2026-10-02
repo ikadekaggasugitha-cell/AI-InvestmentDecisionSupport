@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from api.core.config import get_settings
+from api.core.holdings import PORTFOLIO_LOTS
 from api.core.redis_client import REDIS_KEYS, redis_get_json, redis_set_json
 from api.models.risk import RiskMetrics, RiskMetricsResponse, SectorExposureItem, StressTest
 
@@ -148,16 +149,16 @@ async def _compute_live_risk(portfolio_id: str) -> RiskMetricsResponse:
     """
     import pandas as pd
 
-    from api.services.market_service import _IDX_METADATA
     from ml.inference.risk_engine import RiskEngine
 
     settings = get_settings()
 
-    holdings = {
-        sym: int(meta["portfolioLots"])
-        for sym, meta in _IDX_METADATA.items()
-        if meta.get("portfolioLots", 0) > 0
-    }
+    # Positions come from api/core/holdings, the same source the dashboard
+    # totals and the risk worker use. This previously read a "portfolioLots" key
+    # off _IDX_METADATA, which no code path ever wrote — the universe dict has
+    # no per-symbol lots — so the comprehension yielded {} on every call and
+    # every live risk request raised "Portfolio holds no positions."
+    holdings = dict(PORTFOLIO_LOTS)
     if not holdings:
         raise RiskDataUnavailable("Portfolio holds no positions.")
 

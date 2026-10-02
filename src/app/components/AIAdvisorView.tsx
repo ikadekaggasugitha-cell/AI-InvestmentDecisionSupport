@@ -599,7 +599,7 @@ function SignalCard({
               <div className="flex items-center gap-2">
                 <DataFreshnessBadge
                   freshness={market.freshness}
-                  isConnected={market.source === "backend_ws"}
+                  isConnected={market.source !== "offline_baseline"}
                   locale={isId ? "id" : "en"}
                   compact
                 />
@@ -797,7 +797,7 @@ function SignalCard({
                   style={{ borderTop: "1px solid var(--border)" }}
                 >
                   <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
-                    {isId ? "Sumber: LightGBM + SHAP v4.2" : "Source: LightGBM + SHAP v4.2"}
+                    {isId ? "Sumber: LightGBM + SHAP" : "Source: LightGBM + SHAP"}
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: cfg.color, fontFamily: "var(--font-mono)" }}>
                     {t("ai_model_score")}: {rec.modelScore}
@@ -847,7 +847,7 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
   const [disclaimerAccepted, setDisclaimerAccepted] = useState<boolean>(
     () => readDisclaimerAccepted()
   );
-  const { signals, loading, error, lastFetched, isLive } = useAISignals();
+  const { signals, loading, error, lastFetched, isLive, modelMetrics, modelVersion } = useAISignals();
 
   const avgUprob = signals.length
     ? Math.round(signals.reduce((s, r) => s + r.uprob, 0) / signals.length)
@@ -861,6 +861,51 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
         timeZone: "Asia/Jakarta",
       }) + " WIB"
     : "—";
+
+  // Walk-forward AUC from the model's training report. Null on the seed path and
+  // on a bundle with no report, so the tile shows a dash instead of a number no
+  // model produced. The sub-line is the other gate metric, decile lift, so the
+  // reader can see which quantity is being claimed rather than one bare figure.
+  const meanAuc = modelMetrics?.meanAuc ?? null;
+  const decileLift = modelMetrics?.decileLift ?? null;
+  const aucLabel = meanAuc === null ? "—" : `${(meanAuc * 100).toFixed(1)}%`;
+  // 0.5 is chance on a binary label. Above that the model discriminates; below,
+  // colouring it as a gain would misread it.
+  const aucColor =
+    meanAuc === null
+      ? "var(--muted-foreground)"
+      : meanAuc >= 0.55
+        ? "var(--gain)"
+        : meanAuc > 0.5
+          ? "var(--warning)"
+          : "var(--loss)";
+  const trainedAtLabel = modelMetrics?.trainedAt
+    ? new Date(modelMetrics.trainedAt).toLocaleDateString(isId ? "id-ID" : "en-GB", {
+        day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Jakarta",
+      }) + " WIB"
+    : null;
+  const aucTitle =
+    meanAuc === null
+      ? isId
+        ? "Tidak ada model ter-train untuk data ini"
+        : "No trained model produced this data"
+      : [
+          `${isId ? "AUC walk-forward" : "Walk-forward AUC"}: ${aucLabel}`,
+          decileLift === null
+            ? null
+            : `${isId ? "lift desil teratas" : "top-decile lift"}: ${(decileLift * 100).toFixed(1)} pp`,
+          trainedAtLabel
+            ? `${isId ? "dilatih" : "trained"}: ${trainedAtLabel}`
+            : null,
+          modelVersion && modelVersion !== "seed-v1.0"
+            ? `artefak: ${modelVersion}`
+            : null,
+          modelMetrics?.symbols
+            ? `${isId ? "simbol" : "symbols"}: ${modelMetrics.symbols.toLocaleString(isId ? "id-ID" : "en-US")}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
 
   if (loading) {
     return <ViewSkeleton rows={5} label={isId ? "Memuat sinyal AI…" : "Loading AI signals…"} />;
@@ -934,17 +979,24 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
           </button>
         </div>
 
-        {/* Header metrics */}
+        {/* Header metrics. The first tile is the model's own walk-forward AUC
+            from the backend's training report, not a hardcoded string — it used
+            to read "84.7%" unconditionally, on live data and seed data alike.
+            Labelled AUC rather than "accuracy" because there is no accuracy
+            figure in the report: the label is imbalanced, so accuracy measures
+            calibration against the imbalance, which is why the training gate
+            measures AUC and decile lift. A dash means no model produced this
+            data. */}
         <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
           {[
-            { label: t("ai_model_accuracy"),  value: "84.7%",          color: "var(--gain)",             icon: Brain     },
-            { label: t("ai_active_signals"),  value: String(activeSignals), color: "var(--neutral)",      icon: TrendingUp },
-            { label: t("ai_avg_confidence"),  value: `${avgUprob}%`,    color: "var(--warning)",          icon: BarChart2  },
-            { label: t("ai_last_updated"),    value: lastUpdatedLabel,  color: "var(--muted-foreground)", icon: Clock      },
+            { label: t("ai_model_auc"),         value: aucLabel,        color: aucColor,               icon: Brain,     title: aucTitle },
+            { label: t("ai_active_signals"),  value: String(activeSignals), color: "var(--neutral)",      icon: TrendingUp, title: undefined },
+            { label: t("ai_avg_confidence"),  value: `${avgUprob}%`,    color: "var(--warning)",          icon: BarChart2,  title: undefined },
+            { label: t("ai_last_updated"),    value: lastUpdatedLabel,  color: "var(--muted-foreground)", icon: Clock,      title: undefined },
           ].map((m) => {
             const Icon = m.icon;
             return (
-              <div key={m.label} className="rounded p-4 flex items-center gap-3" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+              <div key={m.label} className="rounded p-4 flex items-center gap-3" style={{ background: "var(--card)", border: "1px solid var(--border)" }} title={m.title}>
                 <div style={{ width: 32, height: 32, borderRadius: 4, background: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Icon size={15} style={{ color: m.color }} />
                 </div>

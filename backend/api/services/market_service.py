@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 # unreachable before the first universe load. Once _load_universe succeeds,
 # `_IDX_METADATA` is replaced wholesale by the DB-backed dict.
 
+from api.core.holdings import CAPITAL_IDR, PORTFOLIO_LOTS
 from api.services.symbols_service import SECTOR_EN
 
 _FALLBACK_METADATA: dict[str, dict[str, Any]] = {
@@ -50,13 +51,9 @@ _FALLBACK_METADATA: dict[str, dict[str, Any]] = {
     "EMTK": {"name": "Elang Mahkota Teknologi", "sector": "Telekomunikasi", "sectorEn": "Telecom",       "tier": 3, "mktCap": "Rp 19T",    "pe": None, "lotSize": 100, "defaultPrice": 505},
 }
 
-# Portfolio holdings → lots, kept separate from the universe: these are the
-# operator's positions, legitimately fixed, and drive the portfolio-value line.
-# The universe itself carries no per-symbol lots (a 960-stock board has none).
-_PORTFOLIO_LOTS: dict[str, int] = {
-    "BBCA": 2000, "BBRI": 3500, "TLKM": 5000, "ASII": 2800, "BREN": 1200,
-    "ADRO": 4000, "BMRI": 3000, "UNVR": 2200, "ICBP": 1500, "ANTM": 6000,
-}
+# Portfolio holdings live in api/core/holdings.py so the risk, optimisation and
+# dashboard paths all measure the same positions. See that module for why it
+# was extracted out of this file.
 
 # The live universe metadata, replaced by _load_universe from the DB. Starts as
 # the fallback so the service is usable before the first load.
@@ -167,7 +164,7 @@ _current_stocks: dict[str, StockTick] = {}
 _history: dict[str, list[float]] = {}
 _intraday: list[dict[str, Any]] = []
 _ihsg_current: IhsgSnapshot = IhsgSnapshot(value=7448.0, prevClose=7391.0, change=57.0, changePct=0.77)
-_portfolio_prev_close: float = 12_480_000_000.0
+_portfolio_prev_close: float = CAPITAL_IDR
 _last_fetch_time: datetime | None = None
 _fx_current: FxRate | None = None
 _fetch_lock = asyncio.Lock()
@@ -516,10 +513,18 @@ async def fetch_yahoo_market_data() -> bool:
     sample = next(iter(batch.quotes.values()))
     _feed_meta = {
         "source": batch.provider,
-        "as_of": batch.oldest_as_of,
+        # representative_as_of, not oldest_as_of. The board keeps delisted names
+        # so history resolves, and a single one of those pinned the reported feed
+        # age to 819 days while the median quote was 1.7 hours old — the freshness
+        # badge then claimed stale data from a perfectly healthy feed.
+        "as_of": batch.representative_as_of,
         "delay_seconds": batch.delay_seconds,
         "market_state": batch.market_state,
         "source_label": sample.source_label,
+        # Kept rather than dropped: the age above is now robust, but "3 of 248
+        # names have not traded in months" is information the operator wants, and
+        # silently averaging it away would just re-hide the same finding.
+        "outdated": batch.outdated_symbols,
     }
 
     if batch.missing:
@@ -594,7 +599,7 @@ def generate_snapshot() -> MarketSnapshot:
         _init_default_state()
 
     portfolio_value = 0.0
-    for sym, lots in _PORTFOLIO_LOTS.items():
+    for sym, lots in PORTFOLIO_LOTS.items():
         stock = _current_stocks.get(sym)
         if stock and lots > 0:
             portfolio_value += stock.price * lots * 100
@@ -646,4 +651,5 @@ def generate_snapshot() -> MarketSnapshot:
         # True when prices are currently breathing via the intraday walk between
         # real polls. The UI uses this to label movement as estimated.
         isIntradaySimulated=_intraday_simulated,
+        outdatedSymbols=_feed_meta.get("outdated", []),
     )

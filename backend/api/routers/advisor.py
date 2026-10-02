@@ -20,14 +20,15 @@ from api.core.auth import CurrentUser
 from api.core.rate_limit import advisor_limit, limiter
 from api.models.advisor import ChatRequest
 from api.services.advisor_service import stream_advisor_response
+from api.services.portfolio_access import resolve_portfolio_id
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/advisor", tags=["advisor"])
 
 
-async def _sse_generator(request: ChatRequest):
-    async for chunk in stream_advisor_response(request):
+async def _sse_generator(request: ChatRequest, portfolio_id: str):
+    async for chunk in stream_advisor_response(request, portfolio_id):
         yield f"data: {chunk.model_dump_json()}\n\n"
 
 
@@ -48,8 +49,12 @@ async def advisor_chat(
     current_user: CurrentUser,
 ) -> StreamingResponse:
     logger.info("advisor/chat: user=%s locale=%s", current_user.sub, body.locale)
+    # Resolved from the token, not from a body field: the request used to carry
+    # its own `uid`, so any authenticated caller could ask about another
+    # portfolio's allocation, risk metrics and holdings.
+    portfolio_id = await resolve_portfolio_id(current_user.sub)
     return StreamingResponse(
-        _sse_generator(body),
+        _sse_generator(body, portfolio_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

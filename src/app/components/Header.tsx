@@ -17,11 +17,13 @@ interface HeaderProps {
   onSelectSymbol?: (symbol: string) => void;
 }
 
-const SECONDARY = [
-  { name: "LQ45",  value: 943.82,  changePct:  0.54 },
-  { name: "IDX30", value: 512.34,  changePct:  0.61 },
-  { name: "ISSI",  value: 248.16,  changePct: -0.22 },
-];
+// LQ45 / IDX30 / ISSI used to be rendered here from hardcoded constants on the
+// same ticker row as the provenance-badged IHSG, which made them
+// indistinguishable from live index data. They are gone rather than relabelled
+// because no provider this project uses carries them: IdxProvider only exposes
+// GetStockSummary for individual equities, and the quote vendor supplies the
+// composite index as ^JKSE alone. Adding an endpoint for them would return
+// nothing, so the row now shows only the indices that are actually fetched.
 
 function useWibClock(): string {
   const [time, setTime] = useState(() => getWibTime());
@@ -220,10 +222,16 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
           </span>
           {/* What the prices actually are. "BEI LIVE" above refers to the
               EXCHANGE being open — not to the data being real time. The feed is
-              delayed, and without this the two read as the same claim. */}
+              delayed, and without this the two read as the same claim.
+
+              `source !== "offline_baseline"` rather than `=== "backend_ws"`: the
+              seeded baseline is a deliberate state, not a failed connection, so
+              it must be allowed to render as SIMULATED rather than OFFLINE. A
+              genuine outage also leaves source on offline_baseline, so it still
+              reads OFFLINE. */}
           <DataFreshnessBadge
             freshness={market.freshness}
-            isConnected={market.source === "backend_ws"}
+            isConnected={market.source !== "offline_baseline"}
             locale={isId ? "id" : "en"}
             compact={isMobile}
           />
@@ -247,30 +255,6 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
             {Math.abs(ihsg.changePct).toFixed(2)}%
           </span>
         </div>
-
-        {/* Secondary indices — hidden on mobile */}
-        {!isMobile && SECONDARY.map((idx, i) => (
-          <div
-            key={idx.name}
-            className="flex items-center gap-2 flex-shrink-0"
-            style={{
-              paddingRight: 16, marginRight: 16,
-              borderRight: i < SECONDARY.length - 1 ? "1px solid var(--border)" : "none",
-            }}
-            aria-label={`${idx.name} ${idx.value.toFixed(2)} ${idx.changePct >= 0 ? "naik" : "turun"} ${Math.abs(idx.changePct).toFixed(2)} persen`}
-          >
-            <span style={{ fontSize: 10, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", letterSpacing: "0.05em" }}>
-              {idx.name}
-            </span>
-            <span style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)", fontWeight: 500 }}>
-              {idx.value.toLocaleString("id-ID", { minimumFractionDigits: 2 })}
-            </span>
-            <span className="flex items-center gap-0.5" style={{ fontSize: 11, color: idx.changePct >= 0 ? "var(--gain)" : "var(--loss)", fontFamily: "var(--font-mono)" }}>
-              {idx.changePct >= 0 ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-              {Math.abs(idx.changePct).toFixed(2)}%
-            </span>
-          </div>
-        ))}
 
         <div style={{ flex: 1 }} />
 
