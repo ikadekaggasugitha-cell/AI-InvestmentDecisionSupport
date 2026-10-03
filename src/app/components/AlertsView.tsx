@@ -45,8 +45,10 @@ const TYPE_ICON = {
 } as const;
 
 const SEVERITY = {
-  high:   { color: "#ff4757", bg: "rgba(255,71,87,0.10)", id: "TINGGI", en: "HIGH" },
-  medium: { color: "var(--warning)", bg: "rgba(245,158,11,0.10)", id: "SEDANG", en: "MEDIUM" },
+  // --loss, not the dark-theme hex: severity is a semantic, and the token
+  // keeps its 4.5:1 on a white card where the fixed value did not.
+  high:   { color: "var(--loss)", bg: "var(--loss-bg)", id: "TINGGI", en: "HIGH" },
+  medium: { color: "var(--warning)", bg: "var(--warning-bg)", id: "SEDANG", en: "MEDIUM" },
   low:    { color: "var(--muted-foreground)", bg: "var(--muted)", id: "RENDAH", en: "LOW" },
 } as const;
 
@@ -66,7 +68,7 @@ export function AlertsView({ alerts, onDismiss, onClearAll, locale = "id", isLiv
       {!isLive && alerts.length > 0 && (
         <div
           className="flex items-center gap-2 rounded p-3"
-          style={{ background: "rgba(245,158,11,0.10)", border: "1px solid var(--warning)", color: "var(--warning)", fontSize: 11 }}
+          style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)", color: "var(--warning)", fontSize: 11 }}
         >
           <FlaskConical size={13} style={{ flexShrink: 0 }} />
           <span>

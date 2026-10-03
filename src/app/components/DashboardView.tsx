@@ -79,8 +79,17 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
     return best;
   }, [stocks]);
 
+  /* Colour is assigned here rather than stored in the data: the seed carried
+     dark-theme hex that sat on var(--card) at roughly 2:1 in light mode. Five
+     categorical tokens cover the five largest sectors; the sixth reads as the
+     remainder via --muted. */
+  const SECTOR_PALETTE = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
   const sectorData = useMemo(
-    () => SECTOR_ALLOCATION.map((s) => ({ name: isId ? s.name : s.nameEn, value: s.value, color: s.color })),
+    () => SECTOR_ALLOCATION.map((s, i) => ({
+      name: isId ? s.name : s.nameEn,
+      value: s.value,
+      color: i < SECTOR_PALETTE.length ? SECTOR_PALETTE[i] : "var(--muted)",
+    })),
     [isId]
   );
 
@@ -96,9 +105,11 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
     [holdings, market.stocks]
   );
 
-  /* Transactions: use real log if available, fallback to seed data */
+  /* Transactions: use the real log when there is one, otherwise the bundled
+     seed. `txIsSample` says which, so the card can state it. */
+  const txIsSample = transactions.length === 0;
   const recentTx = useMemo(() => {
-    if (transactions.length > 0) {
+    if (!txIsSample) {
       return [...transactions].reverse().slice(0, 5).map((tx) => ({
         id:     tx.id,
         symbol: tx.symbol,
@@ -114,7 +125,7 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
       total:  tx.total,
       date:   tx.date,
     }));
-  }, [transactions, isId]);
+  }, [transactions, isId, txIsSample]);
 
   const cards = [
     {
@@ -217,7 +228,12 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
           <ResponsiveContainer width="100%" height={130}>
             <PieChart>
               <Pie data={sectorData} cx="50%" cy="50%" innerRadius={40} outerRadius={62} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}>
-                {sectorData.map((s, i) => <Cell key={`sec-${i}`} fill={s.color} />)}
+                {/* 1px stroke in the surface colour: adjacent chart tokens
+                    differ by as little as 1.00:1, so the slice boundary needs
+                    an explicit edge. */}
+                {sectorData.map((s, i) => (
+                  <Cell key={`sec-${i}`} fill={s.color} stroke="var(--card)" strokeWidth={1} />
+                ))}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
@@ -281,8 +297,26 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
 
         {/* Recent transactions */}
         <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 12 }}>
-            {t("dash_recent_tx")}
+          {/* Provenance stated in plain text, matching the alerts card below.
+              These seed rows are shaped exactly like real ones (ticker, BUY/SELL
+              chip, rupiah total, a plausible date), so without the label a
+              bundled list reads as the user's own trade history. */}
+          <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+              {t("dash_recent_tx")}
+            </span>
+            {txIsSample && (
+              <span
+                className="flex items-center gap-1"
+                style={{ fontSize: 10, color: "var(--warning)" }}
+                title={isId
+                  ? "Belum ada transaksi tercatat. Daftar di bawah adalah data contoh, bukan transaksi Anda."
+                  : "No transactions recorded yet. The list below is sample data, not your trades."}
+              >
+                <FlaskConical size={10} />
+                {isId ? "Data contoh" : "Sample data"}
+              </span>
+            )}
           </div>
           {recentTx.map((tx, i) => {
             const typeColor = tx.type === "BUY" ? "var(--gain)" : tx.type === "SELL" ? "var(--loss)" : "var(--neutral)";

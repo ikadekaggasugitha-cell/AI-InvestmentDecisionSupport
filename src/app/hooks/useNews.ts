@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
-import { SEED_NEWS } from "../data/idxData";
 
 export interface NewsItem {
   id: string;
@@ -9,8 +8,7 @@ export interface NewsItem {
   summaryId: string;
   summaryEn: string;
   source: string;
-  /** Link to the original article/filing. Present on live IDX items; seed items
-   *  have none, so the UI shows expand-only and hides the external-link icon. */
+  /** Link to the original filing. Present on live IDX items. */
   url?: string;
   category: "market" | "macro" | "corporate" | "global";
   symbols: string[];
@@ -18,61 +16,33 @@ export interface NewsItem {
   isFresh?: boolean;
 }
 
-/* Rotate news items to simulate freshness */
-const EXTRA_HEADLINES: NewsItem[] = [
-  {
-    id: "live1",
-    titleId: "Volume Transaksi BEI Capai Rp 18,4 Triliun pada Sesi Pertama",
-    titleEn: "IDX Transaction Volume Reaches Rp 18.4 Trillion in Morning Session",
-    summaryId: "Volume transaksi di Bursa Efek Indonesia (BEI) mencapai Rp 18,4 triliun pada sesi pertama hari ini, meningkat 14% dibandingkan rata-rata 30 hari terakhir. Asing membukukan net buy sebesar Rp 342 miliar.",
-    summaryEn: "Transaction volume at the Indonesia Stock Exchange (IDX) reached Rp 18.4 trillion in the morning session today, up 14% versus the 30-day average. Foreign investors recorded net buying of Rp 342 billion.",
-    source: "Kontan.co.id",
-    category: "market",
-    symbols: [],
-    minsAgo: 5,
-    isFresh: true,
-  },
-  {
-    id: "live2",
-    titleId: "Rupiah Menguat ke Rp 15.712 per USD Didukung Surplus Neraca Dagang",
-    titleEn: "Rupiah Strengthens to Rp 15,712 per USD on Trade Surplus Support",
-    summaryId: "Rupiah menguat ke level Rp 15.712 per dolar AS pada perdagangan hari ini, didukung oleh data surplus neraca perdagangan Indonesia yang mencapai USD 3,8 miliar pada bulan Juni 2026.",
-    summaryEn: "The rupiah strengthened to Rp 15,712 per US dollar today, supported by Indonesia's trade surplus data reaching USD 3.8 billion in June 2026.",
-    source: "Bisnis.com",
-    category: "macro",
-    symbols: [],
-    minsAgo: 23,
-    isFresh: true,
-  },
-  {
-    id: "live3",
-    titleId: "ANTM Temukan Cadangan Nikel Baru 12 Juta Ton di Sulawesi Tengah",
-    titleEn: "ANTM Discovers New 12 Million Tonne Nickel Reserve in Central Sulawesi",
-    summaryId: "PT Aneka Tambang Tbk (ANTM) mengumumkan penemuan cadangan nikel baru sebesar 12 juta ton di Sulawesi Tengah, meningkatkan total cadangan perseroan sebesar 18%. Saham ANTM menguat 3,2% merespons berita ini.",
-    summaryEn: "PT Aneka Tambang Tbk (ANTM) announced the discovery of a new 12 million tonne nickel reserve in Central Sulawesi, increasing the company's total reserves by 18%. ANTM shares rallied 3.2% on the news.",
-    source: "Reuters Indonesia",
-    category: "corporate",
-    symbols: ["ANTM"],
-    minsAgo: 67,
-    isFresh: false,
-  },
-];
-
-const ALL_NEWS: NewsItem[] = [
-  ...EXTRA_HEADLINES,
-  ...SEED_NEWS.map((n) => ({ ...n, symbols: [...n.symbols], isFresh: false })),
-];
-
 /* ── Live IDX disclosures ────────────────────────────────────────────────────
  *
- * Replaces a browser fetch to Yahoo news through the allorigins.win CORS proxy.
- * That proxy now returns a GitHub Pages 404, so the call failed on every load
- * and the panel silently fell back to seed items — looking like a quiet news
- * day, permanently.
+ * There is no bundled news any more.
  *
- * The backend now serves IDX keterbukaan informasi: primary filings, each with
- * an issuer code and an exchange timestamp.
+ * This hook used to seed itself with eleven invented headlines attributed to
+ * Kontan, Bisnis.com, Reuters Indonesia, CNBC Indonesia and Bloomberg
+ * Indonesia, then append them to the live feed on every load. Naming real
+ * publications for events that did not happen is the one kind of fabrication
+ * here that reaches outside the app and damages third parties, so the seed is
+ * gone rather than labelled. Consequence, accepted deliberately: with no
+ * backend the page is empty. An empty page is the truth; a plausible page is
+ * not.
+ *
+ * Replaces an earlier browser fetch to Yahoo news through the allorigins.win
+ * CORS proxy. That proxy returned a GitHub Pages 404 on every load, so the call
+ * failed permanently and the panel fell back to those seed items, looking like
+ * a quiet news day forever.
+ *
+ * The backend serves IDX keterbukaan informasi: primary filings, each with an
+ * issuer code and an exchange timestamp.
  */
+
+/** How recently a filing must be to earn the "TERBARU" badge.
+ *  Sixty minutes, which is the same boundary the relative-time string already
+ *  uses when it prints "Baru saja". The badge used to be `i === 0`, which
+ *  marked array position rather than recency. */
+const FRESH_WINDOW_MIN = 60;
 
 interface ApiNewsItem {
   id: string;
@@ -102,81 +72,113 @@ function minutesSince(iso: string): number {
   return Math.max(0, Math.round((Date.now() - t) / 60_000));
 }
 
-async function fetchIdxDisclosures(): Promise<{ items: NewsItem[]; ok: boolean }> {
-  if (!USE_LIVE_API) return { items: [], ok: false };
+interface FetchOutcome {
+  items: NewsItem[];
+  ok: boolean;
+  error: string | null;
+}
+
+async function fetchIdxDisclosures(): Promise<FetchOutcome> {
+  if (!USE_LIVE_API) {
+    return {
+      items: [],
+      ok: false,
+      error: "offline",
+    };
+  }
   try {
     const res = await apiFetch(ENDPOINTS.news(20), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-    if (!res.ok) return { items: [], ok: false };
+    if (!res.ok) {
+      return {
+        items: [],
+        ok: false,
+        error: res.status === 404 ? "Feed IDX tidak ditemukan di backend." : `Feed IDX menjawab dengan status ${res.status}.`,
+      };
+    }
     const data = await res.json();
-    if (data?.source !== "idx" || !Array.isArray(data?.items)) return { items: [], ok: false };
+    if (data?.source !== "idx" || !Array.isArray(data?.items)) {
+      return { items: [], ok: false, error: "Backend tidak mengembalikan keterbukaan informasi IDX." };
+    }
 
-    const mapped: NewsItem[] = (data.items as ApiNewsItem[]).map((item, i) => ({
-      id: `idx-${item.id}`,
-      // IDX files in Indonesian and publishes no English version. The same
-      // title is used for both locales rather than machine-translating a legal
-      // filing into wording the issuer never submitted.
-      titleId: item.title,
-      titleEn: item.title,
-      // IDX supplies no abstract, only the filing title. Rather than invent a
-      // summary, state what the document is.
-      summaryId: item.symbol
-        ? `Keterbukaan informasi ${item.symbol} — ${item.category || "pengumuman resmi"}.`
-        : `Pengumuman resmi Bursa Efek Indonesia — ${item.category || "keterbukaan informasi"}.`,
-      summaryEn: item.symbol
-        ? `IDX disclosure filed by ${item.symbol} — ${item.category || "official announcement"}.`
-        : `Official Indonesia Stock Exchange announcement — ${item.category || "disclosure"}.`,
-      source: item.source || "IDX",
-      url: item.url || undefined,
-      category: mapCategory(item.category),
-      symbols: item.symbol ? [item.symbol] : [],
-      minsAgo: minutesSince(item.publishedAt),
-      isFresh: i === 0,
-    }));
+    const mapped: NewsItem[] = (data.items as ApiNewsItem[]).map((item) => {
+      const minsAgo = minutesSince(item.publishedAt);
+      return {
+        id: `idx-${item.id}`,
+        // IDX files in Indonesian and publishes no English version. The same
+        // title is used for both locales rather than machine-translating a legal
+        // filing into wording the issuer never submitted.
+        titleId: item.title,
+        titleEn: item.title,
+        // IDX supplies no abstract, only the filing title. Rather than invent a
+        // summary, state what the document is.
+        summaryId: item.symbol
+          ? `Keterbukaan informasi ${item.symbol} — ${item.category || "pengumuman resmi"}.`
+          : `Pengumuman resmi Bursa Efek Indonesia — ${item.category || "keterbukaan informasi"}.`,
+        summaryEn: item.symbol
+          ? `IDX disclosure filed by ${item.symbol} — ${item.category || "official announcement"}.`
+          : `Official Indonesia Stock Exchange announcement — ${item.category || "disclosure"}.`,
+        source: item.source || "IDX",
+        url: item.url || undefined,
+        category: mapCategory(item.category),
+        symbols: item.symbol ? [item.symbol] : [],
+        minsAgo,
+        // Recency, not position: a filing inside the window is badged whether or
+        // not it happens to be first in the response.
+        isFresh: minsAgo <= FRESH_WINDOW_MIN,
+      };
+    });
     // `source === "idx"` is what the backend sets when it actually reached the
     // IDX feed, so a truthy check is more precise than "did we get rows".
-    return { items: mapped, ok: data.source === "idx" };
+    return { items: mapped, ok: data.source === "idx", error: null };
   } catch {
-    return { items: [], ok: false };
+    return { items: [], ok: false, error: "Backend tidak dapat dihubungi." };
   }
 }
 
 export function useNews() {
-  const [news, setNews]       = useState<NewsItem[]>(ALL_NEWS);
+  const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   // Distinguishes "the IDX feed answered and had no filings" from "we could not
-  // ask". Without it a backend outage renders as a quiet news day: eleven bundled
-  // items, indistinguishable from a real feed, with the view also claiming to be
-  // auto-refreshing. Note the list is fetched ONCE — the interval below only ages
-  // the existing items, it does not re-request.
-  const [isLive, setIsLive]   = useState(false);
+  // ask". Without it a backend outage renders as a quiet news day.
+  const [isLive, setIsLive] = useState(false);
+  /** Non-null only when the request failed. An empty list with no error is a
+   *  real answer: the exchange published nothing in the window. */
+  const [error, setError] = useState<string | null>(null);
+  /** Bumped to re-run the effect. Exposed so the view can offer a retry. */
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      const { items, ok } = await fetchIdxDisclosures();
-      if (!cancelled) {
-        setNews(items.length > 0 ? [...items, ...ALL_NEWS] : ALL_NEWS);
-        setIsLive(ok);
-        setLoading(false);
-      }
+      setLoading(true);
+      setError(null);
+      const { items, ok, error: err } = await fetchIdxDisclosures();
+      if (cancelled) return;
+      setNews(items);
+      setIsLive(ok);
+      setError(err);
+      setLoading(false);
     }
 
     load();
 
-    /* Age existing news + occasionally inject a fresh one */
+    /* Age the existing filings. This does NOT re-request: the list is fetched
+     * once per page load, which the view states. */
     const id = setInterval(() => {
-      setNews((prev) => {
-        const aged = prev.map((n) => ({ ...n, minsAgo: n.minsAgo + 1, isFresh: false }));
-        return aged;
-      });
+      setNews((prev) =>
+        prev.map((n) => {
+          const minsAgo = n.minsAgo + 1;
+          return { ...n, minsAgo, isFresh: minsAgo <= FRESH_WINDOW_MIN };
+        }),
+      );
     }, 60_000);
 
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, []);
+  }, [attempt]);
 
-  return { news, loading, isLive };
+  return { news, loading, isLive, error, retry: () => setAttempt((n) => n + 1) };
 }

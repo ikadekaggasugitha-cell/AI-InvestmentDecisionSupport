@@ -230,7 +230,7 @@ export function BrokerSummaryPanel({
       {source === "mock" && (
         <div
           className="flex items-center gap-2 rounded px-2 py-1"
-          style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}
+          style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)" }}
         >
           <FlaskConical size={11} style={{ color: "var(--warning)", flexShrink: 0 }} />
           <span style={{ fontSize: 10, color: "var(--foreground)", lineHeight: 1.4 }}>
@@ -247,9 +247,12 @@ export function BrokerSummaryPanel({
       {(source === "volume" || source === "volume+foreign" || source === "foreign") && (
         <div
           className="flex items-center gap-2 rounded px-2 py-1"
-          style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)" }}
+          style={{ background: "var(--neutral-bg)", border: "1px solid var(--neutral)" }}
         >
-          <FlaskConical size={11} style={{ color: "var(--info, #3b82f6)", flexShrink: 0 }} />
+          {/* --info is declared in no stylesheet, so the fallback was always what
+              rendered, at roughly 3.1:1 on white. --neutral already exists in
+              both themes and means informational. */}
+          <FlaskConical size={11} style={{ color: "var(--neutral)", flexShrink: 0 }} />
           <span style={{ fontSize: 10, color: "var(--foreground)", lineHeight: 1.4 }}>
             {source === "volume"
               ? isId

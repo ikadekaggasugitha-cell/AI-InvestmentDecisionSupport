@@ -71,13 +71,13 @@ export function DataFreshnessBadge({
   } else if (freshness.isSimulated) {
     icon = FlaskConical;
     color = "var(--warning)";
-    bg = "rgba(245,158,11,0.08)";
+    bg = "var(--warning-bg)";
     title = isId ? "SIMULASI" : "SIMULATED";
     detail = isId ? "bukan harga pasar" : "not market prices";
   } else if (freshness.isDelayed) {
     icon = Clock;
     color = "var(--warning)";
-    bg = "rgba(245,158,11,0.08)";
+    bg = "var(--warning-bg)";
     const mins = Math.round(freshness.delaySeconds / 60);
     title = isId ? `TERTUNDA ${mins} MNT` : `DELAYED ${mins} MIN`;
     detail = ageSeconds !== null

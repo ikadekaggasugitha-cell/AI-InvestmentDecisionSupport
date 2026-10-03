@@ -258,35 +258,23 @@ export function Sidebar({
           </button>
         </div>
 
-        {/* User */}
+        {/* Operator. There is no user store behind this build: auth.py signs a
+            JWT from AUTH_USERNAME and never reads a users table, so a name, a
+            job title, and an initials avatar here would all be invented data
+            presented as fact. See docs/saas-subscription-platform.md Fase 1
+            for when real identity becomes available. */}
         <div
-          className="flex items-center gap-3 px-4 py-3"
+          className="px-4 py-3"
           style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
         >
-          <div
-            className="flex items-center justify-center rounded flex-shrink-0"
-            style={{
-              width: 30,
-              height: 30,
-              background: "#0f2a45",
-              color: "#4da6ff",
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              fontWeight: 600,
-              border: "1px solid rgba(77,166,255,0.15)",
-            }}
-          >
-            JD
+          <div style={{ fontSize: 10, color: "#4a6480", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            {locale === "id" ? "Operator Tunggal" : "Single Operator"}
           </div>
-          <div className="overflow-hidden flex-1 min-w-0">
-            <div style={{ fontSize: 12, color: "#8ba3be", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              James Davidson
-            </div>
-            <div style={{ fontSize: 10, color: "#4a6480" }}>
-              {locale === "id" ? "Manajer Portofolio" : "Portfolio Manager"}
-            </div>
+          <div style={{ fontSize: 11, color: "#8ba3be", marginTop: 2 }}>
+            {locale === "id" ? "Belum ada akun terhubung" : "No account connected"}
           </div>
         </div>
+
       </aside>
     </>
   );

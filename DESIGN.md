@@ -64,7 +64,12 @@ Light default, with a working dark toggle. Both modes fully functional, both ver
 contrast check and by click-through before delivery. A mode that breaks the other is a
 defect, not a preference.
 
-- **Source**: owner's own answer, 2026-10-02.
+The admin portal follows this same rule. It is not a separate dark surface, and it gets no
+theme of its own. An operator is doing the same job as a subscriber, so the two portals
+share one ground.
+
+- **Source**: owner's own answer, 2026-10-02, extended by the owner's decision on
+  2026-10-02 that the admin portal follows the light default.
 
 ## Dials
 
@@ -87,5 +92,8 @@ These are the owner's to decide. An agent must not pick them silently.
 2. The two core colors and the accent.
 3. The display face and the workhorse sans.
 4. The tabular figures face.
+5. The icon set. None is named yet. Until it is, a new surface takes either text labels
+   alone or glyphs already used elsewhere in the app, and a new icon family is not
+   introduced as a side effect of a feature.
 
 Until these are named, any UI built against this file is a draft, not a deliverable.

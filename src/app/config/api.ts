@@ -1,19 +1,37 @@
 /**
  * API configuration.
  *
- * Flip USE_LIVE_API to true and set the correct BASE_URL to connect the app
- * to a real FastAPI backend.  All hooks check this flag at runtime so the UI
- * components need zero changes when switching from simulation to live data.
+ * Set API_BASE to reach a running FastAPI backend. All hooks check USE_LIVE_API
+ * at runtime, so components need no changes when it flips.
  */
+
 /**
  * Fetch from the FastAPI backend rather than serving bundled seed data.
  *
- * Defaults to ON so the app shows real IDX prices. Set VITE_USE_LIVE_API=false
- * to force the offline seed path — useful for demos with no backend running, or
- * for UI work that should not depend on the network.
+ * Defaults to ON, so a normal build talks to the backend and shows real IDX
+ * prices.
  *
- * The seed path is clearly labelled as simulated in the UI; it is a fallback,
- * not an equivalent source.
+ * ── What VITE_USE_LIVE_API=false actually is ───────────────────────────────
+ *
+ * An OFFLINE UI HARNESS for layout and component work with no backend running.
+ * It is deliberately not a demo mode and must not be presented as one: there is
+ * no scripted walkthrough to perform and no data behind most of the screens.
+ *
+ * Five call sites honour this flag, so the build loses more than it looks:
+ *
+ *   useNews          no filings at all. The bundled sample news was deleted in
+ *                    2026-10 because it named real publications (Kontan,
+ *                    Bisnis.com, Reuters, CNBC, Bloomberg) for events that never
+ *                    happened, and was appended to the live feed. The page now
+ *                    shows its Empty state.
+ *   useAISignals     seed signals, labelled "Data contoh". No provenance and no
+ *                    timestamp, because no model ran.
+ *   useAlerts        seed alerts, labelled "Data contoh".
+ *   useAdvisorChat   disabled; the chat endpoint is required.
+ *   StockDetailPanel no per-symbol technicals, charts or broker summary.
+ *
+ * Every remaining fallback is labelled in the UI. If a screen here looks
+ * plausible but empty, that is the harness working as intended, not a bug.
  */
 export const USE_LIVE_API =
   (import.meta.env.VITE_USE_LIVE_API ?? "true").toLowerCase() !== "false";
@@ -30,7 +48,7 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000"
 const WS_BASE = API_BASE.replace(/^http/, "ws");
 
 export const ENDPOINTS = {
-  /** LightGBM + SHAP signal recommendations */
+  /** Signal recommendations with per-factor explanations */
   signals:        `${API_BASE}/v1/signals`,
   /** AI signal for a single symbol (stock detail panel) */
   signalFor:      (symbol: string) => `${API_BASE}/v1/signals/${symbol}`,

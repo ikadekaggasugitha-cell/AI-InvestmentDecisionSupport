@@ -20,7 +20,7 @@ const SIGNAL_CFG: Record<
   { color: string; bg: string; icon: typeof Eye }
 > = {
   buy_watch: { color: "var(--gain)", bg: "var(--gain-bg)", icon: Eye },
-  wait: { color: "var(--warning)", bg: "rgba(245,158,11,0.08)", icon: Clock },
+  wait: { color: "var(--warning)", bg: "var(--warning-bg)", icon: Clock },
   avoid: { color: "var(--loss)", bg: "var(--loss-bg)", icon: Ban },
 };
 

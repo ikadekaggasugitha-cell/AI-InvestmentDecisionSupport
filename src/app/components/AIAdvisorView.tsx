@@ -61,7 +61,7 @@ type Tier = "VERY_HIGH" | "HIGH" | "NEUTRAL" | "LOW";
 const TIER_CFG: Record<Tier, { color: string; bg: string; icon: ElementType }> = {
   "VERY_HIGH": { color: "var(--gain)",    bg: "var(--gain-bg)",           icon: TrendingUp   },
   "HIGH":      { color: "var(--gain)",    bg: "var(--gain-bg)",           icon: TrendingUp   },
-  "NEUTRAL":   { color: "var(--warning)", bg: "rgba(245,158,11,0.08)",   icon: Minus        },
+  "NEUTRAL":   { color: "var(--warning)", bg: "var(--warning-bg)",   icon: Minus        },
   "LOW":       { color: "var(--loss)",    bg: "var(--loss-bg)",           icon: TrendingDown },
 };
 
@@ -82,7 +82,7 @@ function ProbabilityGauge({ uprob, tier }: { uprob: number; tier: Tier }) {
   const isDown = tier === "LOW";
   const displayProb = isDown ? (100 - uprob) : uprob;
   const color = isDown ? "var(--loss)" : uprob >= 70 ? "var(--gain)" : uprob >= 55 ? "var(--warning)" : "var(--muted-foreground)";
-  const bgColor = isDown ? "var(--loss-bg)" : uprob >= 70 ? "var(--gain-bg)" : "rgba(245,158,11,0.08)";
+  const bgColor = isDown ? "var(--loss-bg)" : uprob >= 70 ? "var(--gain-bg)" : "var(--warning-bg)";
 
   return (
     <div style={{ textAlign: "center", minWidth: 72 }}>
@@ -358,7 +358,7 @@ function DisclaimerModal({ isId, onAccept }: { isId: boolean; onAccept: () => vo
               width: 36,
               height: 36,
               borderRadius: 4,
-              background: "rgba(245,158,11,0.1)",
+              background: "var(--warning-bg)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -405,7 +405,7 @@ function DisclaimerModal({ isId, onAccept }: { isId: boolean; onAccept: () => vo
                     width: 18,
                     height: 18,
                     borderRadius: "50%",
-                    background: "rgba(245,158,11,0.15)",
+                    background: "var(--warning-bg)",
                     color: "var(--warning)",
                     fontSize: 10,
                     fontWeight: 700,
@@ -466,6 +466,7 @@ function SignalCard({
   isId,
   t,
   market,
+  servingSource,
 }: {
   rec: AISignal;
   isOpen: boolean;
@@ -475,6 +476,9 @@ function SignalCard({
   // translation key fails the type check instead of rendering the key itself.
   t: ReturnType<typeof useTranslation>["t"];
   market: LiveMarketData;
+  /** What the API says served this signal. Provenance cannot be hardcoded: the
+   *  response names no algorithm, so only live-vs-mock is attestable. */
+  servingSource: "live" | "mock" | null;
 }) {
   const cfg = TIER_CFG[rec.probabilityTier as Tier];
   const Icon = cfg.icon;
@@ -796,8 +800,17 @@ function SignalCard({
                   className="flex items-center justify-between mt-3 pt-3"
                   style={{ borderTop: "1px solid var(--border)" }}
                 >
+                  {/* Provenance, built from what the API can actually attest.
+                      The response carries `source: "live" | "mock"` and a
+                      `modelVersion` artefact id; it names no algorithm anywhere,
+                      so a fixed "LightGBM + SHAP" was a claim the contract could
+                      never confirm, and wrong on the seed path where no model ran. */}
                   <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
-                    {isId ? "Sumber: LightGBM + SHAP" : "Source: LightGBM + SHAP"}
+                    {servingSource === "live"
+                      ? (isId ? "Sumber: model aktif" : "Source: live model")
+                      : servingSource === "mock"
+                        ? (isId ? "Sumber: data contoh" : "Source: sample data")
+                        : (isId ? "Sumber: tidak diketahui" : "Source: unknown")}
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: cfg.color, fontFamily: "var(--font-mono)" }}>
                     {t("ai_model_score")}: {rec.modelScore}
@@ -847,15 +860,18 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
   const [disclaimerAccepted, setDisclaimerAccepted] = useState<boolean>(
     () => readDisclaimerAccepted()
   );
-  const { signals, loading, error, lastFetched, isLive, modelMetrics, modelVersion } = useAISignals();
+  const { signals, loading, error, generatedAt, isLive, modelMetrics, modelVersion, servingSource } = useAISignals();
 
   const avgUprob = signals.length
     ? Math.round(signals.reduce((s, r) => s + r.uprob, 0) / signals.length)
     : 0;
   const activeSignals = signals.filter((r) => r.probabilityTier !== "NEUTRAL").length;
 
-  const lastUpdatedLabel = lastFetched
-    ? new Date(lastFetched).toLocaleTimeString(isId ? "id-ID" : "en-US", {
+  // The backend's own stamp, not the moment the browser received it. On the seed
+  // path there is no model run to have a time, so the tile shows a dash rather
+  // than a number that changes on every reload.
+  const lastUpdatedLabel = generatedAt && !Number.isNaN(Date.parse(generatedAt))
+    ? new Date(generatedAt).toLocaleTimeString(isId ? "id-ID" : "en-US", {
         hour: "2-digit",
         minute: "2-digit",
         timeZone: "Asia/Jakarta",
@@ -956,7 +972,7 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
         {/* OJK compliance notice banner */}
         <div
           className="flex items-center gap-3 px-4 py-3 rounded"
-          style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)" }}
+          style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)" }}
         >
           <ShieldCheck size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />
           <div style={{ fontSize: 11, color: "var(--foreground)", flex: 1 }}>
@@ -1023,6 +1039,7 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
               isId={isId}
               t={t}
               market={market}
+              servingSource={servingSource}
             />
           ))}
         </div>

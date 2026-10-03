@@ -52,6 +52,20 @@ function getWibTime(): string {
   }) + " WIB";
 }
 
+/* Tier ramp, duplicated from MarketsView rather than imported: it is three
+ * entries and importing across view components would couple the shell to a
+ * page. Both sides reference the same tokens, so they cannot drift in colour. */
+const TIER_RAMP_COLOR: Record<number, string> = {
+  1: "var(--primary)",
+  2: "color-mix(in srgb, var(--primary) 65%, var(--card))",
+  3: "color-mix(in srgb, var(--primary) 35%, var(--card))",
+};
+const TIER_RAMP_BG: Record<number, string> = {
+  1: "var(--accent)",
+  2: "color-mix(in srgb, var(--primary) 8%, var(--card))",
+  3: "transparent",
+};
+
 interface SearchDropdownProps {
   query: string;
   market: LiveMarketData;
@@ -111,9 +125,12 @@ function SearchDropdown({ query, market, onClose, isId, onSelectSymbol }: Search
                 <span
                   style={{
                     fontSize: 9, fontFamily: "var(--font-mono)", fontWeight: 600,
-                    color: stock.tier === 1 ? "#00d4aa" : stock.tier === 2 ? "#4da6ff" : "#8b9cb0",
-                    background: stock.tier === 1 ? "rgba(0,212,170,0.1)" : stock.tier === 2 ? "rgba(77,166,255,0.1)" : "rgba(139,156,176,0.1)",
-                    border: `1px solid ${stock.tier === 1 ? "#00d4aa30" : stock.tier === 2 ? "#4da6ff30" : "#8b9cb030"}`,
+                    /* Same ordinal ramp as MarketsView: one hue stepping down
+                       toward the surface. Dark-theme hex here sat on var(--card)
+                       in light mode, so T1 landed near 2:1 on white. */
+                    color: TIER_RAMP_COLOR[stock.tier] ?? "var(--muted-foreground)",
+                    background: TIER_RAMP_BG[stock.tier] ?? "transparent",
+                    border: "1px solid var(--border)",
                     borderRadius: 3,
                     padding: "1px 4px",
                   }}

@@ -112,16 +112,19 @@ function cssVar(name: string, fallback: string): string {
   return value.trim() || fallback;
 }
 
+/* Fallbacks mirror the light-theme token values as corrected on 2026-10-03.
+ * They only apply if the custom property is missing, but a stale fallback would
+ * then render a colour that no longer exists in the palette. */
 function readTheme() {
   return {
     background: cssVar("--card", "#ffffff"),
-    text: cssVar("--muted-foreground", "#6b7280"),
+    text: cssVar("--muted-foreground", "#686e7c"),
     grid: cssVar("--border", "#e5e7eb"),
-    up: cssVar("--gain", "#16a34a"),
-    down: cssVar("--loss", "#dc2626"),
-    support: cssVar("--gain", "#16a34a"),
-    resistance: cssVar("--loss", "#dc2626"),
-    warning: cssVar("--warning", "#f59e0b"),
+    up: cssVar("--gain", "#047f59"),
+    down: cssVar("--loss", "#d42525"),
+    support: cssVar("--gain", "#047f59"),
+    resistance: cssVar("--loss", "#d42525"),
+    warning: cssVar("--warning", "#a85c05"),
   };
 }
 

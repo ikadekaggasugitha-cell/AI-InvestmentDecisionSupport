@@ -34,9 +34,23 @@ const signalItemSchema = z
 
 // GET /v1/signals returns the envelope {signals: [...], ...}; the offline seed
 // path is a bare array. Accept both, exactly as the hook already does.
+/**
+ * The envelope fields the view reads directly. `generatedAt` is the backend's
+ * own ISO stamp, which is the only honest answer for "last updated": the
+ * browser clock says when the request landed, not when the model produced the
+ * signals. `source` distinguishes a live model from the bundled seed, which is
+ * what any provenance line has to be built from — the contract names no
+ * algorithm, so "LightGBM" was never verifiable.
+ */
+const signalsEnvelopeSchema = z.object({
+  generatedAt: z.string().nullish(),
+  modelVersion: z.string().nullish(),
+  source: z.enum(["live", "mock"]).nullish(),
+});
+
 export const signalsResponseSchema = z.union([
   z.array(signalItemSchema),
-  z.object({ signals: z.array(signalItemSchema) }).passthrough(),
+  z.object({ signals: z.array(signalItemSchema) }).passthrough().and(signalsEnvelopeSchema),
 ]);
 
 /* ── Risk ─────────────────────────────────────────────────────────────────── */

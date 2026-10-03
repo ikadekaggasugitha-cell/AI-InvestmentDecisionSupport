@@ -319,7 +319,14 @@ function ModalBtn({
   danger?: boolean;
 }) {
   const bg = danger ? "var(--loss)" : secondary ? "var(--muted)" : "var(--primary)";
-  const fg = danger || !secondary ? "#fff" : "var(--foreground)";
+  /* --destructive-foreground / --primary-foreground rather than #fff: both
+     backgrounds invert to bright tints in dark mode, where white falls under
+     3:1. The token pair is defined to stay legible in either theme. */
+  const fg = danger
+    ? "var(--destructive-foreground)"
+    : !secondary
+      ? "var(--primary-foreground)"
+      : "var(--foreground)";
   return (
     <button
       onClick={onClick}

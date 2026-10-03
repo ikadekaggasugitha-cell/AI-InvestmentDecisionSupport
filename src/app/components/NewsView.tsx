@@ -3,7 +3,15 @@ import { ExternalLink, RefreshCw, WifiOff } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import type { NewsItem } from "../hooks/useNews";
 
-interface Props { news: NewsItem[]; loading: boolean; isLive: boolean; }
+interface Props {
+  news: NewsItem[];
+  loading: boolean;
+  isLive: boolean;
+  /** Non-null only when the request failed. An empty list with no error is a
+   *  real answer: the exchange published nothing in the window. */
+  error: string | null;
+  retry: () => void;
+}
 
 const CAT_COLORS: Record<string, string> = {
   market:    "var(--neutral)",
@@ -29,7 +37,7 @@ function catLabel(cat: string, locale: string): string {
   return locale === "id" ? map[cat]?.[0] : map[cat]?.[1] ?? cat;
 }
 
-export function NewsView({ news, loading, isLive }: Props) {
+export function NewsView({ news, loading, isLive, error, retry }: Props) {
   const { locale, isDark } = useApp();
   const id = locale === "id";
 
@@ -43,16 +51,17 @@ export function NewsView({ news, loading, isLive }: Props) {
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
 
-      {/* Page header */}
+      {/* No <h2> here: App.tsx already renders the view title in Header, so one
+          printed the same line twice. The <p> below is kept because it is the
+          only place the fetch-once caching behaviour is documented. */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--foreground)", margin: 0 }}>
-            {id ? "Berita Pasar" : "Market News"}
-          </h2>
-          <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+          <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: 0 }}>
             {isLive
               ? id ? "Keterbukaan informasi IDX — diambil sekali saat halaman dibuka" : "IDX disclosures — fetched once when this page opened"
-              : id ? "Sumber contoh — feed IDX tidak terjangkau" : "Sample content — IDX feed unreachable"}
+              : error
+                ? id ? "Keterbukaan informasi IDX" : "IDX disclosure filings"
+                : id ? "Menunggu feed IDX" : "Waiting for the IDX feed"}
           </p>
         </div>
         <div
@@ -97,6 +106,65 @@ export function NewsView({ news, loading, isLive }: Props) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "64px 0", color: "var(--muted-foreground)", gap: 8, fontSize: 13 }}>
           <RefreshCw size={16} style={{ animation: "spin 1.5s linear infinite" }} />
           {id ? "Memuat berita…" : "Loading news…"}
+        </div>
+      ) : error ? (
+        /* Error names the cause and offers the one action that can resolve it.
+           Previously a failed fetch rendered the bundled sample, so an outage
+           looked like a normal news page. */
+        <div
+          role="status"
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
+            padding: "56px 24px", textAlign: "center",
+            border: "1px solid var(--border)", borderRadius: "var(--radius)",
+            background: "var(--card)",
+          }}
+        >
+          <WifiOff size={18} style={{ color: "var(--warning)" }} aria-hidden="true" />
+          <span style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)" }}>
+            {id ? "Feed IDX tidak dapat diambil" : "Could not load the IDX feed"}
+          </span>
+          <span style={{ fontSize: 12, color: "var(--muted-foreground)", maxWidth: 420 }}>
+            {error}
+          </span>
+          <button
+            type="button"
+            onClick={retry}
+            style={{
+              marginTop: 4, minHeight: 32, padding: "6px 14px",
+              borderRadius: "var(--radius)", cursor: "pointer",
+              background: "var(--primary)", color: "var(--primary-foreground)",
+              border: "1px solid var(--primary)", fontSize: 12, fontWeight: 500,
+            }}
+          >
+            {id ? "Coba lagi" : "Try again"}
+          </button>
+        </div>
+      ) : filtered.length === 0 ? (
+        /* Empty is not an error: the feed answered and had nothing to report.
+           With the bundled sample removed, this is what a genuine quiet day
+           looks like, and it says so. */
+        <div
+          role="status"
+          style={{
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+            padding: "56px 24px", textAlign: "center",
+            border: "1px solid var(--border)", borderRadius: "var(--radius)",
+            background: "var(--card)",
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)" }}>
+            {filter === "all"
+              ? (id ? "Tidak ada keterbukaan informasi baru" : "No new disclosures")
+              : (id ? `Tidak ada pengumuman kategori ${catLabel(filter, locale)}` : `No ${catLabel(filter, locale)} filings`)}
+          </span>
+          <span style={{ fontSize: 12, color: "var(--muted-foreground)", maxWidth: 420 }}>
+            {filter === "all"
+              ? (id
+                  ? "Bursa Efek Indonesia tidak menerbitkan keterbukaan informasi baru dalam jendela ini. Daftar diambil sekali saat halaman dibuka, jadi muat ulang halaman untuk mengambil pengumuman terbaru."
+                  : "The exchange published no disclosures in this window. The list is fetched once when the page opens, so reload to pick up anything filed since.")
+              : (id ? "Pilih kategori lain, atau muat ulang halaman." : "Pick another category, or reload the page.")}
+          </span>
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

@@ -179,7 +179,7 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
         {error && (
           <div
             className="flex items-start gap-2 rounded px-3 py-2"
-            style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}
+            style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)" }}
           >
             <AlertTriangle size={12} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 2 }} />
             <span style={{ fontSize: 11.5, color: "var(--foreground)", lineHeight: 1.5 }}>
@@ -223,7 +223,7 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
           title={isStreaming ? (isId ? "Hentikan" : "Stop") : (isId ? "Kirim" : "Send")}
           style={{
             background: isStreaming ? "var(--loss)" : "var(--primary)",
-            color: isStreaming ? "#fff" : "var(--primary-foreground)",
+            color: isStreaming ? "var(--destructive-foreground)" : "var(--primary-foreground)",
             border: "none",
             borderRadius: 4,
             width: 32,

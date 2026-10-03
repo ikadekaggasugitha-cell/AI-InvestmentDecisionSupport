@@ -1,6 +1,9 @@
-import { useState, useMemo, useCallback, useRef, useEffect, memo, type CSSProperties } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect, memo, type CSSProperties, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Search, ChevronUp, ChevronDown, TrendingUp, TrendingDown, Star } from "lucide-react";
+import {
+  Search, ChevronUp, ChevronDown, ChevronsUpDown,
+  TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Star,
+} from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "../i18n/translations";
@@ -38,12 +41,28 @@ type SortDir = "asc" | "desc";
  * membership and a feed characteristic the tier does not carry. The actual
  * freshness is reported by DataFreshnessBadge.
  */
+/* Tiers are an ordinal scale by market-cap rank, not three unrelated
+ * categories: T1 is the top 45, T2 is ranks 45-145, T3 is everything outside.
+ * Three hues read as categorical, so one hue steps down toward the surface and
+ * the ranking is visible as intensity.
+ *
+ * color-mix against --card rather than fixed hex, so the ramp re-derives itself
+ * when the theme flips and no new colour value is declared anywhere. T1 takes
+ * the accent at full strength on purpose: the accent marks the privileged tier
+ * and nothing else, so it does not spread across every row of the board.
+ */
+const TIER_RAMP = {
+  1: { color: "var(--primary)", bg: "var(--accent)" },
+  2: { color: "color-mix(in srgb, var(--primary) 65%, var(--card))", bg: "color-mix(in srgb, var(--primary) 8%, var(--card))" },
+  3: { color: "color-mix(in srgb, var(--primary) 35%, var(--card))", bg: "transparent" },
+} as const;
+
 const TIER_CONFIG: Record<number, { label: string; color: string; bg: string; title: string }> = {
-  1: { label: "T1", color: "#00d4aa", bg: "rgba(0,212,170,0.1)", title: "Tier 1 · 45 saham berkapitalisasi terbesar" },
-  2: { label: "T2", color: "#4da6ff", bg: "rgba(77,166,255,0.1)", title: "Tier 2 · peringkat 45–145 berdasarkan kapitalisasi pasar" },
-  3: { label: "T3", color: "#8b9cb0", bg: "rgba(139,156,176,0.1)", title: "Tier 3 · di luar 145 teratas berdasarkan kapitalisasi pasar" },
+  1: { ...TIER_RAMP[1], label: "T1", title: "Tier 1 · 45 saham berkapitalisasi terbesar" },
+  2: { ...TIER_RAMP[2], label: "T2", title: "Tier 2 · peringkat 45–145 berdasarkan kapitalisasi pasar" },
+  3: { ...TIER_RAMP[3], label: "T3", title: "Tier 3 · di luar 145 teratas berdasarkan kapitalisasi pasar" },
 };
-const TIER_FALLBACK = { label: "T?", color: "#8b9cb0", bg: "transparent", title: "" };
+const TIER_FALLBACK = { label: "T?", color: "var(--muted-foreground)", bg: "transparent", title: "" };
 
 const thBase: CSSProperties = {
   fontSize: 11, color: "var(--muted-foreground)", fontWeight: 500,
@@ -111,11 +130,11 @@ const MarketRow = memo(
             style={{
               background: "none", border: "none", cursor: "pointer",
               padding: "4px", borderRadius: 3, lineHeight: 0,
-              color: isWatched ? "#f59e0b" : "var(--muted-foreground)",
+              color: isWatched ? "var(--warning)" : "var(--muted-foreground)",
               transition: "color 0.15s",
             }}
           >
-            <Star size={12} fill={isWatched ? "#f59e0b" : "none"} />
+            <Star size={12} fill={isWatched ? "var(--warning)" : "none"} aria-hidden="true" />
           </button>
         </td>
         <td style={{ padding: "10px 12px" }}>
@@ -147,7 +166,7 @@ const MarketRow = memo(
         </td>
         <td style={{ padding: "10px 12px", textAlign: "right" }}>
           <div className="flex items-center justify-end gap-0.5" style={{ color: pos ? "var(--gain)" : "var(--loss)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-            {pos ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+            {pos ? <ChevronUp size={11} aria-hidden="true" /> : <ChevronDown size={11} aria-hidden="true" />}
             {Math.abs(stock.changePct).toFixed(2)}%
           </div>
           <div style={{ fontSize: 10, color: pos ? "var(--gain)" : "var(--loss)", fontFamily: "var(--font-mono)", textAlign: "right" }}>
@@ -182,7 +201,9 @@ const MarketRow = memo(
               fontSize: 9, fontFamily: "var(--font-mono)", fontWeight: 700,
               color: tierCfg.color, background: tierCfg.bg,
               borderRadius: 3, padding: "2px 5px", letterSpacing: "0.04em",
-              border: `1px solid ${tierCfg.color}30`, whiteSpace: "nowrap",
+              // --border rather than a tint of the tier colour: a coloured
+              // border on every row puts the hue back that the ramp removed.
+              border: "1px solid var(--border)", whiteSpace: "nowrap",
             }}
           >
             {tierCfg.label}
@@ -236,11 +257,29 @@ function parseMktCap(s: string): number {
   return n;
 }
 
+/* The inactive state uses the same icon family as the active one, dimmed,
+   rather than a text glyph. A bare U+2195 sits on the font's baseline while the
+   SVGs sit on their own box, so the column header visibly jumps between the
+   unsorted and sorted states. */
+/** Quick-view tab label. The direction is an SVG rather than a triangle glyph:
+ *  U+25B2/U+25BC carry no token colour, no aria-hidden, and their optical size
+ *  changes with the surrounding font. */
+function TabLabel({ icon, text }: { icon: "up" | "down"; text: string }) {
+  const Icon = icon === "up" ? ArrowUpRight : ArrowDownRight;
+  return (
+    <span className="flex items-center gap-1">
+      <Icon size={13} aria-hidden="true" />
+      {text}
+    </span>
+  );
+}
+
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
-  if (!active) return <span style={{ opacity: 0.25, fontSize: 10 }}>↕</span>;
+  const tone = active ? "var(--primary)" : "var(--muted-foreground)";
+  if (!active) return <ChevronsUpDown size={10} style={{ color: tone }} aria-hidden="true" />;
   return dir === "asc"
-    ? <ChevronUp  size={10} style={{ color: "var(--primary)" }} />
-    : <ChevronDown size={10} style={{ color: "var(--primary)" }} />;
+    ? <ChevronUp   size={10} style={{ color: tone }} aria-hidden="true" />
+    : <ChevronDown size={10} style={{ color: tone }} aria-hidden="true" />;
 }
 
 /* ── Main view ────────────────────────────────────────────────────────────── */
@@ -368,12 +407,24 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
 
   const showWatchlistEmpty = view === "watchlist" && filtered.length === 0 && !search;
 
-  const VIEW_TABS: { key: QuickView; label: string }[] = [
+  /* label is a ReactNode, not a string: the watchlist tab carries an icon, and
+     a text glyph (U+2605) cannot be sized, coloured from a token, or hidden from
+     assistive tech the way an SVG can. */
+  const VIEW_TABS: { key: QuickView; label: ReactNode }[] = [
     { key: "all",       label: isId ? "Semua" : "All" },
-    { key: "gainers",   label: isId ? "▲ Top Gainers" : "▲ Top Gainers" },
-    { key: "losers",    label: isId ? "▼ Top Losers" : "▼ Top Losers" },
+    { key: "gainers",   label: <TabLabel icon="up"   text="Top Gainers" /> },
+    { key: "losers",    label: <TabLabel icon="down" text="Top Losers" /> },
     { key: "active",    label: isId ? "Teraktif" : "Most Active" },
-    { key: "watchlist", label: `★ ${isId ? "Pantauan" : "Watchlist"}${watchlist.size > 0 ? ` (${watchlist.size})` : ""}` },
+    {
+      key: "watchlist",
+      label: (
+        <span className="flex items-center gap-1">
+          <Star size={13} aria-hidden="true" />
+          {isId ? "Pantau" : "Watchlist"}
+          {watchlist.size > 0 ? ` (${watchlist.size})` : ""}
+        </span>
+      ),
+    },
   ];
 
   return (
@@ -408,7 +459,7 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
           const isWL = tab.key === "watchlist";
           const isGain = tab.key === "gainers";
           const isLose = tab.key === "losers";
-          const activeColor = isWL ? "#f59e0b" : isGain ? "var(--gain)" : isLose ? "var(--loss)" : "var(--primary)";
+          const activeColor = isWL ? "var(--warning)" : isGain ? "var(--gain)" : isLose ? "var(--loss)" : "var(--primary)";
           return (
             <button
               key={tab.key}
@@ -485,7 +536,11 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th style={thCenter} aria-label="Watchlist">★</th>
+                {/* Icon is decorative: the header already carries the accessible
+                    name, so announcing the star as well would double it up. */}
+                <th style={thCenter} aria-label={isId ? "Pantauan" : "Watchlist"}>
+                  <Star size={14} aria-hidden="true" style={{ color: "var(--muted-foreground)" }} />
+                </th>
                 <th style={thBase} onClick={() => handleSort("symbol")}>
                   <span className="flex items-center gap-1">{t("mkt_col_symbol")} <SortIcon active={sortKey === "symbol"} dir={sortDir} /></span>
                 </th>
@@ -558,10 +613,14 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
             <div style={{ padding: 40, textAlign: "center", color: "var(--muted-foreground)", fontSize: 13 }}>
               {showWatchlistEmpty ? (
                 <div>
-                  <Star size={28} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
+                  <Star size={28} style={{ margin: "0 auto 8px", opacity: 0.3 }} aria-hidden="true" />
                   <div>{t("mkt_watchlist_empty")}</div>
                   <div style={{ fontSize: 11, marginTop: 4 }}>
-                    {isId ? "Klik ★ di sebelah kiri saham untuk menambahkannya." : "Click ★ next to any stock to add it."}
+                    <span className="flex items-center justify-center gap-1">
+                      {isId ? "Klik" : "Click"}
+                      <Star size={11} aria-hidden="true" />
+                      {isId ? "di sebelah kiri saham untuk menambahkannya." : "next to any stock to add it."}
+                    </span>
                   </div>
                 </div>
               ) : (

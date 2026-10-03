@@ -17,6 +17,20 @@ import type { LiveMarketData } from "../hooks/useLiveMarket";
 import type { ExchangeRateData } from "../hooks/useExchangeRate";
 import { AllocationPanel } from "./AllocationPanel";
 
+/**
+ * Sector slice colour by position in the descending-weight list.
+ *
+ * Five categorical tokens cover the five largest sectors; the sixth and beyond
+ * take --muted and read as the remainder. Six hues in one donut was not
+ * available anyway (five tokens exist) and reusing one would place two
+ * same-coloured slices against each other in the ring, which is exactly what
+ * the hairline stroke on each cell exists to prevent.
+ */
+function sectorColor(index: number): string {
+  const chart = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
+  return index < chart.length ? chart[index] : "var(--muted)";
+}
+
 interface Props {
   market:        LiveMarketData;
   fx:            ExchangeRateData;
@@ -51,13 +65,15 @@ export function PortfolioView({ market, fx, holdings, onAdd, onUpdate, onRemove 
         const key = entry?.sectorEn || entry?.sector || w.symbol;
         bySector.set(key, (bySector.get(key) ?? 0) + w.weightPct);
       }
-      const palette = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)",
-                       "var(--chart-4)", "var(--chart-5)", "var(--warning)"];
       return [...bySector.entries()]
         .sort((a, b) => b[1] - a[1])
-        .map(([name, value], i) => ({ name, value: +value.toFixed(1), color: palette[i % palette.length] }));
+        .map(([name, value], i) => ({ name, value: +value.toFixed(1), color: sectorColor(i) }));
     }
-    return SECTOR_ALLOCATION.map((s) => ({ name: isId ? s.name : s.nameEn, value: s.value, color: s.color }));
+    return SECTOR_ALLOCATION.map((s, i) => ({
+      name: isId ? s.name : s.nameEn,
+      value: s.value,
+      color: sectorColor(i),
+    }));
   }, [weights, bySymbol, isId]);
   const sectorIsLive = weights.length > 0 && allocSource !== "mock";
 
@@ -239,7 +255,12 @@ export function PortfolioView({ market, fx, holdings, onAdd, onUpdate, onRemove 
           <ResponsiveContainer width="100%" height={130}>
             <PieChart>
               <Pie data={sectorData} cx="50%" cy="50%" innerRadius={40} outerRadius={62} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}>
-                {sectorData.map((s, i) => <Cell key={`port-sec-${i}`} fill={s.color} />)}
+                {/* 1px stroke in the surface colour. Consecutive chart tokens
+                    sit at 1.00:1 to 1.18:1 against each other, so without a
+                    border the boundary between two slices is invisible. */}
+                {sectorData.map((s, i) => (
+                  <Cell key={`port-sec-${i}`} fill={s.color} stroke="var(--card)" strokeWidth={1} />
+                ))}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
@@ -302,7 +323,10 @@ export function PortfolioView({ market, fx, holdings, onAdd, onUpdate, onRemove 
             style={{
               background: "var(--primary)", border: "none", borderRadius: 5,
               padding: "6px 12px", cursor: "pointer",
-              fontSize: 12, fontWeight: 500, color: "#fff",
+              fontSize: 12, fontWeight: 500,
+              /* --primary-foreground, not #fff: the accent inverts to bright
+                 teal in dark mode, where white on it lands near 2:1. */
+              color: "var(--primary-foreground)",
             }}
           >
             <Plus size={13} />

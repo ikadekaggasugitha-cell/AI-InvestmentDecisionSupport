@@ -99,7 +99,7 @@ function SignalGauge({ w }: { w: any }) {
   const isDown = tier === "LOW";
   const display = isDown ? 100 - uprob : uprob;
   const color = isDown ? "var(--loss)" : uprob >= 70 ? "var(--gain)" : uprob >= 55 ? "var(--warning)" : "var(--muted-foreground)";
-  const bg = isDown ? "var(--loss-bg)" : uprob >= 70 ? "var(--gain-bg)" : "rgba(245,158,11,0.08)";
+  const bg = isDown ? "var(--loss-bg)" : uprob >= 70 ? "var(--gain-bg)" : "var(--warning-bg)";
   const Icon = TIER_ICON[tier] ?? Minus;
   const upside = Number(w.upside);
 
@@ -171,7 +171,9 @@ function ShapWidget({ w }: { w: any }) {
         <BarChart data={data} layout="vertical" margin={{ top: 0, right: 28, bottom: 0, left: 0 }}>
           <XAxis type="number" tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`} />
           <YAxis type="category" dataKey="name" width={84} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "rgba(255,255,255,0.04)" }} formatter={(v: number) => [`${v > 0 ? "+" : ""}${v}`, "Kontribusi"]} />
+          <Tooltip contentStyle={TOOLTIP_STYLE} /* --muted rather than 4% white: on a white card, 4% white is invisible, so the
+                   hover band simply did not appear in light mode. */
+                cursor={{ fill: "var(--muted)" }} formatter={(v: number) => [`${v > 0 ? "+" : ""}${v}`, "Kontribusi"]} />
           <Bar dataKey="value" radius={[0, 2, 2, 0]}>
             {data.map((d, i) => (
               <Cell key={i} fill={d.value >= 0 ? "var(--gain)" : "var(--loss)"} />
@@ -208,9 +210,14 @@ function RiskRadar({ w }: { w: any }) {
 
 /* ── 5. Allocation donut ─────────────────────────────────────────────────── */
 
+/* Contribution slices are categorical, not semantic: a slice is not "a gain" or
+ * "a loss", it is a position. So they take the categorical chart tokens, which
+ * are defined for both themes, rather than the gain/loss semantics and a set of
+ * extra hex values. The two lightest hexes previously used here sat near 1.9:1
+ * on a white card. */
 const PIE_COLORS = [
-  "var(--primary)", "var(--gain)", "var(--warning)", "var(--neutral)",
-  "var(--loss)", "#8b5cf6", "#06b6d4", "#f472b6", "#a3e635", "#fb923c",
+  "var(--chart-1)", "var(--chart-2)", "var(--chart-3)",
+  "var(--chart-4)", "var(--chart-5)", "var(--muted)",
 ];
 
 function Allocation({ w }: { w: any }) {
@@ -227,7 +234,12 @@ function Allocation({ w }: { w: any }) {
           <PieChart>
             <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={42} outerRadius={70} paddingAngle={2} stroke="var(--card)">
               {data.map((_: unknown, i: number) => (
-                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                <Cell
+                  key={i}
+                  fill={PIE_COLORS[i % PIE_COLORS.length]}
+                  stroke="var(--card)"
+                  strokeWidth={1}
+                />
               ))}
             </Pie>
             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v: number, n: string) => [`${v.toFixed(1)}%`, n]} />

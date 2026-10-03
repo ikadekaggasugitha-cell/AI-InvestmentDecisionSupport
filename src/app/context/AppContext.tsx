@@ -10,7 +10,9 @@ function readTheme(): boolean {
     if (saved === "light") return false;
     if (saved === "dark")  return true;
   } catch { /* localStorage may be unavailable in sandboxed iframes */ }
-  return true; // default: dark
+  // DESIGN.md Theme: light is the default. Dark is a deliberate user choice,
+  // never the state a first-time visitor lands in.
+  return false;
 }
 
 function readLocale(): Locale {
@@ -30,7 +32,7 @@ interface AppContextValue {
 }
 
 const AppContext = createContext<AppContextValue>({
-  isDark: true,
+  isDark: false,
   toggleTheme: () => {},
   locale: "id",
   toggleLocale: () => {},
@@ -59,6 +61,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       localStorage.setItem(STORAGE_LOCALE, locale);
     } catch { /* ignore */ }
+  }, [locale]);
+
+  /* Keep the document language in step with the interface language. A page
+     that renders Indonesian while declaring lang="en" makes screen readers
+     pronounce it with English phonetics. */
+  useLayoutEffect(() => {
+    document.documentElement.lang = locale;
   }, [locale]);
 
   function toggleTheme() {

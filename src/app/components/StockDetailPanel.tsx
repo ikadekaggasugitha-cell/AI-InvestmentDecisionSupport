@@ -137,9 +137,9 @@ export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchli
                 ? (isId ? "Hapus dari pantauan" : "Remove from watchlist")
                 : (isId ? "Tambah ke pantauan" : "Add to watchlist")}
               title={isId ? "Pantauan" : "Watchlist"}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 4, lineHeight: 0, color: isWatched ? "#f59e0b" : "var(--muted-foreground)" }}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 4, lineHeight: 0, color: isWatched ? "var(--warning)" : "var(--muted-foreground)" }}
             >
-              <Star size={17} fill={isWatched ? "#f59e0b" : "none"} />
+              <Star size={17} fill={isWatched ? "var(--warning)" : "none"} />
             </button>
             <button
               onClick={onClose}

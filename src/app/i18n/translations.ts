@@ -121,7 +121,6 @@ const translations = {
     mkt_tier_rt: "Real-time",
     mkt_tier_eod: "EOD",
     mkt_tier_od: "On-Demand",
-    mkt_col_watch: "★",
     mkt_watchlist: "Pantau",
     mkt_watchlist_empty: "Belum ada saham di pantauan",
 
@@ -332,7 +331,6 @@ const translations = {
     mkt_tier_rt: "Real-time",
     mkt_tier_eod: "EOD",
     mkt_tier_od: "On-Demand",
-    mkt_col_watch: "★",
     mkt_watchlist: "Watchlist",
     mkt_watchlist_empty: "No stocks in watchlist",
 

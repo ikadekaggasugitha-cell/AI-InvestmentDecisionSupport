@@ -139,8 +139,16 @@ export interface AISignalsResult {
   signals: AISignal[];
   loading: boolean;
   error: string | null;
-  /** ISO timestamp of the last successful fetch */
-  lastFetched: string | null;
+  /**
+   * ISO timestamp the backend stamped on the signals it returned. Null when we
+   * have no honest answer: on the seed path this is null, because the bundle
+   * was generated once and never fetched. Deliberately NOT Date.now(), which
+   * would stamp the browser clock onto static data and display it as when the
+   * model last ran.
+   */
+  generatedAt: string | null;
+  /** Whether a live model or the bundled seed served these signals. */
+  servingSource: "live" | "mock" | null;
   /**
    * True when `signals` came from the live backend, false when it is the
    * bundled seed fallback. Lets the view label simulated data without hiding
@@ -230,9 +238,13 @@ export function useAISignals(): AISignalsResult {
   const [isLive, setIsLive]           = useState(false);
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics | null>(null);
   const [modelVersion, setModelVersion] = useState<string | null>(null);
-  const [lastFetched, setLastFetched] = useState<string | null>(
-    USE_LIVE_API ? null : new Date().toISOString()
-  );
+  /* When the model produced these signals. Null means we have no honest answer:
+     the seed bundle was generated once by a mock, not fetched, and stamping it
+     with the browser clock asserted a freshness that never existed. */
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  /* Whether a real model served these signals. The API names no algorithm, so
+     this is the only truthful basis for a provenance line. */
+  const [servingSource, setServingSource] = useState<"live" | "mock" | null>(null);
 
   useEffect(() => {
     if (!USE_LIVE_API) return;
@@ -256,9 +268,11 @@ export function useAISignals(): AISignalsResult {
         const signalList = (Array.isArray(parsed) ? parsed : parsed.signals) as AISignal[];
         if (!cancelled) {
           setSignals(signalList);
-          setLastFetched(new Date().toISOString());
           setIsLive(true);
           setError(null);
+          const env = parsed as Record<string, unknown>;
+          setGeneratedAt(typeof env.generatedAt === "string" ? env.generatedAt : null);
+          setServingSource(env.source === "live" || env.source === "mock" ? env.source : null);
           // Absent on the seed path by design; a live payload from a model with
           // no report in its bundle leaves the fields null rather than zero.
           setModelMetrics(readModelMetrics(parsed));
@@ -279,6 +293,10 @@ export function useAISignals(): AISignalsResult {
           // figures on screen would attribute a model's scores to seed data.
           setModelMetrics(null);
           setModelVersion(null);
+          // Whatever stays on screen is now seed, so any live provenance or
+          // timestamp from the previous poll would describe different data.
+          setGeneratedAt(null);
+          setServingSource(null);
         }
       } finally {
         if (!cancelled && isFirst) setLoading(false);
@@ -294,5 +312,5 @@ export function useAISignals(): AISignalsResult {
     };
   }, []);
 
-  return { signals, loading, error, lastFetched, isLive, modelMetrics, modelVersion };
+  return { signals, loading, error, generatedAt, isLive, modelMetrics, modelVersion, servingSource };
 }

@@ -82,7 +82,7 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
             </span>
           )}
           {source === "mock" && (
-            <span className="flex items-center gap-1 rounded px-2 py-0.5" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}>
+            <span className="flex items-center gap-1 rounded px-2 py-0.5" style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)" }}>
               <FlaskConical size={9} style={{ color: "var(--warning)" }} />
               <span style={{ fontSize: 9, fontWeight: 600, color: "var(--warning)", fontFamily: "var(--font-mono)" }}>
                 {isId ? "SIMULASI" : "SIMULATED"}
@@ -98,7 +98,10 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
         <button
           onClick={() => setShowRebalance(true)}
           className="flex items-center gap-1.5 rounded mt-2 px-2.5 py-1"
-          style={{ background: "var(--primary-bg, var(--muted))", border: "1px solid var(--primary)", color: "var(--primary)", fontSize: 11, cursor: "pointer", width: "fit-content" }}
+          /* --accent, not --primary-bg: that token is declared in no stylesheet, so the
+           fallback was always what rendered. --accent is the accent's own tinted
+           surface and exists in both themes. */
+          style={{ background: "var(--accent)", border: "1px solid var(--primary)", color: "var(--accent-foreground)", fontSize: 11, cursor: "pointer", width: "fit-content" }}
         >
           <Scale size={12} />
           {isId ? "Lihat Saran Rebalance" : "View Rebalance Suggestions"}

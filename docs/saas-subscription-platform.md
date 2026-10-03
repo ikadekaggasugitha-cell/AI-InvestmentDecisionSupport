@@ -296,7 +296,7 @@ Untuk meminimalkan *drop-off* calon pelanggan, alur checkout didesain dalam satu
 Panel admin diletakkan pada **route/portal terpisah** dari antarmuka dashboard pengguna utama:
 * **Route Portal:** `/admin` (misal `/admin/login`, `/admin/dashboard`, `/admin/users`, `/admin/transactions`, `/admin/settings`).
 * **Proteksi Akses:** `AdminGuard` yang memvalidasi `user.role === 'admin'`. Pengguna non-admin akan ditolak dengan respons *403 Forbidden*.
-* **Tampilan Khusus (*Dedicated Layout*):** Navigasi sidebar terpisah dengan tema profesional gelap (*sleek executive dashboard*), tidak tercampur dengan menu analisis saham.
+* **Tampilan Khusus (*Dedicated Layout*):** Navigasi sidebar terpisah dari menu analisis saham, dengan struktur menu sendiri. **Portal admin mengikuti tema default aplikasi (light) beserta toggle dark yang berfungsi sama seperti dashboard pengguna**; ia tidak mendapat tema gelap tersendiri. Keputusan pemilik: admin portal mengikuti light default. Lihat `DESIGN.md` bagian Theme.
 
 ### 5.1 Modul-Modul di Admin Panel
 
