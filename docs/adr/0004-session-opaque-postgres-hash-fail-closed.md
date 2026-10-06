@@ -1,0 +1,22 @@
+# Session opaque di Postgres, hash disimpan, paywall fail-closed
+
+Autentikasi berpindah dari JWT ke session opaque: cookie `HttpOnly` berisi 64 karakter acak, tabel `sessions` di Postgres adalah sumber kebenaran dan satu-satunya tempat lookup session membaca dari. Alasannya bukan modernisasi token. JWT yang diperluas dengan klaim `role` dan `sub_status` akan membawa masalah yang sudah diketahui, dan yang paling sulit diurus adalah revocation: mencabut akses berarti mengubah satu fakta di server, dan itu tidak bisa dilakukan pada token yang sudah terbit.
+
+## Tiga keputusan yang menyatu
+
+**Opaque, bukan PASETO.** Token yang tidak bisa dibaca server tidak menambah keamanan di sini, karena server yang memutuskan. Sebaliknya, opaque memberi revocation gratis: menghapus baris session adalah logout instan, tanpa daftar hitam dan tanpa kumpulan token yang harus dicatat. Kunci yang dipakai bukan rahasia, melainkan identitas — rotasi kunci tidak berlaku karena tidak ada kunci yang perlu diputar.
+
+**Hash saat disimpan.** `sessions.id` menyimpan `SHA-256` dari nilai yang ada di cookie, bukan nilai itu sendiri. Siapa pun yang punya akses baca ke database atau ke satu backup bisa menyalin 64 karakter itu dan menyamar sebagai setiap user aktif — tanpa menebak password dan tanpa melewati rate limit. Hash mengatasinya di sisi server saja, tanpa mengubah format cookie maupun sisi klien. Kewajibannya: nilai cookie tidak boleh pernah masuk log.
+
+**Tidak ada cache di jalur otorisasi.** Ini membatalkan klausul "Redis sebagai read-through cache" dari perencanaan awal, dan alasannya ditemukan oleh test: `authenticate()` sempat membaca Redis lebih dulu, sehingga session yang sudah di-`DELETE` masih diterima sampai entri cache kedaluwarsa. Jendela lima menit itu mengubah `DELETE FROM sessions` dari "keluar" menjadi "keluar nanti" — persis satu properti yang session opaque dipilih untuk itu. Karena itu lookup session sekarang satu query `JOIN` dengan `users`, tanpa cache sama sekali, yang sekaligus membuat ini satu-satunya query yang dilakukan satu request. Revocation dan pemblokiran berlaku pada request berikutnya, bukan pada request berikutnya setelah cache habis.
+
+**Paywall fail-closed.** Pemeriksaan akses harus menolak request ketika database tidak tersedia, bukan meloloskannya. Redis di repo ini sengaja degrade-open (`api/core/redis_client.py:25-34` benar untuk cache market) dan pola itu akan otomatis berlaku juga di jalur ini kalau tidak ada test yang bilang sebaliknya. Karena itu test database mati bukan opsional: tanpa Subscription → 403, dengan Subscription → 200, query entitlement mati → **403**, seluruh database mati → **503**. Dua status itu berbeda dan sengaja: yang pertama berarti "kamu tahu, dan jawabannya tidak", yang kedua berarti "kamu tidak bisa diverifikasi" — yang terakhir harus bisa di-retry dan tidak boleh dilaporkan sebagai masalah tagihan.
+
+## Konsekuensi
+
+- **Satu query per request, bukan dua.** `authenticate()` menggabungkan lookup session, cek kedaluwarsa, dan cek `blocked_at` dalam satu `JOIN`. Tidak ada cache kedua, jadi tidak ada yang perlu diinvalidasi saat mencabut.
+- **WebSocket tidak selalu membawa cookie.** Browser tidak bisa mengirim header saat handshake, dan query param bocor ke access log. Kalau same-site, cookie ridesalong sendiri; kalau cross-site, `SameSite=Lax` menahannya, jadi klien menukar cookie dengan tiket sekali pakai berumur 30 detik lewat HTTP yang sudah diautentikasi.
+- **Ganti kata sandi menghapus semua sesi** user tersebut (`DELETE FROM sessions WHERE user_id = $1`). Dipilih menghapus baris, bukan menambah kolom `revoked_at`, karena baris itu sendiri adalah fakta dan tidak perlu state kedua.
+- **Client harus mengirim `credentials: "include"`.** Tanpa itu, browser membuang cookie pada permintaan lintas origin dan jawabannya 401 — yang terlihat seperti backend rusak, bukan opsi fetch yang hilang.
+- **Tidak ada yang bisa dipromosikan menjadi admin.** Registrasi terbuka membuat setiap akun berperan `user`. Promosi dilakukan skrip pemeliharaan yang membaca `ADMIN_EMAIL`; tidak ada akun admin yang di-seed, karena `schema.sql` dijalankan pada setiap deploy dan kredensial di sana tidak akan pernah bisa dirotasi.
+- **Status 403 dan 503 sengaja dibedakan.** Query entitlement yang gagal berarti "tidak berhak" (403). Database yang sepenuhnya mati berarti "tidak bisa diverifikasi" (503), karena yang kedua harus bisa di-retry dan tidak boleh dilaporkan sebagai masalah tagihan.

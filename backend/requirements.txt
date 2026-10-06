@@ -14,7 +14,7 @@
 # `pytest tests/` before trusting them:
 #   transformers, torch, sentencepiece, mlflow, confluent-kafka,
 #   PyPortfolioOpt, cvxpy, tiktoken, sentry-sdk, prometheus-client,
-#   prometheus-fastapi-instrumentator, flower, passlib
+#   prometheus-fastapi-instrumentator, flower
 #
 # ── Core API ────────────────────────────────────────────────────────────────
 fastapi==0.141.1
@@ -24,8 +24,13 @@ pydantic-settings==2.15.0
 slowapi==0.1.9         # request rate limiting (memory:// storage) — verified against the suite
 
 # ── Auth ────────────────────────────────────────────────────────────────────
-python-jose[cryptography]==3.5.0
-passlib[bcrypt]==1.7.4
+# Argon2id for password hashing. There is no JWT library any more: sessions are
+# opaque random values whose SHA-256 is the database key, so there is nothing to
+# sign and therefore no algorithm to choose wrongly (see ADR-0004).
+#
+# passlib was declared here for years and never installed or imported. Its bcrypt
+# backend has been broken against bcrypt >= 4.1 and the package is unmaintained.
+argon2-cffi==25.1.0
 
 # ── Cache / Pub-Sub ─────────────────────────────────────────────────────────
 redis[hiredis]==8.1.0

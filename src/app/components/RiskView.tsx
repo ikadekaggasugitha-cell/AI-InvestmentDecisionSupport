@@ -215,7 +215,7 @@ export function RiskView({ market }: Props) {
         <button
           onClick={refetch}
           className="flex items-center gap-2 px-3 py-1.5 rounded"
-          style={{ background: "var(--muted)", border: "1px solid var(--border)", color: "var(--foreground)", fontSize: 12, cursor: "pointer" }}
+          style={{ background: "var(--muted)", border: "1px solid var(--control-border)", color: "var(--foreground)", fontSize: 12, cursor: "pointer" }}
         >
           <Activity size={13} />
           {isId ? "Segarkan" : "Refresh"}

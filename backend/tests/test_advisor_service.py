@@ -284,7 +284,7 @@ class TestSessionPersistence:
 
         with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _load_session_history
-            result = await _load_session_history("test-session-abc")
+            result = await _load_session_history("user-1", "test-session-abc")
 
         assert len(result) == 2
         assert result[0].role == "user"
@@ -298,7 +298,7 @@ class TestSessionPersistence:
 
         with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _load_session_history
-            result = await _load_session_history("nonexistent-session")
+            result = await _load_session_history("user-1", "nonexistent-session")
 
         assert result == []
 
@@ -319,13 +319,13 @@ class TestSessionPersistence:
                 ChatMessage(role="user", content="Hello"),
                 ChatMessage(role="assistant", content="Halo!"),
             ]
-            await _save_session_history("session-xyz", history)
+            await _save_session_history("user-1", "session-xyz", history)
 
         mock_redis.setex.assert_called_once()
-        args = mock_redis.setex.call_args
-        assert "chat:session-xyz" in str(args)
-        # `int in str` raises TypeError — compare as text, or positionally.
-        assert str(SESSION_TTL) in str(args) or SESSION_TTL == args.args[1]
+        key = mock_redis.setex.call_args.args[0]
+        # The account id is part of the key, not just the client-chosen session id.
+        assert key == "chat:user-1:session-xyz"
+        assert str(SESSION_TTL) in str(mock_redis.setex.call_args)
 
     @pytest.mark.asyncio
     async def test_session_history_truncated_to_20_turns(self):
@@ -343,7 +343,46 @@ class TestSessionPersistence:
 
         with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _save_session_history
-            await _save_session_history("session-overflow", history)
+            await _save_session_history("user-1", "session-overflow", history)
 
         saved_payload = json.loads(mock_redis.setex.call_args.args[2])
         assert len(saved_payload) <= 20
+
+
+class TestChatSessionsAreIsolatedPerAccount:
+    """The session id arrives in the request body.
+
+    Keying Redis on it alone meant any authenticated caller could read another
+    account's portfolio discussion, or overwrite it, by trying ids. The account is
+    now part of the key.
+    """
+
+    def test_two_accounts_naming_the_same_session_get_different_keys(self):
+        from api.services.advisor_service import _chat_key
+
+        a = _chat_key("account-a", "11111111-1111-1111-1111-111111111111")
+        b = _chat_key("account-b", "11111111-1111-1111-1111-111111111111")
+        assert a != b
+        assert "account-a" in a and "account-b" in b
+
+    def test_the_same_account_and_session_is_stable(self):
+        from api.services.advisor_service import _chat_key
+
+        args = ("account-a", "11111111-1111-1111-1111-111111111111")
+        assert _chat_key(*args) == _chat_key(*args)
+
+    def test_a_session_id_is_not_usable_to_reach_another_account(self):
+        """The property the fix exists for, stated as a test."""
+        from api.services.advisor_service import _chat_key
+
+        stolen = "22222222-2222-2222-2222-222222222222"
+        victim = _chat_key("victim", stolen)
+        attacker = _chat_key("attacker", stolen)
+        assert victim != attacker
+
+    def test_the_key_template_carries_the_account(self):
+        from api.core.redis_client import REDIS_KEYS
+
+        template = REDIS_KEYS["chat_session"]
+        assert "{user_id}" in template
+        assert template.count(":") >= 2

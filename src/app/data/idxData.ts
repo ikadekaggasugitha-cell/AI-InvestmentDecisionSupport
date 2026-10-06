@@ -22,18 +22,16 @@ export const IDX_STOCKS = [
 export type StockSymbol = typeof IDX_STOCKS[number]["symbol"];
 
 /* Portfolio holdings — ~13B IDR total */
-export const PORTFOLIO_HOLDINGS = [
-  { symbol: "BBCA", lots: 2000, avgPrice: 9200,  sector: "Keuangan" },
-  { symbol: "BBRI", lots: 3500, avgPrice: 3950,  sector: "Keuangan" },
-  { symbol: "TLKM", lots: 5000, avgPrice: 2780,  sector: "Telekomunikasi" },
-  { symbol: "ASII", lots: 2800, avgPrice: 4350,  sector: "Konglomerasi" },
-  { symbol: "BREN", lots: 1200, avgPrice: 7400,  sector: "Energi" },
-  { symbol: "ADRO", lots: 4000, avgPrice: 2120,  sector: "Energi" },
-  { symbol: "BMRI", lots: 3000, avgPrice: 5200,  sector: "Keuangan" },
-  { symbol: "UNVR", lots: 2200, avgPrice: 3200,  sector: "Konsumer" },
-  { symbol: "ICBP", lots: 1500, avgPrice: 9100,  sector: "Konsumer" },
-  { symbol: "ANTM", lots: 6000, avgPrice: 1540,  sector: "Material"  },
-] as const;
+/* Removed: PORTFOLIO_HOLDINGS.
+ *
+ * Ten IDX positions with a fabricated cost basis, used as the fallback whenever a
+ * portfolio could not be read. Every person who opened the app without a saved
+ * portfolio saw this book as their own, beside a live dashboard computing VaR
+ * and allocation over the empty one the server actually had.
+ *
+ * Positions come from GET /v1/portfolio/positions now, and an account that holds
+ * nothing sees nothing. IDX_STOCKS below still describes the instruments; that is
+ * market data, and it is not the same as saying who owns them. */
 
 /* 12-month portfolio history (IDR)
  *

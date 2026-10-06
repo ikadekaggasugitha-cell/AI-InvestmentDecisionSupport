@@ -1,38 +1,21 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { authToken, authHeaders, apiFetch, onAuthExpired, signalAuthExpired, AUTH_EXPIRED_EVENT, ENDPOINTS } from './api'
-
-describe('authToken', () => {
-  beforeEach(() => {
-    localStorage.clear()
-  })
-
-  it('returns null when no token is configured', () => {
-    expect(authToken()).toBeNull()
-  })
-
-  it('reads a token from localStorage', () => {
-    localStorage.setItem('aidss_token', 'abc123')
-    expect(authToken()).toBe('abc123')
-  })
-})
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { authHeaders, apiFetch, onAuthExpired, signalAuthExpired, ENDPOINTS } from './api'
 
 describe('authHeaders', () => {
-  beforeEach(() => localStorage.clear())
-
-  it('omits Authorization when there is no token', () => {
+  it('adds no Authorization header', () => {
+    // The session is an HttpOnly cookie. There is no token in JavaScript for a
+    // cross-site script to read, which is the entire point of the move.
     expect(authHeaders().has('Authorization')).toBe(false)
   })
 
-  it('attaches a bearer token when present', () => {
-    localStorage.setItem('aidss_token', 'tok')
-    expect(authHeaders().get('Authorization')).toBe('Bearer tok')
-  })
-
   it('preserves caller-supplied headers', () => {
-    localStorage.setItem('aidss_token', 'tok')
     const h = authHeaders({ 'Content-Type': 'application/json' })
     expect(h.get('Content-Type')).toBe('application/json')
-    expect(h.get('Authorization')).toBe('Bearer tok')
+  })
+
+  it('never reads a token that used to live in localStorage', () => {
+    localStorage.setItem('aidss_token', 'stale')
+    expect(authHeaders().has('Authorization')).toBe(false)
   })
 })
 
@@ -40,91 +23,60 @@ describe('apiFetch', () => {
   const fetchMock = vi.fn()
 
   beforeEach(() => {
-    localStorage.clear()
-    fetchMock.mockReset().mockResolvedValue(new Response('{}'))
-    vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('sends no Authorization header in bypass-mode dev (no token)', async () => {
-    await apiFetch(ENDPOINTS.signals)
-    const init = fetchMock.mock.calls[0][1] as RequestInit
-    expect((init.headers as Headers).has('Authorization')).toBe(false)
-  })
-
-  it('injects the bearer token when one is stored', async () => {
-    localStorage.setItem('aidss_token', 'live-token')
-    await apiFetch(ENDPOINTS.signals)
-    const init = fetchMock.mock.calls[0][1] as RequestInit
-    expect((init.headers as Headers).get('Authorization')).toBe('Bearer live-token')
-  })
-
-  it('passes through method and body', async () => {
-    await apiFetch(ENDPOINTS.advisorChat, { method: 'POST', body: '{"a":1}' })
-    const init = fetchMock.mock.calls[0][1] as RequestInit
-    expect(init.method).toBe('POST')
-    expect(init.body).toBe('{"a":1}')
-  })
-})
-
-describe('ENDPOINTS', () => {
-  it('builds parameterised URLs', () => {
-    expect(ENDPOINTS.broksum('BBCA')).toContain('/v1/broksum/BBCA')
-    expect(ENDPOINTS.news(5, 3)).toContain('limit=5')
-    expect(ENDPOINTS.news(5, 3)).toContain('daysBack=3')
-  })
-})
-
-describe('apiFetch — 401 handling', () => {
-  const fetchMock = vi.fn()
-
-  beforeEach(() => {
-    localStorage.clear()
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
   })
 
-  afterEach(() => vi.unstubAllGlobals())
-
-  it('clears the stored token and fires auth-expired once on 401', async () => {
-    localStorage.setItem('aidss_token', 'expired')
-    const handler = vi.fn()
-    const off = onAuthExpired(handler)
-
-    // A recovering 200 first releases the dedupe latch from any prior test.
-    fetchMock.mockResolvedValue(new Response('{}', { status: 200 }))
-    await apiFetch(ENDPOINTS.signals)
-
-    fetchMock.mockResolvedValue(new Response('nope', { status: 401 }))
-    await apiFetch(ENDPOINTS.signals)
-    await apiFetch(ENDPOINTS.signals) // concurrent-style second 401
-
-    expect(localStorage.getItem('aidss_token')).toBeNull()
-    expect(handler).toHaveBeenCalledTimes(1) // deduped
-    off()
+  it('sends credentials so the session cookie survives a cross-origin request', async () => {
+    // Without this the browser silently drops the cookie and the request comes
+    // back 401, which reads as a broken backend rather than a missing option.
+    fetchMock.mockResolvedValue({ status: 200, ok: true })
+    await apiFetch('/v1/signals')
+    expect(fetchMock.mock.calls[0][1].credentials).toBe('include')
   })
 
-  it('returns the response unchanged so hooks keep their fallback path', async () => {
-    fetchMock.mockResolvedValue(new Response('{}', { status: 401 }))
-    const res = await apiFetch(ENDPOINTS.signals)
-    expect(res.status).toBe(401)
-    expect(AUTH_EXPIRED_EVENT).toBe('aidss:auth-expired')
+  it('preserves caller-supplied options', async () => {
+    fetchMock.mockResolvedValue({ status: 200, ok: true })
+    await apiFetch('/v1/x', { method: 'POST', body: '{}' })
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST')
+    expect(fetchMock.mock.calls[0][1].credentials).toBe('include')
   })
 
-  it('signalAuthExpired clears the token and fires the event (WS 1008 path)', async () => {
-    // Recover the dedupe latch first so this assertion is order-independent.
-    fetchMock.mockResolvedValue(new Response('{}', { status: 200 }))
-    await apiFetch(ENDPOINTS.signals)
-
-    localStorage.setItem('aidss_token', 'ws-token')
+  it('broadcasts one auth-expiry event per outage', async () => {
     const handler = vi.fn()
     const off = onAuthExpired(handler)
-    signalAuthExpired()
-    expect(localStorage.getItem('aidss_token')).toBeNull()
+    fetchMock.mockResolvedValue({ status: 401, ok: false })
+
+    await apiFetch('/v1/signals')
+    await apiFetch('/v1/risk')
+    await apiFetch('/v1/news')
+
     expect(handler).toHaveBeenCalledTimes(1)
     off()
+  })
+
+  it('leaves the stored token alone — the server owns the cookie', () => {
+    // A revoked session is discarded server-side; the client has nothing to clear,
+    // and pretending otherwise would hide a real logout.
+    localStorage.setItem('aidss_token', 'stale')
+    signalAuthExpired()
+    expect(localStorage.getItem('aidss_token')).toBe('stale')
+    localStorage.clear()
+  })
+
+  it('does not signal expiry on a successful request', () => {
+    const handler = vi.fn()
+    const off = onAuthExpired(handler)
+    fetchMock.mockResolvedValue({ status: 200, ok: true })
+    return apiFetch('/v1/signals').then(() => {
+      expect(handler).not.toHaveBeenCalled()
+      off()
+    })
+  })
+})
+
+describe('endpoints', () => {
+  it('has no websocket token path left in the url', () => {
+    expect(ENDPOINTS.marketSocket).not.toContain('token')
   })
 })

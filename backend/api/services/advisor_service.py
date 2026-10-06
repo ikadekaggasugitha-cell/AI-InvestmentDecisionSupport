@@ -896,12 +896,22 @@ async def _execute_tool(name: str, inputs: dict, uid: str) -> dict:
 
 # ── Phase 9D: Session persistence helpers ────────────────────────────────────
 
-async def _load_session_history(session_id: str) -> list[ChatMessage]:
+def _chat_key(user_id: str, session_id: str) -> str:
+    """The Redis key for one account's conversation.
+
+    The account id is part of the key, not just the client-chosen session id.
+    `session_id` arrives in the request body, so a key built from it alone lets any
+    authenticated caller read or overwrite another account's discussion by trying
+    ids. Two accounts naming the same session now land on different keys.
+    """
+    return REDIS_KEYS["chat_session"].format(user_id=user_id, session_id=session_id)
+
+
+async def _load_session_history(user_id: str, session_id: str) -> list[ChatMessage]:
     """Load persisted conversation history from Redis."""
     try:
         redis = get_redis()
-        key = REDIS_KEYS["chat_session"].format(session_id=session_id)
-        raw = await redis.get(key)
+        raw = await redis.get(_chat_key(user_id, session_id))
         if raw:
             return [ChatMessage(**m) for m in json.loads(raw)]
     except Exception as exc:
@@ -909,13 +919,14 @@ async def _load_session_history(session_id: str) -> list[ChatMessage]:
     return []
 
 
-async def _save_session_history(session_id: str, history: list[ChatMessage]) -> None:
+async def _save_session_history(
+    user_id: str, session_id: str, history: list[ChatMessage]
+) -> None:
     """Persist conversation history to Redis with SESSION_TTL."""
     try:
         redis = get_redis()
-        key = REDIS_KEYS["chat_session"].format(session_id=session_id)
         payload = json.dumps([m.model_dump() for m in history[-20:]])  # keep last 20 turns
-        await redis.setex(key, SESSION_TTL, payload)
+        await redis.setex(_chat_key(user_id, session_id), SESSION_TTL, payload)
     except Exception as exc:
         logger.debug("session_save failed: %s", exc)
 
@@ -925,6 +936,7 @@ async def _save_session_history(session_id: str, history: list[ChatMessage]) -> 
 async def stream_advisor_response(
     request: ChatRequest,
     portfolio_id: str,
+    user_id: str = "",
 ) -> AsyncIterator[StreamChunk]:
     """
     Stream an LLM response for the given chat request.
@@ -968,7 +980,7 @@ async def stream_advisor_response(
     # ── Phase 9D: Load history from Redis if session_id provided and no history ──
     history = list(request.history)
     if request.session_id and not history:
-        history = await _load_session_history(request.session_id)
+        history = await _load_session_history(user_id, str(request.session_id))
 
     # ── Phase 9A: Assemble live context ─────────────────────────────────────────
     ctx = await _load_live_context(portfolio_id)
@@ -1114,7 +1126,7 @@ async def stream_advisor_response(
             updated_history = list(history)
             updated_history.append(ChatMessage(role="user", content=request.message))
             updated_history.append(ChatMessage(role="assistant", content=accumulated_assistant_text))
-            await _save_session_history(request.session_id, updated_history)
+            await _save_session_history(user_id, str(request.session_id), updated_history)
 
     except APIError as exc:
         logger.error("LLM API error (%s): %s", settings.llm_provider, exc)

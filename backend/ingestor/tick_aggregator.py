@@ -41,10 +41,13 @@ IDX_REF: dict[str, dict] = {
     "UNVR":  {"name": "Unilever Indonesia",       "sector": "Konsumer",       "sectorEn": "Consumer",      "tier": 1, "mktCap": "Rp 91T",    "pe": 19.8},
 }
 
-PORTFOLIO_LOTS: dict[str, int] = {
-    "BBCA": 1000, "BBRI": 2000, "BMRI": 500, "ADRO": 500,
-    "BREN": 200,  "ANTM": 1000, "TLKM": 500,
-}
+# This module used to carry a third copy of the portfolio — seven symbols with
+# lot counts matching neither market_service's ten nor the risk worker's seven.
+# It has been removed rather than reconciled: this process consumes price ticks
+# and has no idea who is asking, so it cannot compute a portfolio value for
+# anyone. A shared snapshot carrying one account's rupiah total is exactly the
+# claim ADR-0005 removed. Portfolio figures are computed per account in
+# api/services/market_service.generate_snapshot.
 
 
 class TickAggregator:
@@ -58,7 +61,6 @@ class TickAggregator:
         self._history: dict[str, list[float]] = {}
         self._prev_close: dict[str, float] = {}
         self._open: dict[str, float] = {}
-        self._intraday: list[dict] = []
         self._redis = aioredis.Redis(connection_pool=get_redis_pool())
 
     def _make_consumer(self) -> Consumer:
@@ -93,7 +95,6 @@ class TickAggregator:
     async def _build_snapshot(self) -> dict[str, Any]:
         now = datetime.now(timezone.utc)
         stocks: dict[str, Any] = {}
-        portfolio_value = 0.0
 
         for sym, ref in IDX_REF.items():
             tick = self._ticks.get(sym)
@@ -125,32 +126,16 @@ class TickAggregator:
                 "history":    hist[-60:],
             }
 
-            lots = PORTFOLIO_LOTS.get(sym, 0)
-            portfolio_value += price * lots * 100  # 1 lot = 100 shares
 
         ihsg_price = float(self._ticks.get("IHSG", {}).get("price", 7284.5))
-        portfolio_prev = sum(
-            self._prev_close.get(sym, 0) * lots * 100
-            for sym, lots in PORTFOLIO_LOTS.items()
-        )
-        daily_pnl = portfolio_value - portfolio_prev
 
-        intraday_pt = {
-            "time": now.strftime("%H:%M"),
-            "value": round(portfolio_value, 0),
-            "ihsg": round(ihsg_price, 2),
-        }
-        self._intraday.append(intraday_pt)
-        if len(self._intraday) > 420:
-            self._intraday.pop(0)
+        # No portfolio total and no intraday value line here. Both depend on whose
+        # positions are being valued, and the answer to that is not available to a
+        # process that only sees price ticks.
 
         return {
             "stocks": stocks,
-            "intradayChart": self._intraday[-120:],
-            "portfolioValue": round(portfolio_value, 0),
-            "portfolioPrevClose": portfolio_prev,
-            "dailyPnL": round(daily_pnl, 0),
-            "dailyPnLPct": round(daily_pnl / portfolio_prev * 100, 2) if portfolio_prev else 0,
+            "intradayChart": [],
             "ihsg": {
                 "value": round(ihsg_price, 2),
                 "prevClose": 7284.5,

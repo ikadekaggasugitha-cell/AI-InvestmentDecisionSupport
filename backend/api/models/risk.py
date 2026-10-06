@@ -56,3 +56,9 @@ class RiskMetricsResponse(BaseModel):
     sectorExposure: list[SectorExposureItem]
     computedAt: str      # ISO timestamp
     source: Literal["live", "mock"] = "mock"
+    # Positions the computation ran on. A caller can tell "your portfolio has no
+    # risk" from "there was nothing to measure", which read identically before:
+    # a portfolio holding nothing and a portfolio holding one share both produced a
+    # row of zeros, and zero volatility is a claim, not a blank.
+    positionsCount: int = 0
+    positions: list[str] = []

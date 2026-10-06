@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, lazy, Suspense } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { AppProvider, useApp } from "./context/AppContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar, type ViewType } from "./components/Sidebar";
@@ -27,6 +28,8 @@ import { useAlerts } from "./hooks/useAlerts";
 import { useTranslation } from "./i18n/translations";
 import { Toaster } from "./components/ui/sonner";
 import { onAuthExpired } from "./config/api";
+import { useAuth } from "./hooks/useAuth";
+import { AuthScreen } from "./components/AuthScreen";
 import { toast } from "sonner";
 
 function formatDashboardSubtitle(locale: string): string {
@@ -49,6 +52,8 @@ function AppInner() {
   const [view, setView] = useState<ViewType>("dashboard");
   const { isDark, locale } = useApp();
   const { t } = useTranslation(locale);
+  const auth = useAuth();
+  const navigate = useNavigate();
 
   const market        = useLiveMarket();
   // Convert at the feed's USD/IDR, not an invented one.
@@ -98,6 +103,37 @@ function AppInner() {
 
   const dashSubtitle = useMemo(() => formatDashboardSubtitle(locale), [locale]);
 
+  // The gate. Three states, because "checking" is genuinely different from
+  // "signed out": until /v1/auth/me answers, we do not know, and redirecting on
+  // unknown would bounce a signed-in person to the login page on every refresh.
+  //
+  // While checking, render nothing rather than the dashboard. The alternative is
+  // a frame of the real interface at someone who turns out not to be signed in.
+  if (auth.status === "checking") {
+    return (
+      <div
+        className={isDark ? "dark" : ""}
+        style={{
+          minHeight: "100dvh",
+          background: "var(--background)",
+          fontFamily: "var(--font-sans)",
+        }}
+      />
+    );
+  }
+
+  if (auth.status === "signed-out") {
+    return (
+      <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
+        <AuthScreen
+          auth={auth}
+          locale={locale}
+          onAuthed={() => navigate("/", { replace: true })}
+        />
+      </div>
+    );
+  }
+
   const viewTitles: Record<ViewType, { title: string; subtitle: string }> = {
     dashboard: { title: t("nav_dashboard"), subtitle: dashSubtitle },
     markets:   { title: t("nav_markets"),   subtitle: t("mkt_subtitle")  },
@@ -112,12 +148,17 @@ function AppInner() {
 
   const cfg = viewTitles[view];
 
-  return (
+  // The two auth paths are real URLs so they survive a refresh and can be
+  // linked to. Both redirect into the shell, because by this point the gate above
+  // has already established that there is a session; if there is not, the gate
+  // renders the auth screen instead and none of this is reached.
+  const shell = (
     <div
       className={`flex h-screen overflow-hidden${isDark ? " dark" : ""}`}
       style={{ background: "var(--background)", fontFamily: "var(--font-sans)", color: "var(--foreground)" }}
     >
       <Sidebar
+        account={auth.account}
         currentView={view}
         onViewChange={setView}
         alertCount={alertCount}
@@ -166,6 +207,8 @@ function AppInner() {
               <PortfolioView
                 market={market} fx={fx}
                 holdings={portfolio.holdings}
+                loading={portfolio.loading}
+                error={portfolio.error}
                 onAdd={portfolio.addHolding}
                 onUpdate={portfolio.updateHolding}
                 onRemove={portfolio.removeHolding}
@@ -176,12 +219,20 @@ function AppInner() {
           {view === "risk"       && <ErrorBoundary key="risk"     locale={locale}><RiskView market={market} /></ErrorBoundary>}
           {view === "news"       && <ErrorBoundary key="news"     locale={locale}><NewsView news={news} loading={newsLoading} isLive={newsIsLive} error={newsError} retry={newsRetry} /></ErrorBoundary>}
           {view === "reports"    && <ErrorBoundary key="reports"  locale={locale}><ReportsView /></ErrorBoundary>}
-          {view === "settings"   && <ErrorBoundary key="settings" locale={locale}><SettingsView fx={fx} freshness={market.freshness} /></ErrorBoundary>}
+          {view === "settings"   && <ErrorBoundary key="settings" locale={locale}><SettingsView fx={fx} freshness={market.freshness} auth={auth} onSignedOut={() => navigate("/", { replace: true })} /></ErrorBoundary>}
           {view === "alerts"     && <ErrorBoundary key="alerts"   locale={locale}><AlertsView alerts={alertsHook.visibleAlerts} onDismiss={alertsHook.dismiss} onClearAll={alertsHook.clearAll} locale={locale} isLive={alertsHook.isLive} /></ErrorBoundary>}
           </Suspense>
       </div>
       <Toaster theme={isDark ? "dark" : "light"} position="top-right" richColors />
     </div>
+  );
+
+  return (
+    <Routes>
+      <Route path="/login" element={<Navigate to="/" replace />} />
+      <Route path="/signup" element={<Navigate to="/" replace />} />
+      <Route path="*" element={shell} />
+    </Routes>
   );
 }
 
@@ -189,7 +240,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AppProvider>
-        <AppInner />
+        <BrowserRouter>
+          <AppInner />
+        </BrowserRouter>
       </AppProvider>
     </ErrorBoundary>
   );

@@ -19,5 +19,5 @@ async def alerts_endpoint(user: CurrentUser) -> AlertsResponse:
     without annotation was read as a query parameter, which let any caller read
     another portfolio's risk alerts.
     """
-    uid = await resolve_portfolio_id(user.sub)
+    uid = await resolve_portfolio_id(str(user.user_id))
     return await get_alerts(uid)

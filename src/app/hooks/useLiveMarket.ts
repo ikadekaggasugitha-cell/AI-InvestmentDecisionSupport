@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { ENDPOINTS, USE_LIVE_API, authToken, signalAuthExpired } from "../config/api";
-import { IDX_STOCKS, PORTFOLIO_HOLDINGS } from "../data/idxData";
+import { ENDPOINTS, USE_LIVE_API, apiFetch, signalAuthExpired } from "../config/api";
+import { IDX_STOCKS } from "../data/idxData";
 import type { LiveFxRate } from "./useExchangeRate";
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
@@ -130,13 +130,18 @@ function minuteToLabel(minute: number): string {
   return `${h}:${m}`;
 }
 
-/* ─── Compute portfolio value from holdings + live prices ────────────────── */
-function computePortfolioValue(prices: Record<string, number>): number {
-  return PORTFOLIO_HOLDINGS.reduce((sum, h) => {
-    const price = prices[h.symbol] ?? h.avgPrice;
-    return sum + h.lots * 100 * price;
-  }, 0);
-}
+/* ─── Portfolio value ─────────────────────────────────────────────────────
+ *
+ * Not computed here. This hook used to total PORTFOLIO_HOLDINGS against the live
+ * price map, which meant the running portfolio total came from a seed nobody
+ * owned while every other figure came from the feed. The portfolio total now
+ * arrives on the WebSocket, already valued against the signed-in account's own
+ * positions, so it is passed through rather than re-derived.
+ *
+ * The offline baseline below therefore starts at zero, which is the honest value
+ * for "not connected yet" — the previous fallback drew a day's curve from a
+ * portfolio that did not exist.
+ */
 
 /* ─── Build initial stock ticks from baseline data ───────────────────────── */
 function buildInitialStocks(prices: Record<string, number>): Record<string, StockTick> {
@@ -187,28 +192,49 @@ function buildInitialStocks(prices: Record<string, number>): Record<string, Stoc
  * `freshness.isSimulated` instead of quietly showing generated numbers.
  */
 
+/**
+ * The WebSocket URL, with a single-use ticket when one is needed.
+ *
+ * A browser cannot set headers on a WebSocket upgrade, so the session cookie is
+ * either sent automatically (same-site) or not at all (cross-site, where
+ * SameSite=Lax withholds it). The second case asks the backend for a ticket that
+ * is valid for thirty seconds and one connection. Fetched over ordinary HTTP with
+ * credentials, so it uses the same session as everything else.
+ */
+async function resolveSocketUrl(): Promise<string> {
+  if (typeof location !== "undefined" && location.protocol === "https:") {
+    // An https page opening a wss:// socket to another origin is the cross-site
+    // case SameSite will withhold the cookie for.
+    try {
+      const res = await apiFetch(ENDPOINTS.authWsTicket, { method: "POST" });
+      if (res.ok) {
+        const body = (await res.json()) as { ticket?: string };
+        if (body.ticket) return `${ENDPOINTS.marketSocket}?ticket=${encodeURIComponent(body.ticket)}`;
+      }
+    } catch {
+      /* fall back to the plain URL; the server will close the socket if unauthenticated */
+    }
+  }
+  return ENDPOINTS.marketSocket;
+}
+
 export function useLiveMarket(): LiveMarketData {
   const initPrices = useRef<Record<string, number>>(
     Object.fromEntries(IDX_STOCKS.map((s) => [s.symbol, s.basePrice]))
   );
-  const initPortfolio = computePortfolioValue(initPrices.current);
-  const portfolioPrevClose = useRef(initPortfolio * 0.993);
+  const portfolioPrevClose = useRef(0);
 
   const [data, setData] = useState<LiveMarketData>(() => {
     const stocks = buildInitialStocks(initPrices.current);
-    const portfolioValue = computePortfolioValue(initPrices.current);
     return {
       stocks,
-      intradayChart: [
-        { time: "09:00", value: Math.round(portfolioPrevClose.current), ihsg: 7391 },
-        { time: "10:00", value: Math.round(portfolioValue * 0.998), ihsg: 7420 },
-        { time: "12:00", value: Math.round(portfolioValue * 1.002), ihsg: 7435 },
-        { time: "14:00", value: Math.round(portfolioValue), ihsg: 7448 },
-      ],
-      portfolioValue: Math.round(portfolioValue),
-      portfolioPrevClose: portfolioPrevClose.current,
-      dailyPnL: Math.round(portfolioValue - portfolioPrevClose.current),
-      dailyPnLPct: (portfolioValue - portfolioPrevClose.current) / portfolioPrevClose.current,
+      // No invented intraday line. The server sends this account's own series,
+      // and a fabricated one would sit beside real prices until the first tick.
+      intradayChart: [],
+      portfolioValue: 0,
+      portfolioPrevClose: 0,
+      dailyPnL: 0,
+      dailyPnLPct: 0,
       ihsg: { value: 7448, prevClose: 7391, change: 57, changePct: 0.77 },
       fx: null,
       isMarketOpen: isMarketOpen(),
@@ -246,24 +272,22 @@ export function useLiveMarket(): LiveMarketData {
       const backoff = Math.min(BASE_DELAY_MS * 2 ** attempt, MAX_DELAY_MS);
       const jitter = backoff * 0.25 * Math.random();
       attempt += 1;
-      reconnectTimeout = setTimeout(connectWs, backoff + jitter);
+      reconnectTimeout = setTimeout(() => void connectWs(), backoff + jitter);
     }
 
-    function connectWs() {
+    async function connectWs() {
       if (isUnmounted) return;
       try {
         // From config, not hardcoded: a deployed frontend does not talk to
         // localhost, and wss:// is required from an https:// origin.
         //
-        // HTTPBearer cannot ride the WS upgrade handshake, so the backend reads
-        // the token from a query param (see api/routers/market_ws.py). Attach it
-        // when present; in bypass-mode dev there is none and the server allows
-        // the connection anyway.
-        const token = authToken();
-        const wsUrl = token
-          ? `${ENDPOINTS.marketSocket}?token=${encodeURIComponent(token)}`
-          : ENDPOINTS.marketSocket;
-        const ws = new WebSocket(wsUrl);
+        // No token goes in the query string. The session cookie is HttpOnly and
+        // the browser attaches it to the handshake on its own, which is the whole
+        // reason it moved out of localStorage: a token in a URL lands in proxy
+        // and server access logs. Where SameSite=Lax withholds the cookie — a
+        // cross-site frontend — the backend also accepts a single-use ticket,
+        // which is short-lived enough for a query string to be harmless.
+        const ws = new WebSocket(await resolveSocketUrl());
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -294,7 +318,7 @@ export function useLiveMarket(): LiveMarketData {
                   priceMap[sym] = s.price;
                 });
 
-                const portVal = snapshot.portfolioValue ?? computePortfolioValue(priceMap);
+                const portVal = snapshot.portfolioValue ?? 0;
                 const prevCloseVal = snapshot.portfolioPrevClose ?? portfolioPrevClose.current;
                 const dPnL = portVal - prevCloseVal;
 
@@ -359,7 +383,7 @@ export function useLiveMarket(): LiveMarketData {
       }
     }
 
-    connectWs();
+    void connectWs();
 
     return () => {
       isUnmounted = true;

@@ -58,9 +58,15 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
     }, 0),
   [holdings, market.stocks]);
 
-  /* Cost basis from current holdings (static until CRUD) */
+  /* Cost basis of the positions that have one.
+   *
+   * A holding with no recorded purchase price contributes nothing rather than
+   * contributing zero: summing a null as 0 would report a total cost basis that
+   * looks complete while silently excluding part of the portfolio, and the
+   * unrealised P&L derived from it would be wrong in the direction that flatters.
+   */
   const costBasis = useMemo(
-    () => holdings.reduce((s, h) => s + h.lots * 100 * h.avgPrice, 0),
+    () => holdings.reduce((s, h) => s + (h.avgPrice == null ? 0 : h.lots * 100 * h.avgPrice), 0),
     [holdings]
   );
 
@@ -96,10 +102,14 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
   /* Top 5 holdings from live data */
   const topHoldings = useMemo(
     () => holdings.slice(0, 5).map((h) => {
-      const price  = market.stocks[h.symbol]?.price ?? h.avgPrice;
-      const value  = h.lots * 100 * price;
-      const pnl    = value - h.lots * 100 * h.avgPrice;
-      const pnlPct = pnl / (h.lots * 100 * h.avgPrice);
+      const price = market.stocks[h.symbol]?.price ?? h.avgPrice ?? 0;
+      const value = h.lots * 100 * price;
+      // Without a purchase price there is no unrealised P&L to state. Reporting
+      // zero would be indistinguishable from a position sitting exactly at cost,
+      // which is a different and much rarer thing.
+      const basis = h.avgPrice == null ? null : h.lots * 100 * h.avgPrice;
+      const pnl    = basis == null ? null : value - basis;
+      const pnlPct = basis ? pnl! / basis : null;
       return { symbol: h.symbol, lots: h.lots, value, pnl, pnlPct };
     }),
     [holdings, market.stocks]
@@ -282,8 +292,19 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: 11, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{fmt(h.value)}</div>
-                <div style={{ fontSize: 10, color: h.pnlPct >= 0 ? "var(--gain)" : "var(--loss)", fontFamily: "var(--font-mono)" }}>
-                  {h.pnlPct >= 0 ? "+" : ""}{(h.pnlPct * 100).toFixed(1)}%
+                {/* Blank rather than 0.00% when no purchase price is known: a
+                    flat percentage reads as "exactly at cost", which is a claim
+                    about a purchase this account has not recorded. */}
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontFamily: "var(--font-mono)",
+                    ...(h.pnlPct == null
+                      ? { color: "var(--muted-foreground)" }
+                      : { color: h.pnlPct >= 0 ? "var(--gain)" : "var(--loss)" }),
+                  }}
+                >
+                  {h.pnlPct == null ? "—" : `${h.pnlPct >= 0 ? "+" : ""}${(h.pnlPct * 100).toFixed(1)}%`}
                 </div>
               </div>
             </div>

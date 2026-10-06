@@ -469,7 +469,7 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
                 padding: "6px 12px", borderRadius: 6,
                 background: active ? `color-mix(in srgb, ${activeColor} 12%, transparent)` : "var(--card)",
                 color: active ? activeColor : "var(--muted-foreground)",
-                border: `1px solid ${active ? activeColor : "var(--border)"}`,
+                border: `1px solid ${active ? activeColor : "var(--control-border)"}`,
                 cursor: "pointer", whiteSpace: "nowrap",
               }}
             >
@@ -483,14 +483,14 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
       <div className="flex items-center gap-3 flex-wrap">
         <div
           className="flex items-center gap-2 rounded px-3"
-          style={{ background: "var(--card)", border: "1px solid var(--border)", height: 36, width: 280 }}
+          style={{ background: "var(--card)", border: "1px solid var(--control-border)", height: 36, width: 280 }}
         >
           <Search size={13} style={{ color: "var(--muted-foreground)" }} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("mkt_search")}
-            style={{ background: "transparent", border: "none", outline: "none", fontSize: 12, color: "var(--foreground)", width: "100%", fontFamily: "var(--font-sans)" }}
+            style={{ background: "transparent", border: "none", fontSize: 12, color: "var(--foreground)", width: "100%", fontFamily: "var(--font-sans)" }}
           />
         </div>
         <div className="flex gap-1.5 flex-wrap">
@@ -507,7 +507,7 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
                   borderRadius: 4,
                   background: sector === s ? "var(--accent)" : "var(--card)",
                   color: sector === s ? "var(--primary)" : "var(--muted-foreground)",
-                  border: `1px solid ${sector === s ? "var(--primary)" : "var(--border)"}`,
+                  border: `1px solid ${sector === s ? "var(--primary)" : "var(--control-border)"}`,
                   cursor: "pointer",
                   whiteSpace: "nowrap",
                 }}

@@ -35,12 +35,21 @@ interface Props {
   market:        LiveMarketData;
   fx:            ExchangeRateData;
   holdings:      PortfolioHolding[];
+  /** True while the positions request is in flight. */
+  loading?:      boolean;
+  /**
+   * Set when the positions could not be read. Distinct from an empty list: an
+   * empty list means the account holds nothing, an error means we do not know,
+   * and telling someone who owns shares that their portfolio is empty is a
+   * different mistake from showing them an empty page.
+   */
+  error?:        string | null;
   onAdd:         (h: PortfolioHolding) => void;
   onUpdate:      (symbol: string, updates: Partial<Omit<PortfolioHolding, "symbol">>) => void;
   onRemove:      (symbol: string, price: number) => void;
 }
 
-export function PortfolioView({ market, fx, holdings, onAdd, onUpdate, onRemove }: Props) {
+export function PortfolioView({ market, fx, holdings, loading, error, onAdd, onUpdate, onRemove }: Props) {
   const { locale } = useApp();
   const { t }      = useTranslation(locale);
   const isId       = locale === "id";
@@ -97,38 +106,65 @@ export function PortfolioView({ market, fx, holdings, onAdd, onUpdate, onRemove 
 
   const currentPrice = activeSymbol ? (market.stocks[activeSymbol]?.price ?? activeHolding?.avgPrice) : undefined;
 
-  /* Live positions */
+  /* Live positions.
+   *
+   * `cost`, `pnl` and `pnlPct` are null for a position with no recorded purchase
+   * price. They are not zero: a zero cost would make every position look exactly
+   * at its entry, and would drag the portfolio's total gain towards zero in a way
+   * that reads as a real result rather than a missing number.
+   */
   const positions = useMemo(() =>
     holdings.map((h) => {
       const stock  = market.stocks[h.symbol];
-      const price  = stock?.price ?? h.avgPrice;
+      const price  = stock?.price ?? h.avgPrice ?? 0;
       const value  = h.lots * 100 * price;
-      const cost   = h.lots * 100 * h.avgPrice;
-      const pnl    = value - cost;
-      const pnlPct = pnl / cost;
+      const cost   = h.avgPrice == null ? null : h.lots * 100 * h.avgPrice;
+      const pnl    = cost == null ? null : value - cost;
+      const pnlPct = cost ? pnl! / cost : null;
       return { symbol: h.symbol, name: stock?.name ?? h.symbol, lots: h.lots, avgPrice: h.avgPrice, price, value, cost, pnl, pnlPct };
     }),
   [holdings, market.stocks]);
 
   const totalValue  = useMemo(() => positions.reduce((s, p) => s + p.value, 0), [positions]);
-  const totalCost   = useMemo(() => positions.reduce((s, p) => s + p.cost,  0), [positions]);
-  const totalGain   = totalValue - totalCost;
-  const totalGainPct = totalCost > 0 ? totalGain / totalCost : 0;
+  // Only positions with a known cost basis contribute, and only when all of them
+  // have one — a partial sum would understate the basis without saying so.
+  const pricedPositions = positions.filter((p) => p.cost != null);
+  const totalCost = pricedPositions.length === positions.length
+    ? positions.reduce((s, p) => s + (p.cost ?? 0), 0)
+    : null;
+  const totalGain = totalCost == null ? null : totalValue - totalCost;
+  const totalGainPct = totalCost && totalGain != null ? totalGain / totalCost : null;
   const dailyPnL    = market.dailyPnL;
   const dailyPnLPct = market.dailyPnLPct;
-  const weightedRet = totalValue > 0
-    ? positions.reduce((s, p) => s + p.pnlPct * (p.value / totalValue), 0)
+  const weightedRet = totalValue > 0 && positions.every((p) => p.pnlPct != null)
+    ? positions.reduce((s, p) => s + p.pnlPct! * (p.value / totalValue), 0)
     : 0;
 
+  /* A tile with nothing to state shows a dash rather than Rp 0.
+   *
+   * "Unrealised P&L Rp 0" is a measurement: it says the portfolio is exactly at
+   * cost. When no position has a recorded purchase price there was no such
+   * measurement, and printing a number there is the same fabrication as the
+   * seeded portfolio was, one level down.
+   */
+  const gainValue = totalGain == null ? "—" : `${totalGain >= 0 ? "+" : ""}${fmt(Math.abs(totalGain))}`;
+  const gainSub   = totalGainPct == null
+    ? (isId ? "harga beli belum dicatat" : "no cost basis recorded")
+    : `${totalGainPct >= 0 ? "+" : ""}${(totalGainPct * 100).toFixed(1)}% ${t("port_all_time")}`;
+
   const cards = [
-    { label: t("dash_portfolio_value"), value: fmt(totalValue), sub: `${t("port_col_cost")}: ${fmt(totalCost)}`, color: "var(--neutral)", icon: DollarSign },
-    { label: t("port_unrealized"),      value: `${totalGain >= 0 ? "+" : ""}${fmt(Math.abs(totalGain))}`, sub: `${totalGainPct >= 0 ? "+" : ""}${(totalGainPct * 100).toFixed(1)}% ${t("port_all_time")}`, color: totalGain >= 0 ? "var(--gain)" : "var(--loss)", icon: TrendingUp },
+    { label: t("dash_portfolio_value"), value: fmt(totalValue), sub: totalCost == null ? t("port_col_cost") : `${t("port_col_cost")}: ${fmt(totalCost)}`, color: "var(--neutral)", icon: DollarSign },
+    { label: t("port_unrealized"),      value: gainValue, sub: gainSub, color: totalGain == null ? "var(--muted-foreground)" : totalGain >= 0 ? "var(--gain)" : "var(--loss)", icon: TrendingUp },
     { label: t("dash_daily_pnl"),       value: `${dailyPnL >= 0 ? "+" : ""}${fmt(Math.abs(dailyPnL))}`, sub: `${dailyPnLPct >= 0 ? "+" : ""}${(dailyPnLPct * 100).toFixed(2)}% ${isId ? "hari ini" : "today"}`, color: dailyPnL >= 0 ? "var(--gain)" : "var(--loss)", icon: dailyPnL >= 0 ? TrendingUp : TrendingDown },
-    { label: t("port_weighted_return"), value: `${weightedRet >= 0 ? "+" : ""}${(weightedRet * 100).toFixed(1)}%`, sub: `${positions.length} ${isId ? "posisi aktif" : "active positions"}`, color: "var(--chart-4)", icon: BarChart2 },
+    { label: t("port_weighted_return"), value: positions.every((p) => p.pnlPct != null) ? `${weightedRet >= 0 ? "+" : ""}${(weightedRet * 100).toFixed(1)}%` : "—", sub: `${positions.length} ${isId ? "posisi aktif" : "active positions"}`, color: "var(--chart-4)", icon: BarChart2 },
   ];
 
+  // Positions with no cost basis are omitted from the return bars rather than
+  // plotted at zero, which would read as a flat day for a position nobody priced.
   const returnsBar = useMemo(
-    () => positions.map((p) => ({ symbol: p.symbol, ret: +(p.pnlPct * 100).toFixed(1) })),
+    () => positions
+      .filter((p): p is typeof p & { pnlPct: number } => p.pnlPct != null)
+      .map((p) => ({ symbol: p.symbol, ret: +(p.pnlPct * 100).toFixed(1) })),
     [positions]
   );
 
@@ -181,7 +217,14 @@ export function PortfolioView({ market, fx, holdings, onAdd, onUpdate, onRemove 
         <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
           <div className="flex items-center gap-2" style={{ marginBottom: 2 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{t("port_equity_curve")}</div>
-            {equity.isLive ? (
+            {equity.emptyReason === "no-positions" ? (
+              // Not a warning. Holding nothing is not a failure of the data
+              // pipeline, and colouring it like one would tell someone who has
+              // bought no shares that something is broken.
+              <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+                {isId ? "belum ada posisi" : "no positions yet"}
+              </span>
+            ) : equity.isLive ? (
               <span
                 style={{ fontSize: 10, color: "var(--muted-foreground)" }}
                 title={isId
@@ -234,7 +277,11 @@ export function PortfolioView({ market, fx, holdings, onAdd, onUpdate, onRemove 
                 ? (isId ? "Memuat kurva…" : "Loading curve…")
                 : equity.error
                   ? (isId ? "Kurva tidak dapat dimuat." : "Curve could not be loaded.")
-                  : (isId ? "Riwayat harga belum cukup untuk menghitung kurva." : "Not enough price history to compute a curve.")}
+                  : equity.emptyReason === "no-positions"
+                    ? (isId
+                        ? "Belum ada posisi. Kurva muncul setelah posisi pertama tercatat."
+                        : "No positions yet. The curve appears once you hold something.")
+                    : (isId ? "Riwayat harga belum cukup untuk menghitung kurva." : "Not enough price history to compute a curve.")}
             </div>
           )}
         </div>
@@ -352,19 +399,26 @@ export function PortfolioView({ market, fx, holdings, onAdd, onUpdate, onRemove 
                   <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 1, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
                 </td>
                 <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{p.lots.toLocaleString("id-ID")}</td>
-                <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{p.avgPrice.toLocaleString("id-ID")}</td>
+                <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{p.avgPrice?.toLocaleString("id-ID") ?? "—"}</td>
                 <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)", fontWeight: 500 }}>{p.price.toLocaleString("id-ID")}</td>
                 <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{fmt(p.value)}</td>
-                <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>{fmt(p.cost)}</td>
+                <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>{p.cost == null ? "—" : fmt(p.cost)}</td>
                 <td style={{ padding: "9px 12px", textAlign: "right" }}>
-                  <div style={{ fontSize: 12, color: p.pnl >= 0 ? "var(--gain)" : "var(--loss)", fontFamily: "var(--font-mono)" }}>
-                    {p.pnl >= 0 ? "+" : ""}{fmt(Math.abs(p.pnl))}
+                  <div style={{ fontSize: 12, color: p.pnl == null ? "var(--muted-foreground)" : p.pnl >= 0 ? "var(--gain)" : "var(--loss)", fontFamily: "var(--font-mono)" }}>
+                    {p.pnl == null ? "—" : `${p.pnl >= 0 ? "+" : ""}${fmt(Math.abs(p.pnl))}`}
                   </div>
                 </td>
                 <td style={{ padding: "9px 12px", textAlign: "right" }}>
-                  <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: p.pnlPct >= 0 ? "var(--gain)" : "var(--loss)", background: p.pnlPct >= 0 ? "var(--gain-bg)" : "var(--loss-bg)", padding: "2px 6px", borderRadius: 3 }}>
-                    {p.pnlPct >= 0 ? "+" : ""}{(p.pnlPct * 100).toFixed(1)}%
-                  </span>
+                  {/* No gain/loss badge when there is no cost basis. The badge is
+                      the thing that says whether this position is up or down, and
+                      without a purchase price that question has no answer. */}
+                  {p.pnlPct == null ? (
+                    <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>—</span>
+                  ) : (
+                    <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: p.pnlPct >= 0 ? "var(--gain)" : "var(--loss)", background: p.pnlPct >= 0 ? "var(--gain-bg)" : "var(--loss-bg)", padding: "2px 6px", borderRadius: 3 }}>
+                      {p.pnlPct >= 0 ? "+" : ""}{(p.pnlPct * 100).toFixed(1)}%
+                    </span>
+                  )}
                 </td>
                 <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
                   {totalValue > 0 ? (p.value / totalValue * 100).toFixed(1) : "0.0"}%
@@ -391,7 +445,15 @@ export function PortfolioView({ market, fx, holdings, onAdd, onUpdate, onRemove 
         </div>
         {positions.length === 0 && (
           <div style={{ padding: 32, textAlign: "center", color: "var(--muted-foreground)", fontSize: 13 }}>
-            {isId ? "Belum ada posisi. Klik \"Tambah Posisi\" untuk memulai." : "No positions yet. Click \"Add Position\" to get started."}
+            {error
+              ? (isId
+                  ? "Posisi tidak dapat dimuat. Bukan berarti portofolio Anda kosong."
+                  : "Positions could not be loaded. That does not mean your portfolio is empty.")
+              : loading
+                ? (isId ? "Memuat posisi…" : "Loading positions…")
+                : (isId
+                    ? "Belum ada posisi. Klik \"Tambah Posisi\" untuk memulai."
+                    : "No positions yet. Click \"Add Position\" to get started.")}
           </div>
         )}
       </div>

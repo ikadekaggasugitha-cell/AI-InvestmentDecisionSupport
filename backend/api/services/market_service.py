@@ -9,6 +9,7 @@ rendered without its age reads as the current one.
 
 import asyncio
 import json
+from collections import OrderedDict
 import logging
 import random
 from datetime import datetime, timezone
@@ -30,7 +31,6 @@ logger = logging.getLogger(__name__)
 # unreachable before the first universe load. Once _load_universe succeeds,
 # `_IDX_METADATA` is replaced wholesale by the DB-backed dict.
 
-from api.core.holdings import CAPITAL_IDR, PORTFOLIO_LOTS
 from api.services.symbols_service import SECTOR_EN
 
 _FALLBACK_METADATA: dict[str, dict[str, Any]] = {
@@ -163,8 +163,30 @@ async def _load_universe(force: bool = False) -> None:
 _current_stocks: dict[str, StockTick] = {}
 _history: dict[str, list[float]] = {}
 _intraday: list[dict[str, Any]] = []
+
+# Portfolio id used when a caller asks for a snapshot without supplying positions.
+# Distinct from any real id, so the no-portfolio series can never be served to an
+# account as if it were theirs.
+_NO_PORTFOLIO = "__none__"
+
+# Portfolio id -> intraday points. Bounded: this is a process-local buffer and an
+# unbounded map keyed by client-supplied ids would be a memory leak, so the
+# oldest portfolios are dropped once the cap is reached.
+_intraday_by_portfolio: "OrderedDict[str, list[dict[str, Any]]]" = OrderedDict()
+_INTRADAY_MAX_PORTFOLIOS = 64
+
+
+def _intraday_for(portfolio_id: str) -> list[dict[str, Any]]:
+    """The intraday series belonging to one portfolio, creating it on demand."""
+    series = _intraday_by_portfolio.get(portfolio_id)
+    if series is None:
+        series = []
+        _intraday_by_portfolio[portfolio_id] = series
+        while len(_intraday_by_portfolio) > _INTRADAY_MAX_PORTFOLIOS:
+            _intraday_by_portfolio.popitem(last=False)
+    _intraday_by_portfolio.move_to_end(portfolio_id)
+    return series
 _ihsg_current: IhsgSnapshot = IhsgSnapshot(value=7448.0, prevClose=7391.0, change=57.0, changePct=0.77)
-_portfolio_prev_close: float = CAPITAL_IDR
 _last_fetch_time: datetime | None = None
 _fx_current: FxRate | None = None
 _fetch_lock = asyncio.Lock()
@@ -591,24 +613,43 @@ async def _publish_snapshot_to_redis() -> None:
         logger.warning("failed to publish market snapshot to redis: %s", exc)
 
 
-def generate_snapshot() -> MarketSnapshot:
+def generate_snapshot(
+    lots: dict[str, int] | None = None,
+    portfolio_id: str = _NO_PORTFOLIO,
+) -> MarketSnapshot:
     """
     Produces a MarketSnapshot object from the currently cached live real IDX data.
+
+    `lots` is the portfolio's own positions (ADR-0005). Passing None means "no
+    portfolio was supplied", which is what the health check and the background
+    publisher want: they read feed freshness and never render a portfolio. Those
+    callers get no portfolio value rather than somebody else's.
+
+    The intraday series is per portfolio for the same reason it is passed in at
+    all: a single module-level list would append one account's rupiah total to the
+    next account's chart, producing a curve neither of them holds.
     """
     if not _current_stocks:
         _init_default_state()
 
+    holdings = lots or {}
+
     portfolio_value = 0.0
-    for sym, lots in PORTFOLIO_LOTS.items():
+    prev_close = 0.0
+    for sym, held in holdings.items():
         stock = _current_stocks.get(sym)
-        if stock and lots > 0:
-            portfolio_value += stock.price * lots * 100
+        if stock and held > 0:
+            portfolio_value += stock.price * held * 100
+            prev_close += stock.prevClose * held * 100
 
-    if portfolio_value == 0:
-        portfolio_value = 13_120_000_000.0  # Baseline portfolio ~13.1B IDR
+    # No fallback baseline. The old code answered "portfolio_value == 0" with a
+    # hardcoded 13.1 billion rupiah, so an account holding nothing was shown the
+    # operator's portfolio value — the single most misleading number on the screen.
+    # Zero is the honest answer: it is also what a portfolio genuinely worth
+    # nothing looks like, and the UI's empty state is driven by `lots`, not by this.
 
-    daily_pnl = portfolio_value - _portfolio_prev_close
-    daily_pnl_pct = (daily_pnl / _portfolio_prev_close * 100) if _portfolio_prev_close else 0.0
+    daily_pnl = portfolio_value - prev_close
+    daily_pnl_pct = (daily_pnl / prev_close * 100) if prev_close else 0.0
 
     now_wib = datetime.now(timezone.utc)
     wib_h = (now_wib.hour + 7) % 24
@@ -620,9 +661,10 @@ def generate_snapshot() -> MarketSnapshot:
         value=round(portfolio_value, 0),
         ihsg=round(_ihsg_current.value, 2),
     )
-    _intraday.append(intraday_point.model_dump())
-    if len(_intraday) > 420:
-        _intraday.pop(0)
+    series = _intraday_for(portfolio_id)
+    series.append(intraday_point.model_dump())
+    if len(series) > 420:
+        series.pop(0)
 
     # Provenance. `_feed_meta` is empty until a fetch succeeds, so an unreached
     # feed reports source="placeholder" rather than silently presenting the
@@ -633,9 +675,9 @@ def generate_snapshot() -> MarketSnapshot:
 
     return MarketSnapshot(
         stocks=_current_stocks,
-        intradayChart=[IntradayPoint(**p) for p in _intraday[-120:]],
+        intradayChart=[IntradayPoint(**p) for p in series[-120:]],
         portfolioValue=round(portfolio_value, 0),
-        portfolioPrevClose=_portfolio_prev_close,
+        portfolioPrevClose=round(prev_close, 0),
         dailyPnL=round(daily_pnl, 0),
         dailyPnLPct=round(daily_pnl_pct, 2),
         ihsg=_ihsg_current,

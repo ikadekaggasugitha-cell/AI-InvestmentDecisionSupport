@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "../i18n/translations";
+import type { Account } from "../hooks/useAuth";
 
 export type ViewType =
   | "dashboard"
@@ -27,6 +28,7 @@ export type ViewType =
   | "alerts";
 
 interface SidebarProps {
+  account:        Account | null;
   currentView:    ViewType;
   onViewChange:   (view: ViewType) => void;
   alertCount:     number;
@@ -38,6 +40,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({
+  account,
   currentView,
   onViewChange,
   alertCount,
@@ -258,20 +261,31 @@ export function Sidebar({
           </button>
         </div>
 
-        {/* Operator. There is no user store behind this build: auth.py signs a
-            JWT from AUTH_USERNAME and never reads a users table, so a name, a
-            job title, and an initials avatar here would all be invented data
-            presented as fact. See docs/saas-subscription-platform.md Fase 1
-            for when real identity becomes available. */}
+        {/* The signed-in account, as /v1/auth/me reports it.
+
+            This block used to name a person who did not exist. The old auth path
+            signed a JWT from AUTH_USERNAME and never read a users table, so the
+            name, job title and initials avatar were fabricated and shown as fact.
+            Now there is a real account to read — but nothing here is derived or
+            defaulted: no monogram, no job title, and the role label appears only
+            for an actual administrator, because "Subscription" would be a claim
+            about payment that this endpoint deliberately does not make. */}
         <div
           className="px-4 py-3"
           style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
         >
           <div style={{ fontSize: 10, color: "#4a6480", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            {locale === "id" ? "Operator Tunggal" : "Single Operator"}
+            {account
+              ? account.role === "admin"
+                ? locale === "id" ? "Administrator" : "Administrator"
+                : locale === "id" ? "Akun" : "Account"
+              : locale === "id" ? "Akun" : "Account"}
           </div>
-          <div style={{ fontSize: 11, color: "#8ba3be", marginTop: 2 }}>
-            {locale === "id" ? "Belum ada akun terhubung" : "No account connected"}
+          <div
+            style={{ fontSize: 11, color: "#8ba3be", marginTop: 2 }}
+            title={account?.email}
+          >
+            {account?.full_name ?? (locale === "id" ? "Belum ada akun terhubung" : "No account connected")}
           </div>
         </div>
 

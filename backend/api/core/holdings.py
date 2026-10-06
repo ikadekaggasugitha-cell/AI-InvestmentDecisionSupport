@@ -1,5 +1,15 @@
 """
-The operator's positions, in one place.
+Symbol metadata, display names, and the old seed positions.
+
+**PORTFOLIO_LOTS is not a portfolio.** It is no longer read by any request path.
+Positions live in `portfolios.lots_json` and are read through
+`api.services.portfolio_access.load_lots` (ADR-0005). What is left here is
+`DISPLAY_NAMES`, which the optimiser legitimately needs as a candidate universe —
+a proposal about what to hold next is not a claim about what is held.
+
+The constant is kept rather than deleted for one reason: a test fixture and a
+`--seed` path for a fresh install still refer to it, and deleting it would break
+both without making anything more correct. It is a starting point, not a fact.
 
 These three constants used to live in four modules and had already drifted apart:
 
@@ -24,6 +34,8 @@ without pulling in pandas, asyncpg or settings.
 """
 
 # symbol → lots. 1 lot = 100 shares on IDX.
+#
+# Seed positions for a new install, not a default. Nothing serves this to a user.
 PORTFOLIO_LOTS: dict[str, int] = {
     "BBCA": 2000,
     "BBRI": 3500,

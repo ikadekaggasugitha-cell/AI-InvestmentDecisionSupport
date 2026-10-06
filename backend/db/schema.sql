@@ -85,24 +85,88 @@ CREATE TABLE IF NOT EXISTS instruments (
 CREATE INDEX IF NOT EXISTS idx_instruments_sector ON instruments (sector);
 CREATE INDEX IF NOT EXISTS idx_instruments_active ON instruments (is_active) WHERE is_active;
 
+-- ── Identity (accounts, sessions, access periods) ────────────────────────────
+-- Everything below is Phase 1 of the multi-user work. Fresh installs get these
+-- tables here; existing databases get them from migrations/0005. Both files must
+-- agree, because the db-init service only ever runs this one — a table that
+-- exists solely in migrations/ never appears in a rebuilt stack.
+--
+-- See ADR-0001, ADR-0002, ADR-0004, ADR-0005 and docs/status.md.
+
+-- One person. Carries nothing about payment on purpose: role answers "may this
+-- person use the system" and a Subscription answers "may this person use the
+-- paid data". Those are computed separately, so an expired subscriber is still a
+-- valid account rather than a broken one.
+--
+-- No system account is seeded anywhere. This file is applied on every
+-- `docker compose up`, so a credential written here would be copied into every
+-- install and could never be rotated.
+CREATE TABLE IF NOT EXISTS users (
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    email         VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,   -- Argon2id, never a plaintext password
+    full_name     VARCHAR(150) NOT NULL,
+    phone_number  VARCHAR(30)  NOT NULL,
+    role          VARCHAR(20)  NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+    blocked_at    TIMESTAMPTZ,             -- NULL = not blocked. Set in Phase 4.
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- Uniqueness on lower(email), not on email: without this, `User@aidss.id` and
+-- `user@aidss.id` become two accounts, two sessions and two portfolios.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email));
+CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
+
+-- Replaces the JWT. The cookie carries 64 random hex characters; this stores
+-- SHA-256 of that value so database read access does not hand over live
+-- sessions. Deleting rows revokes every device at once, so there is no
+-- revoked_at column.
+CREATE TABLE IF NOT EXISTS sessions (
+    id         VARCHAR(64) PRIMARY KEY,     -- sha-256(token), hex
+    user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+
+-- One row per purchased period, never mutated, and with no status column: access
+-- is derived from expires_at, and payment state belongs to `transactions` in
+-- Phase 2. A stored status would be a second source of truth for one fact, and
+-- the beat job that kept it current was exactly the thing being removed.
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
+-- Serves the access check `MAX(expires_at) WHERE expires_at > NOW()`. A partial
+-- unique index on "currently active" is impossible: predicates must be IMMUTABLE
+-- and NOW() is STABLE.
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user_access
+    ON subscriptions (user_id, expires_at DESC);
+
 -- ── Portfolios (ownable rows) ────────────────────────────────────────────────
 -- A portfolio is a real row so ownership can be enforced. Before this, every
 -- portfolio-scoped endpoint took its identity from a query parameter any caller
 -- could set, and Redis keys were the only place a portfolio existed — so there
 -- was nothing to check access against. See db/migrations/0004 for the rationale.
 --
--- owner_sub is TokenPayload.sub, TEXT not a UUID key, because the SaaS `users`
--- table (migration 0005) does not exist yet. When it lands this table gains
--- `user_id UUID REFERENCES users(id)` alongside owner_sub — additive, not a
--- replacement — and owner_sub is retired only after every deployed principal
--- has a users row. 0004 documents the exact follow-up, including why the
--- dev-bypass principal ("dev-user") has no account to join on.
+-- user_id is the owner, and it is NOT NULL. owner_sub is gone: it was the JWT
+-- subject, an opaque session carries a user_id instead, and a string that cannot
+-- be written is a string that cannot be checked. Migrations 0005 added the column
+-- and 0006 retired the old one; see ADR-0002.
+--
+-- Both indexes key on user_id. uq_portfolios_one_default is what makes
+-- find-or-create of a default portfolio a single statement (portfolio_access.py),
+-- so it has to guard the column that is actually written.
 -- Plain dimension table — no time axis, updated in place.
 CREATE TABLE IF NOT EXISTS portfolios (
     id          TEXT        PRIMARY KEY,        -- e.g. 'pf_3f9c1a2b4d5e'
-    owner_sub   TEXT        NOT NULL,           -- TokenPayload.sub
+    user_id     UUID        NOT NULL REFERENCES users(id),
     name        TEXT        NOT NULL DEFAULT 'Default',
-    lots_json   JSONB       NOT NULL DEFAULT '{}'::jsonb,  -- {symbol: lots}
+    lots_json   JSONB       NOT NULL DEFAULT '{}'::jsonb,  -- {symbol: {lots, avgPrice}}
     is_default  BOOLEAN     NOT NULL DEFAULT FALSE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -110,8 +174,8 @@ CREATE TABLE IF NOT EXISTS portfolios (
 -- Lets auto-provisioning find-or-create a default in one statement instead of
 -- counting rows, and keeps two concurrent first requests from creating two.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_portfolios_one_default
-    ON portfolios (owner_sub) WHERE is_default;
-CREATE INDEX IF NOT EXISTS idx_portfolios_owner ON portfolios (owner_sub);
+    ON portfolios (user_id) WHERE is_default;
+CREATE INDEX IF NOT EXISTS idx_portfolios_user ON portfolios (user_id);
 
 -- ── Signal outputs (immutable audit log) ─────────────────────────────────────
 -- NOTE: on a hypertable every unique index must contain the partitioning

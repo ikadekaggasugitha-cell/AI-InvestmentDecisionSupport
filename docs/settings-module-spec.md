@@ -242,8 +242,12 @@ Kebijakan Privasi
 ## 5. Spesifikasi Kontrak API
 
 ### 5.1 Endpoint Pengguna & Keamanan
-* `GET /v1/user/profile`
-  * **Header:** `Authorization: Bearer <JWT>`
+
+Path di spec v1.0.0 (`/v1/user/profile`) tidak pernah ada dan tetap tidak ada. Yang
+dipakai adalah `auth.py`, dengan cookie sesi opaque dan tanpa header `Authorization`.
+
+* `GET /v1/auth/me`
+  * **Header:** tidak ada. Session ada di cookie `HttpOnly`, dikirim browser otomatis.
   * **Response:**
     ```json
     {
@@ -251,14 +255,23 @@ Kebijakan Privasi
       "email": "user@example.com",
       "full_name": "contoh nama pengguna",
       "phone_number": "081234567890",
-      "role": "subscriber",
-      "created_at": "2026-08-24T10:00:00Z"
+      "role": "user",
+      "blocked": false
     }
     ```
-* `PUT /v1/user/profile`
-  * **Payload:** `{ "phone_number": "081234567899" }`
-* `POST /v1/user/change-password`
-  * **Payload:** `{ "old_password": "...", "new_password": "..." }`
+* `PUT /v1/auth/me`
+  * **Payload:** `{ "full_name": "...", "phone_number": "081234567899" }`
+  * Both fields are validated together. `email` is not updatable: it is the identity,
+    so changing it needs its own verification flow and is not in this scope.
+* `POST /v1/auth/change-password`
+  * **Payload:** `{ "current_password": "...", "new_password": "..." }`
+  * Satu-satunya request yang memakai header: `Authorization: Bearer <token>`, karena
+    di sini session cookie saja tidak membuktikan bahwa orang yang sedang masuk
+    adalah pemilik session itu.
+
+`role` hanya berisi `user` dan `admin`. Nilai `subscriber` di spec v1.0.0 melanggar
+aturan 2 di `CONTEXT.md`: menyimpan subscriber sebagai kolom membuat role dan
+status Subscription jadi dua sumber kebenaran untuk satu fakta.
 
 ### 5.2 Endpoint Langganan & Tagihan
 * `GET /v1/user/subscription`
@@ -296,16 +309,26 @@ Kebijakan Privasi
 
 ## 6. Rencana Arsitektur Komponen React
 
+Ini yangDirsusun di spec v1.0.0, dan tidak pernah menjadi kenyataan. Yang ada
+adalah satu file:
+
 ```
-src/app/components/settings/
-├── SettingsView.tsx          # Shell dengan Tab Bar (Radix UI Tabs), tanpa ikon di tab
-├── TabProfile.tsx            # Form profil, ganti sandi, label role, tombol keluar
-├── TabSubscription.tsx       # Status text, progress bar, tombol, tabel riwayat
-├── TabAppearance.tsx         # Kontrol tema/bahasa/mata uang + kartu kurs
-├── TabNotifications.tsx      # Toggle notifikasi, indikator "Tersimpan" teks
-├── TabAbout.tsx              # Metadata sistem, disclaimer, kontak
-└── RenewModal.tsx            # Modal perpanjangan
+src/app/components/SettingsView.tsx
 ```
+
+Isinya: shell dengan tab bar, lalu `TabProfile` (`SettingsView.tsx:142`),
+`TabSubscription` (`:378`), `TabAppearance` (`:399`), `TabNotifications` (`:524`),
+dan `TabAbout` (`:596`).
+
+Perluasan ke Radix UI Tabs tidak terjadi. Tab bar memakai `role="tablist"` dan
+`role="tab"` langsung di JSX (`SettingsView.tsx:86,101`), yang memang memindahkan
+pekerjaan navigasi keyboard dari Radix ke kode sendiri. `/@radix-ui/react-tabs` ada
+di `package.json`, tapi tidak diimpor di mana pun.
+
+Mengubah spec yang sudah ditulis ulang adalah pekerjaan tersendiri, bukan sesuatu
+yang dilakukan diam-diam sambil memperbaiki baris lain di dokumen ini. Selama ini
+§6 dan §7 hanya ditulis sebagai "rencana", dan sekarang ditandai sebagai
+rencana yang tidak dijalankan.
 
 ---
 
@@ -364,7 +387,12 @@ Setiap tab yang memanggil API harus punya ketiga state ini.
 
 ### 9.1 Keyboard
 - Tab dapat dinavigasi dengan `Tab` / `Shift+Tab`.
-- Radix Tabs menghandle arrow keys (`←` / `→`) untuk berpindah tab secara otomatis.
+- Arrow keys (`←` / `→`) berpindah tab dan fokus ikut berpindah, diimplementasikan
+  di `SettingsView.tsx` (`onTabKeyDown`), bukan oleh Radix.
+- `Home` dan `End` lompat ke tab pertama dan terakhir. Perpindahan membungkus: dari
+  tab terakhir, `→` kembali ke tab pertama.
+- Hanya tab aktif yang ada di tab order (`tabIndex`), jadi menjangkau tab terakhir
+  tidak berarti melewati empat tab di tengah.
 - `Enter` atau `Space` mengaktifkan tab.
 - Tombol dan link dapat diaktifkan dengan `Enter`.
 - Modal (`RenewModal`, dialog konfirmasi sign-out) dapat ditutup dengan `Escape`.
@@ -465,7 +493,7 @@ Nilai berikut belum diputuskan dan tidak boleh di-hardcode:
 
 ---
 
-## 14. Status Implementasi (2026-10-03)
+## 14. Status Implementasi (terakhir diperbarui 2026-10-07)
 
 Spec ini sudah diimplementasikan dan diverifikasi. Yang selesai dan yang belum.
 
@@ -482,16 +510,19 @@ Spec ini sudah diimplementasikan dan diverifikasi. Yang selesai dan yang belum.
 | R-32 keyboard | Selesai | Tab dapat di-fokus dan diaktifkan |
 | Tanpa emoji | Selesai | 0 emoji di seluruh teks yang dirender, kedua tema |
 | Light sebagai default | Selesai | Ditemukan saat klik-through: sebelumnya default dark |
+| Tab 1 Profil: nama, WhatsApp, ganti sandi, keluar akun | Selesai | `GET`/`PUT /v1/auth/me` dan `POST /v1/auth/change-password`. Cookie sesi opaque, bukan header JWT |
+| Arrow keys pada tab bar | Selesai | `onTabKeyDown` di `SettingsView.tsx`, plus `Home`/`End` dan pembungkusan di kedua ujung. 5 tes di `SettingsView.test.tsx` |
 
 ### 14.2 Belum Bisa Diimplementasikan (blocking, bukan pilihan)
 
 | Bagian | Alasan |
 |---|---|
-| Tab 1 Profil: nama, email, WhatsApp, role, ganti sandi, keluar akun | `/v1/user/profile` belum ada. `backend/api/routers/auth.py` menandatangani JWT dari `AUTH_USERNAME` dan tidak pernah membaca tabel `users`. |
-| Tab 2 Langganan: kartu paket, sisa hari, progress bar, riwayat invoice | `/v1/user/subscription` dan `/v1/user/transactions` belum ada. Tabel `subscriptions` dan `transactions` belum dibuat. |
-| Tombol "Perpanjang Paket", "Upgrade ke Tahunan", "Unduh Invoice" | Bergantung pada endpoint pembayaran yang belum ada. Menampilkannya sekarang berarti kontrol mati (R-26). |
+| Tab 2 Langganan: kartu paket, sisa hari, progress bar | Tergantung pada `GET /v1/subscription/current`. Endpoint itu belum ada, dan angka sisa hari tidak boleh dikarang dari `expires_at` di frontend karena frontend tidak boleh melihat baris Subscription. |
+| Tab 2: riwayat invoice dan tombol unduh | Bergantung pada tabel `transactions` dan endpoint pembayaran, semuanya ditunda ke Fase 2. |
+| Tombol "Perpanjang Paket", "Upgrade ke Tahunan" | Bergantung pada endpoint pembayaran yang belum ada. Menampilkannya sekarang berarti kontrol mati (R-26). |
 
-Kedua tab tersebut menampilkan empty state yang menyebut penyebabnya dan menunjuk ke Fase 1 di `docs/saas-subscription-platform.md`. Tidak ada nama, avatar, nomor invoice, atau angka langganan yang dikarang.
+Tab 2 menampilkan empty state yang menyebut penyebabnya. Tidak ada nama, avatar,
+nomor invoice, atau angka langganan yang dikarik.
 
 ### 14.3 Sesi Kejujuran Data dan Token (2026-10-03)
 

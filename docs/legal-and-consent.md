@@ -1,12 +1,25 @@
 # Dokumen Legal, Syarat Layanan & Persetujuan Pengguna (Legal & Consent Agreement)
 ### AIDSS — AI Investment Decision Support System
 
-> **Versi Dokumen:** 1.0.0  
-> **Tanggal Berlaku:** 24 September 2026  
-> **Status:** Berlaku Sah & Mengikat (*Legally Binding*)  
+> **Versi Dokumen:** 0.2.0-draft  
+> **Tanggal Berlaku:** belum berlaku  
+> **Status:** **Draf internal. Tidak mengikat siapa pun.**  
 > **Lokasi File:** `docs/legal-and-consent.md`  
-> **Bahasa:** Bilingual (Bahasa Indonesia & English)  
-> *Sesuai ketentuan Undang-Undang Republik Indonesia No. 24 Tahun 2009, teks dalam Bahasa Indonesia adalah teks utama dan sah secara hukum di yurisdiksi Republik Indonesia.*
+> **Bahasa:** Bilingual (Bahasa Indonesia & English)
+
+### Mengapa statusnya draft
+
+Versi sebelumnya menandai dokumen ini sebagai sah dan mengikat sejak 24 September 2026. Itu tidak bisa dibenarkan, karena beberapa janji di dalamnya belum didukung apa pun:
+
+- **Tidak ada penagihan.** Midtrans, QRIS, virtual account, upload bukti transfer, dan verifikasi admin belum ada satu baris kode pun.
+- **Gate 2 ada, tapi baru separuh.** Modal persetujuan sudah berjalan di AI Advisor dan di halaman detail saham, dan persetujuannya disimpan per akun di peramban. Yang belum ada adalah audit log sisi server, jadi sistem tidak dapat membuktikan persetujuan seseorang kepada regulator.
+- **Kebijakan privasi menurut data yang tidak dikumpulkan.** Bagian 1 §4 pernah menyebut alamat IP, *user-agent*, log audit, stempel waktu login, nomor invoice, dan bukti transfer. Tidak satu pun itu ada di database. Sekarang bagian itu menyebut yang tidak ada secara eksplisit.
+- **Tidak ada kanal WhatsApp maupun email.** Nomor dan alamat yang dicantumkan di Bagian 2 §6 belum diterima siapa pun.
+- **Tidak ada mekanisme penagihan**, jadi kebijakan tanpa pengembalian dana di Bagian 1 §3.3 belum bisa dijalankan.
+
+Dua hal harus berubah sebelum dokumen ini boleh dipakai: peninjauan oleh Qualified Legal Professional Indonesia, dan Fase 2 plus Fase 5 yang benar-benar hijau.
+
+Sampai itu terjadi, jangan arahkan pengguna ke dokumen ini sebagai syarat dan ketentuan yang berlaku.
 
 ---
 
@@ -62,17 +75,28 @@ Mengingat sifat produk AIDSS adalah **layanan informasi & analitik data digital 
 AIDSS berkomitmen penuh melindungi hak privasi pengguna sesuai dengan ketentuan **Undang-Undang Republik Indonesia Nomor 27 Tahun 2022 tentang Perlindungan Data Pribadi (UU PDP)**:
 
 ### 4.1 Data Pribadi yang Dikumpulkan
-1. **Data Identitas:** Nama lengkap, alamat email, dan nomor kontak WhatsApp.
-2. **Data Finansial & Transaksi:** Riwayat paket langganan, nomor invoice, metode pembayaran yang dipilih, dan bukti transfer manual (kami **tidak** menyimpan data nomor kartu kredit atau PIN perbankan pengguna).
-3. **Data Teknis:** Alamat IP, *user-agent* peramban, log interaksi sistem, dan stempel waktu (*timestamp*) login untuk keamanan akun.
+1. **Data Identitas:** Nama lengkap, alamat email, dan nomor kontak WhatsApp. Ketiganya diisi sendiri oleh pengguna saat pendaftaran dan dapat diubah kapan saja lewat `/v1/auth/me`.
+2. **Data Sesi:** Saat masuk, aplikasi membuat token acak, menyimpan **hash SHA-256**-nya beserta waktu dibuat dan waktu berakhirnya. Token aslinya hanya ada di cookie `HttpOnly` peramban, tidak pernah ditulis ke database.
+3. **Riwayat Langganan:** Tanggal mulai dan tanggal berakhir tiap masa aktif langganan.
+
+Yang **tidak** dikumpulkan pada versi ini:
+
+- **Tidak ada data pembayaran apa pun.** Tidak ada nomor kartu, PIN, nomor invoice, metode pembayaran, atau bukti transfer, karena penagihan belum ada sama sekali.
+- **Tidak ada alamat IP atau *user-agent* yang disimpan.** Pembatas laju permintaan memakai alamat IP untuk menghitung kuota di memori proses, dan nilai itu tidak ditulis ke mana pun.
+- **Tidak ada log audit atau stempel waktu login.** Tabel `sessions` menyimpan waktu dibuat dan berakhir, bukan riwayat kapan seseorang masuk dari perangkat mana.
+- **Persetujuan di Bagian 1 §5 disimpan hanya di peramban,** bukan di server. Tidak ada tabel yang mencatat siapa menyetujui apa dan kapan.
+
+Bagian ini sengaja menyebut yang tidak ada. Menjanji pemrosesan data yang tidak pernah dikumpulkan membuat orang berhak atas sesuatu yang tidak bisa diberikan, dan membuat kita terlihat mengumpulkan lebih banyak daripada kenyataannya.
 
 ### 4.2 Tujuan Pemrosesan Data
-1. Mengotentikasi akun dan mengelola masa aktif langganan pengguna.
-2. Mengirimkan tanda terima pembayaran (invoice), konfirmasi aktivasi akun, dan notifikasi pengingat perpanjangan masa aktif via Email & WhatsApp.
-3. Memantau keamanan sistem dari upaya akses ilegal, *brute force*, dan penyalahgunaan layanan.
+1. Mengotentikasi akun dan mengelola masa aktif langganan yang sedang berjalan.
+2. Menentukan apakah sebuah permintaan diizinkan, dengan membandingkan tanggal berakhir langganan dengan waktu sekarang.
+3. Membatasi penyalahgunaan layanan dan biaya model AI melalui pembatas laju permintaan per alamat IP.
+
+Yang **belum** ada: pengiriman invoice, email konfirmasi, pesan WhatsApp, dan pengingat perpanjangan. Semuanya bergantung pada penagihan dan kanal notifikasi yang belum dibangun.
 
 ### 4.3 Kerahasiaan & Keamanan Data
-1. Data kata sandi disimpan dalam bentuk hash terenkripsi searah menggunakan standar kriptografi mutakhir (**Argon2id/bcrypt**).
+1. Data kata sandi disimpan dalam bentuk hash terenkripsi searah menggunakan standar kriptografi mutakhir (**Argon2id**, tanpa alternatif bcrypt).
 2. AIDSS **TIDAK AKAN PERNAH** menjual, menyewakan, atau memperdagangkan data pribadi pengguna kepada pihak ketiga mana pun untuk tujuan periklanan atau pemasaran tanpa persetujuan eksplisit pengguna.
 3. Pengguna memiliki hak meminta penghapusan akun (*Right to Erasure*) dengan mengajukan permohonan tertulis ke layanan pelanggan resmi.
 
@@ -90,11 +114,22 @@ Persetujuan pengguna terhadap seluruh ketentuan di atas ditegakkan melalui **Dua
   (Wajib dicentang sebelum tombol bayar dapat diklik)
 
 [ GERBANG 2: FIRST-ACCESS MODAL DI DALAM DASHBOARD ]
-Modal interaktif "Disclaimer Kepatuhan OJK" yang muncul saat pertama kali pengguna mengakses
-fitur sinyal AI atau AI Advisor:
+Modal interaktif "Penjelasan Kepatuhan OJK" yang muncul saat pertama kali sebuah akun
+mengakses output model — sinyal AI, skor probabilitas pada halaman detail saham, atau
+AI Advisor:
 - Pengguna wajib menekan tombol: [ SAYA MENGERTI & SETUJU ]
-- Waktu persetujuan (ISO Timestamp) dicatat ke dalam penyimpanan lokal dan audit log database.
+- Waktu persetujuan dicatat di penyimpanan lokal peramban, dengan kunci yang memuat
+  id akun, sehingga persetujuan satu orang tidak berlaku untuk akun lain di peramban
+  yang sama.
+- Teks pada modal menyebutkan bahwa ini bukan nasihat investasi resmi.
+
+Yang **belum** ada: audit log sisi server. Tidak ada tabel yang merekam siapa
+menyetujui apa dan kapan, jadi sistem tidak dapat membuktikan persetujuan seseorang
+kepada regulator. Menambahkannya berarti menambah tabel dan satu titik tulis di
+backend, dan itu keputusan tersendiri, bukan detail yang bisa diasumsikan ada.
 ```
+
+Gerbang 1 belum ada, dan tidak akan ada sebelum ada layar pembayaran.
 
 ---
 ---
@@ -151,17 +186,28 @@ Given that AIDSS provides **instantaneous, irrevocable access to digital analyti
 AIDSS respects and enforces the privacy rights of its subscribers in full compliance with **Law of the Republic of Indonesia Number 27 of 2022 on Personal Data Protection (PDP Act)**:
 
 ### 4.1 Categories of Data Collected
-1. **Identity & Contact Records:** Full name, verified email address, and WhatsApp telephone number.
-2. **Commercial & Transaction Records:** Selected subscription plan, system invoice identifiers, payment channel metadata, and uploaded manual deposit slips. (We **never** store customer credit card numbers or banking security PINs).
-3. **Technical Diagnostics:** IP addresses, browser agent headers, access audit logs, and authentication timestamps.
+1. **Identity & Contact Records:** Full name, email address, and WhatsApp telephone number. All three are entered by the person signing up and can be changed at any time through `/v1/auth/me`.
+2. **Session Records:** On sign-in the app generates a random token and stores only its SHA-256 hash, together with the time it was created and the time it expires. The token itself exists solely in an HttpOnly browser cookie and is never written to the database.
+3. **Subscription Records:** The start and end date of each purchased period.
+
+What is **not** collected in this version:
+
+- **No payment data of any kind.** No card numbers, PINs, invoice numbers, payment methods or deposit slips, because there is no billing at all yet.
+- **No stored IP addresses or user-agent strings.** The rate limiter reads the client IP to count a budget in the process's memory, and that value is written nowhere.
+- **No audit logs and no login timestamps.** The `sessions` table stores creation and expiry times, not a record of who signed in from where.
+- **The consent described in §5 is stored in the browser only,** not on the server. No table records who accepted what and when.
+
+This section names what is absent on purpose. Promising to process data that is never collected leaves people entitled to something that cannot be delivered, and makes us look like we collect more than we do.
 
 ### 4.2 Purposes of Processing
-1. User identity authentication, active subscription provisioning, and paywall access control.
-2. Automated electronic transmission of fiscal receipts, onboarding confirmations, and renewal alert messages via transactional Email and WhatsApp channels.
-3. Platform security auditing, fraud prevention, and protection against unauthorized algorithmic extraction.
+1. Authenticating the account and tracking the subscription period that is currently running.
+2. Deciding whether a request is permitted, by comparing a subscription's end date against the current time.
+3. Limiting service abuse and AI model cost through per-IP request budgets.
+
+Not yet present: invoices, confirmation email, WhatsApp messages, and renewal reminders. All of them depend on billing and on notification channels that have not been built.
 
 ### 4.3 Data Confidentiality & Subscriber Rights
-1. Passwords undergo irreversible, salted cryptographic hashing via **Argon2id/bcrypt** before persistence.
+1. Passwords undergo irreversible, salted cryptographic hashing via **Argon2id** (there is no bcrypt fallback) before persistence.
 2. AIDSS **NEVER** sells, trades, or leases personal subscriber records to external brokers, advertising exchanges, or commercial third parties.
 3. Subscribers retain the legal right to request inspection, modification, or permanent deletion of their account profile (*Right to be Forgotten*) through verified communication with our data protection team.
 
@@ -171,13 +217,14 @@ AIDSS respects and enforces the privacy rights of its subscribers in full compli
 
 Consent is contractually acknowledged and audited via a **Dual-Gate Enforcement System**:
 
-1. **Gate 1 (Checkout Registration Gate):**
-   * An obligatory, unchecked checkbox on the One-Step Checkout screen:
-     *"I confirm that I am at least 18 years old, AGREE to the Terms of Service, Privacy Policy, and No-Refund Policy, and ACKNOWLEDGE that all AIDSS metrics represent mathematical probabilities and NOT formal investment recommendations."*
-   * Form submission is blocked until affirmative opt-in is recorded.
-2. **Gate 2 (In-App Interactive Disclaimer Modal):**
-   * A mandatory pop-up dialogue displayed upon initial access to AI Signals or AI Advisor views requiring the user to press **"I Understand & Agree"**.
-   * Consent audit stencils (timestamp, user identity, version tag) are recorded both locally and server-side.
+1. **Gate 1 (Checkout Registration Gate):** not implemented. It depends on a checkout screen that does not exist yet.
+2. **Gate 2 (In-App Interactive Disclaimer Modal):** implemented.
+   * A modal is shown the first time an account reaches any model output: AI Signals, the probability score on a stock's detail page, or the AI Advisor. The stock detail page used to show the same model's score and tier with no modal at all.
+   * Acceptance requires pressing **"I Understand & Agree"**, and the modal states that none of the output is official investment advice.
+   * The acceptance is recorded in the browser's local storage under a key containing the account id, so one person's acceptance does not carry over to another account in the same browser.
+   * The modal says in as many words that the acceptance is stored in the browser only.
+
+Not implemented: the server-side consent log. No table records who accepted what and when, so the system cannot prove a given person's acceptance to a regulator. Adding it means a table and a write path, which is a decision of its own rather than a detail to assume.
 
 ---
 

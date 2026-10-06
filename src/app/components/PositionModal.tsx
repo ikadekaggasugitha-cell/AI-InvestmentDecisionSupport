@@ -20,13 +20,12 @@ function fieldStyle(hasError: boolean): CSSProperties {
   return {
     width: "100%",
     background: "var(--muted)",
-    border: `1px solid ${hasError ? "var(--loss)" : "var(--border)"}`,
+    border: `1px solid ${hasError ? "var(--loss)" : "var(--control-border)"}`,
     borderRadius: 6,
     padding: "9px 12px",
     fontSize: 13,
     color: "var(--foreground)",
     fontFamily: "var(--font-mono)",
-    outline: "none",
     boxSizing: "border-box",
   };
 }

@@ -38,7 +38,7 @@ async def reports_generate_endpoint(
     user: CurrentUser, report_type: ReportType,
 ) -> ReportGenerateResponse:
     """Render the PDF now (from live data) and report its size; fetch via /download."""
-    portfolio_id = await resolve_portfolio_id(user.sub)
+    portfolio_id = await resolve_portfolio_id(str(user.user_id))
     pdf = await generate_pdf(report_type, portfolio_id)
     return ReportGenerateResponse(
         type=report_type,
@@ -53,7 +53,7 @@ async def reports_download_endpoint(
     user: CurrentUser, report_type: ReportType,
 ) -> StreamingResponse:
     """Stream a freshly-rendered PDF as a file attachment."""
-    portfolio_id = await resolve_portfolio_id(user.sub)
+    portfolio_id = await resolve_portfolio_id(str(user.user_id))
     pdf = await generate_pdf(report_type, portfolio_id)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
     filename = f"aidss-{report_type.value}-{stamp}.pdf"

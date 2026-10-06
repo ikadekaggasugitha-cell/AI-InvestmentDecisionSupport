@@ -82,8 +82,14 @@ def _fake_provider(index_bars=200, index_start=7000.0):
 
     async def get_daily_bars(symbol, days):
         if symbol == "^JKSE":
+            # tz-aware, matching the real provider. A naive datetime here makes
+            # `pd.to_datetime(...)` produce a naive index while the portfolio side
+            # is UTC, and beta silently falls back to its 1.0 default.
             return [
-                Bar(index_start * (1 + 0.0003 * i), dates[-(index_bars - i)].to_pydatetime())
+                Bar(
+                    index_start * (1 + 0.0003 * i),
+                    dates[-(index_bars - i)].to_pydatetime().replace(tzinfo=timezone.utc),
+                )
                 for i in range(index_bars)
             ]
         return []
@@ -111,19 +117,58 @@ class TestHoldingsModule:
         for symbol, lots in PORTFOLIO_LOTS.items():
             assert isinstance(lots, int) and lots > 0, symbol
 
-    def test_risk_service_and_optimizer_agree_on_the_portfolio(self):
+    def test_the_seed_universe_is_covered_by_the_optimizer(self):
+        """Every symbol a fresh install can be seeded with must be nameable by the
+        optimiser, or a seeded position is silently dropped from optimisation."""
         from api.core.holdings import PORTFOLIO_LOTS
         from ml.inference.portfolio_optimizer import IDX_NAMES
 
-        assert IDX_NAMES == {**IDX_NAMES, **{k: v for k, v in IDX_NAMES.items()}}
         assert set(PORTFOLIO_LOTS) <= set(IDX_NAMES)
 
+    def test_no_request_path_imports_the_seed_positions(self):
+        """ADR-0005. PORTFOLIO_LOTS survives as a fixture; the guard is that no
+        module serving a request reads it."""
+        import inspect
+
+        from api.services import (
+            advisor_service, alerts_service, market_service,
+            portfolio_service, risk_service, signal_service,
+        )
+
+        for module in (market_service, portfolio_service, risk_service,
+                       signal_service, alerts_service, advisor_service):
+            source = inspect.getsource(module)
+            assert "PORTFOLIO_LOTS" not in source, (
+                f"{module.__name__} still serves the shared portfolio constant"
+            )
+
+    def test_the_tick_aggregator_publishes_no_portfolio_total(self):
+        """A process that only sees price ticks cannot know whose positions to
+        value. It used to publish one account's rupiah total to everyone.
+
+        Read as source rather than imported: importing the module pulls in
+        confluent_kafka, which is not a test dependency and is not needed to read
+        a file.
+        """
+        from pathlib import Path
+
+        source = (Path(__file__).resolve().parents[1]
+                  / "ingestor" / "tick_aggregator.py").read_text(encoding="utf-8")
+
+        assert "PORTFOLIO_LOTS" not in source
+        assert "portfolioValue" not in source
+
     def test_capital_constant_is_shared(self):
+        """The optimiser's notional capital is still a single shared figure.
+
+        `_portfolio_prev_close` used to be asserted against it and is gone: the
+        snapshot derives previous close per portfolio from each symbol's own
+        prevClose, so a global constant there was one more way to show one
+        account another's opening value.
+        """
         from api.core.holdings import CAPITAL_IDR
-        from api.services.market_service import _portfolio_prev_close
         from ml.inference.portfolio_optimizer import PORTFOLIO_CAPITAL_IDR
 
-        assert _portfolio_prev_close == CAPITAL_IDR
         assert PORTFOLIO_CAPITAL_IDR == CAPITAL_IDR
 
 
@@ -131,18 +176,32 @@ class TestHoldingsModule:
 
 
 class TestLiveRisk:
-    async def test_computes_from_holdings(self, live_settings):
-        from api.core.holdings import PORTFOLIO_LOTS
+    async def test_computes_from_holdings(self, live_settings, mock_redis):
+        """Over this portfolio's own positions, stated here rather than taken from
+        a shared constant: ADR-0005 moved positions into `lots_json`, so a risk
+        figure has to name the holdings it was measured on.
+
+        `mock_redis` is load-bearing, not decoration: without it this test reads
+        whatever a real Redis has cached under `risk:portfolio:default` from an
+        earlier run, and asserts against another test's numbers.
+        """
         from api.services import risk_service, technicals_service
 
-        frame = _price_frame(sorted(PORTFOLIO_LOTS))
+        held = {"BBCA": 2000, "BBRI": 3500, "TLKM": 5000}
+        frame = _price_frame(sorted(held))
 
         async def fake_load(symbol, days=260):
             return frame[frame["symbol"] == symbol].copy(), "db"
 
         with patch.object(technicals_service, "load_ohlcv", side_effect=fake_load), \
+             patch("api.services.risk_service.load_lots", AsyncMock(return_value=held)), \
              patch("ingestor.providers.get_provider", return_value=_fake_provider()):
             response = await risk_service.get_risk_metrics("default")
+
+        # What the numbers below were computed from, so a response cannot be
+        # mistaken for one measured over a different book.
+        assert response.positionsCount == 3
+        assert response.positions == sorted(held)
 
         rm = response.risk
         assert response.source == "live"
@@ -158,7 +217,9 @@ class TestLiveRisk:
         # column is missing; a real breakdown means it survived the loader.
         assert len(response.sectorExposure) > 1, "sector exposure collapsed"
 
-    def test_risk_worker_reads_ihsg_from_the_provider(self, live_settings):
+    def test_risk_worker_reads_ihsg_from_the_provider(
+        self, live_settings, seeded_positions
+    ):
         """
         Synchronous on purpose: the Celery task is sync and calls asyncio.run()
         internally, so it cannot execute inside an async test.
@@ -186,11 +247,14 @@ class TestLiveRisk:
         async def connect(*args, **kwargs):
             return Conn()
 
+        held = {"BBCA": 2000, "BBRI": 3500}
         with patch("asyncpg.connect", connect), \
              patch("ingestor.providers.get_provider", return_value=_fake_provider()), \
              patch("redis.from_url", return_value=MagicMock(get=MagicMock(return_value=None))):
-            with patch("pandas.DataFrame", _df_stub(_worker_frame())):
-                risk_worker.refresh_risk.apply().get()
+            with patch("pandas.DataFrame", _df_stub(_worker_frame(list(held)))):
+                # An explicit portfolio id and its positions: the worker no longer
+                # has a book of its own to measure (ADR-0005).
+                risk_worker._refresh_one(live_settings, "default", held)
 
         joined = " ".join(sent_sql)
         assert "idx_universe" not in joined, "references a table that does not exist"
@@ -199,12 +263,15 @@ class TestLiveRisk:
         assert "'^JKSE'" not in joined, "the index is not in ohlcv; it comes from the provider"
 
 
-def _worker_frame():
+def _worker_frame(symbols=None):
     """The frame the risk worker's DB read would have produced."""
-    from api.core.holdings import PORTFOLIO_LOTS
+    if symbols is None:
+        from api.core.holdings import PORTFOLIO_LOTS
+
+        symbols = sorted(PORTFOLIO_LOTS)
 
     # date, not time: the worker SQL aliases o.time::date AS date.
-    return _price_frame(sorted(PORTFOLIO_LOTS), periods=300, seed=9, date_column="date")
+    return _price_frame(sorted(symbols), periods=300, seed=9, date_column="date")
 
 
 def _df_stub(frame):
@@ -346,6 +413,61 @@ class TestPortfolioOwnership:
         alice = await resolve_portfolio_id("alice")
         assert await resolve_portfolio_id("alice", alice) == alice
 
+    async def test_positions_are_read_per_portfolio(self, fake_portfolios):
+        """Two accounts, two different books, and neither can see the other's.
+
+        This is the whole point of ADR-0005. Before it, both rows were seeded from
+        the same constant, so the leak was invisible: there was only ever one
+        portfolio's worth of data to leak.
+        """
+        from api.services.portfolio_access import load_lots, resolve_portfolio_id
+
+        alice = await resolve_portfolio_id("alice")
+        bob = await resolve_portfolio_id("bob")
+
+        fake_portfolios.rows[alice] = (fake_portfolios.rows[alice][0], True, '{"BBCA": 2000}')
+        fake_portfolios.rows[bob] = (fake_portfolios.rows[bob][0], True, '{"TLKM": 5000}')
+
+        assert await load_lots(alice) == {"BBCA": 2000}
+        assert await load_lots(bob) == {"TLKM": 5000}
+
+    async def test_an_unreachable_database_is_not_an_empty_portfolio(self, fake_portfolios):
+        """A read failure must not be answerable as "you hold nothing".
+
+        Those two answers look identical to a caller and mean opposite things, so a
+        connection error that returns {} would empty a real portfolio's dashboard
+        without anybody noticing until the positions came back.
+        """
+        from fastapi import HTTPException
+
+        from api.services import portfolio_access
+
+        async def boom(*args, **kwargs):
+            raise RuntimeError("db down")
+
+        fake_portfolios.fetchval = boom
+        with pytest.raises(HTTPException) as exc:
+            await portfolio_access.load_lots("default")
+        assert exc.value.status_code == 503
+
+    async def test_malformed_lots_are_ignored_rather_than_coerced(self, fake_portfolios):
+        """A negative or fractional lot count is a malformed row.
+
+        Passing it through would put a position on someone's dashboard that they
+        never entered, and short positions in a long-only portfolio make every
+        downstream percentage meaningless.
+        """
+        from api.services.portfolio_access import load_lots, resolve_portfolio_id
+
+        pid = await resolve_portfolio_id("alice")
+        fake_portfolios.rows[pid] = (
+            fake_portfolios.rows[pid][0],
+            True,
+            '{"BBCA": 2000, "BROKEN": -5, "ALSO_BROKEN": "ten", "ZERO": 0}',
+        )
+
+        assert await load_lots(pid) == {"BBCA": 2000}
+
     async def test_first_principal_keeps_the_default_id(self, fake_portfolios):
         """Redis keys are keyed on the portfolio id and the Celery refresh_risk
         task pre-warms risk:portfolio:default, so a random id would strand that
@@ -362,15 +484,24 @@ class TestPortfolioOwnership:
         assert first == again
         assert len(fake_portfolios.rows) == 1
 
-    async def test_provisioned_portfolio_is_seeded_from_holdings(self, fake_portfolios):
-        """A single-operator install must not lose the seeded book it had before
-        the portfolios table existed."""
-        from api.core.holdings import PORTFOLIO_LOTS
+    async def test_a_new_portfolio_starts_empty(self, fake_portfolios):
+        """ADR-0005. It used to be seeded from PORTFOLIO_LOTS, which handed the
+        first account to sign up ten IDX positions belonging to somebody else and
+        showed every account after them the same portfolio. An account that has
+        bought nothing must display nothing."""
         from api.services.portfolio_access import resolve_portfolio_id
 
         pid = await resolve_portfolio_id("alice")
-        _owner, _is_default, lots_json = fake_portfolios.rows[pid]
-        assert json.loads(lots_json) == PORTFOLIO_LOTS
+        assert fake_portfolios.lots_for(pid) == {}
+
+    async def test_two_accounts_do_not_share_positions(self, fake_portfolios):
+        """The seed was the only reason two portfolios could hold the same lots."""
+        from api.services.portfolio_access import load_lots, resolve_portfolio_id
+
+        alice = await resolve_portfolio_id("alice")
+        bob = await resolve_portfolio_id("bob")
+        assert await load_lots(alice) == await load_lots(bob) == {}
+        assert alice != bob
 
     async def test_unreachable_database_fails_closed(self, fake_portfolios):
         """An unreachable database must not read as 'allowed'."""
@@ -726,13 +857,22 @@ def _index_bars(dates, start=7284.0, drift=0.0003):
     ]
 
 
-def _wide_frame(dates, periods):
+def _wide_frame(dates, periods, symbols=None):
+    """A wide price frame with one column per symbol.
+
+    Defaults to the symbols PORTFOLIO_LOTS names only so the frame has something
+    to look at; the analytics paths themselves no longer read that constant, so a
+    test asserting on a real computation passes the positions it means.
+    """
     import numpy as np
 
-    from api.core.holdings import PORTFOLIO_LOTS
+    if symbols is None:
+        from api.core.holdings import PORTFOLIO_LOTS
+
+        symbols = list(PORTFOLIO_LOTS)
 
     frames = []
-    for i, symbol in enumerate(PORTFOLIO_LOTS):
+    for i, symbol in enumerate(symbols):
         close = 3000 * np.exp(np.cumsum(np.random.default_rng(i).normal(0.0004, 0.013, periods)))
         frames.append(
             pd.DataFrame({"d": dates, "symbol": symbol, "close": close})
@@ -741,12 +881,14 @@ def _wide_frame(dates, periods):
 
 
 class TestEquityCurve:
-    async def test_curve_is_computed_from_real_closes_and_lots(self, live_settings):
-        from api.core.holdings import CAPITAL_IDR
+    async def test_curve_is_computed_from_real_closes_and_lots(
+        self, live_settings, seeded_positions
+    ):
         from api.services import portfolio_service
 
+        held = {"BBCA": 2000, "BBRI": 3500, "TLKM": 5000}
         dates = pd.bdate_range("2025-01-01", periods=250)
-        wide = _wide_frame(dates, 250)
+        wide = _wide_frame(dates, 250, symbols=list(held))
 
         async def load(symbols, days):
             return wide.copy()
@@ -757,21 +899,27 @@ class TestEquityCurve:
         )
 
         with patch.object(portfolio_service, "_load_price_matrix", side_effect=load), \
-             patch("ingestor.providers.get_provider", return_value=provider):
-            curve = await portfolio_service.get_equity_curve(days=250)
+             patch("ingestor.providers.get_provider", return_value=provider), \
+             patch("api.services.portfolio_service.load_lots", AsyncMock(return_value=held)):
+            curve = await portfolio_service.get_equity_curve(days=250, portfolio_id="default")
 
         assert curve.source == "live"
         assert len(curve.points) == 250
-        assert curve.startValue and curve.startValue > 0
-        # The value is the sum of close × lots × 100, so it has to land near the
-        # seeded capital rather than being an arbitrary series.
-        assert 0.2 * CAPITAL_IDR < curve.startValue < 5 * CAPITAL_IDR
+        # Exactly the sum of close × lots × 100 over the declared positions, which
+        # is the claim that matters: the curve is this portfolio's, computed from
+        # real closes, rather than an arbitrary series.
+        expected = sum(
+            wide[symbol].iloc[0] * lots * 100 for symbol, lots in held.items()
+        )
+        assert abs(curve.startValue - expected) < 1.0
         # Rebased so the two lines share a scale and are directly comparable.
         assert curve.benchmarkSource == "^JKSE"
         assert abs(curve.points[0].benchmark - curve.startValue) < 1.0
         assert all(p.benchmark is not None for p in curve.points)
 
-    async def test_no_history_yields_no_points_not_a_flat_line(self, live_settings):
+    async def test_no_history_yields_no_points_not_a_flat_line(
+        self, live_settings, seeded_positions
+    ):
         """A straight or random line would render a confident chart of a history
         that does not exist."""
         from api.services import portfolio_service
@@ -779,20 +927,38 @@ class TestEquityCurve:
         async def load(symbols, days):
             return pd.DataFrame()
 
-        with patch.object(portfolio_service, "_load_price_matrix", side_effect=load):
-            curve = await portfolio_service.get_equity_curve(days=250)
+        with patch.object(portfolio_service, "_load_price_matrix", side_effect=load), \
+             patch("api.services.portfolio_service.load_lots",
+                   AsyncMock(return_value={"BBCA": 2000})):
+            curve = await portfolio_service.get_equity_curve(days=250, portfolio_id="default")
 
         assert curve.points == []
         assert curve.source == "mock"
 
+    async def test_an_empty_portfolio_yields_no_points(self, live_settings):
+        """An account holding nothing has no curve. Returning points here would
+        mean drawing a history for a portfolio that never existed."""
+        from api.services import portfolio_service
+
+        async def load(symbols, days):
+            raise AssertionError("prices must not be fetched for an empty portfolio")
+
+        with patch.object(portfolio_service, "_load_price_matrix", side_effect=load), \
+             patch("api.services.portfolio_service.load_lots", AsyncMock(return_value={})):
+            curve = await portfolio_service.get_equity_curve(days=250, portfolio_id="empty")
+
+        assert curve.points == []
+        assert curve.source == "empty"
+
     async def test_missing_index_nulls_the_benchmark_rather_than_zeroing_it(
-        self, live_settings
+        self, live_settings, seeded_positions
     ):
         """A zero benchmark draws a line to the floor and reads as a crash."""
         from api.services import portfolio_service
 
+        held = {"BBCA": 2000, "BBRI": 3500}
         dates = pd.bdate_range("2025-01-01", periods=200)
-        wide = _wide_frame(dates, 200)
+        wide = _wide_frame(dates, 200, symbols=list(held))
 
         async def load(symbols, days):
             return wide.copy()
@@ -801,42 +967,57 @@ class TestEquityCurve:
         provider.get_daily_bars = AsyncMock(return_value=[])
 
         with patch.object(portfolio_service, "_load_price_matrix", side_effect=load), \
-             patch("ingestor.providers.get_provider", return_value=provider):
-            curve = await portfolio_service.get_equity_curve(days=200)
+             patch("ingestor.providers.get_provider", return_value=provider), \
+             patch("api.services.portfolio_service.load_lots", AsyncMock(return_value=held)):
+            curve = await portfolio_service.get_equity_curve(days=200, portfolio_id="default")
 
         assert curve.source == "live", "the curve is still worth showing without a benchmark"
         assert len(curve.points) == 200
         assert curve.benchmarkSource is None
         assert all(p.benchmark is None for p in curve.points)
 
-    async def test_uses_the_same_holdings_as_the_risk_engine(self, live_settings):
-        """The two paths describe one portfolio. This codebase already had them
-        disagree, because risk_worker carried a private 7-symbol copy."""
+    async def test_no_analytics_module_reads_the_shared_constant(self):
+        """ADR-0005. The two paths used to agree because both imported the same
+        constant, which is agreement about a portfolio belonging to nobody. They
+        now agree because both read the caller's own `lots_json`, through one
+        function."""
         import inspect
 
-        from api.core.holdings import PORTFOLIO_LOTS
+        from api.services import market_service, portfolio_service, risk_service
+
+        for module in (portfolio_service, risk_service, market_service):
+            source = inspect.getsource(module)
+            assert "PORTFOLIO_LOTS" not in source, (
+                f"{module.__name__} still reads the shared portfolio constant"
+            )
+
+    async def test_both_paths_read_positions_through_one_loader(self):
+        """One read path, so they cannot drift the way the risk worker's private
+        copy drifted from the optimiser's."""
+        import inspect
+
         from api.services import portfolio_service, risk_service
 
         for module in (portfolio_service, risk_service):
             source = inspect.getsource(module)
-            assert "PORTFOLIO_LOTS" in source, f"{module.__name__} does not use the shared holdings"
-
-        assert set(PORTFOLIO_LOTS) == set(PORTFOLIO_LOTS)
-        assert sum(PORTFOLIO_LOTS.values()) > 0
+            assert "load_lots" in source, f"{module.__name__} does not use the shared loader"
 
     async def test_endpoint_returns_the_curve_over_http(
-        self, live_settings, fake_portfolios, mock_redis
+        self, live_settings, fake_portfolios, mock_redis, seeded_positions
     ):
         """The service test proves the maths; this proves the route, the response
-        model and the cache wrapper are all wired to it."""
+        model and the cache wrapper are all wired to it — including that the route
+        passes the caller's own portfolio id down instead of relying on the
+        default."""
         from dataclasses import dataclass
 
         from fastapi.testclient import TestClient
 
         from api.services import portfolio_service
 
+        held = {"BBCA": 2000, "BBRI": 3500, "TLKM": 5000}
         dates = pd.bdate_range("2025-01-01", periods=250)
-        wide = _wide_frame(dates, 250)
+        wide = _wide_frame(dates, 250, symbols=list(held))
 
         async def load(symbols, days):
             return wide.copy()
@@ -858,7 +1039,8 @@ class TestEquityCurve:
         provider.get_daily_bars = daily
 
         with patch.object(portfolio_service, "_load_price_matrix", side_effect=load), \
-             patch("ingestor.providers.get_provider", return_value=provider):
+             patch("ingestor.providers.get_provider", return_value=provider), \
+             patch("api.services.portfolio_service.load_lots", AsyncMock(return_value=held)):
             from api.main import create_app
 
             response = TestClient(create_app()).get("/v1/portfolio/equity?days=250")
@@ -921,11 +1103,14 @@ class TestTimezoneAlignment:
         )
         assert len(set(localised) & set(provider_index)) == 5, "still not comparable"
 
-    async def test_curve_keeps_its_benchmark_against_tz_aware_bars(self, live_settings):
+    async def test_curve_keeps_its_benchmark_against_tz_aware_bars(
+        self, live_settings, seeded_positions
+    ):
         from api.services import portfolio_service
 
+        held = {"BBCA": 2000, "TLKM": 5000}
         dates = pd.bdate_range("2026-07-27", periods=30)
-        wide = _wide_frame(dates, 30)
+        wide = _wide_frame(dates, 30, symbols=list(held))
 
         async def load(symbols, days):
             return wide.copy()
@@ -936,8 +1121,9 @@ class TestTimezoneAlignment:
         )
 
         with patch.object(portfolio_service, "_load_price_matrix", side_effect=load), \
-             patch("ingestor.providers.get_provider", return_value=provider):
-            curve = await portfolio_service.get_equity_curve(days=30)
+             patch("ingestor.providers.get_provider", return_value=provider), \
+             patch("api.services.portfolio_service.load_lots", AsyncMock(return_value=held)):
+            curve = await portfolio_service.get_equity_curve(days=30, portfolio_id="default")
 
         assert curve.source == "live"
         assert len(curve.points) == 30

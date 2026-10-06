@@ -12,8 +12,6 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 # `mode="before"` validator never got the chance to see the value.
 CommaList = Annotated[list[str], NoDecode]
 
-DEV_JWT_SECRET = "dev-secret-change-in-production"
-
 # OpenAI-compatible base URLs per advisor LLM provider. Kept at module scope
 # rather than as a class attribute so pydantic-settings does not mistake it for a
 # settings field.
@@ -49,21 +47,43 @@ class Settings(BaseSettings):
         "http://localhost:3000",
     ]
 
-    # Auth
-    jwt_secret_key: str = DEV_JWT_SECRET
-    jwt_algorithm: str = "HS256"
-    jwt_access_token_expire_minutes: int = 60
+    # ── Auth: opaque sessions (ADR-0004) ───────────────────────────────────────
+    # There is no signing secret and no token lifetime in minutes any more. A
+    # session is a random value whose SHA-256 is the database key, so nothing in
+    # the token can be forged and revocation is a DELETE rather than a claim that
+    # was already handed out.
+
     # Convenience for local work ONLY. api/core/auth.py short-circuits
     # get_current_user for EVERY route when this is true, so it must never
     # survive into production — enforced by _reject_unsafe_production below.
+    # It resolves to a real Account row rather than a string, because
+    # portfolios.user_id is a foreign key and a synthetic principal cannot own
+    # anything. That account is the "Operator Tunggal" in CONTEXT.md: a person
+    # using the system personally, with no Subscription and no need for one.
     auth_bypass: bool = True
-    # Single-operator credential for the /v1/auth/token login endpoint. This is
-    # a personal decision-support tool, not a multi-tenant service, so there is
-    # no user store — one operator authenticates against these. Leave the
-    # password blank to disable login (only AUTH_BYPASS access remains). Set a
-    # strong AUTH_PASSWORD in any environment where AUTH_BYPASS=false.
-    auth_username: str = "operator"
-    auth_password: str = ""
+    # The Account AUTH_BYPASS resolves to. Created on first use.
+    auth_bypass_email: str = "operator@local.invalid"
+
+    # Absolute session lifetime. Long enough to stop signing in daily, short
+    # enough that a stolen cookie is not a permanent key.
+    session_ttl_days: int = 7
+
+    # Paid-data gate. Secure by default and independent of AUTH_BYPASS: a
+    # misconfigured bypass must not silently take the paywall down with it.
+    # Production refuses to boot with this off — see _reject_unsafe_production.
+    paywall_enabled: bool = True
+
+    # Whether the session cookie carries the Secure attribute. Left off in
+    # development because a Secure cookie is silently dropped on plain-http
+    # localhost, which would look like login being broken. Production refuses to
+    # boot without it, so the decision cannot be forgotten at the only moment it
+    # matters.
+    session_cookie_secure: bool = False
+
+    # Bootstrap-only promotion to admin, used by the maintenance script. There is
+    # no seeded admin account: schema.sql runs on every deploy, so a credential
+    # written there would be copied into every install and never rotated.
+    admin_email: str = ""
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
@@ -287,8 +307,10 @@ class Settings(BaseSettings):
     # Rate limiting
     #
     # Closes the open-API abuse surface and, more importantly, caps the LLM cost
-    # exposure on the advisor endpoint. Keyed by client IP because there is no
-    # user store yet (see GAP-04); revisit once tokens carry a stable subject.
+    # exposure on the advisor endpoint. Keyed by client IP because the key
+    # function runs in the middleware, before authentication resolves anyone;
+    # see api/core/rate_limit.py for why a per-account key is not simply a
+    # matter of having an account.
     #
     # Storage is in-process (memory://) so a Redis outage cannot start rejecting
     # requests — the limiter fails open. This bounds a single API process; a
@@ -355,10 +377,15 @@ class Settings(BaseSettings):
                 "AUTH_BYPASS=true — every endpoint would accept unauthenticated "
                 "requests as 'dev-user'. Set AUTH_BYPASS=false."
             )
-        if self.jwt_secret_key == DEV_JWT_SECRET:
+        if not self.paywall_enabled:
             problems.append(
-                "JWT_SECRET_KEY is still the published development default, so "
-                "anyone can mint a valid token. Set a random secret."
+                "PAYWALL_ENABLED=false — every unauthenticated visitor could reach "
+                "the paid data. Set PAYWALL_ENABLED=true."
+            )
+        if not self.session_cookie_secure:
+            problems.append(
+                "SESSION_COOKIE_SECURE=false — the session cookie would travel over "
+                "plain HTTP. Set SESSION_COOKIE_SECURE=true."
             )
         if self.app_debug:
             problems.append("APP_DEBUG=true leaks internals in error responses.")

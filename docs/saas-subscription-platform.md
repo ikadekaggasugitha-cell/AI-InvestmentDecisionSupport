@@ -1,8 +1,8 @@
 # Spesifikasi Teknis & PRD: Platform Langganan SaaS (AIDSS)
 
 > **Dokumen Arsitektur & Perencanaan Sistem**  
-> **Status:** Siap Implementasi (*Implementation-Ready*)  
-> **Versi:** 1.0.0  
+> **Status:** Rencana, sebagian sudah diterapkan. Header versi lama menulis "belum diimplementasikan" untuk seluruh dokumen, dan itu sudah tidak benar: Fase 1 selesai. Yang belum ada adalah penagihan dan seluruh Fase 2. `docs/status.md` tetap satu-satunya sumber kebenaran tentang apa yang benar-benar ada  
+> **Versi:** 1.1.0  
 > **Target Aplikasi:** AIDSS (AI Investment Decision Support System)  
 > **Lokasi File:** `docs/saas-subscription-platform.md`
 
@@ -23,9 +23,10 @@ AIDSS saat ini beroperasi sebagai *single-operator personal decision tool*. Untu
 | **Model Perpanjangan**| Manual / Tagihan Berkala | Manual / Tagihan Berkala |
 
 ### 1.3 Kebijakan Akses (*Full Paywall Model*)
-* **Prinsip Utama:** Pengguna hanya dapat mengakses Dashboard dan seluruh fiturnya jika memiliki akun dengan status langganan aktif (`active` dan `end_date > NOW()`).
+* **Prinsip Utama:** Pengguna hanya dapat mengakses Dashboard dan seluruh fiturnya jika punya Subscription yang masih berlaku. **Tidak ada kolom status untuk ini** — Subscription tidak pernah menyimpan status pembayaran, dan masa aktifnya dibaca dari tanggal berakhirnya. (_ADR-0002_)
+* **Tidak ada peran `subscriber`.** Kelayakan dan otorisasi adalah dua hal terpisah: `role` untuk akses sistem (`user` atau `admin`), dan Subscription untuk akses berbayar. Keduanya boleh dijawab berbeda untuk satu akun yang sama. (_ADR-0002_)
 * **Pengguna Non-Subscriber / Tamu:** Jika belum login atau masa aktif habis, seluruh rute dashboard (`/`, `/markets`, `/portfolio`, `/signals`, `/advisor`, `/risk`, dll.) otomatis diarahkan (*redirect*) ke **Landing Page / One-Step Checkout Form**.
-* **Keamanan API:** Seluruh endpoint data di backend dilindungi oleh dependency `RequireActiveSubscription` yang memverifikasi JWT dan status langganan di database/cache.
+* **Keamanan API:** Seluruh endpoint data di backend dilindungi oleh pemeriksaan akses yang membaca Subscription dari database. Pemeriksaan ini **fail-closed**: kalau cache tidak tersedia, akses ditolak, bukan diloloskan. (_ADR-0004_)
 
 ---
 
@@ -71,7 +72,7 @@ flowchart TD
 ```
 
 ### 2.2 Integrasi Stack Teknologi
-* **Backend:** FastAPI (Python 3.11+), Pydantic v2, SQLAlchemy / asyncpg, Celery + Redis.
+* **Backend:** FastAPI (Python 3.11+), Pydantic v2, SQL mentah + asyncpg, Celery + Redis. **Tanpa ORM** —[_ADR-0001_](adr/0001-tetap-raw-sql-tanpa-orm.md)
 * **Frontend:** React 18, Vite, TypeScript, Tailwind CSS, Radix UI / shadcn, Sonner (Toasts).
 * **Database:** TimescaleDB / PostgreSQL 15.
 * **Payment Gateway:** Midtrans Core API / Snap SDK (QRIS GoPay/ShopeePay, BCA/Mandiri/BNI/BRI Virtual Account).
@@ -84,7 +85,7 @@ flowchart TD
 
 ## 3. Desain Database (*Database Schema & Migrations*)
 
-Migrasi database ditambahkan pada folder `backend/db/migrations/` untuk memperluas skema TimescaleDB/PostgreSQL yang sudah ada.
+Setiap tabel baru harus ditulis di **dua tempat**: `backend/db/schema.sql` untuk instalasi baru, dan `backend/db/migrations/0005_*.sql` untuk database yang sudah ada. Keduanya wajib karena `db-init` hanya menerapkan `schema.sql`. Lihat [_ADR-0001_](adr/0001-tetap-raw-sql-tanpa-orm.md).
 
 ```mermaid
 erDiagram
@@ -99,23 +100,15 @@ erDiagram
         varchar password_hash
         varchar full_name
         varchar phone_number
-        varchar role "subscriber | admin"
-        boolean is_active
+        varchar role "user | admin"
+        timestamp blocked_at "NULL = tidak diblokir"
         timestamp created_at
-        timestamp updated_at
     }
 
     SUBSCRIPTIONS {
         uuid id PK
         uuid user_id FK
-        varchar plan_type "monthly | annual"
-        numeric price
-        varchar status "pending | active | expired | canceled"
-        timestamp start_date
-        timestamp end_date
-        boolean auto_renew
-        timestamp created_at
-        timestamp updated_at
+        timestamp expires_at "satu-satunya penentu masa aktif"
     }
 
     TRANSACTIONS {
@@ -126,7 +119,7 @@ erDiagram
         numeric amount
         varchar payment_gateway "midtrans | manual"
         varchar payment_method "qris | va_bca | va_mandiri | bank_transfer"
-        varchar status "pending | settlement | expire | deny | cancel"
+        varchar status "pending | awaiting_verification | settlement | rejected | expire | deny | cancel"
         varchar midtrans_transaction_id
         varchar proof_image_url
         uuid approved_by FK
@@ -155,43 +148,64 @@ erDiagram
     }
 ```
 
-### 3.1 Skrip DDL PostgreSQL (`backend/db/migrations/0005_saas_subscription.sql`)
+### 3.1 DDL PostgreSQL (`backend/db/schema.sql` dan `backend/db/migrations/0005_*.sql`)
 
 ```sql
--- ── 1. Tabel Users (Menggantikan single-operator hardcoded auth) ──────────────
+-- ── 1. Tabel Users ─────────────────────────────────────────────────────────
+-- Fase 1. Nama email dinormalisasi (lower + trim) oleh Pydantic, dan
+-- keunikan ditegakkan ulang oleh indeks ekspresi di bawah, jadi email dengan
+-- huruf kapital berbeda tidak bisa menjadi dua akun.
 CREATE TABLE IF NOT EXISTS users (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email         VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
+    email         VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,   -- Argon2id, bukan sandi polos
     full_name     VARCHAR(150) NOT NULL,
-    phone_number  VARCHAR(30)  NOT NULL,
-    role          VARCHAR(20)  NOT NULL DEFAULT 'subscriber' CHECK (role IN ('subscriber', 'admin')),
-    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    phone_number  VARCHAR(30)  NOT NULL,   -- wajib: satu-satunya kanal notifikasi
+    role          VARCHAR(20)  NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+    blocked_at    TIMESTAMPTZ,             -- NULL = tidak diblokir
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (lower(email));
 CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
 
--- ── 2. Tabel Subscriptions ──────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS subscriptions (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    plan_type   VARCHAR(20) NOT NULL CHECK (plan_type IN ('monthly', 'annual')),
-    price       NUMERIC(14,2) NOT NULL,
-    status      VARCHAR(30) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'expired', 'canceled')),
-    start_date  TIMESTAMPTZ,
-    end_date    TIMESTAMPTZ,
-    auto_renew  BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- CATATAN: tidak ada akun sistem yang di-seed di sini. schema.sql dijalankan
+-- otomatis oleh db-init pada setiap `docker compose up`, jadi kredensial di
+-- dalam file ini akan ikut tersalin ke setiap instalasi. Admin pertama dibuat
+-- lewat skrip pemeliharaan.
+
+-- ── 2. Tabel Sessions (opaque, bukan JWT) ───────────────────────────────────
+-- id menyimpan SHA-256 dari nilai yang ada di cookie, bukan nilai itu sendiri,
+-- sehingga bocornya isi tabel tidak langsung berarti pembocoran sesi aktif.
+CREATE TABLE IF NOT EXISTS sessions (
+    id         VARCHAR(64) PRIMARY KEY,    -- hex sha-256 dari token cookie
+    user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_subscriptions_user_status ON subscriptions (user_id, status);
-CREATE INDEX IF NOT EXISTS idx_subscriptions_end_date ON subscriptions (end_date);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 
--- ── 3. Tabel Transactions ───────────────────────────────────────────────────
+-- ── 3. Tabel Subscriptions ─────────────────────────────────────────────────
+-- Satu baris per periode pembelian, tidak pernah dimutasi. Perpanjangan
+-- membuat baris baru, bukan menggeser tanggal yang lama. Tidak ada kolom
+-- status: masa aktif dibaca dari expires_at, dan pembatalan tidak ada karena
+-- masa aktif yang sudah ditulis tidak bisa dicabut (_ADR-0002_).
+-- plan_type dan price_paid menyusul di Fase 2, bersamaan dengan pembayaran.
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user_access
+    ON subscriptions (user_id, expires_at DESC);
+
+-- ── 4. Tabel Transactions ──────────────────────────────────────────────────
+-- FASE 2. Alur uang sepenuhnya: apa yang sudah dibayar, menunggu verifikasi
+-- admin, ditolak, atau kedaluwarsa. Tidak ada kolom di sini yang menyentuh
+-- hak akses.
 CREATE TABLE IF NOT EXISTS transactions (
     id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id                UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -214,7 +228,7 @@ CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions (user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions (status);
 CREATE INDEX IF NOT EXISTS idx_transactions_invoice ON transactions (invoice_code);
 
--- ── 4. Tabel System Settings (Dinamis: Rekening & Harga) ─────────────────────
+-- ── 5. Tabel System Settings (Dinamis: Rekening & Harga) ── FASE 2 ─────────
 CREATE TABLE IF NOT EXISTS system_settings (
     key         VARCHAR(100) PRIMARY KEY,
     value       JSONB NOT NULL,
@@ -232,7 +246,7 @@ INSERT INTO system_settings (key, value, description) VALUES
 ('contact_support', '{"whatsapp": "081234567890", "email": "support@aidss.id"}', 'Kontak layanan pelanggan')
 ON CONFLICT (key) DO NOTHING;
 
--- ── 5. Tabel Notification Logs ──────────────────────────────────────────────
+-- ── 6. Tabel Notification Logs ── FASE 2 ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS notification_logs (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id       UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -267,7 +281,7 @@ Untuk meminimalkan *drop-off* calon pelanggan, alur checkout didesain dalam satu
 4. **Ringkasan Total Pembayaran & Tombol "Bayar Sekarang"**
 
 ### 4.2 Siklus Pembayaran Midtrans (Otomatis)
-1. Frontend mengirim payload ke `POST /v1/auth/register-checkout`.
+1. Frontend mengirim payload ke `POST /v1/auth/signup`. Di Fase 1 endpoint ini hanya membuat akun, tanpa pembayaran; checkout pindah ke Fase 2.
 2. Backend membuat record `user`, `subscription` (`pending`), `transaction` (`pending`), lalu memanggil Midtrans Snap API untuk memperoleh `snap_token`.
 3. Frontend membuka dialog pembayaran `window.snap.pay(snapToken, { onSuccess: ..., onPending: ... })`.
 4. Saat pembayaran diverifikasi oleh bank/QRIS, Midtrans mengirimkan HTTP POST Webhook ke Backend: `POST /v1/payments/midtrans/webhook`.
@@ -315,7 +329,7 @@ Admin Portal (/admin)
 │   └── Tab 'Riwayat Semua Transaksi' (Midtrans & Manual, Filter Status, Export CSV)
 ├── 3. Manajemen Pengguna & Langganan (/admin/users)
 │   ├── Tabel Pengguna (Nama, Email, No WA, Paket, Tanggal Berakhir, Status)
-│   ├── Fitur Perpanjang Manual (Tambah 7 hari, 30 hari, 1 tahun)
+│   ├── Fitur Perpanjang Manual (Subscription baru, bukan menggeser tanggal lama)
 │   ├── Fitur Nonaktifkan / Blokir Akun
 │   └── Reset Password Pengguna
 └── 4. Pengaturan Sistem (/admin/settings)
@@ -331,7 +345,7 @@ Admin Portal (/admin)
 ### 6.1 Endpoint Publik & Checkout
 | Method | Endpoint | Deskripsi | Akses |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/v1/auth/register-checkout` | Registrasi Akun + Inisiasi Transaksi (One-Step) | Publik |
+| `POST` | `/v1/auth/signup` | Registrasi Akun. Di Fase 1 tanpa pembayaran | Publik |
 | `POST` | `/v1/auth/login` | Login Email & Password, mereturn JWT + Role + Sub Status | Publik |
 | `POST` | `/v1/auth/refresh` | Refresh JWT Token | Authenticated |
 | `GET`  | `/v1/subscriptions/pricing` | Ambil harga aktif & daftar rekening tujuan | Publik |
@@ -342,7 +356,7 @@ Admin Portal (/admin)
 | Method | Endpoint | Deskripsi | Akses |
 | :--- | :--- | :--- | :--- |
 | `GET`  | `/v1/user/profile` | Profil akun dan sisa masa aktif langganan | Subscriber Aktif |
-| `POST` | `/v1/user/renew` | Inisiasi perpanjangan langganan baru | Subscriber |
+| `POST` | `/v1/user/renew` | Inisiasi perpanjangan — membuat Subscription baru | Subscriber |
 | `GET`  | `/v1/user/invoices` | Riwayat pembayaran & invoice PDF | Subscriber |
 
 ### 6.3 Endpoint Admin Portal (Protected `role: admin`)
@@ -353,7 +367,7 @@ Admin Portal (/admin)
 | `POST` | `/v1/admin/transactions/{id}/approve` | Setujui transfer manual & aktifkan masa langganan | Admin |
 | `POST` | `/v1/admin/transactions/{id}/reject` | Tolak transfer manual disertai catatan alasan | Admin |
 | `GET`  | `/v1/admin/users` | Daftar seluruh user + filter status & pencarian | Admin |
-| `POST` | `/v1/admin/users/{id}/adjust-validity`| Tambah/kurangi hari masa aktif langganan | Admin |
+| `POST` | `/v1/admin/users/{id}/grant-subscription` | Membuat Subscription baru (perpanjangan) | Admin |
 | `PUT`  | `/v1/admin/settings/pricing` | Perbarui nominal harga bulanan & tahunan | Admin |
 | `PUT`  | `/v1/admin/settings/bank-accounts` | Perbarui daftar rekening bank transfer manual | Admin |
 
@@ -364,21 +378,22 @@ Admin Portal (/admin)
 Sistem memanfaatkan scheduler **Celery Beat** yang sudah ada di proyek untuk menjalankan otomasi berkala:
 
 ### 7.1 Jadwal Celery Beat (`backend/workers/celery_app.py`)
+
+Tidak ada task kedaluwarsa langganan, dan ini disengaja. Masa aktif dibaca dari `expires_at`, jadi tidak ada yang perlu ditandai — task `check_and_expire_subscriptions` yang pernah direncanakan di sini **dibatalkan** (_ADR-0002_). Kalau akses dihitung dari kolom status, task inilah yang akan menulis status basi, dan pembayaran yang masukabutuh satu hari sebelum jadwal berjalan akan salah ditandai.
+
+Yang tetap perlu task hanyalah pengiriman notifikasi, dan itu Fase 2:
+
 ```python
-# Jadwal audit langganan berkala
 beat_schedule = {
-    # Dijalankan setiap hari pukul 00:05 WIB
-    "check-subscription-expiry-daily": {
-        "task": "workers.subscription_worker.check_and_expire_subscriptions",
-        "schedule": crontab(hour=0, minute=5),
-    },
-    # Dijalankan setiap hari pukul 09:00 WIB (Pengingat perpanjangan H-3)
+    # Pengingat perpanjangan H-3
     "send-renewal-reminders-daily": {
         "task": "workers.subscription_worker.send_renewal_reminders",
         "schedule": crontab(hour=9, minute=0),
     },
 }
 ```
+
+Zona waktu mengikuti konvensi yang sudah ada di `backend/workers/celery_app.py`: jam dalam WIB, dengan `enable_utc=True`.
 
 ### 7.2 Template Pesan Notifikasi Otomatis (Email + WhatsApp)
 
@@ -414,9 +429,12 @@ beat_schedule = {
 ## 8. Aspek Keamanan & Penanganan Fraud (*Security & Hardening*)
 
 1. **Pencegahan Bypass JWT:**
-   * Konfigurasi dev `AUTH_BYPASS=false` pada environment produksi.
-   * Payload JWT menyimpan klaim: `sub` (User ID), `role` (`subscriber`/`admin`), dan `sub_status` (`active`/`expired`).
-   * Setiap request verifikasi memeriksa status langganan terkini melalui Redis cache (TTL 5 menit) untuk mendeteksi instan jika akun di-suspend atau expired tanpa perlu query database berulang kali.
+   * Token disimpan sebagai cookie `HttpOnly` + `Secure` + `SameSite=Lax`, **bukan** di `localStorage`. Nilainya 64 karakter acak; database menyimpan `SHA-256` dari nilai itu, bukan nilai aslinya (_ADR-0004_).
+   * Tidak ada klaim apa pun di dalam token. `role` dan Subscription dibaca dari database pada setiap request. Konsekuensinya: mencabut akses atau memblokir akun berlaku seketika, tanpa menunggu token kedaluwarsa.
+   * Redis hanya read-through cache untuk sesi, dan pemeriksaan aksesnya **fail-closed**. Kalau cache tidak tersedia, akses ditolak, bukan diloloskan — kelalaian di sini akan membuka semua data ke siapa pun yang punya token lama.
+   * Sesi kedaluwarsa tidak otomatis dihapus. Pembersihan lewat skrip pemeliharaan, bukan Celery Beat, supaya tidak menambah trap zona waktu baru ke jadwal yang sudah pernah salah.
+   * Ganti kata sandi menghapus seluruh sesi akun tersebut.
+   * WebSocket memakai tiket sekali pakai berumur pendek, diambil lewat HTTP yang sudah diautentikasi. Browser tidak bisa mengirim header saat handshake, dan query param bocor ke access log.
 2. **Validasi Webhook Midtrans:**
    * Wajib mencocokkan SHA-512 `signature_key` yang dihitung server. Request tanpa signature yang valid langsung ditolak dengan status HTTP 400/403.
    * Bersifat *idempotent*: Jika Midtrans mengirim webhook berulang kali untuk ID transaksi yang sama, status tidak akan dihitung ganda.
@@ -425,7 +443,7 @@ beat_schedule = {
    * Batas ukuran berkas maksimal 5 MB.
    * Nama berkas disanitasi menggunakan UUID acak untuk mencegah kerentanan *Path Traversal*.
 4. **Password Security:**
-   * Password di-hash menggunakan algoritma **Argon2id** atau **bcrypt** dengan salt unik per pengguna.
+   * Password di-hash dengan **Argon2id** lewat `argon2-cffi`. `passlib` tidak dipakai: proyek tidak pernah memasangnya, backend bcrypt-nya rusak terhadap versi bcrypt modern, dan paketnya tidak lagi dirawat.
 
 ---
 

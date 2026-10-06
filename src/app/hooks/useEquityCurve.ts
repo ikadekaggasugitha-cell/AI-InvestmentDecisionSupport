@@ -9,12 +9,17 @@ import { ENDPOINTS, FETCH_TIMEOUT_MS, USE_LIVE_API, apiFetch } from "../config/a
  * sample, with no provenance marker — a chart of a portfolio history that never
  * happened, beside a live allocation table.
  *
- * Degradation mirrors the backend contract: when there is not enough price
- * history the server returns `source: "mock"` with an empty `points` list, and
- * the view shows an empty state. This hook deliberately does not substitute the
- * sample curve as a fallback — that would reintroduce exactly the fiction the
- * endpoint removed, and a viewer could not tell which curve they were looking
- * at.
+ * Degradation mirrors the backend contract, which distinguishes two reasons for an
+ * empty `points` list (ADR-0005):
+ *
+ *   - `"mock"` — there is not enough price history to plot. A problem to fix.
+ *   - `"empty"` — this portfolio holds nothing, so there is no history to have.
+ *     Not a problem, and telling someone who has bought no shares that their
+ *     price history is missing would be wrong.
+ *
+ * This hook deliberately does not substitute the sample curve as a fallback —
+ * that would reintroduce exactly the fiction the endpoint removed, and a viewer
+ * could not tell which curve they were looking at.
  */
 
 export interface EquityPoint {
@@ -38,6 +43,11 @@ export interface EquityCurveResult {
   loading: boolean;
   error: string | null;
   isLive: boolean;
+  /**
+   * Why there are no points, when there are none. `null` when the curve is
+   * present, or while loading.
+   */
+  emptyReason: "no-history" | "no-positions" | null;
   startValue: number | null;
   endValue: number | null;
   totalReturn: number | null;
@@ -50,6 +60,7 @@ const EMPTY: EquityCurveResult = {
   loading: false,
   error: null,
   isLive: false,
+  emptyReason: null,
   startValue: null,
   endValue: null,
   totalReturn: null,
@@ -116,6 +127,12 @@ export function useEquityCurve(days = 252): EquityCurveResult {
           loading: false,
           error: null,
           isLive: data?.source === "live" && points.length > 0,
+          emptyReason:
+            points.length > 0
+              ? null
+              : data?.source === "empty"
+                ? "no-positions"
+                : "no-history",
           startValue: isFiniteNumber(data?.startValue) ? data.startValue : null,
           endValue: isFiniteNumber(data?.endValue) ? data.endValue : null,
           totalReturn: isFiniteNumber(data?.totalReturn) ? data.totalReturn : null,

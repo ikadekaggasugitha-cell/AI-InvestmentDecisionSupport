@@ -1,0 +1,67 @@
+/*
+ * Auth-form state feedback.
+ *
+ * State lives in a stylesheet because React's style object cannot express a
+ * pseudo-class. The focus ring is not here: focus.css owns it app-wide, so no
+ * component can ship without one.
+ */
+
+/* MOTION is 1 in DESIGN.md: state feedback only, nothing that loops. */
+.auth-control:not(:disabled):hover {
+  filter: brightness(0.94);
+}
+
+.auth-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+.auth-control:disabled {
+  cursor: default;
+}
+
+/* 200% zoom on a narrow viewport: the fields have to reflow, not clip. */
+@media (max-width: 400px) {
+  .auth-control {
+    font-size: 16px;
+  }
+}
+/* Profile tab. The name and email are the two things a person checks to confirm
+   they are looking at their own account, so they get the strongest text and a
+   monospace email to match how every other identifier in the app is set. */
+.account-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.account-email {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
+
+.account-blocked {
+  font-size: 12px;
+  color: var(--destructive);
+  margin-top: 12px;
+}
+
+/* Feedback from a profile edit. Text, not a green tick: a tick is decoration,
+   and the person needs to know the save landed rather than that something
+   changed colour. */
+.profile-saved {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin: 0 0 10px;
+}
+
+.profile-error {
+  font-size: 13px;
+  color: var(--destructive);
+  background: var(--card);
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin: 0 0 12px;
+}

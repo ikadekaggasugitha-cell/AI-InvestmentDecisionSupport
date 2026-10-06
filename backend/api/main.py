@@ -23,7 +23,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from api.core.auth import get_current_user
+from api.core.auth import get_current_user, require_entitlement
 from api.core.config import get_settings
 from api.core.rate_limit import limiter
 from api.routers import (
@@ -229,7 +229,18 @@ All signal outputs are **probability scores** (0–100), not trading instruction
 Operators are required to display the OJK disclaimer before exposing signals to end users.
 
 ### Authentication
-Pass a JWT Bearer token in the `Authorization` header.
+Sessions are opaque random tokens in an HttpOnly cookie, not JWTs. Nothing to put
+in an `Authorization` header: `POST /v1/auth/signup` or `/v1/auth/login` sets the
+cookie and the browser sends it from then on. The database stores only its SHA-256
+digest, so a read of the sessions table yields nothing that can be replayed.
+
+The one place a credential travels as a header is `POST /v1/auth/change-password`,
+which re-checks the current password before the session cookie is rotated.
+
+The live market WebSocket cannot receive a cookie from a cross-site browser, so
+`POST /v1/auth/ws-ticket` exchanges the session for a single-use ticket that is
+valid for one connection.
+
 Set `AUTH_BYPASS=true` in `.env` for development.
         """,
         version="1.0.0",
@@ -265,22 +276,34 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     # with AUTH_BYPASS=false a valid bearer token is required; with the dev
     # default (true) get_current_user short-circuits to a dev principal so local
     # work and the mock-data tests are unaffected.
+    # market_ws is intentionally excluded from these lists: a WebSocket upgrade
+    # cannot carry dependency injection, so it authenticates its own handshake.
     #
-    # market_ws is intentionally excluded: HTTPBearer cannot ride the WebSocket
-    # handshake, so it authenticates via its own query-parameter token path.
+    # Two gates, not one, because they answer different questions.
+    # get_current_user asks "may this person use the system" (role).
+    # require_entitlement asks "may this person use the paid analysis".
+    # Collapsing them would make an administrator a paying subscriber by
+    # accident, which is the trade CONTEXT.md forbids.
     protected = [Depends(get_current_user)]
-    app.include_router(auth.router)  # public: this is where tokens are issued
-    app.include_router(signals.router, dependencies=protected)
-    app.include_router(symbols.router, dependencies=protected)
-    app.include_router(risk.router, dependencies=protected)
+    paid = [Depends(require_entitlement)]
+
+    app.include_router(auth.router)  # public: where accounts and sessions are made
+                # Per-route auth is declared inside it, so /signup, /login and
+                # /ws-ticket stay open while /me and /change-password require one.
+    app.include_router(signals.router, dependencies=paid)
+    app.include_router(risk.router, dependencies=paid)
     app.include_router(market_ws.router)
-    app.include_router(portfolio.router, dependencies=protected)
-    app.include_router(advisor.router, dependencies=protected)
-    app.include_router(broksum.router, dependencies=protected)
-    app.include_router(technicals.router, dependencies=protected)
+    app.include_router(portfolio.router, dependencies=paid)
+    app.include_router(advisor.router, dependencies=paid)
+    app.include_router(broksum.router, dependencies=paid)
+    app.include_router(technicals.router, dependencies=paid)
+    app.include_router(reports.router, dependencies=paid)
+    app.include_router(alerts.router, dependencies=paid)
+    # Reference data rather than analysis: the instrument list and the IDX
+    # disclosure feed. Gating these would mean a signed-out visitor could not
+    # render the pricing page, which is the opposite of what the gate is for.
+    app.include_router(symbols.router, dependencies=protected)
     app.include_router(news.router, dependencies=protected)
-    app.include_router(reports.router, dependencies=protected)
-    app.include_router(alerts.router, dependencies=protected)
 
     # ── Prometheus metrics (Phase 8) ──────────────────────────────────────────
     if settings.metrics_enabled:

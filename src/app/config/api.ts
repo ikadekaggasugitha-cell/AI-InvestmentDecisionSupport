@@ -103,67 +103,56 @@ export const ENDPOINTS = {
   // redundant and the vector for reading another portfolio's allocation.
   portfolio:      () => `${API_BASE}/v1/portfolio/optimise`,
   portfolioEquity: (days = 252) => `${API_BASE}/v1/portfolio/equity?days=${days}`,
+  /** The caller's positions. PUT replaces the whole list; an empty list clears it. */
+  positions:      `${API_BASE}/v1/portfolio/positions`,
   /** Claude-powered Q&A, server-sent events */
   advisorChat:    `${API_BASE}/v1/advisor/chat`,
+
+  // Auth. The session is the HttpOnly cookie, so none of these returns a token
+  // and none of them can be read back by JavaScript. login and signup answer
+  // with the account; me answers with the current one; logout discards the row.
+  authMe:         `${API_BASE}/v1/auth/me`,
+  authLogin:      `${API_BASE}/v1/auth/login`,
+  authSignup:     `${API_BASE}/v1/auth/signup`,
+  authLogout:     `${API_BASE}/v1/auth/logout`,
+  authWsTicket:   `${API_BASE}/v1/auth/ws-ticket`,
+  authChangePassword: `${API_BASE}/v1/auth/change-password`,
 } as const;
 
 /** Default request timeout in milliseconds */
 export const FETCH_TIMEOUT_MS = 10_000;
 
 /**
- * Bearer token for the authenticated API, or null when none is available.
+ * The session lives in an HttpOnly cookie the browser attaches on its own.
  *
- * The backend guards every data route with get_current_user. In local dev the
- * backend runs AUTH_BYPASS=true and needs no token. A deployed single-operator
- * build can bake one in at build time (VITE_API_TOKEN); an interactive login
- * can drop one into localStorage under `aidss_token`. Either source works, and
- * bypass-mode dev needs neither.
+ * There is deliberately no token in JavaScript any more. It used to be read from
+ * VITE_API_TOKEN or localStorage and sent as `Authorization: Bearer`, which meant
+ * any cross-site script could read it and replay it — the exact thing an HttpOnly
+ * cookie prevents. The server sets the cookie on login and clears it on logout;
+ * the one thing the client must do is send credentials on cross-origin requests.
  */
-export function authToken(): string | null {
-  const fromEnv = import.meta.env.VITE_API_TOKEN as string | undefined;
-  if (fromEnv) return fromEnv;
-  try {
-    return typeof localStorage !== "undefined"
-      ? localStorage.getItem("aidss_token")
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Merge the Authorization header into any caller-supplied headers. */
 export function authHeaders(base?: HeadersInit): Headers {
-  const headers = new Headers(base);
-  const token = authToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  return headers;
+  return new Headers(base);
 }
 
 /**
  * Auth-expiry signal.
  *
- * A 401 from any endpoint means the bearer token is missing, expired, or
- * rejected. Without handling it here every hook simply threw and fell back to
- * seed data — so an expired session showed simulated prices that looked live,
- * which is the one failure this app must never present silently. `apiFetch`
- * now clears the stored token and broadcasts a single event the app listens
- * for (see App.tsx) to warn the operator and prompt a re-login.
+ * A 401 means the session cookie is missing, expired, or rejected. Without
+ * handling it here every hook simply threw and fell back to seed data — so an
+ * ended session showed simulated prices that looked live, which is the one
+ * failure this app must never present silently. There is nothing to clear on the
+ * client: the cookie is HttpOnly, so only the server can discard it, and it does
+ * when the session is revoked or the password changes. All this can do is say so.
  */
 export const AUTH_EXPIRED_EVENT = "aidss:auth-expired";
 
 // Dedupe: many hooks fire concurrently, so a single expiry would otherwise
 // dispatch a dozen identical events. Latch on the first 401 and release once a
-// request succeeds again (a fresh token took effect).
+// request succeeds again.
 let authExpiredSignalled = false;
 
 function handleAuthFailure(): void {
-  // Only the localStorage token is ours to clear; a build-time VITE_API_TOKEN
-  // cannot be rotated at runtime, so leave it and let the banner surface.
-  try {
-    if (typeof localStorage !== "undefined") localStorage.removeItem("aidss_token");
-  } catch {
-    /* storage unavailable (private mode / SSR) — nothing to clear */
-  }
   if (authExpiredSignalled) return;
   authExpiredSignalled = true;
   if (typeof window !== "undefined") {
@@ -173,9 +162,9 @@ function handleAuthFailure(): void {
 
 /**
  * Manually raise the auth-expiry signal. The WebSocket path uses this: a 1008
- * "policy violation" close from the backend means the token was missing or
- * rejected, but a socket never goes through apiFetch, so it must report expiry
- * itself instead of reconnecting forever with a token the server won't accept.
+ * "policy violation" close from the backend means the handshake carried no valid
+ * session, but a socket never goes through apiFetch, so it must report expiry
+ * itself instead of reconnecting forever.
  */
 export function signalAuthExpired(): void {
   handleAuthFailure();
@@ -192,16 +181,23 @@ export function onAuthExpired(handler: () => void): () => void {
 }
 
 /**
- * fetch() with the bearer token attached. Every hook goes through this so
- * enabling auth on the backend needs zero per-hook changes. In bypass-mode dev
- * it is a plain fetch — no token, no header.
+ * fetch() with the session cookie attached. Every hook goes through this so the
+ * backend needing a session needs zero per-hook changes.
  *
- * A 401 is intercepted centrally: the stored token is cleared and an
- * auth-expiry event is broadcast once. The response is still returned unchanged
- * so each hook's existing error/fallback path runs as before.
+ * `credentials: "include"` is required and easy to lose. The API is a different
+ * origin from the dev server, and without it the browser drops the cookie on the
+ * way out — the request goes out unauthenticated and comes back 401, which looks
+ * like a broken backend rather than a missing fetch option.
+ *
+ * A 401 is intercepted centrally and broadcast once. The response is still
+ * returned unchanged so each hook's existing error/fallback path runs as before.
  */
 export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  const res = await fetch(input, { ...init, headers: authHeaders(init.headers) });
+  const res = await fetch(input, {
+    ...init,
+    headers: authHeaders(init.headers),
+    credentials: "include",
+  });
   if (res.status === 401) {
     handleAuthFailure();
   } else if (res.ok) {

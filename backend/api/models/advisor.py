@@ -5,7 +5,9 @@ Defines request/response shapes for the Claude-powered portfolio Q&A endpoint.
 All chat responses include the OJK disclaimer and are explicitly labelled as AI output.
 """
 
+import uuid
 from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -23,8 +25,18 @@ class ChatRequest(BaseModel):
     # not own. The router now resolves the portfolio from the caller's token and
     # passes it separately. Pydantic ignores unknown keys by default, so a client
     # still sending `uid` is harmless — it is simply no longer read.
-    # Phase 9D: optional session ID for Redis-backed history persistence
-    session_id: str | None = Field(default=None, description="Session UUID for persistent conversation history")
+    # Phase 9D: optional session ID for Redis-backed history persistence.
+    #
+    # A UUID, and it is only ever a *suffix*: the Redis key is built as
+    # `chat:{user_id}:{session_id}` (advisor_service), so one account cannot read
+    # or overwrite another's conversation by supplying a session id it guessed.
+    # Before that, the key was `chat:{session_id}` with the id straight from the
+    # request body, which meant any authenticated caller could pull up another
+    # person's portfolio discussion by trying ids.
+    session_id: uuid.UUID | None = Field(
+        default=None,
+        description="Client-chosen UUID for conversation history. Namespaced per account server-side.",
+    )
 
 
 class StreamChunk(BaseModel):

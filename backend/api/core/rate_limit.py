@@ -7,10 +7,15 @@ limit). Kept in its own module so those two importers do not create a cycle
 through api.main.
 
 Design notes:
-  • Keyed by client IP (get_remote_address). There is no user store yet
-    (GAP-04), so a stable per-user key is not available; behind a proxy this
-    is the proxy's address and should move to X-Forwarded-For once a trusted
-    proxy terminates TLS.
+  • Keyed by client IP (get_remote_address). The reason is no longer a missing
+    user store — there is a users table and a session cookie since the opaque
+    switch — it is that this key function runs on the middleware, before routing
+    and before authentication, so no account has been resolved yet. Switching to a
+    per-account key means authenticating here, which would make every route pay
+    for a session lookup and give the limiter a second, disagreeing answer about
+    who the caller is. Behind a proxy this is the proxy's address, and should move
+    to X-Forwarded-For once a trusted proxy terminates TLS — that is the real
+    constraint, and it applies to the IP key either way.
   • Storage is in-process (memory://). Redis is a soft dependency here
     (CON-07); routing rate-limit state through it would let a cache outage
     start rejecting traffic. The trade-off is that limits bound one API

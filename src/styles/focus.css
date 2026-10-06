@@ -1,0 +1,29 @@
+/**
+ * Focus visibility, app-wide.
+ *
+ * Four controls set `outline: "none"` inline and had no replacement: the three
+ * position fields, the advisor chat box, and the two search boxes. Inline styles
+ * beat stylesheet rules, so a rule here cannot rescue an element that removes its
+ * own outline, and the inline declarations were removed rather than overridden.
+ *
+ * The rule is global rather than per-component on purpose. It is one line, it
+ * cannot be forgotten when a component is added later, and it covers exactly the
+ * controls whose affordance is an edge or a caret. Anything with its own focus
+ * treatment overrides it.
+ *
+ * The ring is drawn with an offset so it lands on the surface behind the control.
+ * Drawn inside, it would be --ring on --primary, which measures 1.00:1 and is
+ * invisible on the strongest surface in the app.
+ */
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Keyboard focus only: a pointer click must not leave a ring behind. */
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}

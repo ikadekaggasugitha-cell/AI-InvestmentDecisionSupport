@@ -12,6 +12,11 @@ import os
 # instrumentation active and the suite failed partway through. conftest.py is
 # imported before every test module, so setting them here wins the race.
 os.environ.setdefault("AUTH_BYPASS", "true")
+# The suite runs with the paywall off so the route tests reach the behaviour they
+# are about. The gate itself is not left untested: TestPaywallGate in
+# tests/test_paywall.py turns this on and drives all three states, including the
+# database being unreachable.
+os.environ.setdefault("PAYWALL_ENABLED", "false")
 os.environ.setdefault("USE_MOCK_SIGNALS", "true")
 os.environ.setdefault("USE_MOCK_RISK", "true")
 os.environ.setdefault("USE_MOCK_MARKET", "true")
@@ -38,6 +43,7 @@ from api.core import redis_client as redis_module
 
 
 ENV = {
+    "PAYWALL_ENABLED": "false",
     "USE_MOCK_SIGNALS": "false",
     "USE_MOCK_RISK": "false",
     "USE_MOCK_MARKET": "false",
@@ -53,6 +59,7 @@ ENV = {
 # the real branches execute. Shared from here rather than from a single test
 # module, so any future live-path test can ask for it.
 LIVE_ENV = {
+    "PAYWALL_ENABLED": "false",
     "USE_MOCK_SIGNALS": "false",
     "USE_MOCK_RISK": "false",
     "USE_MOCK_MARKET": "false",
@@ -62,6 +69,28 @@ LIVE_ENV = {
     "METRICS_ENABLED": "false",
     "RATE_LIMIT_ENABLED": "false",
 }
+
+
+@pytest.fixture
+def seeded_positions():
+    """
+    Positions for the fake portfolios table, keyed by portfolio id.
+
+    Every analytics path reads `lots_json` now (ADR-0005), so a test that wants a
+    curve or a risk figure has to say whose positions it is describing. Without
+    this the default is an empty portfolio and the honest answer is "nothing to
+    measure" — correct, and useless for a test about the arithmetic.
+
+    Two accounts with different holdings are available so a cross-account leak is
+    visible rather than merely absent: if one account's curve can be produced from
+    the other's positions, the values differ.
+    """
+    import json as _json
+
+    return {
+        "default": _json.dumps({"BBCA": 2000, "BBRI": 3500, "TLKM": 5000}),
+        "pf_alice": _json.dumps({"ASII": 2800, "ICBP": 1500}),
+    }
 
 
 @pytest.fixture
@@ -147,6 +176,28 @@ class _FakeRedis:
     async def hset(self, key: str, mapping: dict) -> None:
         self._store.setdefault(key, {}).update(mapping)
 
+    async def delete(self, *keys: str) -> int:
+        """Absent before this, and its absence was silent: cache invalidation
+        raises AttributeError on a real Redis-shaped object, which the callers
+        catch and log as a warning. A test asserting the cache was cleared would
+        then pass against code that cleared nothing."""
+        removed = 0
+        for key in keys:
+            if self._store.pop(key, None) is not None:
+                removed += 1
+        return removed
+
+    async def keys(self, pattern: str = "*"):
+        """Glob matching, which is all the callers need.
+
+        `fnmatch` rather than a hand-rolled matcher because a subtly wrong pattern
+        implementation would make an invalidation test pass or fail for reasons
+        that have nothing to do with the code under test.
+        """
+        import fnmatch
+
+        return [k for k in self._store if fnmatch.fnmatch(k, pattern)]
+
 
 @pytest.fixture
 def mock_redis():
@@ -175,15 +226,22 @@ class _FakePortfoliosPool:
     """
 
     def __init__(self) -> None:
-        # id -> (owner_sub, is_default, lots_json)
+        # id -> (owner_id, is_default, lots_json). owner_id is accounts.id, which
+        # is a UUID; ownership was a free-text token subject before migration
+        # 0005 and is a foreign key now.
         self.rows: dict[str, tuple[str, bool, str]] = {}
 
     async def fetchval(self, query: str, *args):
-        if "SELECT id FROM portfolios WHERE owner_sub" in query:
+        if "SELECT id FROM portfolios WHERE user_id" in query:
             for pid, (owner, is_default, _) in self.rows.items():
                 if owner == args[0] and is_default:
                     return pid
             return None
+        if "SELECT lots_json FROM portfolios" in query:
+            # portfolio_access.load_lots. Returns the stored JSON text, so the
+            # loader's str/bytes handling is exercised rather than bypassed.
+            row = self.rows.get(args[0])
+            return row[2] if row is not None else None
         raise AssertionError(f"unexpected fetchval: {query!r}")
 
     async def fetchrow(self, query: str, *args):
@@ -200,7 +258,22 @@ class _FakePortfoliosPool:
             if pid not in self.rows:
                 self.rows[pid] = (owner, True, lots)
             return "INSERT 0 1"
+        if "UPDATE portfolios SET lots_json" in query:
+            # ($1 is the jsonb payload, $2 the portfolio id) — the parameter order
+            # in the SQL, which is the reverse of the column order.
+            lots, pid = args[0], args[1]
+            if pid not in self.rows:
+                raise AssertionError(f"no such portfolio: {pid!r}")
+            owner, is_default, _ = self.rows[pid]
+            self.rows[pid] = (owner, is_default, lots)
+            return "UPDATE 1"
         raise AssertionError(f"unexpected execute: {query!r}")
+
+    def lots_for(self, portfolio_id: str) -> dict:
+        """The stored positions for one portfolio, decoded."""
+        import json as _json
+
+        return _json.loads(self.rows[portfolio_id][2])
 
 
 @pytest.fixture(autouse=True)
@@ -266,4 +339,173 @@ def fake_portfolios():
         return pool
 
     with patch("api.services.portfolio_access.get_pool", _get_pool):
+        yield pool
+
+class _IdentityPool:
+    """
+    In-memory users, sessions and subscriptions.
+
+    AUTH_BYPASS resolves to a real Account row rather than a string, because
+    portfolios.user_id is a foreign key and a synthetic principal cannot own
+    anything. That means the whole suite now needs an identity table even though
+    it has no database, so this provides the minimum: enough for the bypass
+    account to be created, a session to be opened, and the entitlement check to
+    answer yes or no.
+
+    `subscriptions` is exposed so a test can seed an expired and an unexpired
+    period and check that only the latter grants access.
+    """
+
+    def __init__(self) -> None:
+        import uuid
+        from datetime import datetime, timedelta, timezone
+
+        self._uuid = uuid
+        self._now = datetime
+        self._tz = timezone
+        self._timedelta = timedelta
+        self.users: dict[str, dict] = {}          # lower(email) -> row
+        self.sessions: dict[str, dict] = {}       # sha256(token) -> row
+        self.subscriptions: list[dict] = []
+        self.fail = False                         # simulate a full outage
+        self.fail_subscriptions = False            # simulate the entitlement query alone failing
+
+    # -- accounts
+
+    async def fetchrow(self, query, *args):
+        self._guard()
+        if "INSERT INTO users" in query:
+            email = args[0].lower()
+            if email in self.users:
+                return None
+            row = {
+                "id": self._uuid.uuid4(),
+                "email": email,
+                "password_hash": args[1] if len(args) > 1 else "!bypass",
+                "full_name": args[2] if len(args) > 2 else "Operator Tunggal",
+                "phone_number": args[3] if len(args) > 3 else "000000000000",
+                "role": args[4] if len(args) > 4 else "admin",
+                "blocked_at": None,
+                "created_at": self._now.now(self._tz.utc),
+            }
+            self.users[email] = row
+            return row
+        if "FROM users" in query and "lower(email)" in query:
+            row = self.users.get(args[0].lower())
+            if row is None:
+                return None
+            return {**row, "password_hash": row["password_hash"]}
+        if "FROM users" in query and "WHERE id = $1" in query:
+            for row in self.users.values():
+                if str(row["id"]) == str(args[0]):
+                    return row
+            return None
+        if "UPDATE users" in query and "full_name" in query:
+            for row in self.users.values():
+                if str(row["id"]) == str(args[0]):
+                    row["full_name"] = args[1]
+                    row["phone_number"] = args[2]
+                    return {k: row[k] for k in
+                            ("id", "email", "full_name", "phone_number", "role",
+                             "blocked_at", "created_at")}
+            return None
+        if "JOIN users" in query and "FROM sessions" in query:
+            # accounts.authenticate: session lookup, expiry and blocked check in
+            # one statement.
+            row = self.sessions.get(args[0])
+            if row is None:
+                return None
+            if row["expires_at"] <= self._now.now(self._tz.utc):
+                return None
+            for user in self.users.values():
+                if str(user["id"]) == str(row["user_id"]):
+                    return {
+                        "id": user["id"],
+                        "email": user["email"],
+                        "full_name": user["full_name"],
+                        "phone_number": user["phone_number"],
+                        "role": user["role"],
+                        "blocked_at": user["blocked_at"],
+                        "created_at": user["created_at"],
+                    }
+            return None
+        raise AssertionError(f"unexpected identity fetchrow: {query!r}")
+
+    # -- sessions + entitlement
+
+    async def execute(self, query, *args):
+        self._guard()
+        if "INSERT INTO sessions" in query:
+            self.sessions[args[0]] = {
+                "id": args[0],
+                "user_id": args[1],
+                "expires_at": args[2],
+            }
+            return "INSERT 0 1"
+        if "DELETE FROM sessions WHERE id = $1" in query:
+            existed = self.sessions.pop(args[0], None) is not None
+            return "DELETE 1" if existed else "DELETE 0"
+        if "DELETE FROM sessions WHERE expires_at" in query:
+            return "DELETE 0"
+        if "DELETE FROM sessions WHERE user_id" in query:
+            target = str(args[0])
+            doomed = [k for k, v in self.sessions.items() if str(v["user_id"]) == target]
+            for k in doomed:
+                del self.sessions[k]
+            return f"DELETE {len(doomed)}"
+        if "UPDATE users SET password_hash" in query:
+            for row in self.users.values():
+                if str(row["id"]) == str(args[0]):
+                    row["password_hash"] = args[1]
+            return "UPDATE 1"
+        raise AssertionError(f"unexpected identity execute: {query!r}")
+
+    async def fetchval(self, query, *args):
+        self._guard()
+        if self.fail_subscriptions and "FROM subscriptions" in query:
+            raise ConnectionError("entitlement query is unreachable")
+        if "FROM subscriptions" in query and "expires_at > NOW()" in query:
+            target = str(args[0])
+            now = self._now.now(self._tz.utc)
+            for row in self.subscriptions:
+                if str(row["user_id"]) == target and row["expires_at"] > now:
+                    return 1
+            return None
+        raise AssertionError(f"unexpected identity fetchval: {query!r}")
+
+    def _guard(self):
+        if self.fail:
+            raise ConnectionError("identity database is unreachable")
+
+    # -- helpers for tests
+
+    def add_subscription(self, account_id, days: int) -> None:
+        self.subscriptions.append(
+            {
+                "user_id": account_id,
+                "expires_at": self._now.now(self._tz.utc) + self._timedelta(days=days),
+            }
+        )
+
+
+@pytest.fixture(autouse=True)
+def fake_identity():
+    """
+    Give the identity layer a working in-memory users/sessions/subscriptions set.
+
+    Autouse for the same reason fake_portfolios is: AUTH_BYPASS now resolves to a
+    real Account row, so without this every authenticated route in the suite would
+    fail at the account lookup before reaching whatever it is actually testing.
+
+    Yielded so a test can seed a subscription, block an account, or set `fail` to
+    make the database unreachable.
+    """
+    pool = _IdentityPool()
+
+    async def _get_pool():
+        return pool
+
+    with patch("api.services.accounts.get_pool", _get_pool), \
+         patch("api.services.sessions.get_pool", _get_pool), \
+         patch("api.services.entitlements.get_pool", _get_pool):
         yield pool

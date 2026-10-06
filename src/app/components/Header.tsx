@@ -130,7 +130,7 @@ function SearchDropdown({ query, market, onClose, isId, onSelectSymbol }: Search
                        in light mode, so T1 landed near 2:1 on white. */
                     color: TIER_RAMP_COLOR[stock.tier] ?? "var(--muted-foreground)",
                     background: TIER_RAMP_BG[stock.tier] ?? "transparent",
-                    border: "1px solid var(--border)",
+                    border: "1px solid var(--control-border)",
                     borderRadius: 3,
                     padding: "1px 4px",
                   }}
@@ -165,7 +165,7 @@ const dropdownStyle: CSSProperties = {
   left: 0,
   right: 0,
   background: "var(--card)",
-  border: "1px solid var(--border)",
+  border: "1px solid var(--control-border)",
   borderRadius: 6,
   zIndex: 40,
   boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
@@ -326,7 +326,7 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
             <div ref={searchRef} style={{ position: "relative" }}>
               <div
                 className="flex items-center gap-2 rounded px-3"
-                style={{ background: "var(--muted)", border: `1px solid ${searchOpen ? "var(--primary)" : "var(--border)"}`, width: 220, height: 34, transition: "border-color 0.1s" }}
+                style={{ background: "var(--muted)", border: `1px solid ${searchOpen ? "var(--primary)" : "var(--control-border)"}`, width: 220, height: 34, transition: "border-color 0.1s" }}
                 role="combobox"
                 aria-expanded={searchOpen}
                 aria-haspopup="listbox"
@@ -340,7 +340,7 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
                   aria-label={isId ? "Cari saham atau pasar" : "Search stock or market"}
                   aria-autocomplete="list"
                   style={{
-                    background: "transparent", border: "none", outline: "none",
+                    background: "transparent", border: "none",
                     fontSize: 12, color: "var(--foreground)", width: "100%",
                     fontFamily: "var(--font-sans)",
                   }}
@@ -379,7 +379,7 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
             style={{
               height: 34,
               background: fx.showUsd ? "var(--neutral-bg)" : "var(--muted)",
-              border: `1px solid ${fx.showUsd ? "var(--neutral)" : "var(--border)"}`,
+              border: `1px solid ${fx.showUsd ? "var(--neutral)" : "var(--control-border)"}`,
               cursor: "pointer", gap: 4,
             }}
           >
@@ -402,7 +402,7 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
               style={{
                 height: 34,
                 background: "var(--muted)",
-                border: "1px solid var(--border)",
+                border: "1px solid var(--control-border)",
                 cursor: "pointer", gap: 4,
               }}
             >
@@ -425,7 +425,7 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
               : (isId ? "Aktifkan tema gelap" : "Switch to dark mode")
             }
             aria-pressed={isDark}
-            style={{ width: 34, height: 34, background: "var(--muted)", border: "1px solid var(--border)", cursor: "pointer" }}
+            style={{ width: 34, height: 34, background: "var(--muted)", border: "1px solid var(--control-border)", cursor: "pointer" }}
           >
             {isDark
               ? <Sun size={14} style={{ color: "var(--warning)" }} aria-hidden="true" />

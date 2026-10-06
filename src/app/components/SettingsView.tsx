@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useApp } from "../context/AppContext";
+import type { AuthState } from "../hooks/useAuth";
+import { useTranslation } from "../i18n/translations";
 import type { ExchangeRateData } from "../hooks/useExchangeRate";
 import type { DataFreshness } from "../hooks/useLiveMarket";
 
@@ -44,9 +46,12 @@ interface Props {
   fx: ExchangeRateData;
   /** Feed state, so About reports what the prices actually are. */
   freshness?: DataFreshness;
+  /** The signed-in account, for the Profile tab and the sign-out control. */
+  auth: AuthState;
+  onSignedOut: () => void;
 }
 
-export function SettingsView({ fx, freshness }: Props) {
+export function SettingsView({ fx, freshness, auth, onSignedOut }: Props) {
   const { isDark, toggleTheme, locale, toggleLocale } = useApp();
   const id = locale === "id";
   const [tab, setTab] = useState<TabId>("appearance");
@@ -58,6 +63,27 @@ export function SettingsView({ fx, freshness }: Props) {
     { id: "notifications", label: "Notifikasi", en: "Notifications" },
     { id: "about", label: "Tentang", en: "About" },
   ];
+
+  /* WAI-ARIA puts arrow-key navigation on the tablist, not on the document: the
+     pattern expects Left/Right to move between tabs and to take focus with them.
+     Nothing provided that here — the tabs were plain buttons, so reaching the last
+     tab by keyboard meant Tab-ing past every intermediate one. Only the active tab
+     is in the tab order, which is why the rest carry tabIndex={-1}. */
+  const onTabKeyDown = (e: KeyboardEvent, index: number) => {
+    const offsets: Record<string, number> = {
+      ArrowRight: index + 1,
+      ArrowLeft: index - 1,
+      Home: 0,
+      End: TABS.length - 1,
+    };
+    const next = offsets[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    // Wrap at both ends: a horizontal tablist has no first or last tab to stop on.
+    const target = TABS[(next + TABS.length) % TABS.length];
+    setTab(target.id);
+    document.getElementById(`tab-${target.id}`)?.focus();
+  };
 
   return (
     <div
@@ -88,7 +114,7 @@ export function SettingsView({ fx, freshness }: Props) {
           scrollbarWidth: "none",
         }}
       >
-        {TABS.map((t) => {
+        {TABS.map((t, index) => {
           const active = tab === t.id;
           return (
             <button
@@ -98,6 +124,8 @@ export function SettingsView({ fx, freshness }: Props) {
               id={`tab-${t.id}`}
               aria-selected={active}
               aria-controls={`panel-${t.id}`}
+              tabIndex={active ? 0 : -1}
+              onKeyDown={(e) => onTabKeyDown(e, index)}
               onClick={() => setTab(t.id)}
               style={{
                 padding: "10px 12px",
@@ -120,7 +148,7 @@ export function SettingsView({ fx, freshness }: Props) {
       </div>
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === "profile" && <TabProfile id={id} />}
+        {tab === "profile" && <TabProfile id={id} auth={auth} onSignedOut={onSignedOut} />}
         {tab === "billing" && <TabSubscription id={id} />}
         {tab === "appearance" && (
           <TabAppearance id={id} isDark={isDark} onToggleTheme={toggleTheme} locale={locale} onToggleLocale={toggleLocale} fx={fx} />
@@ -134,33 +162,246 @@ export function SettingsView({ fx, freshness }: Props) {
 
 /* ── Tab 1: Profile ──────────────────────────────────────────────────────── */
 
-function TabProfile({ id }: { id: boolean }) {
-  // TODO: bind to GET /v1/user/profile once the multi-user backend lands
-  // (docs/saas-subscription-platform.md, Fase 1). Until then the app has no
-  // user store at all: auth.py signs a JWT from AUTH_USERNAME and never reads
-  // a users table, so there is no name, email, phone or role to display.
+function TabProfile({
+  id,
+  auth,
+  onSignedOut,
+}: {
+  id: boolean;
+  auth: AuthState;
+  onSignedOut: () => void;
+}) {
+  const { locale } = useApp();
+  // Real data, from GET /v1/auth/me. Before the multi-user backend this tab said
+  // the backend had no user store, which stopped being true the moment the users
+  // table existed.
+  const account = auth.account;
+  const { t: t2 } = useTranslation(locale);
+  const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(account?.full_name ?? "");
+  const [draftPhone, setDraftPhone] = useState(account?.phone_number ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const dirty =
+    account !== null &&
+    (draftName !== account.full_name || draftPhone !== account.phone_number);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await auth.updateProfile({ full_name: draftName, phone_number: draftPhone });
+      setEditing(false);
+      setSaved(true);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : t2("auth_error_generic"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!account) {
+    return (
+      <Panel title={id ? "Profil & Akun" : "Profile & Account"}>
+        <Unavailable
+          id={id}
+          title={id ? "Akun belum dimuat" : "Account not loaded"}
+          body={
+            id
+              ? "Gagal memuat akun. Periksa koneksi lalu buka lagi halaman ini."
+              : "Could not load the account. Check the connection and reopen this tab."
+          }
+        />
+      </Panel>
+    );
+  }
+
+  const roleLabel = account.role === "admin"
+    ? (id ? "Administrator" : "Administrator")
+    : (id ? "Pengguna" : "User");
+
   return (
     <Panel title={id ? "Profil & Akun" : "Profile & Account"}>
-      <Unavailable
-        id={id}
-        title={id ? "Belum ada akun terhubung" : "No account connected"}
-        body={
-          id
-            ? "Backend masih beroperasi sebagai satu operator: login memverifikasi AUTH_USERNAME dan AUTH_PASSWORD tanpa menyimpan data pengguna. Nama, email, nomor WhatsApp, dan peran akan muncul di sini setelah endpoint /v1/user/profile ada."
-            : "The backend is still single-operator: login checks AUTH_USERNAME and AUTH_PASSWORD without a user store. Name, email, WhatsApp number, and role will appear here once /v1/user/profile exists."
-        }
-      />
-    </Panel>
+      <div className="account-name">{account.full_name}</div>
+      <div className="account-email">{account.email}</div>
+
+      <Divider />
+
+      <Metric label={id ? "Nomor WhatsApp" : "WhatsApp"} value={account.phone_number} />
+      {/* Role as a text label, not a coloured pill: see docs/settings-module-spec.md
+          §4.1, which removed the badge for exactly this reason. */}
+      <Metric label={id ? "Peran" : "Role"} value={roleLabel} />
+
+      {account.blocked && (
+        <p className="account-blocked">
+          {id
+            ? "Akun ini sedang diblokir, jadi akses datanya ditolak."
+            : "This account is blocked, so its data access is refused."}
+        </p>
+      )}
+
+      <Divider />
+
+      {/* Editable fields. Every control here has a label, a real border and a
+          focus ring from focus.css, and the save button is disabled until
+          something actually changed, so it cannot be pressed to do nothing. */}
+      {editing ? (
+        <form onSubmit={save}>
+          <div style={{ marginBottom: 12 }}>
+            <label htmlFor="profile-name" style={fieldLabel}>{id ? "Nama lengkap" : "Full name"}</label>
+            <input
+              id="profile-name"
+              name="full_name"
+              type="text"
+              className="auth-control"
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              style={fieldInput}
+            />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label htmlFor="profile-phone" style={fieldLabel}>
+              {id ? "Nomor WhatsApp" : "WhatsApp number"}
+            </label>
+            <input
+              id="profile-phone"
+              name="phone_number"
+              type="tel"
+              inputMode="tel"
+              className="auth-control"
+              value={draftPhone}
+              onChange={(e) => setDraftPhone(e.target.value)}
+              style={fieldInput}
+            />
+          </div>
+
+          {saveError && <p role="alert" className="profile-error">{saveError}</p>}
+          {saved && <p role="status" className="profile-saved">{t2("auth_saved")}</p>}
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="submit" className="auth-control" disabled={!dirty || saving} style={primaryButton}>
+              {saving ? t2("auth_working") : t2("auth_save")}
+            </button>
+            <button
+              type="button"
+              className="auth-control"
+              onClick={() => { setEditing(false); setSaveError(null); setSaved(false); }}
+              style={secondaryButton}
+            >
+              {t2("auth_cancel")}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button
+          type="button"
+          className="auth-control"
+          onClick={() => {
+            setEditing(true);
+            setDraftName(account.full_name);
+            setDraftPhone(account.phone_number);
+            setSaveError(null);
+            setSaved(false);
+          }}
+          style={secondaryButton}
+        >
+          {t2("auth_edit_profile")}
+        </button>
+      )}
+
+      <Divider />
+
+      <button
+        type="button"
+        className="auth-control"
+        disabled={busy}
+        style={signOutButton}
+        onClick={async () => {
+          setBusy(true);
+          await auth.signOut();
+          onSignedOut();
+        }}
+      >
+        {id ? "Keluar akun" : "Sign out"}
+      </button>
+</Panel>
   );
 }
+
+/* Shared control styles for the Profile tab. Declared once because three
+   components would otherwise each re-state the same 44px tap target and the same
+   3:1 border, and one of them would eventually get it wrong. */
+
+const fieldLabel: React.CSSProperties = {
+  display: "block",
+  fontSize: 13,
+  color: "var(--foreground)",
+  marginBottom: 6,
+};
+
+const fieldInput: React.CSSProperties = {
+  width: "100%",
+  minHeight: "44px",
+  padding: "10px 12px",
+  fontSize: 14,
+  fontFamily: "var(--font-sans)",
+  color: "var(--foreground)",
+  background: "var(--input-background, #f9fafb)",
+  border: "1px solid var(--control-border)",
+  borderRadius: "var(--radius)",
+  boxSizing: "border-box",
+};
+
+const primaryButton: React.CSSProperties = {
+  minHeight: "44px",
+  padding: "10px 16px",
+  fontSize: 13,
+  fontFamily: "var(--font-sans)",
+  fontWeight: 500,
+  color: "var(--primary-foreground)",
+  background: "var(--primary)",
+  border: "1px solid var(--primary)",
+  borderRadius: "var(--radius)",
+  cursor: "pointer",
+};
+
+const secondaryButton: React.CSSProperties = {
+  minHeight: "44px",
+  padding: "10px 16px",
+  fontSize: 13,
+  fontFamily: "var(--font-sans)",
+  fontWeight: 500,
+  color: "var(--foreground)",
+  background: "transparent",
+  border: "1px solid var(--control-border)",
+  borderRadius: "var(--radius)",
+  cursor: "pointer",
+};
+
+const signOutButton: React.CSSProperties = {
+  minHeight: "44px",
+  padding: "10px 16px",
+  fontSize: 13,
+  fontFamily: "var(--font-sans)",
+  fontWeight: 500,
+  color: "var(--destructive)",
+  background: "transparent",
+  border: "1px solid var(--destructive)",
+  borderRadius: "var(--radius)",
+  cursor: "pointer",
+};
 
 /* ── Tab 2: Subscription ─────────────────────────────────────────────────── */
 
 function TabSubscription({ id }: { id: boolean }) {
-  // TODO: bind to GET /v1/user/subscription and /v1/user/transactions once the
-  // subscriptions and transactions tables exist (Fase 1). Rendering a plan
-  // card or an invoice table now would mean inventing a subscription the user
-  // may not have, and an invoice number that does not exist.
+  // TODO: bind to a real subscription read. The `subscriptions` table landed in
+  // migration 0005, but `transactions` did not and there is no payment path, so
+  // every figure on this tab would have to be invented.
   return (
     <Panel title={id ? "Langganan & Tagihan" : "Subscription & Billing"}>
       <Unavailable
@@ -168,8 +409,8 @@ function TabSubscription({ id }: { id: boolean }) {
         title={id ? "Belum ada langganan" : "No subscription yet"}
         body={
           id
-            ? "Tabel subscriptions dan transactions belum dibuat, jadi AIDSS tidak tahu paket Anda, sisa hari aktif, maupun riwayat pembayaran. Semua angka di tab ini akan dibaca dari server, tidak diketik manual."
-            : "The subscriptions and transactions tables do not exist yet, so AIDSS does not know your plan, remaining days, or payment history. Every figure on this tab will be read from the server, never typed in."
+            ? "Tabel langganan sudah ada, tetapi belum ada jalan untuk punya satu: pembayaran belum dibuka, jadi tidak ada paket, sisa hari, maupun invoice yang bisa ditampilkan. Angka di tab ini akan dibaca dari server saat ada, tidak diketik manual."
+            : "The subscriptions table exists, but there is no way to hold a subscription yet: payment is not open, so there is no plan, no remaining days and no invoice to show. Every figure on this tab will be read from the server when there is one."
         }
       />
     </Panel>
@@ -494,7 +735,7 @@ function ChoiceGroup({
             borderRadius: "var(--radius)",
             cursor: o.onClick ? "pointer" : "default",
             background: o.active ? "var(--accent)" : "var(--muted)",
-            border: `1px solid ${o.active ? "var(--primary)" : "var(--border)"}`,
+            border: `1px solid ${o.active ? "var(--primary)" : "var(--control-border)"}`,
             color: o.active ? "var(--accent-foreground)" : "var(--muted-foreground)",
             fontSize: 12,
             fontWeight: o.active ? 500 : 400,

@@ -6,6 +6,7 @@ import type { AISignal } from "../hooks/useAISignals";
 import { useTechnicals } from "../hooks/useTechnicals";
 import { ENDPOINTS, USE_LIVE_API, apiFetch, FETCH_TIMEOUT_MS } from "../config/api";
 import { EntrySignalCard } from "./EntrySignalCard";
+import { ConsentGate } from "./ConsentGate";
 
 const CandlestickChart = lazy(() =>
   import("./CandlestickChart").then((m) => ({ default: m.CandlestickChart })),
@@ -174,48 +175,55 @@ export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchli
             />
           </Suspense>
 
-          {/* AI signal — model uprob, tier, confidence, upside */}
-          {signal && (
-            <div style={{ background: "var(--muted)", borderRadius: 6, padding: 12, border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  {isId ? "Sinyal AI" : "AI Signal"}
-                </span>
-                <span
-                  style={{
-                    fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
-                    color: TIER_UI[signal.probabilityTier].color,
-                    background: `color-mix(in srgb, ${TIER_UI[signal.probabilityTier].color} 12%, transparent)`,
-                    border: `1px solid ${TIER_UI[signal.probabilityTier].color}`,
-                  }}
-                >
-                  {isId ? TIER_UI[signal.probabilityTier].id : TIER_UI[signal.probabilityTier].en}
-                </span>
-              </div>
-              <div className="flex items-end gap-5">
-                <div>
-                  <div style={{ fontSize: 26, fontWeight: 700, fontFamily: "var(--font-mono)", color: TIER_UI[signal.probabilityTier].color, lineHeight: 1 }}>
-                    {signal.uprob}%
-                  </div>
-                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
-                    {isId ? "Probabilitas Naik" : "Upward Prob."}
-                  </div>
+          {/* The model score and tier come from the same engine as the AI
+              Advisor, so Gate 2 covers this surface too. It used to render
+              ungated: a person could read a scored call straight from the
+              markets table without ever being shown the compliance notice.
+              See docs/legal-and-consent.md §5. */}
+          <ConsentGate locale={isId ? "id" : "en"}>
+            {/* AI signal — model uprob, tier, confidence, upside */}
+            {signal && (
+              <div style={{ background: "var(--muted)", borderRadius: 6, padding: 12, border: "1px solid var(--border)" }}>
+                <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {isId ? "Sinyal AI" : "AI Signal"}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
+                      color: TIER_UI[signal.probabilityTier].color,
+                      background: `color-mix(in srgb, ${TIER_UI[signal.probabilityTier].color} 12%, transparent)`,
+                      border: `1px solid ${TIER_UI[signal.probabilityTier].color}`,
+                    }}
+                  >
+                    {isId ? TIER_UI[signal.probabilityTier].id : TIER_UI[signal.probabilityTier].en}
+                  </span>
                 </div>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>{signal.confidence}%</div>
-                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{isId ? "Keyakinan" : "Confidence"}</div>
-                </div>
-                {signal.upside !== 0 && (
+                <div className="flex items-end gap-5">
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--font-mono)", color: signal.upside >= 0 ? "var(--gain)" : "var(--loss)" }}>
-                      {signal.upside >= 0 ? "+" : ""}{signal.upside.toFixed(1)}%
+                    <div style={{ fontSize: 26, fontWeight: 700, fontFamily: "var(--font-mono)", color: TIER_UI[signal.probabilityTier].color, lineHeight: 1 }}>
+                      {signal.uprob}%
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{isId ? "Potensi" : "Upside"}</div>
+                    <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+                      {isId ? "Probabilitas Naik" : "Upward Prob."}
+                    </div>
                   </div>
-                )}
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>{signal.confidence}%</div>
+                    <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{isId ? "Keyakinan" : "Confidence"}</div>
+                  </div>
+                  {signal.upside !== 0 && (
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--font-mono)", color: signal.upside >= 0 ? "var(--gain)" : "var(--loss)" }}>
+                        {signal.upside >= 0 ? "+" : ""}{signal.upside.toFixed(1)}%
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{isId ? "Potensi" : "Upside"}</div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </ConsentGate>
 
           {/* Day range: low ──●── high */}
           {range > 0 && (

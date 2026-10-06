@@ -171,6 +171,22 @@ async def redis_hset(key: str, mapping: dict[str, str]) -> None:
         _warn_cache_unavailable("write", key, exc)
 
 
+async def redis_delete(key: str) -> None:
+    try:
+        async with get_redis() as r:
+            await r.delete(key)
+    except RedisError as exc:
+        _warn_cache_unavailable("delete", key, exc)
+
+
+async def redis_expire(key: str, ttl: int) -> None:
+    try:
+        async with get_redis() as r:
+            await r.expire(key, ttl)
+    except RedisError as exc:
+        _warn_cache_unavailable("expire", key, exc)
+
+
 # ── Redis key constants ───────────────────────────────────────────────────────
 
 REDIS_KEYS = {
@@ -182,13 +198,20 @@ REDIS_KEYS = {
     # populated risk:portfolio:default the optimiser read a RiskMetricsResult
     # back and 500'd on validation. Separate namespaces keep them from colliding.
     "portfolio_optimise": "portfolio:optimise:{uid}",  # STRING PortfolioOptimisationResponse TTL 3600s
-    "portfolio_equity":    "portfolio:equity:{days}",    # STRING EquityCurveResponse TTL 3600s
+    # Keyed on the portfolio as well as the day count. It was days-only for as
+    # long as every account shared one seeded portfolio, which made a global key
+    # correct by accident; with real per-account positions (ADR-0005) a days-only
+    # key serves one person's holdings' curve to everyone.
+    "portfolio_equity":    "portfolio:equity:{uid}:{days}",  # STRING EquityCurveResponse TTL 3600s
     "sentiment":       "sentiment:{doc_hash}",      # STRING  float  TTL 86400s
     "intraday":        "market:intraday",            # STRING  IntradayPoint[]
     # Phase 9A: news retrieval for advisor RAG context
     "news_latest":     "news:idx:latest",           # ZSET  score=timestamp  value=JSON headline
     # Phase 9D: advisor session history persistence
-    "chat_session":    "chat:{session_id}",         # STRING  ChatMessage[]  TTL 3600s
+    # Namespaced by account. session_id arrives in the request body, so a key
+    # built from it alone let any authenticated caller read or overwrite another
+    # account's conversation by trying ids.
+    "chat_session":    "chat:{user_id}:{session_id}", # STRING  ChatMessage[]  TTL 3600s
     # Phase 10: broker summary + technical analysis. Both refresh once per
     # session, so the TTL is a day rather than minutes.
     "broksum":         "broksum:{symbol}",          # STRING  snapshot dict  TTL 86400s

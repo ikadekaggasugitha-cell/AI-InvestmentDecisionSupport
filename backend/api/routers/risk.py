@@ -23,5 +23,5 @@ async def risk_portfolio_endpoint(
     parameter — a `portfolio_id` parameter would let any authenticated caller
     name someone else's portfolio. Results are cached in Redis for 1 hour.
     """
-    portfolio_id = await resolve_portfolio_id(user.sub)
+    portfolio_id = await resolve_portfolio_id(str(user.user_id))
     return await get_risk_metrics(portfolio_id=portfolio_id)

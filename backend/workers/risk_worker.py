@@ -6,21 +6,20 @@ Runs GARCH + historical simulation, writes result to Redis (TTL 3600s).
 Also runs Kupiec backtest and logs breach rate to MLflow for model monitoring.
 """
 
-import json
 import logging
 from datetime import datetime, timezone
 
 from workers.celery_app import celery_app
 
 from api.core.config import get_settings
-from api.core.holdings import CAPITAL_IDR, PORTFOLIO_LOTS
 from api.core.redis_client import REDIS_KEYS
 
 logger = logging.getLogger(__name__)
 
-# Holdings come from api/core/holdings so this worker measures the same
-# portfolio the dashboard shows. It previously carried its own 7-symbol copy
-# with different lot counts.
+# Holdings are no longer a constant. This worker reads each portfolio's own
+# `lots_json` and walks every portfolio that has positions (ADR-0005); it used to
+# measure one hardcoded book, so a second account's dashboard could only ever be
+# warmed with the first account's numbers.
 
 
 @celery_app.task(
@@ -30,14 +29,20 @@ logger = logging.getLogger(__name__)
     default_retry_delay=60,
     acks_late=True,
 )
-def refresh_risk(self, portfolio_id: str = "default") -> dict:
+def refresh_risk(self, portfolio_id: str | None = None) -> dict:
     """
-    Full risk refresh pipeline:
+    Full risk refresh pipeline, for one portfolio or for all of them.
+
     1. Load 252-day OHLCV from TimescaleDB
     2. Run GARCH + historical simulation CVaR
-    3. Compute sector exposure from live holdings
+    3. Compute sector exposure from the portfolio's own holdings
     4. Run Kupiec backtest on rolling 90-day window
     5. Write to Redis; persist to risk_snapshots table
+
+    `portfolio_id` of None means "every portfolio with positions", which is what
+    the hourly beat schedule wants. It used to default to the literal "default",
+    so with per-account portfolios that refreshed exactly one account and left
+    everyone else to recompute synchronously on their next page load.
     """
     settings = get_settings()
 
@@ -45,6 +50,71 @@ def refresh_risk(self, portfolio_id: str = "default") -> dict:
         logger.info("risk_worker: mock mode — skipping GARCH")
         return {"status": "skipped", "reason": "use_mock_risk=true"}
 
+    try:
+        import asyncio as _asyncio
+
+        portfolios = (
+            [(portfolio_id, None)] if portfolio_id else _portfolios_with_positions(_asyncio)
+        )
+        if not portfolios:
+            logger.info("risk_worker: no portfolio holds any positions — nothing to do")
+            return {"status": "empty", "refreshed": []}
+
+        refreshed: list[str] = []
+        failures: dict[str, str] = {}
+        for pid, lots in portfolios:
+            try:
+                _refresh_one(settings, pid, lots)
+                refreshed.append(pid)
+            except Exception as exc:  # noqa: BLE001 — one bad portfolio is not all of them
+                logger.exception("risk_worker: %s failed — %s", pid, exc)
+                failures[pid] = str(exc)
+
+        result: dict = {"status": "ok" if not failures else "partial", "refreshed": refreshed}
+        if failures:
+            result["failed"] = failures
+        return result
+
+    except Exception as exc:
+        logger.exception("risk_worker: failed — %s", exc)
+        raise self.retry(exc=exc)
+
+
+def _portfolios_with_positions(asyncio_mod) -> list[tuple[str, dict[str, int]]]:
+    """Every portfolio that holds something, as (portfolio_id, lots).
+
+    An empty portfolio is skipped rather than measured: GARCH on nothing has no
+    answer, and writing a row of zeros for it would put a risk figure on a
+    dashboard that has no positions behind it.
+    """
+    import json as _json
+
+    import asyncpg
+
+    settings = get_settings()
+
+    async def _fetch():
+        conn = await asyncpg.connect(
+            settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
+        )
+        try:
+            return await conn.fetch("SELECT id, lots_json FROM portfolios")
+        finally:
+            await conn.close()
+
+    rows = asyncio_mod.run(_fetch())
+    out: list[tuple[str, dict[str, int]]] = []
+    for row in rows:
+        raw = row["lots_json"]
+        if isinstance(raw, (str, bytes)):
+            raw = _json.loads(raw)
+        if isinstance(raw, dict) and raw:
+            out.append((row["id"], {str(k): int(v) for k, v in raw.items() if v}))
+    return out
+
+
+def _refresh_one(settings, portfolio_id: str, holdings: dict[str, int] | None = None) -> dict:
+    """Refresh one portfolio. Raises on failure so the caller can record it."""
     try:
         import asyncio
         import pandas as pd
@@ -67,7 +137,7 @@ def refresh_risk(self, portfolio_id: str = "default") -> dict:
                       AND o.time >= NOW() - INTERVAL '252 days'
                     ORDER BY o.symbol, o.time
                     """,
-                    list(PORTFOLIO_LOTS),
+                    list(holdings),
                 )
             finally:
                 await conn.close()
@@ -106,15 +176,20 @@ def refresh_risk(self, portfolio_id: str = "default") -> dict:
             logger.warning("risk_worker: ^JKSE unavailable, beta unreliable — %s", exc)
 
         r = sync_redis.from_url(settings.redis_url, decode_responses=True)
-        snapshot_json = r.get("market:snapshot:json")
-        portfolio_value = CAPITAL_IDR
-        if snapshot_json:
-            snap = json.loads(snapshot_json)
-            portfolio_value = snap.get("portfolioValue", portfolio_value)
+
+        # From this portfolio's own lots and the closes just loaded. The previous
+        # expression read `portfolioValue` out of the shared market snapshot, which
+        # is one arbitrary account's total (ADR-0005), and then fell back to a
+        # constant. VaR is a rupiah figure, so a wrong portfolio value here makes
+        # every downstream number wrong while looking entirely plausible.
+        latest_close = ohlcv.sort_values("date").groupby("symbol")["close"].last()
+        portfolio_value = float(
+            sum(latest_close.get(sym, 0.0) * lots * 100 for sym, lots in holdings.items())
+        )
 
         engine = RiskEngine(
             ohlcv=ohlcv,
-            holdings=PORTFOLIO_LOTS,
+            holdings=holdings,
             portfolio_value=portfolio_value,
             ihsg_returns=ihsg_returns,
         )
@@ -167,5 +242,8 @@ def refresh_risk(self, portfolio_id: str = "default") -> dict:
         return {"status": "ok", "portfolio_id": portfolio_id}
 
     except Exception as exc:
-        logger.exception("risk_worker: failed — %s", exc)
-        raise self.retry(exc=exc)
+        # No retry from here: the caller collects per-portfolio failures so one
+        # broken portfolio does not abort the rest, and Celery's retry would
+        # re-run the whole sweep for it.
+        logger.exception("risk_worker: %s failed — %s", portfolio_id, exc)
+        raise

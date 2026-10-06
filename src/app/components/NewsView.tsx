@@ -88,7 +88,7 @@ export function NewsView({ news, loading, isLive, error, retry }: Props) {
             style={{
               padding: "5px 12px",
               borderRadius: 5,
-              border: `1px solid ${filter === c ? "var(--primary)" : "var(--border)"}`,
+              border: `1px solid ${filter === c ? "var(--primary)" : "var(--control-border)"}`,
               background: filter === c ? "var(--accent)" : "var(--card)",
               color: filter === c ? "var(--accent-foreground)" : "var(--muted-foreground)",
               fontSize: 12,
@@ -180,7 +180,7 @@ export function NewsView({ news, loading, isLive, error, retry }: Props) {
                 onClick={() => setActive(isOpen ? null : item.id)}
                 style={{
                   background: "var(--card)",
-                  border: `1px solid ${isOpen ? "var(--primary)" : "var(--border)"}`,
+                  border: `1px solid ${isOpen ? "var(--primary)" : "var(--control-border)"}`,
                   borderRadius: 8,
                   padding: 20,
                   cursor: "pointer",

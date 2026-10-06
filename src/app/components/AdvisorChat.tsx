@@ -55,7 +55,7 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
   return (
     <div
       className="rounded flex flex-col"
-      style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+      style={{ background: "var(--card)", border: "1px solid var(--control-border)" }}
     >
       {/* Header */}
       <div
@@ -101,7 +101,7 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
                 className="rounded px-3 py-2"
                 style={{
                   background: "var(--muted)",
-                  border: "1px solid var(--border)",
+                  border: "1px solid var(--control-border)",
                   color: "var(--foreground)",
                   fontSize: 12,
                   textAlign: "left",
@@ -208,13 +208,12 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
           style={{
             flex: 1,
             background: "var(--input-background, var(--muted))",
-            border: "1px solid var(--border)",
+            border: "1px solid var(--control-border)",
             borderRadius: 4,
             padding: "7px 10px",
             fontSize: 12.5,
             color: "var(--foreground)",
             fontFamily: "var(--font-sans)",
-            outline: "none",
           }}
         />
         <button

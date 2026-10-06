@@ -20,6 +20,7 @@ import pandas as pd
 
 from api.core.config import get_settings
 from api.core.redis_client import get_redis, redis_get_json, redis_set_json, REDIS_KEYS
+from api.services.portfolio_access import load_lots
 from api.models.portfolio import EquityCurveResponse, PortfolioOptimisationResponse
 
 logger = logging.getLogger(__name__)
@@ -205,30 +206,35 @@ _EQUITY_TTL = 3600  # 1 hour, matching the optimiser
 _MIN_EQUITY_DAYS = 2  # one point is not a curve
 
 
-async def get_equity_curve_cached(days: int = 252) -> EquityCurveResponse:
+async def get_equity_curve_cached(
+    days: int = 252, portfolio_id: str = "default"
+) -> EquityCurveResponse:
     """
     get_equity_curve behind the Redis cache.
 
-    Keyed on the day count, not on the portfolio: the curve is a pure function
-    of the holdings and the price history, both of which change once a day, so
-    a per-portfolio key would only multiply cache entries without changing the
-    result while positions are still the seeded ones.
+    Keyed on the portfolio as well as the day count. The old docstring argued a
+    per-portfolio key was pointless "while positions are still the seeded ones" —
+    true then, and the reason it was safe to serve one account's curve to another.
+    With positions belonging to each account (ADR-0005) that stops being true, so
+    the key carries the portfolio id.
     """
     from api.core.redis_client import REDIS_KEYS
 
-    # .format(), not an f-string: the key template carries a {days} placeholder,
-    # and concatenation produced the literal key "portfolio:equity:{days}:60".
-    key = REDIS_KEYS["portfolio_equity"].format(days=int(days))
+    # .format(), not an f-string: the key template carries placeholders, and
+    # concatenation produced the literal key "portfolio:equity:{days}:60".
+    key = REDIS_KEYS["portfolio_equity"].format(uid=portfolio_id, days=int(days))
     cached_response = await redis_get_json(key)
     if cached_response:
         return EquityCurveResponse(**cached_response)
 
-    response = await get_equity_curve(days)
+    response = await get_equity_curve(days, portfolio_id)
     await redis_set_json(key, response.model_dump(), ttl=_EQUITY_TTL)
     return response
 
 
-async def get_equity_curve(days: int = 252) -> EquityCurveResponse:
+async def get_equity_curve(
+    days: int = 252, portfolio_id: str = "default"
+) -> EquityCurveResponse:
     """
     Realised portfolio value over time, from actual closes times actual lots.
 
@@ -237,17 +243,15 @@ async def get_equity_curve(days: int = 252) -> EquityCurveResponse:
     table. This is the honest version of that chart: every point is a real
     session close multiplied by the held lots.
 
-    Holdings come from api/core/holdings, the same source risk_service uses, so
-    the curve and the risk metrics describe one portfolio. There is a test
-    asserting exactly that, because the two drifting apart is exactly the bug
-    this codebase had once with the risk worker's private copy.
+    Holdings come from this portfolio's own `lots_json` via
+    portfolio_access.load_lots — the same read path risk_service uses, so the curve
+    and the risk metrics describe one portfolio (ADR-0005).
 
     The benchmark is the composite index, fetched from the quote provider because
     `ohlcv` holds listed equities only. It is rebased to the portfolio's first
     value so both lines share a scale; a raw index level beside a rupiah total
     would look comparable and mean nothing.
     """
-    from api.core.holdings import PORTFOLIO_LOTS
     from api.models.portfolio import EquityCurveResponse, EquityPoint
 
     settings = get_settings()
@@ -256,7 +260,14 @@ async def get_equity_curve(days: int = 252) -> EquityCurveResponse:
     if settings.use_mock_market:
         return _empty_equity(days, "mock")
 
-    prices = await _load_price_matrix(sorted(PORTFOLIO_LOTS), days)
+    # Empty is answered before any price is fetched. Drawing a curve for a
+    # portfolio holding nothing would mean either a flat line invented here or a
+    # crash deeper in; the honest result is the empty one.
+    holdings = await load_lots(portfolio_id)
+    if not holdings:
+        return _empty_equity(days, "empty")
+
+    prices = await _load_price_matrix(sorted(holdings), days)
     if prices.empty or len(prices) < _MIN_EQUITY_DAYS:
         logger.warning(
             "portfolio_service: only %d sessions of holdings history — no equity curve",
@@ -265,7 +276,7 @@ async def get_equity_curve(days: int = 252) -> EquityCurveResponse:
         return _empty_equity(days, "mock")
 
     # 1 lot = 100 shares.
-    lots = pd.Series({s: n * 100 for s, n in PORTFOLIO_LOTS.items()})
+    lots = pd.Series({s: n * 100 for s, n in holdings.items()})
     held = [s for s in prices.columns if s in lots.index]
     if not held:
         return _empty_equity(days, "mock")

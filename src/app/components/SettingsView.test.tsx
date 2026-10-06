@@ -1,10 +1,34 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SettingsView } from './SettingsView'
 import { AppProvider } from '../context/AppContext'
 import { SIMULATED_FRESHNESS } from '../hooks/useLiveMarket'
 import type { ExchangeRateData } from '../hooks/useExchangeRate'
+import type { AuthState } from '../hooks/useAuth'
+
+const TEST_ACCOUNT = {
+  id: '3f2a6c11-0d5e-4a1b-9c77-1f0b2d3e4a55',
+  email: 'pengguna@aidss.id',
+  full_name: 'Nama Pengguna',
+  phone_number: '081234567890',
+  role: 'user' as const,
+  blocked: false,
+}
+
+function auth(overrides: Partial<AuthState> = {}): AuthState {
+  return {
+    status: 'signed-in',
+    account: TEST_ACCOUNT,
+    error: null,
+    refresh: async () => {},
+    signIn: async () => {},
+    signUp: async () => {},
+    signOut: async () => {},
+    updateProfile: async () => {},
+    ...overrides,
+  }
+}
 
 /**
  * Click-through evidence for docs/settings-module-spec.md v1.1.0.
@@ -29,7 +53,13 @@ function fx(overrides: Partial<ExchangeRateData> = {}): ExchangeRateData {
 function renderSettings(props: Partial<Parameters<typeof SettingsView>[0]> = {}) {
   return render(
     <AppProvider>
-      <SettingsView fx={fx()} freshness={SIMULATED_FRESHNESS} {...props} />
+      <SettingsView
+        fx={fx()}
+        freshness={SIMULATED_FRESHNESS}
+        auth={auth()}
+        onSignedOut={() => {}}
+        {...props}
+      />
     </AppProvider>,
   )
 }
@@ -171,15 +201,49 @@ describe('SettingsView — Notifikasi tab (R-26, R-09)', () => {
   })
 })
 
-describe('SettingsView — tabs whose backend does not exist (R-38, R-24)', () => {
-  it('Profile states there is no account rather than inventing one', async () => {
+describe('SettingsView — identity, read from the server (R-38)', () => {
+  it('Profile shows the account the server returned', async () => {
     const user = userEvent.setup()
     renderSettings()
 
     await user.click(screen.getByRole('tab', { name: 'Profil & Akun' }))
-    expect(screen.getByText('Belum ada akun terhubung')).toBeInTheDocument()
-    expect(screen.getByText(/beroperasi sebagai satu operator/)).toBeInTheDocument()
-    // No fabricated identity fields.
+    expect(screen.getByText('Nama Pengguna')).toBeInTheDocument()
+    expect(screen.getByText('pengguna@aidss.id')).toBeInTheDocument()
+    expect(screen.getByText('081234567890')).toBeInTheDocument()
+  })
+
+  it('Profile renders role as text, not a coloured badge', async () => {
+    // docs/settings-module-spec.md §4.1 removed the role pill for this reason.
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('tab', { name: 'Profil & Akun' }))
+    expect(screen.getByText('Pengguna')).toBeInTheDocument()
+    expect(screen.queryByText(/subscriber/i)).not.toBeInTheDocument()
+  })
+
+  it('Profile offers sign out and calls through', async () => {
+    const signOut = vi.fn().mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    renderSettings({ auth: auth({ signOut }) })
+
+    await user.click(screen.getByRole('tab', { name: 'Profil & Akun' }))
+    await user.click(screen.getByRole('button', { name: 'Keluar akun' }))
+    expect(signOut).toHaveBeenCalled()
+  })
+
+  it('Profile says so when the account could not be loaded, rather than showing a blank', async () => {
+    const user = userEvent.setup()
+    renderSettings({ auth: auth({ status: 'signed-out', account: null }) })
+
+    await user.click(screen.getByRole('tab', { name: 'Profil & Akun' }))
+    expect(screen.getByText('Akun belum dimuat')).toBeInTheDocument()
+    expect(screen.getByText(/Periksa koneksi/)).toBeInTheDocument()
+  })
+
+  it('Profile refuses to render when there is no account, showing no identity fields', async () => {
+    const user = userEvent.setup()
+    renderSettings({ auth: auth({ status: 'signed-out', account: null }) })
+    await user.click(screen.getByRole('tab', { name: 'Profil & Akun' }))
     expect(screen.queryByLabelText(/nama lengkap/i)).not.toBeInTheDocument()
   })
 
@@ -220,5 +284,148 @@ describe('SettingsView — banned patterns stay banned (R-04, R-09, R-14)', () =
     const line = screen.getByText(/bukan Penasihat Investasi berizin OJK/)
     expect(line.tagName).toBe('P')
     expect(line).toHaveStyle({ color: 'var(--muted-foreground)' })
+  })
+})
+describe('SettingsView — editing the profile (R-26, R-27)', () => {
+  async function openEditor(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('tab', { name: 'Profil & Akun' }))
+    await user.click(screen.getByRole('button', { name: 'Ubah profil' }))
+  }
+
+  it('starts closed, so the account is readable before it is editable', async () => {
+    renderSettings()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Profil & Akun' }))
+    expect(screen.queryByLabelText('Nama lengkap')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ubah profil' })).toBeInTheDocument()
+  })
+
+  it('saves both fields through the server', async () => {
+    const updateProfile = vi.fn().mockResolvedValue(undefined)
+    renderSettings({ auth: auth({ updateProfile }) })
+    const user = userEvent.setup()
+    await openEditor(user)
+
+    await user.clear(screen.getByLabelText('Nama lengkap'))
+    await user.type(screen.getByLabelText('Nama lengkap'), 'Nama Baru')
+    await user.clear(screen.getByLabelText('Nomor WhatsApp'))
+    await user.type(screen.getByLabelText('Nomor WhatsApp'), '081234567890')
+    await user.click(screen.getByRole('button', { name: 'Simpan' }))
+
+    await waitFor(() =>
+      expect(updateProfile).toHaveBeenCalledWith({
+        full_name: 'Nama Baru',
+        phone_number: '081234567890',
+      }),
+    )
+  })
+
+  it('keeps Save disabled until something changed', async () => {
+    renderSettings()
+    const user = userEvent.setup()
+    await openEditor(user)
+    // A Save button that can be pressed to do nothing is a non-functional control.
+    expect(screen.getByRole('button', { name: 'Simpan' })).toBeDisabled()
+
+    await user.type(screen.getByLabelText('Nama lengkap'), 'X')
+    expect(screen.getByRole('button', { name: 'Simpan' })).toBeEnabled()
+  })
+
+  it('says what the server refused, in text, and stays in edit mode', async () => {
+    const updateProfile = vi.fn().mockRejectedValue(new Error('expected an Indonesian mobile number'))
+    renderSettings({ auth: auth({ updateProfile }) })
+    const user = userEvent.setup()
+    await openEditor(user)
+
+    await user.type(screen.getByLabelText('Nama lengkap'), 'X')
+    await user.click(screen.getByRole('button', { name: 'Simpan' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('expected an Indonesian mobile number')
+    expect(screen.getByLabelText('Nama lengkap')).toBeInTheDocument()
+  })
+
+  it('Cancel discards the edit without saving', async () => {
+    const updateProfile = vi.fn()
+    renderSettings({ auth: auth({ updateProfile }) })
+    const user = userEvent.setup()
+    await openEditor(user)
+
+    await user.clear(screen.getByLabelText('Nama lengkap'))
+    await user.type(screen.getByLabelText('Nama lengkap'), 'Dibuang')
+    await user.click(screen.getByRole('button', { name: 'Batal' }))
+
+    expect(updateProfile).not.toHaveBeenCalled()
+    expect(screen.getByText('Nama Pengguna')).toBeInTheDocument()
+  })
+
+  it('every field has a visible label', async () => {
+    renderSettings()
+    const user = userEvent.setup()
+    await openEditor(user)
+    // Placeholder-only fields are invisible to a screen reader once filled.
+    expect(screen.getByLabelText('Nama lengkap')).toBeInTheDocument()
+    expect(screen.getByLabelText('Nomor WhatsApp')).toBeInTheDocument()
+  })
+})
+
+describe('the tablist follows the WAI-ARIA keyboard pattern', () => {
+  const tabs = () => screen.getAllByRole('tab')
+
+  it('moves between tabs with the arrow keys', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    const first = tabs()[0]
+    first.focus()
+
+    await user.keyboard('{ArrowRight}')
+    expect(tabs()[1]).toHaveFocus()
+    expect(tabs()[1]).toHaveAttribute('aria-selected', 'true')
+
+    await user.keyboard('{ArrowLeft}')
+    expect(tabs()[0]).toHaveFocus()
+    expect(tabs()[0]).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('keeps only the active tab in the tab order', () => {
+    // Otherwise Tab reaches every tab on the way past the list, which is what
+    // made the last tab slow to reach on a keyboard.
+    renderSettings()
+    for (const tab of tabs()) {
+      const selected = tab.getAttribute('aria-selected') === 'true'
+      expect(tab.getAttribute('tabindex')).toBe(selected ? '0' : '-1')
+    }
+  })
+
+  it('jumps to the first and last tab with Home and End', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    const all = tabs()
+    const last = all[all.length - 1]
+    all[1].focus()
+
+    await user.keyboard('{End}')
+    expect(last).toHaveFocus()
+
+    await user.keyboard('{Home}')
+    expect(all[0]).toHaveFocus()
+  })
+
+  it('wraps past the last tab instead of stopping', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    const all = tabs()
+    all[all.length - 1].focus()
+
+    await user.keyboard('{ArrowRight}')
+    expect(tabs()[0]).toHaveFocus()
+  })
+
+  it('leaves other keys alone', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    tabs()[1].focus()
+    await user.keyboard('{ArrowDown}')
+    expect(tabs()[1]).toHaveFocus()
   })
 })

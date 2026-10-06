@@ -88,7 +88,7 @@ export function AlertsView({ alerts, onDismiss, onClearAll, locale = "id", isLiv
           <button
             onClick={clearAll}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded"
-            style={{ background: "var(--muted)", border: "1px solid var(--border)", color: "var(--muted-foreground)", fontSize: 12, cursor: "pointer" }}
+            style={{ background: "var(--muted)", border: "1px solid var(--control-border)", color: "var(--muted-foreground)", fontSize: 12, cursor: "pointer" }}
           >
             <Check size={13} />
             {isId ? "Tandai semua dibaca" : "Mark all read"}

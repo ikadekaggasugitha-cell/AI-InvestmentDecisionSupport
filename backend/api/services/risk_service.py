@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from api.core.config import get_settings
-from api.core.holdings import PORTFOLIO_LOTS
 from api.core.redis_client import REDIS_KEYS, redis_get_json, redis_set_json
+from api.services.portfolio_access import load_lots
+from api.services.technicals_service import load_ohlcv
 from api.models.risk import RiskMetrics, RiskMetricsResponse, SectorExposureItem, StressTest
 
 if TYPE_CHECKING:  # pandas is heavy; only needed for annotations here
@@ -40,6 +41,17 @@ class RiskDataUnavailable(RuntimeError):
     loudly so the cause gets fixed.
     """
 
+
+class EmptyPortfolio(RuntimeError):
+    """
+    Raised when the portfolio holds nothing, so there is nothing to model.
+
+    Separate from RiskDataUnavailable on purpose. Missing price history is a fault
+    to be fixed loudly; an account that has not bought a share is a normal state
+    with a correct answer, and conflating the two turned every new signup into a
+    500 until the point where they were mocked a portfolio.
+    """
+
 _SEED_PATH = Path(__file__).parent.parent / "seed" / "risk.json"
 _SEED_DATA: dict | None = None
 
@@ -65,6 +77,11 @@ async def get_risk_metrics(portfolio_id: str = "default") -> RiskMetricsResponse
       1. Redis cache
       2. Mock seed data (when USE_MOCK_RISK=true)
       3. GARCH + CVaR computation (Phase 4 — when USE_MOCK_RISK=false)
+
+    A portfolio with no positions returns an explicit empty result instead of
+    raising (ADR-0005). There is nothing to model, and reporting that is a
+    different thing from reporting low risk: zeros in every risk field would be a
+    measurement, and this is the absence of one.
     """
     settings = get_settings()
     cache_key = _redis_risk_key(portfolio_id)
@@ -90,9 +107,50 @@ async def get_risk_metrics(portfolio_id: str = "default") -> RiskMetricsResponse
         return response
 
     # 3. Live computation on real market returns
-    response = await _compute_live_risk(portfolio_id)
+    try:
+        response = await _compute_live_risk(portfolio_id)
+    except EmptyPortfolio:
+        # Deliberately not cached. An empty result is a statement about the
+        # portfolio as it is now, and caching it for an hour means the first
+        # position a person enters is invisible on the risk page until the TTL
+        # runs out — they add a holding and the page keeps saying "no positions"
+        # while the positions endpoint says they hold one. The cache exists to
+        # avoid recomputing GARCH, which is the expensive part; there is nothing
+        # expensive about returning a constant.
+        logger.info(
+            "risk: portfolio %s holds no positions — not caching the empty result",
+            portfolio_id,
+        )
+        return _empty_risk(portfolio_id)
     await redis_set_json(cache_key, response.model_dump(), ttl=RISK_TTL)
     return response
+
+
+def _empty_risk(portfolio_id: str) -> RiskMetricsResponse:
+    """An empty portfolio's answer: no positions, therefore no metrics."""
+    logger.info("risk: portfolio %s holds no positions — no metrics computed", portfolio_id)
+    return RiskMetricsResponse(
+        risk=RiskMetrics(**_ZERO_RISK),
+        stressTests=[],
+        sectorExposure=[],
+        computedAt=datetime.now(timezone.utc).isoformat(),
+        source="live",
+        positionsCount=0,
+        positions=[],
+    )
+
+
+# Every risk field at zero. Only ever used for a portfolio that holds nothing,
+# where the zeros describe an absence rather than a measurement, and where
+# positionsCount=0 is what tells the UI to say "nothing to measure" rather than
+# "no risk". Never merged into a real computation.
+_ZERO_RISK: dict = {
+    "overallRisk": 0, "marketRisk": 0, "concentrationRisk": 0,
+    "liquidityRisk": 0, "currencyRisk": 0, "creditRisk": 0,
+    "var95": 0.0, "cvar95": 0.0, "volatility": 0.0, "maxDrawdown": 0.0,
+    "beta": 0.0, "sharpe": 0.0, "sortino": 0.0, "alpha": 0.0,
+    "informationRatio": 0.0,
+}
 
 
 async def _load_returns_history(symbols: list[str], days: int) -> "pd.DataFrame":
@@ -106,8 +164,6 @@ async def _load_returns_history(symbols: list[str], days: int) -> "pd.DataFrame"
     authoritative and measures nothing.
     """
     import pandas as pd
-
-    from api.services.technicals_service import load_ohlcv
 
     frames = []
     for symbol in symbols:
@@ -140,12 +196,10 @@ async def _compute_live_risk(portfolio_id: str) -> RiskMetricsResponse:
     """
     Run GARCH, historical VaR/CVaR and beta over real IDX returns.
 
-    A note on what "live" means here. The RETURNS are real market data. The
-    HOLDINGS — which symbols and how many lots — still come from the seeded
-    portfolio until real positions are entered. Volatility, beta, correlation
-    and drawdown are therefore genuine; the IDR amounts are scaled by a
-    portfolio that is not yet yours. `source` reports "live" for the market
-    data, and the portfolio caveat belongs in the UI next to the rupiah figures.
+    Both inputs are real now. The RETURNS are real market data, and the HOLDINGS
+    are this portfolio's own `lots_json` (ADR-0005), read through
+    portfolio_access.load_lots so the ownership the router already established is
+    the same one that supplies the positions.
     """
     import pandas as pd
 
@@ -153,14 +207,14 @@ async def _compute_live_risk(portfolio_id: str) -> RiskMetricsResponse:
 
     settings = get_settings()
 
-    # Positions come from api/core/holdings, the same source the dashboard
-    # totals and the risk worker use. This previously read a "portfolioLots" key
-    # off _IDX_METADATA, which no code path ever wrote — the universe dict has
-    # no per-symbol lots — so the comprehension yielded {} on every call and
-    # every live risk request raised "Portfolio holds no positions."
-    holdings = dict(PORTFOLIO_LOTS)
+    # Empty is an answer, not an error to paper over. GARCH and CVaR need at least
+    # one position to have anything to measure, so this stops before computation
+    # and lets the caller show the empty state. Substituting the old shared
+    # constant here would quietly put someone else's portfolio back on the screen
+    # of a person who has never bought a share.
+    holdings = await load_lots(portfolio_id)
     if not holdings:
-        raise RiskDataUnavailable("Portfolio holds no positions.")
+        raise EmptyPortfolio("Portfolio holds no positions.")
 
     lookback = max(settings.ta_gap_lookback_days, 252)
     ohlcv = await _load_returns_history(sorted(holdings), lookback)
@@ -196,6 +250,10 @@ async def _compute_live_risk(portfolio_id: str) -> RiskMetricsResponse:
     )
     response = engine.compute()
     response.source = "live"
+    # What the numbers above were computed from. Without this the response cannot
+    # be told apart from one measured over a different set of positions.
+    response.positionsCount = len(holdings)
+    response.positions = sorted(holdings)
     logger.info(
         "risk: computed on %d symbols, %d sessions, portfolio Rp %.0f",
         len(holdings), ohlcv["date"].nunique(), portfolio_value,

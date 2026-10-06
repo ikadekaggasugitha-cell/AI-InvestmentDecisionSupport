@@ -18,43 +18,15 @@ import { EntrySignalCard } from "./EntrySignalCard";
 import { VolumeAccumulationPanel } from "./VolumeAccumulationPanel";
 import { ViewSkeleton } from "./ViewSkeleton";
 import { ViewError } from "./ViewError";
+import { ConsentModal } from "./ConsentGate";
+import { clearConsent, hasAcceptedConsent, writeConsent } from "./consent";
+import { useAuth } from "../hooks/useAuth";
 
 // Lightweight Charts is ~45KB and only an expanded card ever renders one, so
 // it is code-split rather than shipped in the initial bundle.
 const CandlestickChart = lazy(() =>
   import("./CandlestickChart").then((m) => ({ default: m.CandlestickChart })),
 );
-
-// ── OJK disclaimer gate persistence (GAP-16) ──────────────────────────────────
-// The acceptance is remembered across reloads so the modal does not reappear on
-// every mount. localStorage access is wrapped because it throws in private-mode
-// Safari and when storage is disabled; a failure degrades to "not accepted"
-// (re-prompt), which is the safe direction for a compliance gate.
-const DISCLAIMER_KEY = "aidss.disclaimerAcceptedAt";
-
-function readDisclaimerAccepted(): boolean {
-  try {
-    return !!window.localStorage.getItem(DISCLAIMER_KEY);
-  } catch {
-    return false;
-  }
-}
-
-function writeDisclaimerAccepted(): void {
-  try {
-    window.localStorage.setItem(DISCLAIMER_KEY, new Date().toISOString());
-  } catch {
-    /* storage unavailable — the gate falls back to per-session state */
-  }
-}
-
-function clearDisclaimerAccepted(): void {
-  try {
-    window.localStorage.removeItem(DISCLAIMER_KEY);
-  } catch {
-    /* nothing to clear */
-  }
-}
 
 type Tier = "VERY_HIGH" | "HIGH" | "NEUTRAL" | "LOW";
 
@@ -327,129 +299,6 @@ function ShapChart({ shap, isId }: { shap: AISignal["shap"]; isId: boolean }) {
 }
 
 /* OJK Legal Disclaimer Modal */
-function DisclaimerModal({ isId, onAccept }: { isId: boolean; onAccept: () => void }) {
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.7)",
-        zIndex: 50,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-      }}
-    >
-      <div
-        style={{
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          maxWidth: 520,
-          width: "100%",
-          padding: 32,
-        }}
-      >
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-4">
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 4,
-              background: "var(--warning-bg)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <ShieldCheck size={18} style={{ color: "var(--warning)" }} />
-          </div>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
-              {isId ? "Disclaimer — Kepatuhan OJK" : "Disclaimer — OJK Compliance"}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-              {isId ? "Baca sebelum menggunakan fitur AI" : "Read before using AI features"}
-            </div>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div
-          style={{
-            background: "var(--muted)",
-            border: "1px solid var(--border)",
-            borderRadius: 4,
-            padding: 16,
-            marginBottom: 20,
-          }}
-        >
-          <div className="flex flex-col gap-3">
-            {(isId ? [
-              "Platform ini adalah Sistem Pendukung Keputusan berbasis AI (AIDSS) dan BUKAN merupakan nasihat investasi resmi.",
-              "Seluruh output disajikan sebagai Probabilitas Skor (contoh: \"Prob. Naik: 78%\") dan BUKAN sebagai instruksi Beli/Jual yang pasti.",
-              "Keputusan investasi sepenuhnya menjadi tanggung jawab Anda. AIDSS tidak bertanggung jawab atas kerugian investasi.",
-              "Pastikan Anda telah memahami profil risiko dan kemampuan finansial Anda sebelum menggunakan fitur ini.",
-            ] : [
-              "This platform is an AI-based Decision Support System (AIDSS) and does NOT constitute official investment advice.",
-              "All outputs are presented as Probability Scores (e.g., \"Prob. Up: 78%\") and NOT as definitive Buy/Sell instructions.",
-              "Investment decisions are entirely your responsibility. AIDSS bears no liability for investment losses.",
-              "Ensure you understand your risk profile and financial capacity before using this feature.",
-            ]).map((text, i) => (
-              <div key={i} className="flex items-start gap-2">
-                <div
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: "50%",
-                    background: "var(--warning-bg)",
-                    color: "var(--warning)",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    marginTop: 1,
-                  }}
-                >
-                  {i + 1}
-                </div>
-                <span style={{ fontSize: 12, color: "var(--foreground)", lineHeight: 1.6 }}>{text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between">
-          <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
-            {isId ? "Diatur oleh: OJK & Peraturan Pasar Modal Indonesia" : "Governed by: OJK & Indonesian Capital Market Regulations"}
-          </div>
-          <button
-            onClick={onAccept}
-            style={{
-              background: "var(--primary)",
-              color: "var(--primary-foreground)",
-              border: "none",
-              borderRadius: 4,
-              padding: "8px 20px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "var(--font-sans)",
-            }}
-          >
-            {isId ? "Saya Mengerti & Setuju" : "I Understand & Agree"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /**
  * One recommendation card.
@@ -857,8 +706,14 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
   // previous plain useState(false) reset on every mount, which made the OJK
   // disclaimer gate cosmetic rather than a real gate (GAP-16). Server-side
   // recording of the acceptance for audit is a separate concern (GAP-03).
+  // Gate 2 lives in ConsentGate now, so the AI signals list is gated the same way
+  // as the advisor chat and the stock detail panel. Reading the acceptance from
+  // the shared helper keeps the "revoke" button below honest. Server-side
+  // recording of the acceptance for audit is a separate concern (GAP-03).
+  const auth = useAuth();
+  const accountId = auth.account?.id ?? null;
   const [disclaimerAccepted, setDisclaimerAccepted] = useState<boolean>(
-    () => readDisclaimerAccepted()
+    () => hasAcceptedConsent(accountId)
   );
   const { signals, loading, error, generatedAt, isLive, modelMetrics, modelVersion, servingSource } = useAISignals();
 
@@ -937,10 +792,10 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
   return (
     <>
       {!disclaimerAccepted && (
-        <DisclaimerModal
-          isId={isId}
+        <ConsentModal
+          locale={isId ? "id" : "en"}
           onAccept={() => {
-            writeDisclaimerAccepted();
+            writeConsent(accountId);
             setDisclaimerAccepted(true);
           }}
         />
@@ -986,7 +841,7 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
           </div>
           <button
             onClick={() => {
-              clearDisclaimerAccepted();
+              clearConsent(accountId);
               setDisclaimerAccepted(false);
             }}
             style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted-foreground)", padding: 0 }}
