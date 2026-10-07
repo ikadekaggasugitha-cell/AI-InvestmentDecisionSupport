@@ -131,6 +131,18 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 
+-- Gate 2 consent, recorded server-side so the acceptance can be evidenced rather
+-- than only remembered by a browser. `version` records which wording was accepted,
+-- so an acceptance of the previous text stays readable after the text changes.
+CREATE TABLE IF NOT EXISTS consent_acceptances (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    version     VARCHAR(32) NOT NULL,
+    accepted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_consent_user ON consent_acceptances (user_id, accepted_at DESC);
+
 -- One row per purchased period, never mutated, and with no status column: access
 -- is derived from expires_at, and payment state belongs to `transactions` in
 -- Phase 2. A stored status would be a second source of truth for one fact, and

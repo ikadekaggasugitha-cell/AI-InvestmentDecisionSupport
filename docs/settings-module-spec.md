@@ -71,7 +71,7 @@ Set ikon final **belum ditetapkan pemilik** dan tercatat sebagai `[OWNER TO NAME
 ### 3.1 Pohon Tab
 
 ```
-Settings (src/app/components/settings/)
+Settings (satu file: `src/app/components/SettingsView.tsx`)
 │
 ├── Tab 1: Profil & Akun (Profile & Account)
 │   ├── Nama lengkap, email, nomor WhatsApp (form)
@@ -558,12 +558,12 @@ seluruhnya sudah diperbaiki. Ringkasnya:
 
 ## 15. Checklist Implementasi
 
-- [x] Tidak ada emoji di seluruh file `src/app/components/settings/`
-- [x] Tidak ada avatar inisial di `TabProfile.tsx`
-- [x] Tidak ada badge role di `TabProfile.tsx` (label teks saja)
+- [x] Tidak ada emoji di seluruh file `src/app/components/SettingsView.tsx`
+- [x] Tidak ada avatar inisial di `SettingsView.tsx`
+- [x] Tidak ada badge role di `SettingsView.tsx` (label teks saja)
 - [x] Tidak ada ikon di `Tabs.Trigger`
 - [x] Tidak ada ikon centang di feedback "Tersimpan"
-- [x] Tidak ada badge "Hemat 16,7%" di `TabSubscription.tsx`
+- [x] Tidak ada badge "Hemat 16,7%" di `SettingsView.tsx`
 - [x] Tidak ada ikon per baris di tabel riwayat
 - [x] Tab bar: horizontal scroll pada layar sempit
 - [x] `setting-row` stacking vertikal di bawah 640px

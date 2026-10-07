@@ -2,7 +2,7 @@
 
 Satu-satunya sumber kebenaran tentang apa yang sudah ada dan apa yang belum. Kalau ada klaim tentang AIDSS di dokumen lain yang bertentangan dengan file ini, file ini yang benar.
 
-Diverifikasi terhadap kode pada **2026-10-04**, setelah migrasi `0005` dan `0006` diterapkan. Cara verifikasi: setiap path file dan setiap nama endpoint yang disebut di bawah harus benar-benar ada, dan itu diperiksa oleh `backend/tests/test_docs_status.py`.
+Diverifikasi terhadap kode pada **2026-10-07**, setelah migrasi `0008` diterapkan. Cara verifikasi: setiap path file dan setiap nama endpoint yang disebut di bawah harus benar-benar ada, dan itu diperiksa oleh `backend/tests/test_docs_status.py`.
 
 ---
 
@@ -22,9 +22,11 @@ Diverifikasi terhadap kode pada **2026-10-04**, setelah migrasi `0005` dan `0006
 | Kebersihan data | Ada | Seed berita fiktif dihapus, `useNews` mengembalikan `error` dan `retry` |
 | Gate 2 persetujuan di dalam aplikasi | Ada | `src/app/components/ConsentGate.tsx`, dipakai AI Advisor dan `StockDetailPanel`. Disimpan per akun di `src/app/components/consent.ts`, dan belum ada audit log server |
 | Paywall WebSocket | Ada | `backend/api/routers/market_ws.py:138-152` memeriksa session, status blokir, lalu entitlement sebelum accept, fail-closed |
-| CLI operasional | Ada | `backend/db/promote_admin.py` membaca `ADMIN_EMAIL`, `backend/db/purge_sessions.py` menghapus session kedaluwarsa, keduanya ada tesnya |
+| Endpoint admin akun | Ada | `backend/api/routers/admin.py`: daftar akun, blokir, buka blokir. Role-gated lewat `AdminUser`, path parameter hanya UUID, dan admin tidak bisa memblokir dirinya sendiri |
+| CLI operasional | Ada | `backend/db/promote_admin.py` membaca `ADMIN_EMAIL`, `backend/db/purge_sessions.py` menghapus session kedaluwarsa, `backend/db/purge_positions.py` membersihkan posisi yang ticker-nya tidak tercatat. Semuanya punya `--dry-run` dan tes. Belum dijadwalkan di Celery beat |
 | Analytics per portfolio | Ada | `backend/api/services/portfolio_access.py` `load_lots` adalah satu-satunya jalur baca posisi. Risk, kurva ekuitas, snapshot WebSocket, dan risk worker semuanya memakainya ([ADR-0005](adr/0005-analytics-baca-baris-portfolio.md)) |
 | Tidak ada posisi fabricated di layar | Ada | `PORTFOLIO_HOLDINGS` di `src/app/data/idxData.ts` dihapus. `usePortfolio` membaca server, dan `useLiveMarket` tidak lagi menghitung total portofolio dari seed, meneruskan nilai yang dihitung server per akun |
+| Validasi ticker posisi | Ada | `PUT /v1/portfolio/positions` menolak simbol yang tidak ada di `instruments`. Universe kosong berarti fresh deploy, jadi validasi dilewati dengan warning — menolak semua posisi di install baru lebih berbahaya daripada menerima satu ticker nakal |
 | Positions API | Ada | `GET`/`PUT /v1/portfolio/positions`. Whole-portfolio replace, jadi daftar kosong berarti menghapus. `avgPrice` ikut disimpan di `lots_json`, karena harga beli tidak bisa diturunkan dari feed harga |
 | Cost basis yang tidak diketahui | Ada | `avgPrice` null, bukan 0. Kolom P&L menampilkan `—`, dan total biaya hanya muncul kalau semua posisi punya harga |
 | Invalidasi cache saat posisi berubah | Ada | `portfolio_access.invalidate_portfolio_caches` menghapus risk, optimasi, dan kurva ekuitas. Hasil risk kosong sengaja tidak di-cache, karena posisi pertama yang ditambahkan baru terlihat setelah TTL satu jam |
@@ -42,8 +44,6 @@ Tidak ada satu pun item di bawah ini yang ada di kode. Setiapnya tercatat supaya
 | Checkout dan pembayaran | Belum | Tidak ada UI dan tidak ada endpoint. Midtrans, QRIS, dan upload bukti nol baris kode |
 | Integrasi email dan WhatsApp | Belum | Nol baris kode. Ini kanal notifikasi tunggal yang dirancang, dan belum ada |
 | Portal admin | Belum | `/admin` tidak ada di frontend maupun backend |
-| Endpoint pemblokiran akun | Belum | `blocked_at` dan `require_admin` sudah ada di kode, tapi tidak ada endpoint yang memanggilnya |
-| Pembersihan sesi otomatis | Belum | `purge_expired_sessions()` sudah ada, tapi belum ada skrip atau jadwal yang memanggilnya |
 | Tab 2 Settings | Belum | `subscriptions` ada, tapi tidak ada cara punya langganan: pembayaran belum dibuka |
 
 ## Keputusan yang Sudah Disepakati
@@ -62,7 +62,6 @@ Keputusan di bawah sudah final dan sudah diterapkan. Alasan lengkapnya ada di `d
 | Penagihan uang sungguhan ditunda sampai Fase 2 dan Fase 5 selesai | Tertunda. ADR-nya belum ditulis |
 | Gate 2: audit log persetujuan sisi server | Belum | Modal dan penyimpanan peramban sudah ada, tapi tidak ada tabel yang merekam siapa menyetujui apa dan kapan, jadi persetujuan tidak bisa dibuktikan kepada regulator |
 
-
 ## Utang yang Diketahui
 
 Hal berikut disengaja untuk sekarang, dan akan menggigit kalau tidak dicatat.
@@ -70,9 +69,8 @@ Hal berikut disengaja untuk sekarang, dan akan menggigit kalau tidak dicatat.
 | Utang | Kenapa ditinggalkan |
 | --- | --- |
 | `subscriptions` belum punya `plan_type` dan `price_paid` | Keduanya butuh pembayaran. Sekarang akan jadi kolom kosong |
-| Sesi kedaluwarsa menumpuk | Pembersihan manual. Butuh satu DELETE pada `idx_sessions_expires_at`, dijadwalkan saat ada tempat untuk menjadwalkannya |
-| `blocked_at` belum punya penulis | Endpoint-nya Fase 4 |
-| Alias akun lama masih di `localStorage` | Tidak dibaca lagi dan tidak ditulis, tapi belum dibersihkan dari test lama |
+| Sesi kedaluwarsa menumpuk | Ada CLI (`python -m db.purge_sessions`), tapi belum dijadwalkan. Tabel tumbuh sampai seseorang menjalankannya. Butuh satu DELETE pada `idx_sessions_expires_at` |
+| Key `aidss-portfolio` masih ada di peramban sebagian orang | Tidak dibaca dan tidak ditulis siapa pun sejak posisi pindah ke server. Data lama orang tinggal di localStorage tanpa ada yang menghapusnya |
 
 ## Dokumen yang Perlu Dibaca dengan Hati-hati
 

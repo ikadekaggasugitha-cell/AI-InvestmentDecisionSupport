@@ -27,8 +27,8 @@ from api.core.auth import get_current_user, require_entitlement
 from api.core.config import get_settings
 from api.core.rate_limit import limiter
 from api.routers import (
-    advisor, alerts, auth, broksum, market_ws, news, portfolio, reports, risk, signals,
-    symbols, technicals,
+    admin, advisor, alerts, auth, broksum, market_ws, news, portfolio, reports, risk,
+    signals, symbols, technicals,
 )
 
 # ── Structured logging ────────────────────────────────────────────────────────
@@ -290,6 +290,9 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     app.include_router(auth.router)  # public: where accounts and sessions are made
                 # Per-route auth is declared inside it, so /signup, /login and
                 # /ws-ticket stay open while /me and /change-password require one.
+    # Role-gated rather than entitlement-gated: administering accounts is not the
+    # same as paying for the analysis. AdminUser carries the role check itself.
+    app.include_router(admin.router)
     app.include_router(signals.router, dependencies=paid)
     app.include_router(risk.router, dependencies=paid)
     app.include_router(market_ws.router)

@@ -400,6 +400,20 @@ class _IdentityPool:
                 if str(row["id"]) == str(args[0]):
                     return row
             return None
+        # Checked before the profile branch: set_blocked's RETURNING clause also
+        # lists full_name, so a `and "full_name" in query` test matches both
+        # statements and the wrong branch reads args[2] off a two-argument call.
+        if "UPDATE users SET blocked_at" in query:
+            # accounts.set_blocked. $1 is the id, $2 the boolean.
+            for row in self.users.values():
+                if str(row["id"]) == str(args[0]):
+                    row["blocked_at"] = (
+                        self._now.now(self._tz.utc) if args[1] else None
+                    )
+                    return {k: row[k] for k in
+                            ("id", "email", "full_name", "phone_number", "role",
+                             "blocked_at", "created_at")}
+            return None
         if "UPDATE users" in query and "full_name" in query:
             for row in self.users.values():
                 if str(row["id"]) == str(args[0]):
@@ -430,6 +444,18 @@ class _IdentityPool:
                     }
             return None
         raise AssertionError(f"unexpected identity fetchrow: {query!r}")
+
+    async def fetch(self, query, *args):
+        if "FROM users" in query:
+            # Newest first, matching the endpoint's ORDER BY. The fake does not
+            # implement LIMIT/OFFSET: paging is FastAPI's job and is tested against
+            # the response shape, not against this stand-in.
+            rows = sorted(self.users.values(),
+                          key=lambda r: r["created_at"], reverse=True)
+            return [{k: r[k] for k in
+                     ("id", "email", "full_name", "phone_number", "role",
+                      "blocked_at", "created_at")} for r in rows]
+        raise AssertionError(f"unexpected identity fetch: {query!r}")
 
     # -- sessions + entitlement
 

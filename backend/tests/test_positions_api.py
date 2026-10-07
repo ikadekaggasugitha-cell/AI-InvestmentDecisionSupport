@@ -233,3 +233,113 @@ class TestCachesAreInvalidatedOnWrite:
         # Nothing cached: an empty portfolio is a fact that changes the moment a
         # position is added, and the cache cannot know that.
         assert not any(key.startswith("risk:portfolio:") for key in mock_redis)
+
+
+class TestSymbolValidation:
+    """A position naming a ticker that is not listed makes every number derived
+    from it — VaR, beta, allocation, the equity curve — meaningless while looking
+    entirely plausible. There is no error anywhere downstream; the analytics simply
+    produce a confident answer about nothing.
+
+    Checked against `instruments` rather than the frontend's list, because the
+    frontend list is a suggestion and this is a write.
+    """
+
+    @pytest.fixture
+    def universe(self, fake_portfolios):
+        """Put a small listed set on the fake pool."""
+        rows = [{"symbol": "BBCA"}, {"symbol": "TLKM"}, {"symbol": "ASII"}]
+
+        async def fetch(query, *args):
+            if "FROM instruments" in query:
+                return rows
+            raise AssertionError(f"unexpected fetch: {query!r}")
+
+        fake_portfolios.fetch = fetch
+        return rows
+
+    def test_a_listed_symbol_is_accepted(self, client, fake_portfolios, universe):
+        resp = client.put(
+            "/v1/portfolio/positions",
+            json={"positions": [{"symbol": "BBCA", "lots": 100, "avgPrice": 9000}]},
+        )
+        assert resp.status_code == 200, resp.text
+
+    def test_an_unlisted_symbol_is_rejected(self, client, fake_portfolios, universe):
+        resp = client.put(
+            "/v1/portfolio/positions",
+            json={"positions": [{"symbol": "FAKEPOS", "lots": 100, "avgPrice": 9000}]},
+        )
+        assert resp.status_code == 422
+        # The error names the symbol, because "invalid input" sends the person
+        # looking through the form rather than at the ticker they typed.
+        assert "FAKEPOS" in resp.json()["detail"]
+
+    def test_a_lowercase_symbol_is_matched_after_upper_casing(
+        self, client, fake_portfolios, universe
+    ):
+        """The read path upper-cases, so the write path must too. A ticker typed as
+        "bbca" is the same security as "BBCA", not an unknown one."""
+        resp = client.put(
+            "/v1/portfolio/positions",
+            json={"positions": [{"symbol": "bbca", "lots": 100, "avgPrice": 9000}]},
+        )
+        assert resp.status_code == 200, resp.text
+        assert _positions(client, fake_portfolios)["positions"][0]["symbol"] == "BBCA"
+
+    def test_one_bad_symbol_rejects_the_whole_payload(
+        self, client, fake_portfolios, universe
+    ):
+        """Writing the valid half and reporting an error would leave the caller
+        unable to tell what was saved."""
+        client.put(
+            "/v1/portfolio/positions",
+            json={"positions": [{"symbol": "TLKM", "lots": 100, "avgPrice": 3000}]},
+        )
+        resp = client.put(
+            "/v1/portfolio/positions",
+            json={"positions": [
+                {"symbol": "ASII", "lots": 100, "avgPrice": 4000},
+                {"symbol": "FAKEPOS", "lots": 100, "avgPrice": 1},
+            ]},
+        )
+        assert resp.status_code == 422
+        # Untouched: the previous contents are still there.
+        stored = _positions(client, fake_portfolios)["positions"]
+        assert [p["symbol"] for p in stored] == ["TLKM"]
+
+    def test_an_empty_universe_accepts_anything(self, client, fake_portfolios):
+        """A fresh deployment whose instruments_worker has not run yet.
+
+        Rejecting everything here would mean no position can be entered at all on a
+        new install; accepting everything means the check simply is not in force
+        until the universe is populated. That asymmetry is deliberate.
+        """
+        async def fetch(query, *args):
+            if "FROM instruments" in query:
+                return []
+            raise AssertionError(f"unexpected fetch: {query!r}")
+
+        fake_portfolios.fetch = fetch
+
+        resp = client.put(
+            "/v1/portfolio/positions",
+            json={"positions": [{"symbol": "ANYTHING", "lots": 100, "avgPrice": 9000}]},
+        )
+        assert resp.status_code == 200, resp.text
+
+    def test_an_unreachable_universe_accepts_anything(
+        self, client, fake_portfolios
+    ):
+        """Same reasoning as the empty case: the check is a safety net, and a
+        safety net that hard-fails the write turns an outage into data loss."""
+        async def fetch(query, *args):
+            raise RuntimeError("db down")
+
+        fake_portfolios.fetch = fetch
+
+        resp = client.put(
+            "/v1/portfolio/positions",
+            json={"positions": [{"symbol": "BBCA", "lots": 100, "avgPrice": 9000}]},
+        )
+        assert resp.status_code == 200, resp.text

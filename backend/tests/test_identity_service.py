@@ -77,6 +77,16 @@ class _IdentityPool:
             return self.users.get(args[0].lower())
         if "FROM users" in query and "WHERE id = $1" in query:
             return self.by_id.get(str(args[0]))
+        if "UPDATE users SET blocked_at" in query:
+            # set_blocked. $1 is the id, $2 the boolean; CASE WHEN $2 THEN NOW()
+            # mirrors the SQL, so NULL must arrive as None and not as False.
+            row = self.by_id.get(str(args[0]))
+            if row is None:
+                return None
+            row["blocked_at"] = datetime.now(timezone.utc) if args[1] else None
+            return _Row({k: row[k] for k in
+                         ("id", "email", "full_name", "phone_number", "role",
+                          "blocked_at", "created_at")})
         if "JOIN users" in query and "FROM sessions" in query:
             row = self.sessions.get(args[0])
             if row is None or row["expires_at"] <= datetime.now(timezone.utc):
@@ -88,6 +98,19 @@ class _IdentityPool:
                              "blocked_at", "created_at")}
             return None
         raise AssertionError(f"unexpected fetchrow: {query!r}")
+
+    async def fetch(self, query, *args):
+        self.calls.append((query, args))
+        if "FROM users" in query:
+            rows = sorted(
+                self.by_id.values(),
+                key=lambda r: r["created_at"],
+                reverse=True,
+            )
+            return [_Row({k: r[k] for k in
+                          ("id", "email", "full_name", "phone_number", "role",
+                           "blocked_at", "created_at")}) for r in rows]
+        raise AssertionError(f"unexpected fetch: {query!r}")
 
     # -- sessions
 
@@ -228,6 +251,107 @@ class TestAccounts:
         pool.by_id[str(created.id)]["blocked_at"] = datetime.now(timezone.utc)
         fetched = await accounts_service.get_account(created.id)
         assert fetched.blocked_at is not None
+
+
+class TestBlocking:
+    """`blocked_at` had a column and a reader and no writer, so an account could
+    not actually be blocked. CONTEXT.md rule 8 says disabling access is the
+    Account's business and takes effect immediately, which is only true once
+    something writes the column.
+    """
+
+    async def _account(self, pool, email="b@aidss.id"):
+        return await accounts_service.create_account(
+            email=email, password_hash="h", full_name="B", phone_number="0812"
+        )
+
+    async def test_blocking_stamps_the_time(self, pool):
+        account = await self._account(pool)
+        assert await accounts_service.get_account(account.id) is not None
+
+        blocked = await accounts_service.set_blocked(account.id, True)
+        assert blocked.blocked_at is not None
+        assert blocked.id == account.id
+
+    async def test_unblocking_clears_it(self, pool):
+        account = await self._account(pool)
+        await accounts_service.set_blocked(account.id, True)
+
+        restored = await accounts_service.set_blocked(account.id, False)
+        # NULL, not a stale timestamp: a second block needs to record when it
+        # happened, and a kept timestamp would say the block predates the unblock.
+        assert restored.blocked_at is None
+
+    async def test_blocking_is_visible_to_a_later_fetch(self, pool):
+        """The write has to be readable by the JOIN in authenticate(), not just
+        by the function that made it."""
+        account = await self._account(pool)
+        await accounts_service.set_blocked(account.id, True)
+
+        fetched = await accounts_service.get_account(account.id)
+        assert fetched is not None
+        assert fetched.blocked_at is not None
+
+    async def test_a_missing_account_is_404_not_a_silent_success(self, pool):
+        """Reporting success for an id that does not exist would let a caller
+        believe an account had been blocked when nothing happened."""
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as caught:
+            await accounts_service.set_blocked(uuid.uuid4(), True)
+        assert caught.value.status_code == 404
+
+    async def test_a_database_failure_is_503_not_a_false_success(self, pool):
+        """The write did not happen. Saying otherwise is a lie the caller cannot
+        detect, and the account stays open while everyone thinks it is closed."""
+        from fastapi import HTTPException
+
+        async def boom():
+            raise RuntimeError("db down")
+
+        with patch("api.services.accounts.get_pool", boom):
+            with pytest.raises(HTTPException) as caught:
+                await accounts_service.set_blocked(uuid.uuid4(), True)
+        assert caught.value.status_code == 503
+
+    async def test_one_function_writes_the_column(self, pool):
+        """Two writers would mean two places to get the block half-applied."""
+        from pathlib import Path
+
+        import re
+
+        root = Path(__file__).resolve().parents[1] / "api"
+        writers = []
+        for path in root.rglob("*.py"):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if re.search(r"SET\s+blocked_at", line, re.I) or re.search(
+                    r'blocked_at\s*=\s*\$', line
+                ):
+                    writers.append(f"{path.relative_to(root)}: {line.strip()}")
+        assert len(writers) == 1, writers
+
+
+class TestAccountListing:
+    async def test_newest_first(self, pool):
+        await accounts_service.create_account(
+            email="a@aidss.id", password_hash="h", full_name="A", phone_number="0812"
+        )
+        await accounts_service.create_account(
+            email="b@aidss.id", password_hash="h", full_name="B", phone_number="0812"
+        )
+        listed = await accounts_service.list_accounts()
+        assert len(listed) == 2
+        assert listed[0].email == "b@aidss.id"
+
+    async def test_blocked_state_is_in_the_list(self, pool):
+        """An admin list that cannot show who is blocked answers the wrong
+        question."""
+        created = await accounts_service.create_account(
+            email="c@aidss.id", password_hash="h", full_name="C", phone_number="0812"
+        )
+        await accounts_service.set_blocked(created.id, True)
+        listed = await accounts_service.list_accounts()
+        assert next(a for a in listed if a.id == created.id).blocked_at is not None
 
 
 # ── sessions ──────────────────────────────────────────────────────────────────

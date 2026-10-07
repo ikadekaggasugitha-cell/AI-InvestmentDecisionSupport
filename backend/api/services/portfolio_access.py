@@ -188,6 +188,28 @@ async def _read_lots_json(portfolio_id: str):
         ) from exc
 
 
+async def known_symbols() -> set[str] | None:
+    """Every ticker in the `instruments` table, or None when it is empty.
+
+    Returns None rather than an empty set on purpose. An empty `instruments` table
+    is a fresh deployment whose `instruments_worker` has not run yet, and that is a
+    different situation from "this symbol does not exist". Failing closed on the
+    first and open on the second would mean no position can be entered at all on
+    a new install; failing open on the first and closed on the second would let a
+    fabricated ticker through on exactly the deployments least able to notice.
+    """
+    try:
+        pool = await get_pool()
+        rows = await pool.fetch("SELECT symbol FROM instruments")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "portfolio_access: cannot read the instrument universe — %s", exc
+        )
+        return None
+    symbols = {str(r["symbol"]) for r in rows} if rows else set()
+    return symbols or None
+
+
 async def replace_positions(portfolio_id: str, positions: dict[str, "Position"]) -> None:
     """Overwrite a portfolio's positions with `positions`.
 

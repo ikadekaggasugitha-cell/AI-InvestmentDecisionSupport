@@ -245,6 +245,76 @@ async def revoke_all_sessions(account_id: uuid.UUID) -> int:
     return _affected(result)
 
 
+async def set_blocked(account_id: uuid.UUID, blocked: bool) -> Account:
+    """Block or unblock an account. Returns the updated account.
+
+    This is the only writer of `blocked_at` in the codebase. One function for both
+    directions because two writers would mean two places to get it wrong, and the
+    failure mode of a half-applied block is an account that still has access.
+
+    Blocking is immediate, not "on the next request after a cache expires":
+    `authenticate()` already reads `blocked_at` in its single JOIN, so nothing else
+    has to change for a block to take hold. That is also why the session rows are
+    deliberately left in place — CONTEXT.md rule 8 puts disabling access on the
+    Account, not on the Subscription, and `blocked_at` is checked on every request
+    rather than trusted to a session that might still be listed.
+
+    Raises:
+        HTTPException 404 — no such account. Distinct from "no rows updated",
+            which would let a caller believe an account had been blocked when the
+            id they passed did not exist.
+        HTTPException 503 — the database is unreachable, so the write did not
+            happen. Reporting success here would be a lie the caller cannot detect.
+    """
+    try:
+        pool = await get_pool()
+        row = await pool.fetchrow(
+            """
+            UPDATE users SET blocked_at = CASE WHEN $2 THEN NOW() ELSE NULL END
+            WHERE id = $1
+            RETURNING id, email, full_name, phone_number, role, blocked_at, created_at
+            """,
+            str(account_id),
+            blocked,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("accounts: cannot set blocked=%s for %s — %s", blocked, account_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Cannot change the account's access right now.",
+        ) from exc
+
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Account not found.",
+        )
+    logger.info(
+        "accounts: %s %s", "blocked" if blocked else "unblocked", account_id
+    )
+    return _to_account(row)
+
+
+async def list_accounts(limit: int = 100, offset: int = 0) -> list[Account]:
+    """Accounts newest first, for the admin list.
+
+    Paged rather than unpaged: an unpaged list of every account becomes a slow
+    query and a large response exactly when the table is most worth looking at.
+    """
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """
+        SELECT id, email, full_name, phone_number, role, blocked_at, created_at
+        FROM users
+        ORDER BY created_at DESC, id
+        LIMIT $1 OFFSET $2
+        """,
+        limit,
+        offset,
+    )
+    return [_to_account(r) for r in rows]
+
+
 async def get_or_create_bypass_account(email: str) -> Account:
     """The Account behind AUTH_BYPASS, created on first use.
 

@@ -9,7 +9,7 @@ GET /v1/portfolio/optimise
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query, status
 
 from api.core.auth import CurrentUser
 from api.models.portfolio import (
@@ -20,7 +20,7 @@ from api.models.portfolio import (
     PositionOutput,
 )
 from api.services.portfolio_access import (
-    Position, load_positions, replace_positions, resolve_portfolio_id,
+    Position, known_symbols, load_positions, replace_positions, resolve_portfolio_id,
 )
 from api.services.portfolio_service import get_equity_curve_cached, get_portfolio_optimisation
 
@@ -138,6 +138,26 @@ async def update_portfolio_positions(
         # BBCA twice meant one position, and quietly doubling someone's holding
         # because of a UI bug is not a recoverable surprise.
         requested[symbol] = Position(lots=item.lots, avg_price=item.avgPrice)
+
+    # Checked before anything is written, and against the database rather than the
+    # frontend's list: a position naming a ticker that is not listed makes VaR,
+    # beta and allocation compute over something that does not exist, and every
+    # number derived from it looks entirely plausible.
+    #
+    # An empty universe skips the check rather than rejecting everything — see
+    # known_symbols for why that is the safe direction.
+    universe = await known_symbols()
+    if universe is not None:
+        unknown = sorted(set(requested) - universe)
+        if unknown:
+            logger.info(
+                "portfolio/positions: rejecting unknown symbol(s) %s for portfolio=%s",
+                unknown, portfolio_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Not a listed IDX ticker: {', '.join(unknown)}",
+            )
 
     await replace_positions(portfolio_id, requested)
     logger.info(
