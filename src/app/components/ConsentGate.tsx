@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { useTranslation, type Locale } from "../i18n/translations";
-import { hasAcceptedConsent, writeConsent } from "./consent";
+import { hasAcceptedConsent, reportConsent, writeConsent } from "./consent";
 
 export interface ConsentGateProps {
   locale: Locale;
@@ -38,8 +38,13 @@ export function ConsentGate({ locale, children }: ConsentGateProps) {
   }, [accountId]);
 
   const accept = useCallback(() => {
+    // Local first, then the server. The person pressed the button; the modal has
+    // served its purpose either way, and refusing to close it because the network
+    // is down would be a worse failure than a missing server-side record. The
+    // record can still be added later, whereas consent has to be given deliberately.
     writeConsent(accountId);
     setAccepted(true);
+    void reportConsent(accountId);
   }, [accountId]);
 
   if (accepted) return <>{children}</>;

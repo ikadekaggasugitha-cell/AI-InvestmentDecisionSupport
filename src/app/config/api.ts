@@ -105,6 +105,8 @@ export const ENDPOINTS = {
   portfolioEquity: (days = 252) => `${API_BASE}/v1/portfolio/equity?days=${days}`,
   /** The caller's positions. PUT replaces the whole list; an empty list clears it. */
   positions:      `${API_BASE}/v1/portfolio/positions`,
+  /** The caller's own subscription state. Read-only; there is no way to buy one. */
+  subscription:   `${API_BASE}/v1/subscription/current`,
   /** Claude-powered Q&A, server-sent events */
   advisorChat:    `${API_BASE}/v1/advisor/chat`,
 
@@ -117,6 +119,8 @@ export const ENDPOINTS = {
   authLogout:     `${API_BASE}/v1/auth/logout`,
   authWsTicket:   `${API_BASE}/v1/auth/ws-ticket`,
   authChangePassword: `${API_BASE}/v1/auth/change-password`,
+  /** Gate 2 acceptance. POST records it server-side; GET reads what is recorded. */
+  authConsent:      `${API_BASE}/v1/auth/consent`,
 } as const;
 
 /** Default request timeout in milliseconds */

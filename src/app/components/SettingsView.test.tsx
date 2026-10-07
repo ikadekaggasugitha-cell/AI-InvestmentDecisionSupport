@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SettingsView } from './SettingsView'
@@ -6,6 +6,29 @@ import { AppProvider } from '../context/AppContext'
 import { SIMULATED_FRESHNESS } from '../hooks/useLiveMarket'
 import type { ExchangeRateData } from '../hooks/useExchangeRate'
 import type { AuthState } from '../hooks/useAuth'
+
+/* The subscription tab reads GET /v1/subscription/current. Kept mutable per test so
+ * the three states can be driven separately: they are the point of the tab, and a
+ * mocked-away fetch would leave them indistinguishable again. */
+const subState = {
+  body: { active: false, expiresAt: null, daysRemaining: null, startDate: null } as unknown,
+  status: 200,
+  throws: false,
+}
+
+vi.mock('../config/api', () => ({
+  ENDPOINTS: {
+    subscription: '/v1/subscription/current',
+    authMe: '/v1/auth/me',
+  },
+  apiFetch: vi.fn(async (url: string) => {
+    if (url.includes('/v1/subscription/current')) {
+      if (subState.throws) throw new Error('offline')
+      return { ok: subState.status < 400, status: subState.status, json: async () => subState.body } as unknown as Response
+    }
+    return { ok: true, status: 200, json: async () => ({}) } as unknown as Response
+  }),
+}))
 
 const TEST_ACCOUNT = {
   id: '3f2a6c11-0d5e-4a1b-9c77-1f0b2d3e4a55',
@@ -248,11 +271,14 @@ describe('SettingsView — identity, read from the server (R-38)', () => {
   })
 
   it('Subscription states no plan exists rather than showing a fake invoice', async () => {
+    subState.body = { active: false, expiresAt: null, daysRemaining: null, startDate: null }
+    subState.status = 200
+    subState.throws = false
     const user = userEvent.setup()
     renderSettings()
 
     await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
-    expect(screen.getByText('Belum ada langganan')).toBeInTheDocument()
+    expect(await screen.findByText('Belum ada langganan')).toBeInTheDocument()
     expect(screen.queryByText(/INV-/)).not.toBeInTheDocument()
   })
 })
@@ -427,5 +453,97 @@ describe('the tablist follows the WAI-ARIA keyboard pattern', () => {
     tabs()[1].focus()
     await user.keyboard('{ArrowDown}')
     expect(tabs()[1]).toHaveFocus()
+  })
+})
+
+describe('SettingsView — Tab 2 reports the subscription state from the server', () => {
+  const openTab = async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
+  }
+
+  beforeEach(() => {
+    subState.body = { active: false, expiresAt: null, daysRemaining: null, startDate: null }
+    subState.status = 200
+    subState.throws = false
+  })
+
+  it('shows the expiry date and days remaining when there is one', async () => {
+    const in30 = new Date(Date.now() + 30 * 86400_000).toISOString()
+    subState.body = { active: true, expiresAt: in30, daysRemaining: 30, startDate: null }
+
+    await openTab()
+
+    expect(await screen.findByText('Masa aktif')).toBeInTheDocument()
+    expect(screen.getByText('30 hari tersisa')).toBeInTheDocument()
+    // The month name, not a full timestamp: the exact time is noise on a settings row.
+    expect(screen.getByText(/2026/)).toBeInTheDocument()
+  })
+
+  it('says the load failed rather than that there is no subscription', async () => {
+    // The distinction the boolean-only version lost: telling someone with an
+    // active subscription that they have none is a different mistake from showing
+    // them an empty page.
+    subState.status = 503
+
+    await openTab()
+
+    expect(await screen.findByText('Status tidak dapat dimuat')).toBeInTheDocument()
+    expect(screen.queryByText('Belum ada langganan')).not.toBeInTheDocument()
+    expect(screen.getByText(/tidak berarti langganan Anda habis/i)).toBeInTheDocument()
+  })
+
+  it('shows no renew control at all', async () => {
+    // R-26: a control that looks live and does nothing is worse than its absence.
+    subState.body = {
+      active: true,
+      expiresAt: new Date(Date.now() + 30 * 86400_000).toISOString(),
+      daysRemaining: 30,
+      startDate: null,
+    }
+
+    await openTab()
+
+    expect(await screen.findByText('Masa aktif')).toBeInTheDocument()
+    const labels = ['Perpanjang', 'Upgrade', 'Renew', 'Beli', 'Buy', 'Invoice']
+    for (const label of labels) {
+      expect(screen.queryByRole('button', { name: new RegExp(label, 'i') })).toBeNull()
+    }
+  })
+
+  it('invents no plan name, price or percentage', async () => {
+    subState.body = {
+      active: true,
+      expiresAt: new Date(Date.now() + 30 * 86400_000).toISOString(),
+      daysRemaining: 30,
+      startDate: null,
+    }
+
+    await openTab()
+
+    const panel = (await screen.findByText('Masa aktif')).closest('div')?.parentElement
+      ?.parentElement?.parentElement
+    const text = panel?.textContent ?? ''
+    // None of these is recorded anywhere, and any of them on screen would be
+    // fabricated — which is what this tab used to be careful about.
+    expect(text).not.toMatch(/Rp\\s*\\d/i)
+    expect(text).not.toMatch(/\\d+\\s*%/)
+    expect(text).not.toMatch(/monthly|annual|bulanan|tahunan/i)
+  })
+
+  it('offers no progress bar driven by a number that does not exist', async () => {
+    subState.body = {
+      active: true,
+      expiresAt: new Date(Date.now() + 30 * 86400_000).toISOString(),
+      daysRemaining: 30,
+      startDate: null,
+    }
+
+    await openTab()
+
+    // progressbar is the ARIA role a meter would carry. No meter, no invented scale.
+    expect(screen.queryByRole('progressbar')).toBeNull()
+    expect(screen.queryByRole('meter')).toBeNull()
   })
 })

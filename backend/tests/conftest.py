@@ -365,6 +365,7 @@ class _IdentityPool:
         self._tz = timezone
         self._timedelta = timedelta
         self.users: dict[str, dict] = {}          # lower(email) -> row
+        self.consents: dict[str, dict] = {}   # user_id -> latest acceptance
         self.sessions: dict[str, dict] = {}       # sha256(token) -> row
         self.subscriptions: list[dict] = []
         self.fail = False                         # simulate a full outage
@@ -403,6 +404,17 @@ class _IdentityPool:
         # Checked before the profile branch: set_blocked's RETURNING clause also
         # lists full_name, so a `and "full_name" in query` test matches both
         # statements and the wrong branch reads args[2] off a two-argument call.
+        if "INSERT INTO consent_acceptances" in query:
+            row = {
+                "id": self._uuid.uuid4(),
+                "user_id": args[0],
+                "version": args[1],
+                "accepted_at": self._now.now(self._tz.utc),
+            }
+            self.consents[str(args[0])] = row
+            return {"version": row["version"], "accepted_at": row["accepted_at"]}
+        if "FROM consent_acceptances" in query:
+            return self.consents.get(str(args[0]))
         if "UPDATE users SET blocked_at" in query:
             # accounts.set_blocked. $1 is the id, $2 the boolean.
             for row in self.users.values():
@@ -423,6 +435,19 @@ class _IdentityPool:
                             ("id", "email", "full_name", "phone_number", "role",
                              "blocked_at", "created_at")}
             return None
+        if "FROM subscriptions" in query and "ORDER BY expires_at DESC" in query:
+            # subscription router: the longest unexpired period. ORDER BY honoured
+            # here because which row comes back is the whole point of the query.
+            target = str(args[0])
+            now = self._now.now(self._tz.utc)
+            live = [
+                r for r in self.subscriptions
+                if str(r["user_id"]) == target and r["expires_at"] > now
+            ]
+            if not live:
+                return None
+            best = max(live, key=lambda r: r["expires_at"])
+            return {"id": best["user_id"], "expires_at": best["expires_at"]}
         if "JOIN users" in query and "FROM sessions" in query:
             # accounts.authenticate: session lookup, expiry and blocked check in
             # one statement.
@@ -446,6 +471,12 @@ class _IdentityPool:
         raise AssertionError(f"unexpected identity fetchrow: {query!r}")
 
     async def fetch(self, query, *args):
+        if "FROM consent_acceptances" in query:
+            rows = [
+                {"version": r["version"], "accepted_at": r["accepted_at"]}
+                for r in self.consents.values()
+            ]
+            return rows
         if "FROM users" in query:
             # Newest first, matching the endpoint's ORDER BY. The fake does not
             # implement LIMIT/OFFSET: paging is FastAPI's job and is tested against
@@ -533,5 +564,7 @@ def fake_identity():
 
     with patch("api.services.accounts.get_pool", _get_pool), \
          patch("api.services.sessions.get_pool", _get_pool), \
-         patch("api.services.entitlements.get_pool", _get_pool):
+         patch("api.services.entitlements.get_pool", _get_pool), \
+         patch("api.services.consent.get_pool", _get_pool), \
+         patch("api.routers.subscription.get_pool", _get_pool):
         yield pool

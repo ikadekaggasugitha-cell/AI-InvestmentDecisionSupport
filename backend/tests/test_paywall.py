@@ -372,3 +372,89 @@ class TestWebSocketCarriesTheCallersOwnPortfolio:
 
         assert data["portfolioValue"] == 0
         assert data["dailyPnL"] == 0
+
+
+class TestSubscriptionCurrent:
+    """`GET /v1/subscription/current` — the read path Tab 2 has been missing.
+
+    Authenticated but not entitlement-gated, because the question cannot be asked
+    by someone the gate has already refused. The tests below assert that, since it
+    is the decision most likely to be "tidied up" into a 403 later.
+    """
+
+    def test_a_signed_out_caller_is_refused(self, gated_client):
+        assert gated_client.get("/v1/subscription/current").status_code == 401
+
+    def test_no_subscription_answers_null_not_zero(self, gated_client, fake_identity):
+        """`active: false` with no date, rather than an expired period with
+        `daysRemaining: 0`.
+
+        The second shape reads as "you have one" — it has a date and a number on
+        screen — and it would be a status column on a Subscription, which
+        CONTEXT.md rule 1 rules out.
+        """
+        _signup(gated_client)
+        body = gated_client.get("/v1/subscription/current").json()
+        assert body == {
+            "active": False,
+            "expiresAt": None,
+            "daysRemaining": None,
+            "startDate": None,
+        }
+
+    def test_an_unexpired_period_is_reported_with_days_left(
+        self, gated_client, fake_identity
+    ):
+        _signup(gated_client)
+        account_id = next(iter(fake_identity.users.values()))["id"]
+        fake_identity.add_subscription(account_id, days=30)
+
+        body = gated_client.get("/v1/subscription/current").json()
+        assert body["active"] is True
+        assert body["expiresAt"] is not None
+        # 30 days minus a sliver of elapsed time, so an exact 30 would be flaky.
+        assert 28 <= body["daysRemaining"] <= 30
+
+    def test_an_expired_period_reads_as_no_subscription(self, gated_client, fake_identity):
+        """The row is still there. Reporting it as "your subscription, 0 days left"
+        would say the person has one."""
+        _signup(gated_client)
+        account_id = next(iter(fake_identity.users.values()))["id"]
+        fake_identity.add_subscription(account_id, days=-5)
+
+        body = gated_client.get("/v1/subscription/current").json()
+        assert body["active"] is False
+        assert body["expiresAt"] is None
+        assert body["daysRemaining"] is None
+
+    def test_the_longest_unexpired_period_wins(self, gated_client, fake_identity):
+        """An overlapping renewal must not be reported as the shorter one."""
+        _signup(gated_client)
+        account_id = next(iter(fake_identity.users.values()))["id"]
+        fake_identity.add_subscription(account_id, days=5)
+        fake_identity.add_subscription(account_id, days=60)
+
+        body = gated_client.get("/v1/subscription/current").json()
+        assert body["daysRemaining"] >= 59
+
+    def test_a_non_subscriber_can_still_ask(self, gated_client, fake_identity):
+        """The circularity that would appear if this were moved behind
+        `require_entitlement`: the account refused the very answer that explains why
+        it is seeing no data."""
+        _signup(gated_client)
+        # No subscription, paywall on.
+        assert gated_client.get("/v1/signals").status_code == 403
+        assert gated_client.get("/v1/subscription/current").status_code == 200
+
+    def test_an_unreadable_database_is_503_not_no_subscription(
+        self, gated_client, fake_identity
+    ):
+        """Answering "you have none" to a connection error would leave someone with
+        an active subscription being told, in the Settings page, that they do not
+        have one."""
+        _signup(gated_client)
+        account_id = next(iter(fake_identity.users.values()))["id"]
+        fake_identity.add_subscription(account_id, days=30)
+
+        fake_identity.fail = True
+        assert gated_client.get("/v1/subscription/current").status_code == 503

@@ -28,7 +28,7 @@ from api.core.config import get_settings
 from api.core.rate_limit import limiter
 from api.routers import (
     admin, advisor, alerts, auth, broksum, market_ws, news, portfolio, reports, risk,
-    signals, symbols, technicals,
+    signals, subscription, symbols, technicals,
 )
 
 # ── Structured logging ────────────────────────────────────────────────────────
@@ -306,6 +306,9 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     # disclosure feed. Gating these would mean a signed-out visitor could not
     # render the pricing page, which is the opposite of what the gate is for.
     app.include_router(symbols.router, dependencies=protected)
+    # Authenticated but not entitlement-gated: this reports whether the caller has
+    # a subscription, so gating it on having one would be circular.
+    app.include_router(subscription.router, dependencies=protected)
     app.include_router(news.router, dependencies=protected)
 
     # ── Prometheus metrics (Phase 8) ──────────────────────────────────────────

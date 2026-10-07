@@ -24,6 +24,7 @@ from api.core.auth import CurrentUser
 from api.core.config import get_settings
 from api.core.redis_client import get_redis
 from api.services import accounts as accounts_service
+from api.services import consent as consent_service
 from api.services import passwords
 from api.services import sessions as sessions_service
 
@@ -320,3 +321,53 @@ async def _start_session(response: Response, account: accounts_service.Account) 
             blocked=account.blocked_at is not None,
         )
     )
+
+class ConsentResponse(BaseModel):
+    version: str
+    acceptedAt: str
+
+
+@router.post(
+    "/consent",
+    response_model=ConsentResponse,
+    summary="Record acceptance of the in-app compliance notice (Gate 2)",
+    description=(
+        "Called once, after the person presses the button in the modal — not when it\n"
+        "opens. A click on \"open\" is not an agreement.\n"
+        "\n"
+        "The account is taken from the session, never from the body. A body naming\n"
+        "another account would turn \"record my consent\" into writing a consent\n"
+        "record against somebody the caller does not own.\n"
+        "\n"
+        "This is the server-side half of Gate 2. The browser's local marker is what\n"
+        "decides whether to show the modal again; this row is what can be produced\n"
+        "when someone has to be told who accepted what and when."
+    ),
+)
+async def record_consent(user: CurrentUser) -> ConsentResponse:
+    recorded = await consent_service.record_acceptance(user.user_id)
+    return ConsentResponse(
+        version=recorded.version,
+        acceptedAt=recorded.accepted_at.isoformat(),
+    )
+
+
+@router.get(
+    "/consent",
+    summary="Whether this account has accepted the current notice",
+    description=(
+        "`accepted` is true only for the version currently shown. An acceptance of\n"
+        "older wording is returned separately as `acceptedVersion`, because it is a\n"
+        "real record that should stay readable after the text changes, while not\n"
+        "being consent to the new text."
+    ),
+)
+async def read_consent(user: CurrentUser) -> dict:
+    latest = await consent_service.latest_acceptance(user.user_id)
+    return {
+        "accepted": latest is not None
+        and latest.version == consent_service.CURRENT_CONSENT_VERSION,
+        "currentVersion": consent_service.CURRENT_CONSENT_VERSION,
+        "acceptedVersion": latest.version if latest else None,
+        "acceptedAt": latest.accepted_at.isoformat() if latest else None,
+    }

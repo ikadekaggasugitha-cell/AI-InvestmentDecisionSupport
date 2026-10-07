@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { useApp } from "../context/AppContext";
 import type { AuthState } from "../hooks/useAuth";
 import { useTranslation } from "../i18n/translations";
+import { ENDPOINTS, apiFetch } from "../config/api";
 import type { ExchangeRateData } from "../hooks/useExchangeRate";
 import type { DataFreshness } from "../hooks/useLiveMarket";
 
@@ -399,20 +400,102 @@ const signOutButton: React.CSSProperties = {
 /* ── Tab 2: Subscription ─────────────────────────────────────────────────── */
 
 function TabSubscription({ id }: { id: boolean }) {
-  // TODO: bind to a real subscription read. The `subscriptions` table landed in
-  // migration 0005, but `transactions` did not and there is no payment path, so
-  // every figure on this tab would have to be invented.
+  /* Read from the server, three states kept apart:
+   *
+   *   - `active`   — there is a subscription, with a date and a day count
+   *   - loaded     — the server answered, and the answer was "none"
+   *   - error      — we could not ask
+   *
+   * The last two look identical if you only carry a boolean, and they mean opposite
+   * things: telling someone with an active subscription that they have none is a
+   * different mistake from showing them an empty page. There is no fourth state with
+   * a plan name, a price or an invoice, because none of those are recorded anywhere
+   * and inventing them is what this tab used to be careful not to do.
+   */
+  const [state, setState] = useState<{
+    loading: boolean;
+    error: string | null;
+    subscription: {
+      active: boolean;
+      expiresAt: string | null;
+      daysRemaining: number | null;
+    } | null;
+  }>({ loading: true, error: null, subscription: null });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await apiFetch(ENDPOINTS.subscription, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setState({ loading: false, error: null, subscription: await res.json() });
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setState({ loading: false, error: "unknown", subscription: null });
+      }
+    })();
+    return () => controller.abort();
+  }, []);
+
+  const emptyBody = state.error
+    ? (id
+        ? "Status langganan tidak dapat dimuat. Itu tidak berarti langganan Anda habis."
+        : "Subscription status could not be loaded. That does not mean your subscription has ended.")
+    : (id
+        ? "Pembayaran belum dibuka, jadi belum ada cara memulai langganan. Angka di tab ini dibaca dari server, tidak diketik manual."
+        : "Payment is not open yet, so there is no way to start a subscription. Every figure on this tab is read from the server, never typed in.");
+
+  const active = state.subscription?.active === true;
+  const expiry = active && state.subscription?.expiresAt
+    ? new Date(state.subscription.expiresAt)
+    : null;
+  const days = state.subscription?.daysRemaining ?? null;
+
   return (
     <Panel title={id ? "Langganan & Tagihan" : "Subscription & Billing"}>
-      <Unavailable
-        id={id}
-        title={id ? "Belum ada langganan" : "No subscription yet"}
-        body={
-          id
-            ? "Tabel langganan sudah ada, tetapi belum ada jalan untuk punya satu: pembayaran belum dibuka, jadi tidak ada paket, sisa hari, maupun invoice yang bisa ditampilkan. Angka di tab ini akan dibaca dari server saat ada, tidak diketik manual."
-            : "The subscriptions table exists, but there is no way to hold a subscription yet: payment is not open, so there is no plan, no remaining days and no invoice to show. Every figure on this tab will be read from the server when there is one."
-        }
-      />
+      {active ? (
+        <>
+          <div className="setting-row" style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)" }}>
+                {id ? "Masa aktif" : "Active period"}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
+                {id ? "Diturunkan dari tanggal berakhir subscription." : "Derived from the subscription's end date."}
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+                {expiry
+                  ? expiry.toLocaleDateString(id ? "id-ID" : "en-GB", {
+                      day: "2-digit", month: "short", year: "numeric",
+                    })
+                  : "—"}
+              </div>
+              {days !== null && (
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+                  {id ? `${days} hari tersisa` : `${days} days remaining`}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      ) : state.loading ? (
+        <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+          {id ? "Memuat status…" : "Loading status…"}
+        </span>
+      ) : (
+        <Unavailable
+          id={id}
+          title={state.error
+            ? (id ? "Status tidak dapat dimuat" : "Status unavailable")
+            : (id ? "Belum ada langganan" : "No subscription yet")}
+          body={emptyBody}
+        />
+      )}
+
+      {/* No renew button (R-26). There is no payment path to wire it to, and a
+          control that looks live and does nothing is worse than its absence. */}
     </Panel>
   );
 }

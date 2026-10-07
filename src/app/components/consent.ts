@@ -8,6 +8,11 @@
  * The acceptance is namespaced by account. It used to be one key with no user id,
  * so accepting once covered every account later used on that browser, which is
  * not what "you agreed to this" means.
+ *
+ * This marker decides whether the modal appears again. It is not the record: the
+ * record is a row in `consent_acceptances`, written by POST /v1/auth/consent after
+ * the person presses the button. Local storage is one browser's memory and can be
+ * erased, so on its own it could never evidence that anybody accepted anything.
  */
 
 const KEY_PREFIX = "aidss.disclaimerAcceptedAt";
@@ -37,6 +42,31 @@ export function writeConsent(accountId: string | null): void {
     window.localStorage.setItem(key, new Date().toISOString());
   } catch {
     /* storage unavailable: the gate falls back to per-session state */
+  }
+}
+
+/**
+ * Report the acceptance to the server, so the acceptance exists somewhere that
+ * survives the browser being cleared.
+ *
+ * Called *after* the local marker is written and never before: the person has
+ * pressed the button by the time this runs, and if it fails the marker is already
+ * in place. The failure is reported to the caller rather than swallowed, because
+ * the honest consequence — this browser now has an acceptance the server does not
+ * — is something the person can be told.
+ *
+ * Returns true when the server recorded it.
+ */
+export async function reportConsent(accountId: string | null): Promise<boolean> {
+  if (!accountId) return false;
+  const { ENDPOINTS, apiFetch } = await import("../config/api");
+  try {
+    const res = await apiFetch(ENDPOINTS.authConsent, { method: "POST" });
+    return res.ok;
+  } catch {
+    // Offline, or the server unreachable. Not fatal to the person: the gate has
+    // already been satisfied for this browser and they are not waiting on us.
+    return false;
   }
 }
 

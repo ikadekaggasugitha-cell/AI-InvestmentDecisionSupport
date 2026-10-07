@@ -63,9 +63,9 @@ seseorang sudah menyetujui sesuatu yang tidak tercatat.
 
 ### Fase 2: Menulis `blocked_at`
 
-- [ ] Task 3: Fungsi writer `blocked_at` di `accounts.py`
-- [ ] Task 4: Endpoint admin daftar akun, blokir, buka blokir
-- [ ] Task 5: Bukti blokir berlaku seketika di HTTP dan WebSocket
+- [x] Task 3: Fungsi writer `blocked_at` di `accounts.py`
+- [x] Task 4: Endpoint admin daftar akun, blokir, buka blokir
+- [x] Task 5: Bukti blokir berlaku seketika di HTTP dan WebSocket
 
 ### Checkpoint: Fase 2 — SELESAI
 - [x] 605 test backend hijau
@@ -76,8 +76,8 @@ seseorang sudah menyetujui sesuatu yang tidak tercatat.
 
 ### Fase 3: Integritas posisi
 
-- [ ] Task 6: Validasi simbol posisi terhadap tabel `instruments`
-- [ ] Task 7: Hapus posisi yang menunjuk saham yang sudah tidak tercatat
+- [x] Task 6: Validasi simbol posisi terhadap tabel `instruments`
+- [x] Task 7: Hapus posisi yang menunjuk saham yang sudah tidak tercatat
 
 ### Checkpoint: Fase 3 — SELESAI
 - [x] 617 test backend hijau
@@ -87,22 +87,26 @@ seseorang sudah menyetujui sesuatu yang tidak tercatat.
 
 ### Fase 4: Audit log sisi server untuk Gate 2
 
-- [ ] Task 8: Tabel `consent_acceptances` + fungsi tulis
-- [ ] Task 9: Endpoint consent dan pengiriman dari frontend
+- [x] Task 8: Tabel `consent_acceptances` + fungsi tulis
+- [x] Task 9: Endpoint consent dan pengiriman dari frontend
 
-### Checkpoint: Fase 4
-- [ ] Persetujuan dapat dibaca balik dari database
-- [ ] Kegagalan pencatatan tidak membuat persetujuan hilang untuk pengguna
+### Checkpoint: Fase 4 — SELESAI
+- [x] Persetujuan dapat dibaca balik dari database
+- [x] Kegagalan POST tidak menahan modal tertutup
+- [x] Akun dan versi teks berasal dari server, bukan dari body
+- [x] `docs/legal-and-consent.md` §5 diperbarui
 
 ### Fase 5: Jalur baca Subscription
 
-- [ ] Task 10: `GET /v1/subscription/current`
-- [ ] Task 11: Tab 2 Settings menampilkan status dan sisa hari
+- [x] Task 10: `GET /v1/subscription/current`
+- [x] Task 11: Tab 2 Settings menampilkan status dan sisa hari
 
-### Checkpoint: Lengkap
-- [ ] Semua acceptance criteria terpenuhi
-- [ ] `docs/status.md` mencerminkan keadaan sebenarnya
-- [ ] Siap ditinjau
+### Checkpoint: Lengkap — SELESAI
+- [x] 637 backend dan 200 frontend hijau
+- [x] `npx tsc --noEmit` bersih, ruff bersih, 8 warning ESLint baseline
+- [x] Semua 11 task selesai, 1 dibatalkan dengan alasan tercatat
+- [x] `docs/status.md`, `legal-and-consent.md`, dan `settings-module-spec.md` disinkronkan
+- [ ] Tinjau dengan manusia
 
 ## Risiko dan Mitigasi
 

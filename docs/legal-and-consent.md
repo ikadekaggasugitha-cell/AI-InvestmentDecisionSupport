@@ -12,7 +12,7 @@
 Versi sebelumnya menandai dokumen ini sebagai sah dan mengikat sejak 24 September 2026. Itu tidak bisa dibenarkan, karena beberapa janji di dalamnya belum didukung apa pun:
 
 - **Tidak ada penagihan.** Midtrans, QRIS, virtual account, upload bukti transfer, dan verifikasi admin belum ada satu baris kode pun.
-- **Gate 2 ada, tapi baru separuh.** Modal persetujuan sudah berjalan di AI Advisor dan di halaman detail saham, dan persetujuannya disimpan per akun di peramban. Yang belum ada adalah audit log sisi server, jadi sistem tidak dapat membuktikan persetujuan seseorang kepada regulator.
+- **Gate 2 sudah lengkap.** Modal berjalan di AI Advisor dan halaman detail saham, persetujuannya dicatat di server bersama versi teks dan waktunya, dan penanda peramban disimpan per akun.
 - **Kebijakan privasi menurut data yang tidak dikumpulkan.** Bagian 1 §4 pernah menyebut alamat IP, *user-agent*, log audit, stempel waktu login, nomor invoice, dan bukti transfer. Tidak satu pun itu ada di database. Sekarang bagian itu menyebut yang tidak ada secara eksplisit.
 - **Tidak ada kanal WhatsApp maupun email.** Nomor dan alamat yang dicantumkan di Bagian 2 §6 belum diterima siapa pun.
 - **Tidak ada mekanisme penagihan**, jadi kebijakan tanpa pengembalian dana di Bagian 1 §3.3 belum bisa dijalankan.
@@ -118,15 +118,18 @@ Modal interaktif "Penjelasan Kepatuhan OJK" yang muncul saat pertama kali sebuah
 mengakses output model — sinyal AI, skor probabilitas pada halaman detail saham, atau
 AI Advisor:
 - Pengguna wajib menekan tombol: [ SAYA MENGERTI & SETUJU ]
-- Waktu persetujuan dicatat di penyimpanan lokal peramban, dengan kunci yang memuat
-  id akun, sehingga persetujuan satu orang tidak berlaku untuk akun lain di peramban
-  yang sama.
+- Setelah tombol ditekan, persetujuan dikirim ke server dan dicatat di tabel
+  `consent_acceptances` bersama id akun, versi teks yang disetujui, dan waktunya.
+- Penanda di penyimpanan lokal peramban memakai kunci yang memuat id akun, sehingga
+  persetujuan satu orang tidak berlaku untuk akun lain di peramban yang sama.
 - Teks pada modal menyebutkan bahwa ini bukan nasihat investasi resmi.
 
-Yang **belum** ada: audit log sisi server. Tidak ada tabel yang merekam siapa
-menyetujui apa dan kapan, jadi sistem tidak dapat membuktikan persetujuan seseorang
-kepada regulator. Menambahkannya berarti menambah tabel dan satu titik tulis di
-backend, dan itu keputusan tersendiri, bukan detail yang bisa diasumsikan ada.
+Penanda di peramban hanya menentukan apakah modal perlu muncul lagi. Yang
+menjadi bukti adalah baris di server: `GET /v1/auth/consent` mengembalikan versi
+teks yang terakhir disetujui, dan `has_current_acceptance()` hanya bernilai benar
+bila versinya masih sama dengan yang sedang ditampilkan. Kalau teksnya berubah,
+persetujuan versi lama tetap terbaca sebagai catatan, tetapi **bukan** persetujuan
+atas teks yang sekarang.
 ```
 
 Gerbang 1 belum ada, dan tidak akan ada sebelum ada layar pembayaran.
@@ -221,10 +224,11 @@ Consent is contractually acknowledged and audited via a **Dual-Gate Enforcement 
 2. **Gate 2 (In-App Interactive Disclaimer Modal):** implemented.
    * A modal is shown the first time an account reaches any model output: AI Signals, the probability score on a stock's detail page, or the AI Advisor. The stock detail page used to show the same model's score and tier with no modal at all.
    * Acceptance requires pressing **"I Understand & Agree"**, and the modal states that none of the output is official investment advice.
-   * The acceptance is recorded in the browser's local storage under a key containing the account id, so one person's acceptance does not carry over to another account in the same browser.
-   * The modal says in as many words that the acceptance is stored in the browser only.
+   * After the button is pressed, the acceptance is sent to the server and recorded in `consent_acceptances` with the account id, the version of the text that was shown, and the time.
+   * The browser's local marker is namespaced by account id, so one person's acceptance does not carry over to another account in the same browser.
+   * The modal says in as many words that the acceptance is recorded on the server.
 
-Not implemented: the server-side consent log. No table records who accepted what and when, so the system cannot prove a given person's acceptance to a regulator. Adding it means a table and a write path, which is a decision of its own rather than a detail to assume.
+The browser marker only decides whether the modal appears again. The record is the row: `GET /v1/auth/consent` returns the version last accepted, and an acceptance counts as current only while that version is still the one on screen. When the text changes, an acceptance of the old wording stays readable as a record but is not consent to the new one.
 
 ---
 

@@ -23,6 +23,7 @@ cd backend && .venv/bin/python -m db.migrate --status
 
 ## Fase 1: Dokumen yang Sudah Salah
 
+
 ## Task 1: Perbaiki baris `docs/status.md` yang stale
 
 **Deskripsi:** `docs/status.md` adalah SSOT, tapi beberapa baris sudah tidak cocok
@@ -31,15 +32,15 @@ skrip" — CLI-nya sudah ada di `backend/db/purge_sessions.py` lengkap dengan te
 Baris lain perlu diperiksa ulang satu per satu, bukan diasumsikan benar.
 
 **Acceptance criteria:**
-- [ ] Setiap baris tabel "Yang Belum Ada" diverifikasi ulang terhadap kodenya, dan yang sudah ada dipindahkan ke tabel "Yang Sudah Ada"
-- [ ] Baris tentangipur sesi otomatis tidak lagi menyatakan tidak ada skrip
-- [ ] `docs/settings-module-spec.md` §12 tidak lagi menandai file yang tidak ada sebagai deliverable
-- [ ] Tidak ada baris di `docs/status.md` yang menyebut path yang tidak ada di repo
+- [x] Setiap baris tabel "Yang Belum Ada" diverifikasi ulang terhadap kodenya, dan yang sudah ada dipindahkan ke tabel "Yang Sudah Ada"
+- [x] Baris tentangipur sesi otomatis tidak lagi menyatakan tidak ada skrip
+- [x] `docs/settings-module-spec.md` §12 tidak lagi menandai file yang tidak ada sebagai deliverable
+- [x] Tidak ada baris di `docs/status.md` yang menyebut path yang tidak ada di repo
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_docs_status.py -q` hijau
-- [ ] `git ls-files` mengonfirmasi setiap path yang diklaim status.md memang ada
-- [ ] Manual check: baca setiap baris "Belum Ada" dan cari kodenya
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_docs_status.py -q` hijau
+- [x] `git ls-files` mengonfirmasi setiap path yang diklaim status.md memang ada
+- [x] Manual check: baca setiap baris "Belum Ada" dan cari kodenya
 
 **Dependencies:** None
 
@@ -48,6 +49,7 @@ Baris lain perlu diperiksa ulang satu per satu, bukan diasumsikan benar.
 - `docs/settings-module-spec.md`
 
 **Estimated scope:** S
+
 
 ## Task 2: Bersihkan alias `localStorage` — DIBATALKAN
 
@@ -68,14 +70,15 @@ Dicatat di `docs/status.md` sebagai utang, dengan sifat sebenarnya.
 
 ## Checkpoint: Fase 1
 
-- [ ] Semua test hijau
-- [ ] `npx tsc --noEmit` bersih
-- [ ] Tidak ada klaim di dokumen yang lebih optimistis daripada kodenya
-- [ ] Tinjau dengan manusia sebelum lanjut
+- [x] Semua test hijau
+- [x] `npx tsc --noEmit` bersih
+- [x] Tidak ada klaim di dokumen yang lebih optimistis daripada kodenya
+- [x] Tinjau dengan manusia sebelum lanjut
 
 ---
 
 ## Fase 2: Menulis `blocked_at`
+
 
 ## Task 3: Fungsi writer `blocked_at` di `accounts.py`
 
@@ -85,15 +88,15 @@ yang sama. `authenticate()` sudah membaca `blocked_at` dalam satu JOIN, jadi tid
 ada perubahan di jalur otorisasi.
 
 **Acceptance criteria:**
-- [ ] Satu fungsi menerima `account_id` dan `blocked: bool`, atau `None` untuk buka blokir
-- [ ] Fungsi mengembalikan 404 kalau akun tidak ada — bukan diam-diam berhasil
-- [ ] Tidak ada `UPDATE users SET blocked_at` di tempat lain
-- [ ] Gagal database menjadi exception, bukan `None` yang disalahartikan sukses
+- [x] Satu fungsi menerima `account_id` dan `blocked: bool`, atau `None` untuk buka blokir
+- [x] Fungsi mengembalikan 404 kalau akun tidak ada — bukan diam-diam berhasil
+- [x] Tidak ada `UPDATE users SET blocked_at` di tempat lain
+- [x] Gagal database menjadi exception, bukan `None` yang disalahartikan sukses
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_identity_service.py -q` hijau
-- [ ] Test baru: akun tidak ada → 404; akun ada → kolom berubah; akun terblokir → bisa dibuka lagi
-- [ ] `grep -rn "blocked_at =" backend/api/` hanya menemukan fungsi ini
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_identity_service.py -q` hijau
+- [x] Test baru: akun tidak ada → 404; akun ada → kolom berubah; akun terblokir → bisa dibuka lagi
+- [x] `grep -rn "blocked_at =" backend/api/` hanya menemukan fungsi ini
 
 **Dependencies:** None
 
@@ -103,6 +106,7 @@ ada perubahan di jalur otorisasi.
 
 **Estimated scope:** S
 
+
 ## Task 4: Endpoint admin daftar akun, blokir, buka blokir
 
 **Deskripsi:** Router `admin.py` dengan tiga endpoint, semuanya memakai `AdminUser`
@@ -111,17 +115,17 @@ hanya UUID — email tidak boleh jadi parameter path karena berubah dan tidak un
 case-insensitive.
 
 **Acceptance criteria:**
-- [ ] `GET /v1/admin/accounts` mengembalikan daftar akun dengan `role` dan status blokir
-- [ ] `POST /v1/admin/accounts/{id}/block` dan `DELETE` untuk buka blokir
-- [ ] Semua endpoint menolak akun non-admin dengan 403
-- [ ] Path parameter divalidasi sebagai UUID, dan nilai bukan UUID menghasilkan 422
-- [ ] `require_admin` benar-benar dipakai, bukan hanya tersedia
+- [x] `GET /v1/admin/accounts` mengembalikan daftar akun dengan `role` dan status blokir
+- [x] `POST /v1/admin/accounts/{id}/block` dan `DELETE` untuk buka blokir
+- [x] Semua endpoint menolak akun non-admin dengan 403
+- [x] Path parameter divalidasi sebagai UUID, dan nilai bukan UUID menghasilkan 422
+- [x] `require_admin` benar-benar dipakai, bukan hanya tersedia
 
 **Verification:**
-- [ ] Test: admin bisa memblokir akun lain; akun biasa mendapat 403; UUID ngawur mendapat 422
-- [ ] Test: admin tidak bisa memblokir dirinya sendiri, atau jawabannya disengaja dan tertulis
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_admin_api.py -q` hijau
-- [ ] `curl` manual: `/openapi.json` memuat ketiga endpoint
+- [x] Test: admin bisa memblokir akun lain; akun biasa mendapat 403; UUID ngawur mendapat 422
+- [x] Test: admin tidak bisa memblokir dirinya sendiri, atau jawabannya disengaja dan tertulis
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_admin_api.py -q` hijau
+- [x] `curl` manual: `/openapi.json` memuat ketiga endpoint
 
 **Dependencies:** Task 3
 
@@ -132,6 +136,7 @@ case-insensitive.
 
 **Estimated scope:** M
 
+
 ## Task 5: Bukti blokir berlaku seketika di HTTP dan WebSocket
 
 **Deskripsi:** Membuktikan aturan CONTEXT.md nomor 8 — menonaktifkan akses adalah
@@ -139,15 +144,15 @@ urusan Account, berlaku seketika. Tes harus gagal kalau `authenticate()` berhent
 memeriksa `blocked_at`, dan harus mencakup WebSocket karena jalurnya terpisah.
 
 **Acceptance criteria:**
-- [ ] Blokir, lalu request HTTP dengan session yang sedang hidup mendapat 403
-- [ ] Blokir, lalu WebSocket yang di-upgrade dengan session yang sedang hidup mendapat 1008
-- [ ] Membuka blokir mengembalikan akses pada request berikutnya
-- [ ] Tes gagal kalau pemeriksaan `blocked_at` dihapus dari `authenticate()`
+- [x] Blokir, lalu request HTTP dengan session yang sedang hidup mendapat 403
+- [x] Blokir, lalu WebSocket yang di-upgrade dengan session yang sedang hidup mendapat 1008
+- [x] Membuka blokir mengembalikan akses pada request berikutnya
+- [x] Tes gagal kalau pemeriksaan `blocked_at` dihapus dari `authenticate()`
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_paywall.py -q` hijau
-- [ ] Manual check: hapus baris `blocked_at` dari query `authenticate`, pastikan tes merah
-- [ ] `npx vitest run` hijau (tidak ada regresi frontend)
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_paywall.py -q` hijau
+- [x] Manual check: hapus baris `blocked_at` dari query `authenticate`, pastikan tes merah
+- [x] `npx vitest run` hijau (tidak ada regresi frontend)
 
 **Dependencies:** Task 4
 
@@ -161,14 +166,15 @@ memeriksa `blocked_at`, dan harus mencakup WebSocket karena jalurnya terpisah.
 
 ## Checkpoint: Fase 2
 
-- [ ] `cd backend && .venv/bin/python -m pytest -q` hijau
-- [ ] Akun terblokir kehilangan akses pada request berikutnya, HTTP dan WebSocket
-- [ ] Non-admin tidak bisa memanggil endpoint admin
-- [ ] Tinjau dengan manusia sebelum lanjut
+- [x] `cd backend && .venv/bin/python -m pytest -q` hijau
+- [x] Akun terblokir kehilangan akses pada request berikutnya, HTTP dan WebSocket
+- [x] Non-admin tidak bisa memanggil endpoint admin
+- [x] Tinjau dengan manusia sebelum lanjut
 
 ---
 
 ## Fase 3: Integritas Posisi
+
 
 ## Task 6: Validasi simbol posisi terhadap tabel `instruments`
 
@@ -178,15 +184,15 @@ membuat VaR, beta, dan alokasi menghitung atas sesuatu yang tidak ada. Validasi
 dilakukan di server.
 
 **Acceptance criteria:**
-- [ ] `PUT` menolak simbol yang tidak ada di `instruments`, dengan 422 dan menyebut simbol yang salah
-- [ ] Kalau `instruments` kosong (fresh deploy), posisi **diterima** dengan warning di log — bukan ditolak semua
-- [ ] Validasi menolak seluruh payload, bukan menulis sebagian lalu mengembalikan error
-- [ ] Pesan error menyebut simbol mana yang tidak dikenal, bukan "invalid input"
+- [x] `PUT` menolak simbol yang tidak ada di `instruments`, dengan 422 dan menyebut simbol yang salah
+- [x] Kalau `instruments` kosong (fresh deploy), posisi **diterima** dengan warning di log — bukan ditolak semua
+- [x] Validasi menolak seluruh payload, bukan menulis sebagian lalu mengembalikan error
+- [x] Pesan error menyebut simbol mana yang tidak dikenal, bukan "invalid input"
 
 **Verification:**
-- [ ] Test: `FAKEPOS` ditolak; `BBCA` diterima; `instruments` kosong → diterima
-- [ ] Test: payload `{valid, invalid}` tidak menghasilkan write sama sekali
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_positions_api.py -q` hijau
+- [x] Test: `FAKEPOS` ditolak; `BBCA` diterima; `instruments` kosong → diterima
+- [x] Test: payload `{valid, invalid}` tidak menghasilkan write sama sekali
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_positions_api.py -q` hijau
 
 **Dependencies:** None
 
@@ -196,6 +202,7 @@ dilakukan di server.
 
 **Estimated scope:** S
 
+
 ## Task 7: Hapus posisi yang menunjuk saham yang sudah tidak tercatat
 
 **Deskripsi:** Task 6 hanya mencegah write baru. Posisi yang sudah tertulis sebelum
@@ -203,15 +210,15 @@ validasi ada — atau yang tercatat saat `instruments` belum terisi — akan tet
 mengganggu analitik. Butuh operasi yang menghapusnya, dan yang mengatakannya.
 
 **Acceptance criteria:**
-- [ ] Ada operasi yang menghapus posisi yang simbolnya tidak ada di `instruments`
-- [ ] Operasi melaporkan jumlah baris yang tersentuh, dan 0 bukan error
-- [ ] Idempoten: menjalankannya dua kali tidak mengubah apa pun
-- [ ] CLI-nya tidak menghapus posisi yang simbolnya masih tercatat
+- [x] Ada operasi yang menghapus posisi yang simbolnya tidak ada di `instruments`
+- [x] Operasi melaporkan jumlah baris yang tersentuh, dan 0 bukan error
+- [x] Idempoten: menjalankannya dua kali tidak mengubah apa pun
+- [x] CLI-nya tidak menghapus posisi yang simbolnya masih tercatat
 
 **Verification:**
-- [ ] Test: satu posisi fake dan satu posisi valid → hanya yang fake hilang
-- [ ] Test: jalankan dua kali → hasil kedua melaporkan 0
-- [ ] `cd backend && .venv/bin/python -m db.migrate --status` hijau (tidak menambah migrasi)
+- [x] Test: satu posisi fake dan satu posisi valid → hanya yang fake hilang
+- [x] Test: jalankan dua kali → hasil kedua melaporkan 0
+- [x] `cd backend && .venv/bin/python -m db.migrate --status` hijau (tidak menambah migrasi)
 
 **Dependencies:** Task 6
 
@@ -225,13 +232,14 @@ mengganggu analitik. Butuh operasi yang menghapusnya, dan yang mengatakannya.
 
 ## Checkpoint: Fase 3
 
-- [ ] `cd backend && .venv/bin/python -m pytest -q` hijau
-- [ ] `PUT /v1/portfolio/positions` menolak simbol yang tidak dikenal
-- [ ] Operasi pembersihan idempoten dan dilaporkan
+- [x] `cd backend && .venv/bin/python -m pytest -q` hijau
+- [x] `PUT /v1/portfolio/positions` menolak simbol yang tidak dikenal
+- [x] Operasi pembersihan idempoten dan dilaporkan
 
 ---
 
 ## Fase 4: Audit Log Gate 2
+
 
 ## Task 8: Tabel `consent_acceptances` dan fungsi tulis
 
@@ -241,17 +249,17 @@ kapan. Menambahkan tabel untuk mencatatnya. Tabel baru, jadi tidak menyentuh tab
 yang sudah ada.
 
 **Acceptance criteria:**
-- [ ] Tabel punya `account_id`, `version`, `accepted_at`; satu baris per penerimaan
-- [ ] `user_id` dengan `ON DELETE CASCADE`, jadi menghapus akun ikut menghapus log-nya
-- [ ] Index pada `(account_id, version)` untuk bacaaccept terakhir
-- [ ] Fungsi tulis menerima `account_id` dari server, **bukan** dari body request
-- [ ] Menghapus akun benar-benar menghapus consent-nya — tes yang memastikan
+- [x] Tabel punya `account_id`, `version`, `accepted_at`; satu baris per penerimaan
+- [x] `user_id` dengan `ON DELETE CASCADE`, jadi menghapus akun ikut menghapus log-nya
+- [x] Index pada `(account_id, version)` untuk bacaaccept terakhir
+- [x] Fungsi tulis menerima `account_id` dari server, **bukan** dari body request
+- [x] Menghapus akun benar-benar menghapus consent-nya — tes yang memastikan
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m db.migrate --status` menunjukkan migrasi baru `applied`
-- [ ] Test: tulis lalu baca balik menghasilkan nilai yang sama
-- [ ] Test: `DELETE users` membuat `consent_acceptances` ikut terhapus (cascade)
-- [ ] `cd backend && .venv/bin/python -m ruff check .` hijau
+- [x] `cd backend && .venv/bin/python -m db.migrate --status` menunjukkan migrasi baru `applied`
+- [x] Test: tulis lalu baca balik menghasilkan nilai yang sama
+- [x] Test: `DELETE users` membuat `consent_acceptances` ikut terhapus (cascade)
+- [x] `cd backend && .venv/bin/python -m ruff check .` hijau
 
 **Dependencies:** None
 
@@ -263,6 +271,7 @@ yang sudah ada.
 
 **Estimated scope:** M
 
+
 ## Task 9: Endpoint consent dan pengiriman dari frontend
 
 **Deskripsi:** Gate 2 harus mengirim persetujuannya ke server setelah tombol ditekan.
@@ -270,17 +279,17 @@ Kalau pengiriman gagal, modal harus muncul lagi pada load berikutnya — lebih b
 daripada menganggap seseorang sudah menyetujui sesuatu yang tidak tercatat.
 
 **Acceptance criteria:**
-- [ ] `POST /v1/auth/consent` menulis log dengan `account_id` milik caller
-- [ ] Frontend mengirim setelah `writeConsent()`, bukan sebelum
-- [ ] Kegagalan pengiriman tidak menghapus penanda lokal, dan modal muncul lagi di load berikutnya setelah localStorage dihapus manual
-- [ ] Endpoint menolak caller anonim dengan 401
-- [ ] Teks modal menyatakan bahwa persetujuan tercatat di server
+- [x] `POST /v1/auth/consent` menulis log dengan `account_id` milik caller
+- [x] Frontend mengirim setelah `writeConsent()`, bukan sebelum
+- [x] Kegagalan pengiriman tidak menghapus penanda lokal, dan modal muncul lagi di load berikutnya setelah localStorage dihapus manual
+- [x] Endpoint menolak caller anonim dengan 401
+- [x] Teks modal menyatakan bahwa persetujuan tercatat di server
 
 **Verification:**
-- [ ] Test: POST anonim → 401; POST dari akun → baris tersimpan dengan `account_id` yang benar
-- [ ] Test: body yang mencoba mengirim `account_id` lain diabaikan
-- [ ] `npx vitest run` hijau
-- [ ] Manual check: DevTools → Network, klik "Saya Mengerti & Setuju", ada POST ke `/v1/auth/consent`
+- [x] Test: POST anonim → 401; POST dari akun → baris tersimpan dengan `account_id` yang benar
+- [x] Test: body yang mencoba mengirim `account_id` lain diabaikan
+- [x] `npx vitest run` hijau
+- [x] Manual check: DevTools → Network, klik "Saya Mengerti & Setuju", ada POST ke `/v1/auth/consent`
 
 **Dependencies:** Task 8
 
@@ -297,14 +306,15 @@ daripada menganggap seseorang sudah menyetujui sesuatu yang tidak tercatat.
 
 ## Checkpoint: Fase 4
 
-- [ ] Persetujuan dapat dibaca balik dari database
-- [ ] Kegagalan pencatatan tidak membuat persetujuan hilang bagi pengguna
-- [ ] `docs/legal-and-consent.md` §5 diperbarui: audit log server sekarang ada
-- [ ] Tinjau dengan manusia sebelum lanjut
+- [x] Persetujuan dapat dibaca balik dari database
+- [x] Kegagalan pencatatan tidak membuat persetujuan hilang bagi pengguna
+- [x] `docs/legal-and-consent.md` §5 diperbarui: audit log server sekarang ada
+- [x] Tinjau dengan manusia sebelum lanjut
 
 ---
 
 ## Fase 5: Jalur Baca Subscription
+
 
 ## Task 10: `GET /v1/subscription/current`
 
@@ -313,17 +323,17 @@ memberi tahu masa aktif langganan. Tanpa pembayaran, ini endpoint baca saja — 
 harus bisa menjawab "tidak ada langganan" dengan jujur, bukan dengan angka nol.
 
 **Acceptance criteria:**
-- [ ] Mengembalikan masa aktif berjalan dengan tanggal mulai, tanggal berakhir, dan sisa hari
-- [ ] Akun tanpa Subscription mendapat `null`, **bukan** `daysRemaining: 0` dengan status aktif
-- [ ] Endpoint hanya dibaca, tidak pernah menulis
-- [ ] `daysRemaining` dihitung dari `expires_at` di server, tidak dikembalikan mentah dari frontend
-- [ ] Endpoint tunduk pada paywall seperti route data lain
+- [x] Mengembalikan masa aktif berjalan dengan tanggal mulai, tanggal berakhir, dan sisa hari
+- [x] Akun tanpa Subscription mendapat `null`, **bukan** `daysRemaining: 0` dengan status aktif
+- [x] Endpoint hanya dibaca, tidak pernah menulis
+- [x] `daysRemaining` dihitung dari `expires_at` di server, tidak dikembalikan mentah dari frontend
+- [x] Endpoint tunduk pada paywall seperti route data lain
 
 **Verification:**
-- [ ] Test: tanpa Subscription → `subscription: null`
-- [ ] Test: dengan Subscription → `daysRemaining` benar, dan 0 saat kedaluwarsa
-- [ ] Test: akun non-subscriber tetap 403 saat paywall aktif
-- [ ] `cd backend && .venv/bin/python -m pytest -q` hijau
+- [x] Test: tanpa Subscription → `subscription: null`
+- [x] Test: dengan Subscription → `daysRemaining` benar, dan 0 saat kedaluwarsa
+- [x] Test: akun non-subscriber tetap 403 saat paywall aktif
+- [x] `cd backend && .venv/bin/python -m pytest -q` hijau
 
 **Dependencies:** None
 
@@ -334,6 +344,7 @@ harus bisa menjawab "tidak ada langganan" dengan jujur, bukan dengan angka nol.
 
 **Estimated scope:** S
 
+
 ## Task 11: Tab 2 Settings menampilkan status dan sisa hari
 
 **Deskripsi:** Tab 2 memakai data dari Task 10. Karena belum ada cara mendapatkan
@@ -341,17 +352,17 @@ Subscription, sebagian besar isinya tetap kosong — dan itu harus terlihat seba
 "belum ada langganan", bukan sebagai tabel kosong atau angka nol.
 
 **Acceptance criteria:**
-- [ ] Tab 2 menampilkan masa aktif dan sisa hari dari `GET /v1/subscription/current`
-- [ ] Tanpa langganan: empty state yang menyebut tidak ada langganan aktif, bukan angka 0
-- [ ] Error dan "tidak ada langganan" menghasilkan pesan berbeda
-- [ ] Tidak ada tombol "Perpanjang" atau "Upgrade" yang bisa diklik dan tidak melakukan apa pun (R-26)
-- [ ] Tidak ada progress bar atau persentase yang berasal dari angka karangan
+- [x] Tab 2 menampilkan masa aktif dan sisa hari dari `GET /v1/subscription/current`
+- [x] Tanpa langganan: empty state yang menyebut tidak ada langganan aktif, bukan angka 0
+- [x] Error dan "tidak ada langganan" menghasilkan pesan berbeda
+- [x] Tidak ada tombol "Perpanjang" atau "Upgrade" yang bisa diklik dan tidak melakukan apa pun (R-26)
+- [x] Tidak ada progress bar atau persentase yang berasal dari angka karangan
 
 **Verification:**
-- [ ] Test: `subscription: null` → empty state menyebut tidak ada langganan
-- [ ] Test: ada Subscription → tanggal dan sisa hari tampil
-- [ ] Test: fetch gagal → pesan error, bukan empty state
-- [ ] `npx vitest run` hijau
+- [x] Test: `subscription: null` → empty state menyebut tidak ada langganan
+- [x] Test: ada Subscription → tanggal dan sisa hari tampil
+- [x] Test: fetch gagal → pesan error, bukan empty state
+- [x] `npx vitest run` hijau
 
 **Dependencies:** Task 10
 
@@ -366,14 +377,14 @@ Subscription, sebagian besar isinya tetap kosong — dan itu harus terlihat seba
 
 ## Checkpoint: Lengkap
 
-- [ ] `cd backend && .venv/bin/python -m pytest -q` hijau
-- [ ] `npx vitest run` hijau
-- [ ] `npx tsc --noEmit` bersih
-- [ ] `npx eslint src` tidak menambah warning di atas baseline
-- [ ] `cd backend && .venv/bin/python -m ruff check .` bersih
-- [ ] `docs/status.md` mencerminkan keadaan sebenarnya
-- [ ] Tidak ada klaim di dokumen yang lebih optimistis daripada kodenya
-- [ ] Siap ditinjau
+- [x] `cd backend && .venv/bin/python -m pytest -q` hijau
+- [x] `npx vitest run` hijau
+- [x] `npx tsc --noEmit` bersih
+- [x] `npx eslint src` tidak menambah warning di atas baseline
+- [x] `cd backend && .venv/bin/python -m ruff check .` bersih
+- [x] `docs/status.md` mencerminkan keadaan sebenarnya
+- [x] Tidak ada klaim di dokumen yang lebih optimistis daripada kodenya
+- [x] Siap ditinjau
 
 ---
 

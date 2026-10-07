@@ -517,8 +517,9 @@ Spec ini sudah diimplementasikan dan diverifikasi. Yang selesai dan yang belum.
 
 | Bagian | Alasan |
 |---|---|
-| Tab 2 Langganan: kartu paket, sisa hari, progress bar | Tergantung pada `GET /v1/subscription/current`. Endpoint itu belum ada, dan angka sisa hari tidak boleh dikarang dari `expires_at` di frontend karena frontend tidak boleh melihat baris Subscription. |
+| Tab 2 Langganan: tanggal berakhir, sisa hari | **Sudah ada.** `GET /v1/subscription/current` menjawab status, `expiresAt`, dan `daysRemaining`. Hari tersisa dihitung di server, bukan dari jam peramban. |
 | Tab 2: riwayat invoice dan tombol unduh | Bergantung pada tabel `transactions` dan endpoint pembayaran, semuanya ditunda ke Fase 2. |
+| Tab 2: tanggal mulai periode | `subscriptions` hanya punya `expires_at`. Menampilkan tanggal mulai berarti merekonstruksi, jadi tidak ditampilkan. |
 | Tombol "Perpanjang Paket", "Upgrade ke Tahunan" | Bergantung pada endpoint pembayaran yang belum ada. Menampilkannya sekarang berarti kontrol mati (R-26). |
 
 Tab 2 menampilkan empty state yang menyebut penyebabnya. Tidak ada nama, avatar,

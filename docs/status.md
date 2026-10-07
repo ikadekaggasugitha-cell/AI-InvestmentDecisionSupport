@@ -20,9 +20,12 @@ Diverifikasi terhadap kode pada **2026-10-07**, setelah migrasi `0008` diterapka
 | Redis | Ada | `backend/api/core/redis_client.py`, 14 key namespace |
 | Feed berita IDX | Ada | `backend/api/services/news_service.py` |
 | Kebersihan data | Ada | Seed berita fiktif dihapus, `useNews` mengembalikan `error` dan `retry` |
-| Gate 2 persetujuan di dalam aplikasi | Ada | `src/app/components/ConsentGate.tsx`, dipakai AI Advisor dan `StockDetailPanel`. Disimpan per akun di `src/app/components/consent.ts`, dan belum ada audit log server |
+| Gate 2 persetujuan di dalam aplikasi | Ada | `src/app/components/ConsentGate.tsx`, dipakai AI Advisor dan `StockDetailPanel`. Penanda peramban per akun di `src/app/components/consent.ts` |
 | Paywall WebSocket | Ada | `backend/api/routers/market_ws.py:138-152` memeriksa session, status blokir, lalu entitlement sebelum accept, fail-closed |
 | Endpoint admin akun | Ada | `backend/api/routers/admin.py`: daftar akun, blokir, buka blokir. Role-gated lewat `AdminUser`, path parameter hanya UUID, dan admin tidak bisa memblokir dirinya sendiri |
+| Audit log persetujuan Gate 2 | Ada | Tabel `consent_acceptances` (migrasi `0009`), `backend/api/services/consent.py`, dan `POST`/`GET /v1/auth/consent`. Versi teks yang disetujui ikut disimpan, jadi persetujuan versi lama tetap terbaca tanpa dihitung sebagai persetujuan atas teks sekarang |
+| Jalur baca Subscription | Ada | `GET /v1/subscription/current`. Authenticated tapi **tidak** entitlement-gated, karena account yang sudah ditolak tidak bisa bertanya kenapa. Hari tersisa dihitung di server; tanggal mulai tidak dilaporkan karena `subscriptions` tidak menyimpannya |
+| Tab 2 Settings | Ada, sebagian | Status, tanggal berakhir, dan sisa hari dari server. Tidak ada tombol perpanjang atau invoice — endpoint pembayaran belum ada, dan kontrol yang tampak hidup tapi tidak berfungsi lebih buruk daripada tidak ada (R-26) |
 | CLI operasional | Ada | `backend/db/promote_admin.py` membaca `ADMIN_EMAIL`, `backend/db/purge_sessions.py` menghapus session kedaluwarsa, `backend/db/purge_positions.py` membersihkan posisi yang ticker-nya tidak tercatat. Semuanya punya `--dry-run` dan tes. Belum dijadwalkan di Celery beat |
 | Analytics per portfolio | Ada | `backend/api/services/portfolio_access.py` `load_lots` adalah satu-satunya jalur baca posisi. Risk, kurva ekuitas, snapshot WebSocket, dan risk worker semuanya memakainya ([ADR-0005](adr/0005-analytics-baca-baris-portfolio.md)) |
 | Tidak ada posisi fabricated di layar | Ada | `PORTFOLIO_HOLDINGS` di `src/app/data/idxData.ts` dihapus. `usePortfolio` membaca server, dan `useLiveMarket` tidak lagi menghitung total portofolio dari seed, meneruskan nilai yang dihitung server per akun |
@@ -44,7 +47,6 @@ Tidak ada satu pun item di bawah ini yang ada di kode. Setiapnya tercatat supaya
 | Checkout dan pembayaran | Belum | Tidak ada UI dan tidak ada endpoint. Midtrans, QRIS, dan upload bukti nol baris kode |
 | Integrasi email dan WhatsApp | Belum | Nol baris kode. Ini kanal notifikasi tunggal yang dirancang, dan belum ada |
 | Portal admin | Belum | `/admin` tidak ada di frontend maupun backend |
-| Tab 2 Settings | Belum | `subscriptions` ada, tapi tidak ada cara punya langganan: pembayaran belum dibuka |
 
 ## Keputusan yang Sudah Disepakati
 
