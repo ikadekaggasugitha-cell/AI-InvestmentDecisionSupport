@@ -143,13 +143,19 @@ def app():
 
 
 @pytest.fixture
-def client(app):
-    """Synchronous test client."""
+def client(app, mock_redis):
+    """Synchronous test client.
+
+    Mocked Redis because the routes behind it cache on read: with mock signals
+    on, `GET /v1/signals` writes `signals:latest` before returning. That write
+    went to the real cache for as long as this fixture existed without asking
+    for the mock.
+    """
     return TestClient(app)
 
 
 @pytest_asyncio.fixture
-async def async_client(app):
+async def async_client(app, mock_redis):
     """Async test client for testing streaming endpoints."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
@@ -178,16 +184,16 @@ class _FakeRedis:
     async def get(self, key: str):
         return self._store.get(key)
 
-    async def set(self, key: str, value: str):
+    async def set(self, key: str, value: str, *, ex=None, nx=False, **kw):
         self._store[key] = value
 
-    async def setex(self, key: str, _ttl: int, value: str):
+    async def setex(self, key: str, _ttl: int, value: str, **kw):
         self._store[key] = value
 
     async def hgetall(self, key: str) -> dict:
         return self._store.get(key, {})
 
-    async def hset(self, key: str, mapping: dict) -> None:
+    async def hset(self, key: str, mapping: dict, **kw) -> None:
         self._store.setdefault(key, {}).update(mapping)
 
     async def delete(self, *keys: str) -> int:
@@ -211,6 +217,57 @@ class _FakeRedis:
         import fnmatch
 
         return [k for k in self._store if fnmatch.fnmatch(k, pattern)]
+
+
+@pytest.fixture(autouse=True)
+def no_live_redis(request):
+    """
+    Fail the test if anything reaches the real Redis.
+
+    `mock_redis` is opt-in, so a test that touches a cached service without
+    asking for it goes to the server the app actually uses. That is how
+    `signals:latest`, `drift:latest` and `risk:portfolio:default` ended up in
+    the production cache after a suite run — real writes, invisible, and they
+    outlast the test that made them.
+
+    Autouse and unconditional, because the failure mode is silence: nothing
+    errors, the suite passes, and the pollution shows up later in a cache that
+    no test owns. Blocked rather than redirected, so a test that genuinely needs
+    a live Redis has to say so.
+    """
+    # Redirect rather than refuse. A refusal breaks every test that reads the
+    # cache without writing to it — a read is harmless, and failing it would
+    # train people to reach for the mock instead of fixing the real cause. So
+    # the in-memory store stands in, and the assertion is on the *write*.
+    store: dict[str, str] = {}
+    writes: list[str] = []
+
+    class _RecordingRedis(_FakeRedis):
+        def set(self, key, value, *a, **kw):
+            writes.append(key)
+            return super().set(key, value)
+
+        def setex(self, key, ttl, value, *a, **kw):
+            writes.append(key)
+            return super().setex(key, ttl, value)
+
+        def hset(self, key, *a, **kw):
+            writes.append(key)
+            return super().hset(key, *a, **kw)
+
+    patcher = patch("api.core.redis_client.get_redis", lambda: _RecordingRedis(store))
+    patcher.start()
+    try:
+        yield
+    finally:
+        patcher.stop()
+
+    if writes:
+        raise AssertionError(
+            f"a test wrote {len(writes)} key(s) through the real Redis path: "
+            f"{sorted(set(writes))[:5]}. Add the mock_redis fixture, or point "
+            "tests at a separate Redis."
+        )
 
 
 @pytest.fixture

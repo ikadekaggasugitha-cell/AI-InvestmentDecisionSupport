@@ -20,7 +20,7 @@ def test_list_reports_covers_every_type():
 
 
 @pytest.mark.parametrize("rtype", list(ReportType))
-async def test_generate_pdf_is_valid(rtype):
+async def test_generate_pdf_is_valid(rtype, mock_redis):
     pdf = await generate_pdf(rtype, "default")
     assert isinstance(pdf, bytes)
     assert pdf.startswith(b"%PDF-")   # valid PDF magic

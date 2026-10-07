@@ -20,7 +20,8 @@ from api.core.config import get_settings
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client(monkeypatch, mock_redis):
+    # mock_redis: these routes read through the cache, which writes on the way.
     monkeypatch.setenv("AUTH_BYPASS", "false")
     monkeypatch.setenv("PAYWALL_ENABLED", "false")
     monkeypatch.setenv("RATE_LIMIT_ENABLED", "false")

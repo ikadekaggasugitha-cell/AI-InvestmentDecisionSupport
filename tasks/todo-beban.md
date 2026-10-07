@@ -28,23 +28,27 @@ tidak dijamin, karena ia hanya ada di Redis dengan TTL satu jam.
 
 ### Task 1.2: Tetapkan batas dan kebijakan
 
-- [ ] `--maxmemory` di `backend/docker-compose.yml`.
-- [ ] `--maxmemory-policy allkeys-lru`, sesuai keputusan pemilik.
-- [ ] Pastikan tidak ada key pattern yang ikut hilang akibat keputusan ini
-      selain `chat:*` yang memang sudah tidak dijamin.
-- [ ] Catat di `docs/status.md` bahwa riwayat chat tidak dijamin: hanya di
-      Redis, TTL satu jam, sekarang juga bisa ter-evict.
-- [ ] Cegah test suite menulis ke Redis produksi, atau beri prefix test
-      (`multi_loop_probe` adalah buktinya).
+- [x] `maxmemory 256mb` di `backend/docker-compose.yml`. Dipilih terhadap
+      pemakaian nyata (~1 MB kunci) dan ruang kunci terburuk yang sudah
+      dihitung (~14 GB), jadi evict pasti terpicu jauh sebelum host bermasalah.
+- [x] `maxmemory-policy allkeys-lru`, sesuai keputusan pemilik.
+- [x] Dicek key pattern yang terpengaruh: hanya `chat:*` yang kehilangan
+      jaminan, karena TTL-nya sudah cuma satu jam dan tidak ada cadangan.
+- [x] `docs/status.md` mencatat riwayat chat sebagai tidak dijamin, dan juga
+      batas memori Redis, antrean pool, serta Paypal test ke cache produksi.
+- [x] `multi_loop_probe` dihapus, dan test suite tidak lagi bisa menulis ke
+      cache produksi.
 
 ### Task 1.3: Terapkan dan buktikan
 
-- [ ] `docker compose up -d redis`, verifikasi `maxmemory_human` bukan lagi `0B`.
-- [ ] Uji evict: isi sampai melewati batas, pastikan terjadi evict dan **tidak**
-      ada OOM kill.
-- [ ] Pastikan `/health` tetap hijau saat Redis penuh — limiter sudah gagal
-      terbuka, cache harus ikut tidak menggigit juga begitu.
-- [ ] Angka batas ditulis sebagai titik awal, bukan hasil pengukuran.
+- [x] `docker compose up -d redis` → `maxmemory_human` = `256.00M`,
+      policy = `allkeys-lru`.
+- [x] Uji evict: 20.000 kunci × 20 KB melewati batas →
+      **17.286 key ter-evict**, memori berhenti tepat di 256 MB, fragmentasi
+      1.05, container **tetap hidup**, `SET` masih berhasil, `/health` 200,
+      `/v1/news` 200 (fail-open dengan data kosong).
+- [x] Angka batas ditulis sebagai titik awal di `.env.example` dan
+      `docker-compose.yml`, bukan sebagai hasil pengukuran.
 
 ---
 

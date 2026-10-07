@@ -24,8 +24,12 @@ from api.core.config import get_settings
 
 
 @pytest.fixture
-def secure_app(monkeypatch):
-    """App built with authentication ENFORCED (AUTH_BYPASS=false)."""
+def secure_app(monkeypatch, mock_redis):
+    """App built with authentication ENFORCED (AUTH_BYPASS=false).
+
+    Mocked Redis because USE_MOCK_SIGNALS is on below, and the signals route
+    caches before it answers.
+    """
     monkeypatch.setenv("AUTH_BYPASS", "false")
     monkeypatch.setenv("USE_MOCK_SIGNALS", "true")
     monkeypatch.setenv("METRICS_ENABLED", "false")

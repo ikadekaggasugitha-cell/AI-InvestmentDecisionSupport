@@ -22,8 +22,11 @@ from api.core.config import get_settings
 
 
 @pytest.fixture
-def gated_client(monkeypatch):
+def gated_client(monkeypatch, mock_redis):
     """App with authentication AND the paywall both enforced."""
+    # mock_redis is what keeps `signals:latest` — cached by the mock-signal path
+    # this fixture switches on — out of the real cache. Without it the guard in
+    # conftest catches the write and fails this file.
     monkeypatch.setenv("AUTH_BYPASS", "false")
     monkeypatch.setenv("PAYWALL_ENABLED", "true")
     monkeypatch.setenv("USE_MOCK_SIGNALS", "true")

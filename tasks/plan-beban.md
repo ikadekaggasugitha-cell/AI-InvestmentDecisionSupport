@@ -85,15 +85,46 @@ Jawaban jujur soal ini bukan teknis, tapi keputusan pemilik:
 menulis ke Redis sungguhan. Bukan bobot yang besar, tapi artinya tes dan
 produksi berbagi satu cache — jadi ada yang perlu dipisahkan.
 
-### Yang akan dikerjakan
+### Keputusan pemilik
 
-Tunggu keputusan pemilik soal chat, lalu:
+**Cache boleh di-evict; percakapan chat boleh hilang.** Redis memakai
+`allkeys-lru`. `docs/status.md` mencatat bahwa riwayat chat tidak dijamin.
 
-1. Set `--maxmemory` dan kebijakan evict di `docker-compose.yml`.
-2. Pastikan tiap kunci jatuh ke kelas yang benar.
-3. Hapus artefak `multi_loop_probe`, dan mencegah tes menulis ke Redis produksi.
-4. Uji: isi Redis sampai melewati batas, pastikan terjadi evict — bukan OOM kill.
-5. Tulis angka batasnya sebagai titik awal, bukan hasil ukur.
+### Yang dikerjakan
+
+1. `maxmemory 256mb` + `allkeys-lru` di `docker-compose.yml`.
+   256 MB dipilih terhadap pemakaian nyata (~1 MB kunci) dan ruang kunci
+   terburuk yang sudah dihitung (~14 GB): batasnya cukup tinggi untuk tidak
+   mengganggu, cukup rendah untuk evict terpicu sebelum host bermasalah.
+2. Artefak `multi_loop_probe` dihapus.
+3. `no_live_redis` — fixture autouse di `tests/conftest.py` yang menggagalkan
+   test yang menulis lewat jalur Redis sungguhan.
+4. Diuji dengan 20.000 kunci × 20 KB.
+
+### Hasil uji evict
+
+```
+dbsize              10147 -> 13002
+evicted_keys        17286
+kunci awal hilang   9955 dari 10147
+memori              255.9 MB / 256 MB
+writes masih berhasil: True
+container           : hidup
+/health             : 200
+/v1/news            : 200  (fail-open, data kosong)
+```
+
+Yang penting dari daftar ini bukan angkanya, melainkan `container: hidup`.
+Dengan `maxmemory 0B` sebelumnya, skenario yang sama berakhir sebagai OOM kill
+— bukan error yang bisa ditangani aplikasi, melainkan container yang hilang.
+
+### Catatan: `drift:latest` sengaja tanpa TTL
+
+Satu-satunya kunci produksi yang masih `ttl=-1`, dan itu benar. Status drift
+mingguan harus tetap terbaca sampai run berikutnya menggantikannya; kalau ia
+kedaluwarsa, `/health` akan melaporkan "belum dijalankan" untuk drift yang
+memang sudah dicek. Docstring `workers/monitoring_worker.py` menyatakan ini
+secara eksplisit.
 
 ---
 

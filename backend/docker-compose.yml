@@ -163,6 +163,18 @@ services:
   # ── Redis ──────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
+    # Without maxmemory, Redis grows until the kernel OOM-kills it — not an
+    # error the app can handle, just a dead container. 256M is ~300x the real
+    # usage (~1 MB of keys) and far below the ~14 GB the ohlcv key space could
+    # reach, so eviction is guaranteed to trigger long before the host is in
+    # trouble.
+    command:
+      - redis-server
+      - --maxmemory 256mb
+      # Everything here is either reconstructible (ohlcv, market:snapshot,
+      # drift, risk) or already lossy (chat history — Redis is its only home,
+      # TTL one hour, no Postgres backup). See docs/status.md.
+      - --maxmemory-policy allkeys-lru
     ports:
       - "${AIDSS_REDIS_PORT:-6379}:6379"
     healthcheck:
