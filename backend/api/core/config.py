@@ -90,6 +90,15 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "postgresql+asyncpg://aidss:aidss@localhost:5432/aidss"
+    # asyncpg's acquire() defaults to timeout=None, meaning "wait forever". The
+    # pool has no max_overflow parameter at all, so max_size is a hard ceiling:
+    # past it, requests queue without limit and their latency grows until the
+    # client gives up while the server is still holding the socket. This
+    # deadline is what turns that queue into an immediate, named failure.
+    db_acquire_timeout: float = 5.0
+    # Unmeasured. Ten is the number this project started with, not a figure
+    # derived from load. Raise it only with a measurement behind it.
+    db_pool_max_size: int = 10
 
     # Kafka
     kafka_bootstrap_servers: str = "localhost:9092"
@@ -332,8 +341,31 @@ class Settings(BaseSettings):
     # multi-instance deployment must move to shared (Redis) storage to enforce a
     # global budget.
     rate_limit_enabled: bool = True
-    rate_limit_default: str = "120/minute"   # applied to every route
+    rate_limit_default: str = "120/minute"   # applied to every route without an override
     rate_limit_advisor: str = "10/minute"    # tighter — each call fans out to Claude
+    # Same reasoning for the endpoints that read a wide date range or a large page:
+    # one request costs far more than a page fetch. Starting points, not measurements
+    # — `docs/status.md` records that they have not been measured under real load.
+    rate_limit_heavy: str = "30/minute"
+
+    # Whether X-Forwarded-For may be trusted to identify the caller.
+    #
+    # Required for correct budgets behind a reverse proxy, since otherwise every
+    # request appears to come from the proxy and all callers share one bucket. It is
+    # also trivially spoofable, so it is only true because the deployment is
+    # same-origin behind a trusted proxy (ADR-0006). A directly-exposed deployment
+    # must set this false and accept the shared bucket, or strip the header at the
+    # edge.
+    rate_limit_trust_proxy: bool = True
+
+    # Overrides the default budget for the test suite only.
+    #
+    # The suite fires hundreds of requests from one address, which would exhaust a
+    # production-sized budget partway through. This raises the ceiling without
+    # switching the limiter off, because an off switch proves nothing about the code
+    # it disables — which is how a broken limiter stayed unnoticed here in the first
+    # place.
+    rate_limit_test_budget: str = ""
 
     # ── Validators ────────────────────────────────────────────────────────────
 

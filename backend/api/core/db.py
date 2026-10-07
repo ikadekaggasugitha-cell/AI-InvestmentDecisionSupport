@@ -22,7 +22,7 @@ import asyncpg
 
 from api.core.config import get_settings
 
-_pool: asyncpg.Pool | None = None
+_pool: "BoundedPool | None" = None
 # The event loop that created _pool; see get_pool for why.
 _pool_loop: asyncio.AbstractEventLoop | None = None
 _lock = asyncio.Lock()
@@ -33,7 +33,121 @@ def _dsn() -> str:
     return get_settings().database_url.replace("postgresql+asyncpg://", "postgresql://")
 
 
-async def get_pool() -> asyncpg.Pool:
+class PoolExhausted(RuntimeError):
+    """Every connection was busy for longer than the acquire deadline.
+
+    A distinct type rather than a bare TimeoutError because "no connection was
+    free" and "the query itself ran too long" are different failures. A caller
+    degrading to empty data cannot tell them apart from `asyncio.TimeoutError`
+    alone, and the first is worth retrying while the second is not.
+    """
+
+
+def _deadline() -> float:
+    return get_settings().db_acquire_timeout
+
+
+async def _on_conn(pool: asyncpg.Pool, timeout: float | None, call, *args, **kw):
+    """Run one query on a pooled connection whose acquire has a deadline.
+
+    The `except` wraps only the acquire. A `command_timeout` also raises
+    `asyncio.TimeoutError`, and folding that into `PoolExhausted` would report a
+    slow query as a busy pool — two failures that deserve different answers.
+    """
+    ctx = pool.acquire(timeout=_deadline() if timeout is None else timeout)
+    try:
+        con = await ctx.__aenter__()
+    except TimeoutError:
+        raise PoolExhausted(_deadline()) from None
+    try:
+        return await call(con, *args, **kw)
+    finally:
+        await ctx.__aexit__(None, None, None)
+
+
+class BoundedPool:
+    """A pool whose acquire() cannot wait forever.
+
+    `asyncpg.Pool.acquire()` takes `timeout=None`, which means "wait as long as
+    it takes". Every data service reaches the database through
+    `pool.fetch`/`fetchrow`/`fetchval`/`execute`, and each of those calls
+    `self.acquire()` internally with that unbounded default. So with a pool of
+    10 connections, the eleventh concurrent request neither succeeds nor fails —
+    it joins a queue with no end, its latency grows without bound, and it
+    eventually times out in the client while the server is still holding it.
+
+    Subclassing `asyncpg.Pool` would be the tidier fix, but `create_pool`
+    hardcodes `Pool(...)` with no `pool_class` parameter, so a subclass would
+    mean reaching into its private constructor. This wrapper uses only public
+    API. It costs one small class and leaves the 33 existing call sites
+    unchanged.
+    """
+
+    __slots__ = ("_pool",)
+
+    def __init__(self, pool: asyncpg.Pool):
+        self._pool = pool
+
+    async def fetch(self, query, *args, **kw):
+        return await _on_conn(
+            self._pool, kw.pop("acquire_timeout", None), lambda c: c.fetch(query, *args, **kw)
+        )
+
+    async def fetchrow(self, query, *args, **kw):
+        return await _on_conn(
+            self._pool,
+            kw.pop("acquire_timeout", None),
+            lambda c: c.fetchrow(query, *args, **kw),
+        )
+
+    async def fetchval(self, query, *args, **kw):
+        return await _on_conn(
+            self._pool,
+            kw.pop("acquire_timeout", None),
+            lambda c: c.fetchval(query, *args, **kw),
+        )
+
+    async def execute(self, query, *args, **kw):
+        return await _on_conn(
+            self._pool,
+            kw.pop("acquire_timeout", None),
+            lambda c: c.execute(query, *args, **kw),
+        )
+
+    def acquire(self, *, timeout=None):
+        return self._pool.acquire(timeout=_deadline() if timeout is None else timeout)
+
+    def __getattr__(self, name):
+        """Forward anything else, but through a bounded acquire.
+
+        Without this, the next pool method someone reaches for would go straight
+        to the raw pool and silently restore the unbounded wait.
+
+        Only the four query methods above take a connection; the rest are pool
+        lifecycle and introspection (`close`, `get_size`, `is_closing`), which
+        take none and are forwarded as-is. Wrapping those would pass a spurious
+        connection as the first argument.
+        """
+        attr = getattr(self._pool, name)
+        if not callable(attr):
+            return attr
+
+        if name in ("fetch", "fetchrow", "fetchval", "execute"):
+            async def bounded(*args, **kw):
+                return await _on_conn(
+                    self._pool,
+                    kw.pop("acquire_timeout", None),
+                    lambda c: attr(c, *args, **kw),
+                )
+
+            return bounded
+        return attr
+
+    def __repr__(self):
+        return f"BoundedPool({self._pool!r})"
+
+
+async def get_pool() -> BoundedPool:
     """
     Return the process-wide pool, creating it on first call.
 
@@ -63,11 +177,13 @@ async def get_pool() -> asyncpg.Pool:
     if _pool is None:
         async with _lock:
             if _pool is None:
-                _pool = await asyncpg.create_pool(
-                    dsn=_dsn(),
-                    min_size=1,
-                    max_size=10,
-                    command_timeout=30,
+                _pool = BoundedPool(
+                    await asyncpg.create_pool(
+                        dsn=_dsn(),
+                        min_size=1,
+                        max_size=get_settings().db_pool_max_size,
+                        command_timeout=30,
+                    )
                 )
                 _pool_loop = asyncio.get_running_loop()
     return _pool
@@ -83,7 +199,8 @@ def _terminate_quietly(pool: asyncpg.Pool) -> None:
 
 async def close_pool() -> None:
     """Close the pool on shutdown. Safe to call when no pool was created."""
-    global _pool
+    global _pool, _pool_loop
     if _pool is not None:
         await _pool.close()
         _pool = None
+        _pool_loop = None

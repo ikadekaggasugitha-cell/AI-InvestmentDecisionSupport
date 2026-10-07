@@ -1164,12 +1164,20 @@ class TestMultiLoopPools:
         # removed — which is exactly what an earlier version of this test did.
         # The real scenario is a pool left behind by one loop and handed to the
         # next, which is what a short-lived script does.
+        # Compared by identity, not by id(). Two distinct objects can share an
+        # id once the first is garbage collected, and the pool left behind by
+        # the first loop is terminated rather than kept alive — so id() equality
+        # proved nothing here and the test passed for the wrong reason.
         async def use():
-            return id(await db.get_pool())
+            return await db.get_pool()
 
         first = _asyncio.run(use())
+        _held = first  # keep it alive so the ids cannot collide
         second = _asyncio.run(use())
-        assert first != second, "pool carried across event loops; reuse would raise"
+
+        assert first is not second, "pool carried across event loops; reuse would raise"
+        assert first._pool is not second._pool, "the underlying asyncpg pool was reused"
+        assert second._pool._loop is not first._pool._loop, "bound to a dead loop"
 
     def test_asyncpg_pool_is_usable_in_each_loop(self):
         """

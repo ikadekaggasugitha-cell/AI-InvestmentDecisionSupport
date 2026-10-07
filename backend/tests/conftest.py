@@ -24,10 +24,18 @@ os.environ.setdefault("USE_MOCK_PORTFOLIO", "true")
 os.environ.setdefault("USE_MOCK_BROKSUM", "true")
 os.environ.setdefault("METRICS_ENABLED", "false")
 os.environ.setdefault("SENTRY_DSN", "")
-# The suite fires hundreds of requests from one client IP; the default
-# 120/minute budget would start returning 429s partway through. Rate limiting
-# has its own dedicated tests — disable it everywhere else.
-os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+# Rate limiting stays ON. It used to be disabled here on the grounds that
+# "rate limiting has its own dedicated tests" — those tests did not exist, so the
+# feature ran permanently unexercised, and a version incompatibility in it (slowapi
+# could not find the route handler on FastAPI 0.141, so every route was silently
+# exempt) went unnoticed for as long as this line stood. See tests/test_rate_limit.py.
+#
+# The suite still needs a bigger budget, because every request arrives from one
+# client address and would otherwise exhaust the production 120/minute partway
+# through. A larger budget keeps the limiter on the request path, which is the thing
+# that was actually missing: an off switch proves nothing about the code it disables.
+os.environ.setdefault("RATE_LIMIT_ENABLED", "true")
+os.environ.setdefault("RATE_LIMIT_TEST_BUDGET", "1000000/minute")
 
 import asyncio
 
@@ -51,7 +59,10 @@ ENV = {
     "USE_MOCK_BROKSUM": "false",
     "AUTH_BYPASS": "true",
     "METRICS_ENABLED": "false",
-    "RATE_LIMIT_ENABLED": "false",
+    "RATE_LIMIT_ENABLED": "true",
+    # Larger than production so the suite's hundreds of requests from one address
+    # do not exhaust the budget mid-test. The limiter stays active.
+    "RATE_LIMIT_TEST_BUDGET": "1000000/minute",
 }
 
 
@@ -67,7 +78,10 @@ LIVE_ENV = {
     "USE_MOCK_BROKSUM": "false",
     "AUTH_BYPASS": "true",
     "METRICS_ENABLED": "false",
-    "RATE_LIMIT_ENABLED": "false",
+    "RATE_LIMIT_ENABLED": "true",
+    # Larger than production so the suite's hundreds of requests from one address
+    # do not exhaust the budget mid-test. The limiter stays active.
+    "RATE_LIMIT_TEST_BUDGET": "1000000/minute",
 }
 
 

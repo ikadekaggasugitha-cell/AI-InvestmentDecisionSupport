@@ -29,6 +29,38 @@ penyalahgunaan, itu mungkin tidak diinginkan — dan kalau ternyata dibutuhkan,
 perubahannya satu baris di `accounts.set_blocked()`. Yang jelas: saat ini begitu,
 dan itu keputusan, bukan kelalaian.
 
+**Rate limit ditentukan dari path, bukan mencari route handler.** Semula slowapi 0.1.9
+yang melakukannya. Ia mencari handler dengan menelusuri `app.routes` mencari objek route
+datar yang punya `.endpoint`. FastAPI 0.141 tidak lagi meratakan router:
+`include_router()` membungkus tiap router dalam `_IncludedRouter`, sehingga tidak ada
+yang cocok, handler bernilai `None`, dan `_should_exempt(None)` mengembalikan `True`.
+**Setiap route tanpa kecuali dianggap dikecualikan.**
+
+Buktinya: limiter menyala, terpasang, memegang anggaran 5/menit, dan dua belas request
+ke `/v1/news` semuanya mengembalikan 200 tanpa satu pun header batas. Tidak ada yang
+menangkapnya karena `conftest.py` mematikan rate limit untuk seluruh suite dengan
+catatan "ada tes khusus" — tes itu tidak pernah ada.
+
+Naik ke slowapi 0.1.10 tidak menolong: `_find_route_handler` identik byte per byte.
+Menurunkannya FastAPI akan menghilangkan gejalanya, tapi dengan versi yang lebih lama.
+Menambal `app.routes` berarti mengikat ke `_IncludedRouter`, simbol privat yang akan
+berubah lagi. Daripada ketiganya, sekitar 80 baris limiter sendiri di
+`api/core/rate_limit.py`, yang tidak perlu mencari route sama sekali.
+
+Dua keputusan di dalamnya berlawanan dengan sistem lain, dan itu disengaja:
+
+  * **Gagal terbuka.** Kalau penghitungnya sendiri melempar, request dilayani. Limiter
+    yang membuat API mati saat ia rusak adalah beban, bukan pengaman. Ini berlawanan
+    dengan paywall, yang gagal tertutup dengan sengaja: data berbayar tidak boleh
+    dilayani kepada orang yang tidak bisa diperiksa, sedangkan rate limit yang mati
+    hanya berarti anggaran tidak ditegakkan.
+  * **Penyimpanan in-process.** Benar untuk satu proses, yang memang kondisi hari ini.
+    Beberapa instance akan menegakkan anggaran secara terpisah, dan itu keputusan
+    tersendiri.
+
+Angka batasnya belum pernah diukur terhadap beban nyata. `docs/status.md` mencatat
+begitu, dan akan tetap begitu sampai ada yang mengukurnya.
+
 **Retensi consent: 24 bulan, sisakan yang terakhir.** `consent_acceptances` tidak
 pernah dihapus utuh. Setiap akun menyimpan satu baris terbaru — itu jawaban untuk
 "apakah orang ini pernah menyetujui?", dan menghapusnya berarti menghapus satu-satunya

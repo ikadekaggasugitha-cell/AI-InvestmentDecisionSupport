@@ -19,13 +19,9 @@ from pathlib import Path
 import structlog
 from fastapi import Depends, FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
-
 from api.core.auth import get_current_user, require_entitlement
 from api.core.config import get_settings
-from api.core.rate_limit import limiter
+from api.core.rate_limit_middleware import rate_limit_middleware
 from api.routers import (
     admin, advisor, alerts, auth, broksum, market_ws, news, portfolio, reports, risk,
     signals, subscription, symbols, technicals,
@@ -259,14 +255,19 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     )
 
     # ── Rate limiting ──────────────────────────────────────────────────────────
-    # A global default applies to every route via the middleware; the advisor
-    # endpoint adds a tighter per-route limit (see api/routers/advisor.py). The
-    # ops endpoints below are exempted so an orchestrator's health probes are
-    # never throttled. Limiter.enabled is driven by settings, so it can be
-    # switched off wholesale in an environment that fronts its own limiter.
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-    app.add_middleware(SlowAPIMiddleware)
+    # A budget applies to every path except the ones named in
+    # rate_limit.EXEMPT_PREFIXES — /health and /metrics, so an orchestrator's
+    # probes are never throttled and a busy app is not scaled down for it.
+    #
+    # Routers do not declare limits. This middleware decides from the request path,
+    # because the previous implementation resolved a route handler by walking
+    # `app.routes`, and FastAPI 0.141 stopped flattening routers — so it found
+    # nothing and exempted everything. The per-route budgets now live in
+    # `rate_limit.ROUTE_LIMITS`, readable in one place.
+    #
+    # `RATE_LIMIT_ENABLED=false` switches the whole thing off, for a deployment
+    # that fronts its own limiter.
+    app.middleware("http")(rate_limit_middleware)
 
     # Routers
     #
@@ -319,7 +320,6 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     # ── Health ────────────────────────────────────────────────────────────────
 
     @app.get("/livez", tags=["ops"], summary="Liveness — is the process up")
-    @limiter.exempt
     async def livez() -> dict[str, str]:
         """
         Process liveness only. Never fails while the event loop runs, so a
@@ -329,7 +329,6 @@ Set `AUTH_BYPASS=true` in `.env` for development.
         return {"status": "ok", "version": "1.0.0"}
 
     @app.get("/health", tags=["ops"], summary="Readiness — are dependencies usable")
-    @limiter.exempt
     async def health(response: Response) -> dict[str, object]:
         """
         Checks the dependencies the API actually needs, and returns 503 when a
