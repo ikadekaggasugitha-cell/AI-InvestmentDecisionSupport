@@ -26,7 +26,9 @@ Diverifikasi terhadap kode pada **2026-10-07**, setelah migrasi `0008` diterapka
 | Audit log persetujuan Gate 2 | Ada | Tabel `consent_acceptances` (migrasi `0009`), `backend/api/services/consent.py`, dan `POST`/`GET /v1/auth/consent`. Versi teks yang disetujui ikut disimpan, jadi persetujuan versi lama tetap terbaca tanpa dihitung sebagai persetujuan atas teks sekarang |
 | Jalur baca Subscription | Ada | `GET /v1/subscription/current`. Authenticated tapi **tidak** entitlement-gated, karena account yang sudah ditolak tidak bisa bertanya kenapa. Hari tersisa dihitung di server; tanggal mulai tidak dilaporkan karena `subscriptions` tidak menyimpannya |
 | Tab 2 Settings | Ada, sebagian | Status, tanggal berakhir, dan sisa hari dari server. Tidak ada tombol perpanjang atau invoice — endpoint pembayaran belum ada, dan kontrol yang tampak hidup tapi tidak berfungsi lebih buruk daripada tidak ada (R-26) |
-| CLI operasional | Ada | `backend/db/promote_admin.py` membaca `ADMIN_EMAIL`, `backend/db/purge_sessions.py` menghapus session kedaluwarsa, `backend/db/purge_positions.py` membersihkan posisi yang ticker-nya tidak tercatat. Semuanya punya `--dry-run` dan tes. Belum dijadwalkan di Celery beat |
+| Portal admin | Ada | `/admin` di frontend: daftar akun plus blokir/buka blokir. Backend `backend/api/routers/admin.py`. URL tersendiri, tanpa entry sidebar — alat operasional, bukan navigasi. Non-admin mendapat 403 dan halamannya mengatakannya sendiri |
+| Retensi consent | Ada | 24 bulan, sisakan yang terbaru (`CONSENT_RETENTION_MONTHS`). `backend/db/purge_consent.py`. Angka adalah kebijakan, configurable tanpa menyentuh kode ([ADR-0004](adr/0004-session-opaque-postgres-hash-fail-closed.md)) |
+| CLI operasional | Ada | `backend/db/promote_admin.py` membaca `ADMIN_EMAIL`, `backend/db/purge_sessions.py` menghapus session kedaluwarsa, `backend/db/purge_consent.py` membersihkan consent lama, `backend/db/purge_positions.py` membersihkan posisi yang ticker-nya tidak tercatat. Semuanya punya `--dry-run` dan tes. Belum dijadwalkan di Celery beat |
 | Analytics per portfolio | Ada | `backend/api/services/portfolio_access.py` `load_lots` adalah satu-satunya jalur baca posisi. Risk, kurva ekuitas, snapshot WebSocket, dan risk worker semuanya memakainya ([ADR-0005](adr/0005-analytics-baca-baris-portfolio.md)) |
 | Tidak ada posisi fabricated di layar | Ada | `PORTFOLIO_HOLDINGS` di `src/app/data/idxData.ts` dihapus. `usePortfolio` membaca server, dan `useLiveMarket` tidak lagi menghitung total portofolio dari seed, meneruskan nilai yang dihitung server per akun |
 | Validasi ticker posisi | Ada | `PUT /v1/portfolio/positions` menolak simbol yang tidak ada di `instruments`. Universe kosong berarti fresh deploy, jadi validasi dilewati dengan warning — menolak semua posisi di install baru lebih berbahaya daripada menerima satu ticker nakal |
@@ -46,7 +48,7 @@ Tidak ada satu pun item di bawah ini yang ada di kode. Setiapnya tercatat supaya
 | Tabel `notification_logs` | Belum | Ditunda ke Fase 2. Belum ada kanal notifikasi |
 | Checkout dan pembayaran | Belum | Tidak ada UI dan tidak ada endpoint. Midtrans, QRIS, dan upload bukti nol baris kode |
 | Integrasi email dan WhatsApp | Belum | Nol baris kode. Ini kanal notifikasi tunggal yang dirancang, dan belum ada |
-| Portal admin | Belum | `/admin` tidak ada di frontend maupun backend |
+
 
 ## Keputusan yang Sudah Disepakati
 
@@ -72,6 +74,8 @@ Hal berikut disengaja untuk sekarang, dan akan menggigit kalau tidak dicatat.
 | --- | --- |
 | `subscriptions` belum punya `plan_type` dan `price_paid` | Keduanya butuh pembayaran. Sekarang akan jadi kolom kosong |
 | Sesi kedaluwarsa menumpuk | Ada CLI (`python -m db.purge_sessions`), tapi belum dijadwalkan. Tabel tumbuh sampai seseorang menjalankannya. Butuh satu DELETE pada `idx_sessions_expires_at` |
+| Consent lama menumpuk | Sama: ada `db/purge_consent.py`, belum dijadwalkan |
+| Blokir tidak menghapus sesi | Keputusan, bukan utang. Sesi tetap hidup dan ditolak selama `blocked_at` terisi. Terbuka blokir akan menghidupkan lagi ([ADR-0004](adr/0004-session-opaque-postgres-hash-fail-closed.md)) |
 | Key `aidss-portfolio` masih ada di peramban sebagian orang | Tidak dibaca dan tidak ditulis siapa pun sejak posisi pindah ke server. Data lama orang tinggal di localStorage tanpa ada yang menghapusnya |
 
 ## Dokumen yang Perlu Dibaca dengan Hati-hati

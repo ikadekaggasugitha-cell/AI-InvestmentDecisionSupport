@@ -107,6 +107,8 @@ export const ENDPOINTS = {
   positions:      `${API_BASE}/v1/portfolio/positions`,
   /** The caller's own subscription state. Read-only; there is no way to buy one. */
   subscription:   `${API_BASE}/v1/subscription/current`,
+  /** Admin account list. Block/unblock: POST then DELETE on `${adminAccounts}/{id}/block`. */
+  adminAccounts:  `${API_BASE}/v1/admin/accounts`,
   /** Claude-powered Q&A, server-sent events */
   advisorChat:    `${API_BASE}/v1/advisor/chat`,
 

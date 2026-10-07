@@ -304,6 +304,21 @@ class Settings(BaseSettings):
     metrics_enabled: bool = True
     sentry_dsn: str = ""
 
+    # Gate 2 consent retention, in months (ADR-0004).
+    #
+    # How long a *superseded* acceptance row is kept. The newest row per account is
+    # never deleted — that is the answer to "have they accepted this wording?", and
+    # deleting it would delete the only thing the table is for.
+    #
+    # Configurable rather than a constant because this is a policy number, not a
+    # technical one: it changes what we are obliged to keep, and whoever is
+    # accountable for that should change it without a code review.
+    #
+    # 0 means "keep everything". Negative is rejected below rather than clamped,
+    # because silently turning -1 into 0 would turn "delete aggressively" into
+    # "keep forever" and nobody would notice.
+    consent_retention_months: int = 24
+
     # Rate limiting
     #
     # Closes the open-API abuse surface and, more importantly, caps the LLM cost
@@ -356,6 +371,21 @@ class Settings(BaseSettings):
                     return [str(item).strip() for item in parsed]
 
         return [part.strip() for part in text.split(",") if part.strip()]
+
+    @model_validator(mode="after")
+    def _reject_nonsense_retention(self) -> "Settings":
+        """Catch a typo in a retention number rather than acting on it.
+
+        A negative value would read as "delete as much as possible". Clamping it to
+        0 would quietly turn that into "keep forever" — the opposite — and nobody
+        would notice until an audit asked.
+        """
+        if self.consent_retention_months < 0:
+            raise ValueError(
+                f"CONSENT_RETENTION_MONTHS={self.consent_retention_months} is "
+                "negative. Use 0 to keep every row, or a positive number of months."
+            )
+        return self
 
     @model_validator(mode="after")
     def _reject_unsafe_production(self) -> "Settings":

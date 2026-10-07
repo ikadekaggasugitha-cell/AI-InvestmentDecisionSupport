@@ -12,7 +12,7 @@ import pytest
 
 import json
 
-from db import promote_admin, purge_positions, purge_sessions
+from db import promote_admin, purge_consent, purge_positions, purge_sessions
 
 
 class TestAdminEmailIsRead:
@@ -245,3 +245,136 @@ def _ready(pool):
         return pool
 
     return inner()
+
+
+class TestPurgeConsent:
+    """Retention for Gate 2 consent rows (ADR-0004).
+
+    The newest row per account is never deleted. It is the answer to "have they
+    accepted this?", and removing it would leave an account that can never satisfy
+    the gate again without re-consenting — the opposite of what a retention policy
+    is for.
+    """
+
+    def _pool(self, rows):
+        """rows: list of (user_id, version, accepted_at as a datetime)."""
+        state = {"deleted": []}
+
+        class Pool:
+            async def fetchrow(self, query, *args):
+                months = args[0]
+                cutoff = _months_ago(months)
+                superseded = [
+                    r for r in rows
+                    if r[2] < cutoff and _has_newer(rows, r)
+                ]
+                state["superseded"] = superseded
+                return {"n": len(superseded)}
+
+            async def execute(self, query, *args):
+                state["deleted"].extend(state.get("superseded", []))
+                return f"DELETE {len(state['deleted'])}"
+
+        return Pool(), state
+
+    def test_a_dry_run_counts_and_deletes_nothing(self, monkeypatch, capsys):
+        pool, state = self._pool([
+            ("u1", "v-new", _months_ago(1)),
+            ("u1", "v-old", _months_ago(40)),
+        ])
+        monkeypatch.setattr(purge_consent, "get_pool", lambda: _ready(pool))
+
+        assert purge_consent.main(["--dry-run", "--months", "24"]) == 0
+        out = capsys.readouterr().out
+        assert "1 consent row" in out
+        assert "Nothing was deleted" in out
+        assert state["deleted"] == []
+
+    def test_the_newest_row_per_account_is_never_deleted(self, monkeypatch, capsys):
+        pool, state = self._pool([
+            ("u1", "v-new", _months_ago(1)),
+            ("u1", "v-old", _months_ago(40)),
+        ])
+        monkeypatch.setattr(purge_consent, "get_pool", lambda: _ready(pool))
+
+        purge_consent.main(["--months", "24"])
+        deleted_versions = [r[1] for r in state["deleted"]]
+        assert deleted_versions == ["v-old"]
+        assert "v-new" not in deleted_versions
+
+    def test_a_single_old_row_is_kept(self, monkeypatch, capsys):
+        """An account that accepted once, forty months ago, still has a record.
+
+        Deleting it would erase the only evidence they ever consented, and they
+        could not satisfy the gate again without doing it a second time.
+        """
+        pool, state = self._pool([("u1", "only", _months_ago(40))])
+        monkeypatch.setattr(purge_consent, "get_pool", lambda: _ready(pool))
+
+        purge_consent.main(["--months", "24"])
+        assert state["deleted"] == []
+        assert "Nothing older" in capsys.readouterr().out
+
+    def test_two_accounts_are_kept_apart(self, monkeypatch, capsys):
+        """One account's new row must not make another account's only row look
+        superseded."""
+        pool, state = self._pool([
+            ("u1", "v-new", _months_ago(1)),
+            ("u2", "only", _months_ago(40)),
+        ])
+        monkeypatch.setattr(purge_consent, "get_pool", lambda: _ready(pool))
+
+        purge_consent.main(["--months", "24"])
+        assert state["deleted"] == []
+
+    def test_running_twice_reports_nothing_left(self, monkeypatch, capsys):
+        pool, state = self._pool([
+            ("u1", "v-new", _months_ago(1)),
+            ("u1", "v-old", _months_ago(40)),
+        ])
+        monkeypatch.setattr(purge_consent, "get_pool", lambda: _ready(pool))
+
+        purge_consent.main(["--months", "24"])
+        # Second run: the same database after the delete landed.
+        pool_after, state_after = self._pool([("u1", "v-new", _months_ago(1))])
+        monkeypatch.setattr(purge_consent, "get_pool", lambda: _ready(pool_after))
+
+        assert purge_consent.main(["--months", "24"]) == 0
+        assert "Nothing older" in capsys.readouterr().out
+        assert state_after["deleted"] == []
+
+    def test_zero_months_keeps_everything_and_says_so(self, monkeypatch, capsys):
+        """Keep-everything is a policy, not an absence of work."""
+        pool, state = self._pool([
+            ("u1", "v-new", _months_ago(1)),
+            ("u1", "v-old", _months_ago(400)),
+        ])
+        monkeypatch.setattr(purge_consent, "get_pool", lambda: _ready(pool))
+
+        assert purge_consent.main(["--months", "0"]) == 0
+        assert "keeping every row" in capsys.readouterr().out
+        assert state["deleted"] == []
+
+    def test_a_negative_retention_is_refused(self):
+        """A typo must not turn "delete a lot" into something else entirely."""
+        with pytest.raises(SystemExit):
+            purge_consent.main(["--months", "-1"])
+
+
+def _months_ago(n):
+    from datetime import datetime, timedelta, timezone
+
+    return datetime.now(timezone.utc) - timedelta(days=n * 30)
+
+
+def _has_newer(rows, row):
+    """Mirrors the SQL's EXISTS: same account, ordered after this row.
+
+    The SQL compares `(accepted_at, id)`; the fake has no id, so version stands in
+    for it as a stable tiebreak. That is enough here because the rows under test are
+    months apart, so accepted_at alone decides.
+    """
+    return any(
+        other[0] == row[0] and (other[2], other[1]) > (row[2], row[1])
+        for other in rows
+    )

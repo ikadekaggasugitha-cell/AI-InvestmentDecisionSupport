@@ -18,6 +18,10 @@ const NewsView      = lazy(() => import("./components/NewsView").then((m) => ({ 
 const SettingsView  = lazy(() => import("./components/SettingsView").then((m) => ({ default: m.SettingsView })));
 const ReportsView   = lazy(() => import("./components/ReportsView").then((m) => ({ default: m.ReportsView })));
 const AlertsView    = lazy(() => import("./components/AlertsView").then((m) => ({ default: m.AlertsView })));
+// Lazy for the same reason as the rest, and it keeps the admin bundle out of the
+// chunk every signed-in person downloads — including the ones who will never be
+// allowed to see it.
+const AdminView     = lazy(() => import("./components/AdminView").then((m) => ({ default: m.AdminView })));
 import { useLiveMarket } from "./hooks/useLiveMarket";
 import { useExchangeRate } from "./hooks/useExchangeRate";
 import { useNews } from "./hooks/useNews";
@@ -227,10 +231,42 @@ function AppInner() {
     </div>
   );
 
+  /* `/admin` gets its own URL and no sidebar.
+   *
+   * Deliberate on both counts. A sidebar entry would put "manage every account" in
+   * the navigation of every signed-in person, and the sidebar has no role-gating at
+   * all today — adding the first role-conditional item there is a bigger change than
+   * this task, and it is not needed here.
+   *
+   * No client-side role check either. The backend answers 403 for a non-admin and
+   * AdminView says so in its own words; deciding it in the browser would mean the
+   * client is the authority on who is an administrator, which is not a thing a
+   * browser should be.
+   */
+  const adminPage = (
+    <div
+      className={isDark ? "dark" : ""}
+      style={{
+        minHeight: "100dvh",
+        display: "flex",
+        background: "var(--background)",
+        color: "var(--foreground)",
+        fontFamily: "var(--font-sans)",
+      }}
+    >
+      <Suspense fallback={<ViewSkeleton />}>
+        <ErrorBoundary key="admin" locale={locale}>
+          <AdminView />
+        </ErrorBoundary>
+      </Suspense>
+    </div>
+  );
+
   return (
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/signup" element={<Navigate to="/" replace />} />
+      <Route path="/admin" element={adminPage} />
       <Route path="*" element={shell} />
     </Routes>
   );

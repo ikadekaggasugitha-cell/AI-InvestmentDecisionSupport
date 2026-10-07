@@ -10,6 +10,42 @@ Autentikasi berpindah dari JWT ke session opaque: cookie `HttpOnly` berisi 64 ka
 
 **Tidak ada cache di jalur otorisasi.** Ini membatalkan klausul "Redis sebagai read-through cache" dari perencanaan awal, dan alasannya ditemukan oleh test: `authenticate()` sempat membaca Redis lebih dulu, sehingga session yang sudah di-`DELETE` masih diterima sampai entri cache kedaluwarsa. Jendela lima menit itu mengubah `DELETE FROM sessions` dari "keluar" menjadi "keluar nanti" — persis satu properti yang session opaque dipilih untuk itu. Karena itu lookup session sekarang satu query `JOIN` dengan `users`, tanpa cache sama sekali, yang sekaligus membuat ini satu-satunya query yang dilakukan satu request. Revocation dan pemblokiran berlaku pada request berikutnya, bukan pada request berikutnya setelah cache habis.
 
+**Memblokir tidak menghapus session.** Ini yang paling mudah disalahbaca sebagai
+kelalaian, jadi ditulis eksplisit. `blocked_at` dibaca di setiap request, jadi blokir
+berlaku seketika — itulah yang CONTEXT.md aturan 8 minta. Yang tidak terjadi adalah
+penghapusan baris `sessions`: sesi yang sudah terbit tetap ada, dan hanya ditolak
+selama `blocked_at` terisi.
+
+Alasannya satu mekanisme untuk satu fakta. Kehadiran baris session menjawab
+"apakah token ini masih dikenal"; `blocked_at` menjawab "apakah akun ini boleh masuk". Dua hal
+berbeda, dan menggabungkannya berarti ada dua tempat yang bisa salah lalu berbeda
+pendapat. `revoke_all_sessions()` sudah ada dan dipakai saat ganti sandi — kasusnya
+berbeda, karena di sana token lama benar-benar harus mati. Untuk blokir, accounts
+sudah ditolak tanpa perlu memaksa token-nya dihapus.
+
+Konsekuensi yang perlu diketahui: membuka blokir mengembalikan seluruh sesi lama
+ke keadaan aktif tanpa perlu login ulang. Untuk akun yang diblokir karena
+penyalahgunaan, itu mungkin tidak diinginkan — dan kalau ternyata dibutuhkan,
+perubahannya satu baris di `accounts.set_blocked()`. Yang jelas: saat ini begitu,
+dan itu keputusan, bukan kelalaian.
+
+**Retensi consent: 24 bulan, sisakan yang terakhir.** `consent_acceptances` tidak
+pernah dihapus utuh. Setiap akun menyimpan satu baris terbaru — itu jawaban untuk
+"apakah orang ini pernah menyetujui?", dan menghapusnya berarti menghapus satu-satunya
+hal yang perlu diketahui tabel tersebut. Sisanya, yang hanya berisi versi teks lama,
+dihapus setelah `CONSENT_RETENTION_MONTHS` bulan.
+
+"Simpan selamanya" bisa dijelaskan, tapi harus dijelaskan, dan tidak ada alasan
+teknis untuk tidak membatasi. Angka 24 bulan dipilih karena cukup panjang untuk
+menghadapi sengketa yang masuk akal, cukup pendek untuk tidak menyimpan data pribadi
+lebih lama dari perlu, dan cukup bulat untuk dijelaskan. Angka ini disengaja tidak
+dijadikan konstanta: ia kebijakan, bukan detail implementasi, dan yang bertanggung
+jawab atasnya harus bisa mengubahnya tanpa code review.
+
+Tidak ada audit log yang dihapus otomatis, jadi yang tersisa hanya baris terbaru per
+akun. Kalau bukti historis ternyata dibutuhkan, ini keputusan untuk diambil ulang,
+bukan sesuatu yang bisa dipulihkan.
+
 **Paywall fail-closed.** Pemeriksaan akses harus menolak request ketika database tidak tersedia, bukan meloloskannya. Redis di repo ini sengaja degrade-open (`api/core/redis_client.py:25-34` benar untuk cache market) dan pola itu akan otomatis berlaku juga di jalur ini kalau tidak ada test yang bilang sebaliknya. Karena itu test database mati bukan opsional: tanpa Subscription → 403, dengan Subscription → 200, query entitlement mati → **403**, seluruh database mati → **503**. Dua status itu berbeda dan sengaja: yang pertama berarti "kamu tahu, dan jawabannya tidak", yang kedua berarti "kamu tidak bisa diverifikasi" — yang terakhir harus bisa di-retry dan tidak boleh dilaporkan sebagai masalah tagihan.
 
 ## Konsekuensi
