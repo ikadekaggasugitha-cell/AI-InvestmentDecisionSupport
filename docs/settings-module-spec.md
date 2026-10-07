@@ -5,7 +5,7 @@
 > **Versi:** 1.1.1 (terimplementasi)  
 > **Target Komponen:** `src/app/components/SettingsView.tsx` & Backend User/Billing Services  
 > **Lokasi File:** `docs/settings-module-spec.md`  
-> **Arah Desain:** `DESIGN.md` di root repo. Revisi 1.1.0 mengikuti `DESIGN.md` serta aturan R-04, R-09, dan R-14. Nilai yang belum diputuskan pemilik tetap `[OWNER TO NAME]`.
+> **Arah Desain:** `docs/DESIGN.md`. Revisi 1.1.0 mengikuti `DESIGN.md` serta aturan R-04, R-09, dan R-14. Nilai yang belum diputuskan pemilik tetap `[OWNER TO NAME]`.
 
 ---
 
