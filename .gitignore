@@ -52,3 +52,4 @@ Thumbs.db
 # ── Local scratch ─────────────────────────────────────────────────────────────
 *.log
 .scratch
+graphify-out/
