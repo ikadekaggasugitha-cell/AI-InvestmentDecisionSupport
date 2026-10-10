@@ -112,11 +112,11 @@ async function fetchIdxDisclosures(): Promise<FetchOutcome> {
         // IDX supplies no abstract, only the filing title. Rather than invent a
         // summary, state what the document is.
         summaryId: item.symbol
-          ? `Keterbukaan informasi ${item.symbol} — ${item.category || "pengumuman resmi"}.`
-          : `Pengumuman resmi Bursa Efek Indonesia — ${item.category || "keterbukaan informasi"}.`,
+          ? `Keterbukaan informasi ${item.symbol}: ${item.category || "pengumuman resmi"}.`
+          : `Pengumuman resmi Bursa Efek Indonesia: ${item.category || "keterbukaan informasi"}.`,
         summaryEn: item.symbol
-          ? `IDX disclosure filed by ${item.symbol} — ${item.category || "official announcement"}.`
-          : `Official Indonesia Stock Exchange announcement — ${item.category || "disclosure"}.`,
+          ? `IDX disclosure filed by ${item.symbol}: ${item.category || "official announcement"}.`
+          : `Official Indonesia Stock Exchange announcement: ${item.category || "disclosure"}.`,
         source: item.source || "IDX",
         url: item.url || undefined,
         category: mapCategory(item.category),

@@ -55,7 +55,7 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
         </div>
         <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
           {error
-            ? (isId ? `Tidak tersedia — ${error}` : `Unavailable — ${error}`)
+            ? (isId ? `Tidak tersedia: ${error}` : `Unavailable: ${error}`)
             : (isId ? "Backend tidak terjangkau." : "Backend unreachable.")}
         </div>
       </div>
@@ -92,8 +92,8 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
         </div>
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>
           {isId
-            ? "Bobot target vs posisi Anda saat ini — bukan instruksi transaksi"
-            : "Target weights vs your current positions — not a trade instruction"}
+            ? "Bobot target vs posisi Anda saat ini, bukan instruksi transaksi"
+            : "Target weights vs your current positions, not a trade instruction"}
         </div>
         <button
           onClick={() => setShowRebalance(true)}
@@ -187,7 +187,7 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
                   {isId ? "Saran Rebalance" : "Rebalance Suggestions"}
                 </div>
                 <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 2 }}>
-                  {isId ? "Perkiraan transaksi untuk menutup selisih — bukan eksekusi order." : "Estimated trades to close the gap — not order execution."}
+                  {isId ? "Perkiraan transaksi untuk menutup selisih, bukan eksekusi order." : "Estimated trades to close the gap, not order execution."}
                 </div>
               </div>
               <button onClick={() => setShowRebalance(false)} aria-label="Close"
@@ -213,7 +213,7 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
                 if (suggestions.length === 0) {
                   return (
                     <div style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "8px 0" }}>
-                      {isId ? "Portofolio sudah mendekati alokasi target — tak ada aksi berarti." : "Portfolio is already close to target — no meaningful action."}
+                      {isId ? "Portofolio sudah mendekati alokasi target, tak ada aksi berarti." : "Portfolio is already close to target, no meaningful action."}
                     </div>
                   );
                 }

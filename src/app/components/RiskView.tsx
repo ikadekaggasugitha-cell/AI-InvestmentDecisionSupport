@@ -236,8 +236,8 @@ export function RiskView({ market }: Props) {
               {isId ? "Mode simulasi:" : "Simulated mode:"}
             </span>{" "}
             {isId
-              ? "Backend tidak terjangkau — menampilkan data simulasi. Sistem mencoba menyambung kembali otomatis."
-              : "Backend unreachable — showing simulated data. The system is retrying automatically."}
+              ? "Backend tidak terjangkau, menampilkan data simulasi. Sistem mencoba menyambung kembali otomatis."
+              : "Backend unreachable, showing simulated data. The system is retrying automatically."}
           </div>
         </div>
       )}

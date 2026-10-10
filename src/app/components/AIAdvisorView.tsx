@@ -198,7 +198,7 @@ function SituationFacts({ situation, isId }: { situation: SituationInfo | null; 
         <span
           className="flex items-center gap-1 rounded"
           style={{ padding: "0 5px", color: "var(--warning)", border: "1px solid var(--warning)", opacity: 0.85 }}
-          title={isId ? "Volatilitas menyempit — potensi pergerakan eksplosif" : "Volatility compressing — potential explosive move"}
+          title={isId ? "Volatilitas menyempit: potensi pergerakan eksplosif" : "Volatility compressing: potential explosive move"}
         >
           <Minimize2 size={9} />
           {isId ? "Squeeze" : "Squeeze"}
@@ -818,8 +818,8 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
                 {isId ? "Mode simulasi:" : "Simulated mode:"}
               </span>{" "}
               {isId
-                ? "Backend tidak terjangkau — menampilkan data simulasi. Sistem mencoba menyambung kembali otomatis."
-                : "Backend unreachable — showing simulated data. The system is retrying automatically."}
+                ? "Backend tidak terjangkau, menampilkan data simulasi. Sistem mencoba menyambung kembali otomatis."
+                : "Backend unreachable, showing simulated data. The system is retrying automatically."}
             </div>
           </div>
         )}
@@ -836,8 +836,8 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
             </span>
             {" "}
             {isId
-              ? "Seluruh output berupa Probabilitas Skor — bukan nasihat investasi atau instruksi beli/jual yang pasti."
-              : "All outputs are Probability Scores — not investment advice or definitive buy/sell instructions."}
+              ? "Seluruh output berupa Probabilitas Skor, bukan nasihat investasi atau instruksi beli/jual yang pasti."
+              : "All outputs are Probability Scores, not investment advice or definitive buy/sell instructions."}
           </div>
           <button
             onClick={() => {

@@ -131,7 +131,7 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
           borderRadius: 10,
           width: 420,
           maxWidth: "calc(100vw - 32px)",
-          boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
+          boxShadow: "0 16px 40px rgba(9,16,26,0.28)",
           overflow: "hidden",
         }}
       >

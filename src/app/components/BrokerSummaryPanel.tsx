@@ -52,11 +52,11 @@ function HistoryStrip({ history, isId }: { history: readonly BrokerSummaryDay[];
 
   const title = isScore
     ? isId
-      ? `Skor Akumulasi — ${history.length} Sesi Terakhir`
-      : `Accumulation Score — Last ${history.length} Sessions`
+      ? `Skor Akumulasi · ${history.length} Sesi Terakhir`
+      : `Accumulation Score · Last ${history.length} Sessions`
     : isId
     ? `Net Lot ${history.length} Sesi Terakhir`
-    : `Net Lot — Last ${history.length} Sessions`;
+    : `Net Lot · Last ${history.length} Sessions`;
 
   return (
     <div>
@@ -235,8 +235,8 @@ export function BrokerSummaryPanel({
           <FlaskConical size={11} style={{ color: "var(--warning)", flexShrink: 0 }} />
           <span style={{ fontSize: 10, color: "var(--foreground)", lineHeight: 1.4 }}>
             {isId
-              ? "Data simulasi — bukan aktivitas broker sebenarnya."
-              : "Simulated data — not actual broker activity."}
+              ? "Data simulasi, bukan aktivitas broker sebenarnya."
+              : "Simulated data, not actual broker activity."}
           </span>
         </div>
       )}
@@ -256,11 +256,11 @@ export function BrokerSummaryPanel({
           <span style={{ fontSize: 10, color: "var(--foreground)", lineHeight: 1.4 }}>
             {source === "volume"
               ? isId
-                ? "Akumulasi dari analisis volume (OBV/CMF) data pasar nyata — bukan data flow broker berlisensi."
-                : "Accumulation from real volume analysis (OBV/CMF) — not licensed broker flow."
+                ? "Akumulasi dari analisis volume (OBV/CMF) data pasar nyata, bukan data flow broker berlisensi."
+                : "Accumulation from real volume analysis (OBV/CMF), not licensed broker flow."
               : isId
-              ? "Akumulasi dari aliran dana asing IDX (net asing) + analisis volume — data pasar nyata, bukan flow broker berlisensi."
-              : "Accumulation from IDX foreign flow (net foreign) + volume analysis — real market data, not licensed broker flow."}
+              ? "Akumulasi dari aliran dana asing IDX (net asing) + analisis volume: data pasar nyata, bukan flow broker berlisensi."
+              : "Accumulation from IDX foreign flow (net foreign) + volume analysis: real market data, not licensed broker flow."}
           </span>
         </div>
       )}

@@ -1,117 +1,135 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ─── Light Mode (default) ───────────────────────────────────────────────── */
+/* Palette: Midnight Navy #14243A, Slate Blue #344A64, Emerald Teal #0F9D78,
+   Cool Ivory ground #F5F7FA, Graphite Ink text #17212F. See docs/DESIGN.md. */
 :root {
   --font-size: 14px;
-  --background: #f6f8fa;
-  --foreground: #111827;
+  --background: #f5f7fa;
+  --foreground: #17212f;
   --card: #ffffff;
-  --card-foreground: #111827;
+  --card-foreground: #17212f;
   --popover: #ffffff;
-  --popover-foreground: #111827;
-  --primary: #0b7c5e;
+  --popover-foreground: #17212f;
+  /* Primary action carries the brand as Midnight Navy, not teal: white on
+     Emerald Teal measures about 3.4:1 and would fail R-25 for normal text. */
+  --primary: #14243a;
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #374151;
-  --muted: #f1f5f9;
-  --muted-foreground: #686e7c;
-  --accent: #e0f7f2;
-  --accent-foreground: #0b7c5e;
-  --destructive: #d52525;
+  --secondary: #edf1f5;
+  --secondary-foreground: #344a64;
+  --muted: #edf1f5;
+  --muted-foreground: #5e6c7e;
+  /* Inline text links. --primary is a fill (kept high-contrast as a button
+     surface), so it cannot double as link text on the dark ground; a dedicated
+     token keeps links readable on every surface in both themes. */
+  --link: #344a64;
+  --accent: #e4f4ee;
+  --accent-foreground: #0a6b52;
+  --destructive: #c63b3b;
   --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.08);
+  --border: #dce2ea;
   /* Border for INTERACTIVE controls only: inputs, selects, toggles, and any
      control whose boundary is what tells you where to click or to put the caret.
-     WCAG 1.4.11 asks 3:1 there, and --border measures 1.20:1. --border is still
-     correct for dividers and table rules, which carry no information by edge. */
+     WCAG 1.4.11 asks 3:1 there, and --border measures far below that. --border is
+     still correct for dividers and table rules, which carry no information by
+     edge. */
   --control-border: #7d8794;
   --input: transparent;
-  --input-background: #f9fafb;
-  --switch-background: #d1d5db;
+  --input-background: #ffffff;
+  --switch-background: #cbd5e1;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: #0b7c5e;
-  --chart-1: #0b7c5e;
-  --chart-2: #2563eb;
-  --chart-3: #a85c05;
-  --chart-4: #7c3aed;
-  --chart-5: #dc2626;
+  /* Navy, not teal: the ring is drawn on the page background and must clear
+     4.5:1 there. Emerald Teal on Cool Ivory is about 3.2:1 and fails. */
+  --ring: #14243a;
+  --chart-1: #14243a;
+  --chart-2: #0f9d78;
+  --chart-3: #344a64;
+  --chart-4: #5e6c7e;
+  --chart-5: #c63b3b;
   --radius: 0.375rem;
 
-  /* Financial semantic tokens — light mode */
-  --gain: #047f59;
-  --loss: #d42525;
-  --gain-bg: rgba(4, 127, 89, 0.08);
-  --loss-bg: rgba(212, 37, 37, 0.08);
+  /* Financial semantic tokens — light mode. Distinct from the accent; gain and
+     loss are never the accent wearing the wrong label. */
+  --gain: #14764a;
+  --loss: #c63b3b;
+  --gain-bg: rgba(20, 118, 74, 0.08);
+  --loss-bg: rgba(198, 59, 59, 0.08);
   --warning: #a85c05;
   --warning-bg: rgba(168, 92, 5, 0.10);
-  --neutral: #2563eb;
-  --neutral-bg: rgba(37, 99, 235, 0.08);
+  --neutral: #5e6c7e;
+  --neutral-bg: rgba(94, 108, 126, 0.08);
 
-  /* Sidebar — always dark regardless of theme */
-  --sidebar: #050810;
-  --sidebar-foreground: #6b8ba8;
-  --sidebar-primary: #00d4aa;
-  --sidebar-primary-foreground: #060a0f;
-  --sidebar-accent: #0d1520;
-  --sidebar-accent-foreground: #c8d6e5;
-  --sidebar-border: rgba(255, 255, 255, 0.05);
-  --sidebar-ring: #00d4aa;
+  /* Sidebar — Midnight Navy in both themes: a brand surface, not a dark-mode
+     default (docs/DESIGN.md, Theme). */
+  --sidebar: #14243a;
+  --sidebar-foreground: #a9bcd0;
+  --sidebar-primary: #0f9d78;
+  --sidebar-primary-foreground: #0e1a26;
+  --sidebar-accent: rgba(15, 157, 120, 0.14);
+  --sidebar-accent-foreground: #e4f4ee;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #0f9d78;
+  --sidebar-danger: #ff6b78;
+  --sidebar-danger-foreground: #1b1114;
 }
 
 /* ─── Dark Mode ──────────────────────────────────────────────────────────── */
 .dark {
-  --background: #060a0f;
-  --foreground: #c8d6e5;
-  --card: #0b1118;
-  --card-foreground: #c8d6e5;
-  --popover: #0d1520;
-  --popover-foreground: #c8d6e5;
-  --primary: #00d4aa;
-  --primary-foreground: #060a0f;
-  --secondary: #101b27;
-  --secondary-foreground: #8ba3be;
-  --muted: #0d1520;
-  --muted-foreground: #7892ad;
-  --accent: #0f2a45;
-  --accent-foreground: #4da6ff;
-  --destructive: #ff4f5f;
-  --destructive-foreground: #ffffff;
-  --border: rgba(255, 255, 255, 0.07);
-  /* See the light-mode note. Measured 3.71:1 on the dark background and 3.55:1 on
-     the dark card, so a control is findable on either surface. */
-  --control-border: #606c7b;
+  --background: #0e1726;
+  --foreground: #d7e1ec;
+  --card: #14243a;
+  --card-foreground: #d7e1ec;
+  --popover: #17293f;
+  --popover-foreground: #d7e1ec;
+  /* Navy stays the action colour in the dark; the lighter fill keeps white text
+     readable on the dark ground. */
+  --primary: #33507a;
+  --primary-foreground: #ffffff;
+  --secondary: #1c2c42;
+  --secondary-foreground: #b9c8d9;
+  --muted: #16273c;
+  --muted-foreground: #93a6ba;
+  --link: #7fb0e0;
+  --accent: #143a2f;
+  --accent-foreground: #6fe0bd;
+  --destructive: #e26a6a;
+  --destructive-foreground: #1b1114;
+  --border: rgba(215, 225, 236, 0.12);
+  --control-border: #6e7c8d;
   --input: transparent;
-  --input-background: #0d1520;
-  --switch-background: #1a2d40;
-  --ring: #00d4aa;
+  --input-background: #16273c;
+  --switch-background: #2a3c55;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --chart-1: #00d4aa;
-  --chart-2: #4da6ff;
-  --chart-3: #f59e0b;
-  --chart-4: #a78bfa;
-  --chart-5: #ff4757;
+  --ring: #0f9d78;
+  --chart-1: #7fb0e0;
+  --chart-2: #34c79f;
+  --chart-3: #a9bcd0;
+  --chart-4: #93a6ba;
+  --chart-5: #e26a6a;
 
   /* Financial semantic tokens — dark mode */
-  --gain: #00d4aa;
-  --loss: #ff4f5f;
-  --gain-bg: rgba(0, 212, 170, 0.08);
-  --loss-bg: rgba(255, 79, 95, 0.08);
-  --warning: #f59e0b;
-  --warning-bg: rgba(245, 158, 11, 0.10);
-  --neutral: #4da6ff;
-  --neutral-bg: rgba(77, 166, 255, 0.08);
+  --gain: #34c79f;
+  --loss: #e26a6a;
+  --gain-bg: rgba(52, 199, 159, 0.12);
+  --loss-bg: rgba(226, 106, 106, 0.12);
+  --warning: #e0a34a;
+  --warning-bg: rgba(224, 163, 74, 0.12);
+  --neutral: #93a6ba;
+  --neutral-bg: rgba(147, 166, 186, 0.12);
 
-  /* Sidebar — always dark regardless of theme */
-  --sidebar: #050810;
-  --sidebar-foreground: #6b8ba8;
-  --sidebar-primary: #00d4aa;
-  --sidebar-primary-foreground: #060a0f;
-  --sidebar-accent: #0d1520;
-  --sidebar-accent-foreground: #c8d6e5;
-  --sidebar-border: rgba(255, 255, 255, 0.05);
-  --sidebar-ring: #00d4aa;
+  /* Sidebar — Midnight Navy in both themes. */
+  --sidebar: #14243a;
+  --sidebar-foreground: #a9bcd0;
+  --sidebar-primary: #0f9d78;
+  --sidebar-primary-foreground: #0e1a26;
+  --sidebar-accent: rgba(15, 157, 120, 0.14);
+  --sidebar-accent-foreground: #e4f4ee;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #0f9d78;
+  --sidebar-danger: #ff6b78;
+  --sidebar-danger-foreground: #1b1114;
 }
 
 @theme inline {
@@ -127,6 +145,7 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-link: var(--link);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);

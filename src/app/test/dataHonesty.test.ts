@@ -228,11 +228,16 @@ describe('no text characters used as icons', () => {
 
 describe('palette follows the theme', () => {
   it('hardcodes no dark-palette hex on a theme-following surface', () => {
-    // Sidebar is always dark by design and is exempt; these values were tuned
-    // for the dark card and sat around 2:1 on a white one.
+    // Sidebar is Midnight Navy by design and is exempt; these values were tuned
+    // for the dark ground and the dark card and would sit wrong on Cool Ivory.
     // Assembled at runtime so this file does not itself contain the literals it
     // is asserting are absent from the app.
-    const darkPalette = ['#00d4aa', '#4d' + 'a6ff', '#8b9c' + 'b0', '#f5' + '9e0b', '#a7' + '8bfa', '#f0' + '883e', '#79' + 'c0ff', '#ff' + '4757', '#8b' + '5cf6', '#06' + 'b6d4', '#f4' + '72b6', '#a3' + 'e635', '#fb' + '923c']
+    const darkPalette = [
+      '#0e' + '1726', '#d7' + 'e1ec', '#33' + '507a', '#1c' + '2c42',
+      '#16' + '273c', '#93' + 'a6ba', '#14' + '3a2f', '#6f' + 'e0bd',
+      '#e2' + '6a6a', '#6e' + '7c8d', '#2a' + '3c55', '#7f' + 'b0e0',
+      '#34' + 'c79f', '#a9' + 'bcd0',
+    ]
     const offenders: string[] = []
     for (const file of ALL) {
       if (file.endsWith('Sidebar.tsx')) continue

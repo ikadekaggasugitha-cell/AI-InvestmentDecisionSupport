@@ -38,11 +38,11 @@ export function AccumulationBadge({ data, locale = "id", loading = false }: Accu
 
   const foreign = data.method === "volume+foreign";
   const tip = isId
-    ? `${data.phaseId} — skor ${data.score > 0 ? "+" : ""}${data.score.toFixed(1)}, ` +
+    ? `${data.phaseId}: skor ${data.score > 0 ? "+" : ""}${data.score.toFixed(1)}, ` +
       `kekuatan ${data.strength}/100` +
       (data.consistencyDays > 0 ? `, OBV naik ${data.consistencyDays} hari` : "") +
       (foreign ? ` · termasuk aliran dana asing (${data.foreignPhase})` : " · basis volume")
-    : `${data.phaseId} — score ${data.score > 0 ? "+" : ""}${data.score.toFixed(1)}, ` +
+    : `${data.phaseId}: score ${data.score > 0 ? "+" : ""}${data.score.toFixed(1)}, ` +
       `strength ${data.strength}/100` +
       (data.consistencyDays > 0 ? `, OBV up ${data.consistencyDays}d` : "") +
       (foreign ? ` · incl. foreign flow (${data.foreignPhase})` : " · volume-based");

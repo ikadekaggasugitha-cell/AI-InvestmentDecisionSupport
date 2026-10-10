@@ -91,7 +91,7 @@ export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchli
         style={{
           position: "relative", width: 560, maxWidth: "calc(100vw - 24px)", height: "100%",
           background: "var(--background)", borderLeft: "1px solid var(--border)",
-          boxShadow: "-24px 0 64px rgba(0,0,0,0.4)", overflowY: "auto",
+          boxShadow: "-16px 0 40px rgba(9,16,26,0.28)", overflowY: "auto",
           display: "flex", flexDirection: "column",
         }}
       >

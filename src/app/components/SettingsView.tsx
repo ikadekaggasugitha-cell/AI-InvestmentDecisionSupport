@@ -352,7 +352,7 @@ const fieldInput: React.CSSProperties = {
   fontSize: 14,
   fontFamily: "var(--font-sans)",
   color: "var(--foreground)",
-  background: "var(--input-background, #f9fafb)",
+  background: "var(--input-background, #ffffff)",
   border: "1px solid var(--control-border)",
   borderRadius: "var(--radius)",
   boxSizing: "border-box",

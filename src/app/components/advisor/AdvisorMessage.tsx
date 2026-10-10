@@ -20,7 +20,7 @@ const MD_COMPONENTS = {
   ol: (p: any) => <ol style={{ margin: "0 0 8px", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 3 }} {...p} />,
   li: (p: any) => <li style={{ lineHeight: 1.5 }} {...p} />,
   strong: (p: any) => <strong style={{ fontWeight: 700, color: "var(--foreground)" }} {...p} />,
-  a: (p: any) => <a style={{ color: "var(--primary)", textDecoration: "underline" }} target="_blank" rel="noreferrer" {...p} />,
+  a: (p: any) => <a style={{ color: "var(--link)", textDecoration: "underline" }} target="_blank" rel="noreferrer" {...p} />,
   code: (p: any) => <code style={{ fontFamily: "var(--font-mono)", fontSize: 11.5, background: "var(--muted)", borderRadius: 3, padding: "1px 4px" }} {...p} />,
   blockquote: (p: any) => <blockquote style={{ borderLeft: "2px solid var(--border)", margin: "0 0 8px", padding: "2px 0 2px 10px", color: "var(--muted-foreground)" }} {...p} />,
   table: (p: any) => (

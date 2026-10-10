@@ -73,8 +73,8 @@ export function AlertsView({ alerts, onDismiss, onClearAll, locale = "id", isLiv
           <FlaskConical size={13} style={{ flexShrink: 0 }} />
           <span>
             {isId
-              ? "Peringatan contoh — feed langsung tidak dapat dihubungi. Sistem mencoba menyambung kembali otomatis."
-              : "Sample alerts — the live feed could not be reached. The system reconnects automatically."}
+              ? "Peringatan contoh: feed langsung tidak dapat dihubungi. Sistem mencoba menyambung kembali otomatis."
+              : "Sample alerts: the live feed could not be reached. The system reconnects automatically."}
           </span>
         </div>
       )}

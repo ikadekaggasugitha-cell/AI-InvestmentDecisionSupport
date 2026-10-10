@@ -144,8 +144,8 @@ export function AdminView() {
           </h2>
           <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
             {isId
-              ? "Memblokir berlaku pada request berikutnya. Sesi yang sudah terbit tidak dihapus — ADR-0004."
-              : "A block takes effect on the account's next request. Existing sessions are not deleted — ADR-0004."}
+              ? "Memblokir berlaku pada request berikutnya. Sesi yang sudah terbit tidak dihapus (ADR-0004)."
+              : "A block takes effect on the account's next request. Existing sessions are not deleted (ADR-0004)."}
           </p>
         </div>
 

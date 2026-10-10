@@ -73,8 +73,8 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
           <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 20, lineHeight: 1.6 }}>
             {this.props.locale === "en"
-              ? "This component encountered an unexpected error. Your data is safe — try reloading this view."
-              : "Komponen ini mengalami error yang tidak terduga. Data tidak hilang — coba muat ulang tampilan ini."
+              ? "This component hit an unexpected error. Your data is safe. Try reloading this view."
+              : "Komponen ini mengalami error yang tidak terduga. Data tidak hilang. Coba muat ulang tampilan ini."
             }
           </div>
 

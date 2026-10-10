@@ -58,7 +58,7 @@ export function NewsView({ news, loading, isLive, error, retry }: Props) {
         <div>
           <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: 0 }}>
             {isLive
-              ? id ? "Keterbukaan informasi IDX — diambil sekali saat halaman dibuka" : "IDX disclosures — fetched once when this page opened"
+              ? id ? "Keterbukaan informasi IDX: diambil sekali saat halaman dibuka" : "IDX disclosures: fetched once when this page opened"
               : error
                 ? id ? "Keterbukaan informasi IDX" : "IDX disclosure filings"
                 : id ? "Menunggu feed IDX" : "Waiting for the IDX feed"}

@@ -293,7 +293,7 @@ export function PortfolioView({ market, fx, holdings, loading, error, onAdd, onU
               style={{ fontSize: 10, color: "var(--muted-foreground)" }}
               title={sectorIsLive
                 ? (isId ? "Dihitung dari bobot alokasi langsung." : "Aggregated from the live allocation weights.")
-                : (isId ? "Bobot langsung belum tersedia — memakai sebaran contoh." : "No live weights yet — showing the sample split.")}
+                : (isId ? "Bobot langsung belum tersedia, memakai sebaran contoh." : "No live weights yet, showing the sample split.")}
             >
               {sectorIsLive ? (isId ? "dari alokasi live" : "from live allocation") : (isId ? "data contoh" : "sample data")}
             </span>

@@ -38,7 +38,7 @@ const inputStyle: React.CSSProperties = {
   fontSize: "14px",
   fontFamily: "var(--font-sans)",
   color: "var(--foreground)",
-  background: "var(--input-background, #f9fafb)",
+  background: "var(--input-background, #ffffff)",
   border: `1px solid ${CONTROL_BORDER}`,
   borderRadius: "var(--radius)",
 };
@@ -260,7 +260,7 @@ export function AuthScreen({ auth, locale, onAuthed }: AuthScreenProps) {
               padding: 0,
               font: "inherit",
               fontSize: "13px",
-              color: "var(--primary)",
+              color: "var(--link)",
               cursor: "pointer",
               textDecoration: "underline",
             }}

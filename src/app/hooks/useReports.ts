@@ -43,7 +43,7 @@ const OFFLINE: ReportMeta[] = [
   { type: "performance", titleId: "Laporan Kinerja Portofolio", titleEn: "Portfolio Performance Report", descId: "Alokasi optimal, bobot, dan ekspektasi imbal hasil per posisi.", descEn: "Optimal allocation, weights, and expected return per position.", labelId: "Kinerja", labelEn: "Performance", status: "ready" },
   { type: "quarterly", titleId: "Tinjauan Investasi Kuartalan", titleEn: "Quarterly Investment Review", descId: "Ringkasan alokasi, metrik portofolio, dan proyeksi.", descEn: "Allocation summary, portfolio metrics, and outlook.", labelId: "Kuartalan", labelEn: "Quarterly", status: "ready" },
   { type: "risk", titleId: "Laporan Penilaian Risiko", titleEn: "Risk Assessment Report", descId: "VaR/CVaR, volatilitas, beta, dan hasil stress test.", descEn: "VaR/CVaR, volatility, beta, and stress-test results.", labelId: "Risiko", labelEn: "Risk", status: "ready" },
-  { type: "tax_loss", titleId: "Peluang Tax-Loss Harvesting", titleEn: "Tax-Loss Harvesting Opportunities", descId: "Posisi dengan ekspektasi imbal hasil negatif — kandidat efisiensi pajak.", descEn: "Positions with negative expected return — tax-efficiency candidates.", labelId: "Pajak", labelEn: "Tax", status: "ready" },
+  { type: "tax_loss", titleId: "Peluang Tax-Loss Harvesting", titleEn: "Tax-Loss Harvesting Opportunities", descId: "Posisi dengan ekspektasi imbal hasil negatif, kandidat efisiensi pajak.", descEn: "Positions with negative expected return, tax-efficiency candidates.", labelId: "Pajak", labelEn: "Tax", status: "ready" },
   { type: "signal_audit", titleId: "Audit Kinerja Sinyal AI", titleEn: "AI Signal Performance Audit", descId: "Probabilitas naik, tier, dan skor model per saham.", descEn: "Upside probability, tier, and model score per stock.", labelId: "Audit AI", labelEn: "AI Audit", status: "ready" },
 ];
 
@@ -105,7 +105,7 @@ export function useReports(): ReportsResult {
   }, []);
 
   const download = useCallback(async (type: ReportType) => {
-    if (!USE_LIVE_API) { setError("Live API disabled — cannot download."); return; }
+    if (!USE_LIVE_API) { setError("Live API disabled: cannot download."); return; }
     setDownloading(type); setError(null);
     try {
       await triggerDownload(type);
@@ -117,7 +117,7 @@ export function useReports(): ReportsResult {
   }, [triggerDownload]);
 
   const generate = useCallback(async (type: ReportType) => {
-    if (!USE_LIVE_API) { setError("Live API disabled — cannot generate."); return; }
+    if (!USE_LIVE_API) { setError("Live API disabled: cannot generate."); return; }
     setGenerating(type); setError(null);
     try {
       const res = await apiFetch(ENDPOINTS.reportGenerate(type), { method: "POST" });

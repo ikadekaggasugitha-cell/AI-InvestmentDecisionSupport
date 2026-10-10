@@ -50,11 +50,14 @@ type SortDir = "asc" | "desc";
  * when the theme flips and no new colour value is declared anywhere. T1 takes
  * the accent at full strength on purpose: the accent marks the privileged tier
  * and nothing else, so it does not spread across every row of the board.
+ * The phase colours are --accent-foreground on --accent, not --primary: --primary
+ * is a fill that reads below 3:1 when its value is used as text on the dark
+ * ground, and the accent's own foreground was built to sit on the accent chip.
  */
 const TIER_RAMP = {
-  1: { color: "var(--primary)", bg: "var(--accent)" },
-  2: { color: "color-mix(in srgb, var(--primary) 65%, var(--card))", bg: "color-mix(in srgb, var(--primary) 8%, var(--card))" },
-  3: { color: "color-mix(in srgb, var(--primary) 35%, var(--card))", bg: "transparent" },
+  1: { color: "var(--accent-foreground)", bg: "var(--accent)" },
+  2: { color: "color-mix(in srgb, var(--accent-foreground) 65%, var(--card))", bg: "color-mix(in srgb, var(--accent-foreground) 8%, var(--card))" },
+  3: { color: "color-mix(in srgb, var(--accent-foreground) 35%, var(--card))", bg: "transparent" },
 } as const;
 
 const TIER_CONFIG: Record<number, { label: string; color: string; bg: string; title: string }> = {
@@ -559,8 +562,8 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
                 <th
                   style={thCenter}
                   title={isId
-                    ? "Akumulasi/distribusi dari analisis volume (OBV/CMF) — bukan data broker berlisensi"
-                    : "Accumulation/distribution from volume analysis (OBV/CMF) — not licensed broker data"}
+                    ? "Akumulasi/distribusi dari analisis volume (OBV/CMF), bukan data broker berlisensi"
+                    : "Accumulation/distribution from volume analysis (OBV/CMF), not licensed broker data"}
                 >
                   {isId ? "Akum" : "Accum"}
                 </th>

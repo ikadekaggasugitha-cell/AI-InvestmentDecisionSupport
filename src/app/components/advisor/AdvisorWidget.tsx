@@ -166,7 +166,7 @@ function ShapWidget({ w }: { w: any }) {
 
   return (
     <Frame>
-      <SectionTitle>Faktor Penentu (SHAP){w.symbol ? ` — ${w.symbol}` : ""}</SectionTitle>
+      <SectionTitle>Faktor Penentu (SHAP){w.symbol ? ` · ${w.symbol}` : ""}</SectionTitle>
       <ResponsiveContainer width="100%" height={Math.max(90, data.length * 26)}>
         <BarChart data={data} layout="vertical" margin={{ top: 0, right: 28, bottom: 0, left: 0 }}>
           <XAxis type="number" tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`} />

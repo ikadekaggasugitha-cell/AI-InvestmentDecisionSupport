@@ -1,99 +1,130 @@
 # DESIGN.md
 
 Design direction for this project. Owned by the product owner. `antislop.md` is the
-filter that runs on top of this file; this file is the soul. It never overrides this one.
+filter that runs on top of this file; this file is the soul, and the filter never
+overrides it.
 
-This file is a transcription of the owner's answers. Where the owner left a detail open,
-it is marked `[OWNER TO NAME]` and must not be invented by an agent.
+This file transcribes the owner's answers. All identity fields are named by the
+owner; no agent-invented value is present.
 
 ## Identity
 
-- **Product**: `[OWNER TO NAME]`. The working repository name is
-  `AI-InvestmentDecisionSupport`, which is not confirmed as the product name.
-- **What it does**: decision support. It surfaces a scored BUY/HOLD/SELL call together
-  with the reasoning and the data behind it.
-- **Who it is for**: self-directed investors making their own investment decisions. Not a
-  desk, not a team. The reader owns the capital and the consequence.
-- **Source**: owner's own answer, 2026-10-02.
+- **Product name:** AIDSS, AI Investment Decision Support System.
+- **Category:** investment analytics and decision support.
+- **Design direction:** Institutional Finance x Modern Intelligence.
+- **What it does:** decision support. It surfaces a scored BUY/HOLD/SELL call
+  together with the reasoning and the data behind it.
+- **Who it is for:** self-directed investors making their own investment decisions.
+  Not a desk, not a team. The reader owns the capital and the consequence.
+- **Source:** owner's own answer, transcribed 2026-10-10.
 
 ## Personality
 
-Restrained and analytical. Quiet, dense, unfussy. Data leads and decoration stays out of
-the way. Nothing in the interface tries to impress the reader.
+Analytical, trustworthy, precise, restrained, and forward-looking.
+Restrained and analytical: quiet, dense, unfussy. Data leads and decoration stays
+out of the way. Nothing in the interface tries to impress the reader.
 
-This is an owner's stated direction and is entitled to the whole design. It means the
-product is allowed to be boring where a landing page is not allowed to be boring, and
-allowed to withhold decoration where a landing page is required to sell.
+Visual principle: data-first. Clarity over decoration. Confidence without visual
+noise.
 
-- **Source**: owner's own answer, 2026-10-02.
+- **Source:** owner's own answer, transcribed 2026-10-10.
 
 ## Color
 
-Two core colors plus one accent, on a neutral ground. Neutrals do not count against that
-budget.
+Two core colors plus one accent, on a neutral ground. Neutrals do not count against
+that budget.
 
-- **Core color 1**: `[OWNER TO NAME]`
-- **Core color 2**: `[OWNER TO NAME]`
-- **Accent, used at the key moment and nowhere else**: `[OWNER TO NAME]`
-- **Ground and text**: `[OWNER TO NAME]`
+- **Core color 1, Midnight Navy:** `#14243A`. Primary brand color, navigation, major
+  headings, and dark surfaces.
+- **Core color 2, Slate Blue:** `#344A64`. Secondary navigation, supporting surfaces,
+  selected states, and visual hierarchy.
+- **Accent, Emerald Teal:** `#0F9D78`. Primary actions, selected key moments, and
+  important positive highlights. Use sparingly; never turn the interface into a
+  green-heavy financial dashboard. Held to a contrast floor: on the light ground it
+  is a fill with dark text and never white-on-teal, because white on `#0F9D78`
+  measures about 3.4:1 and fails R-25 for normal text.
+- **Ground, Cool Ivory:** `#F5F7FA`. Default application background.
+- **Text, Graphite Ink:** `#17212F`. Primary text, figures, labels, and headings.
 
-Semantics for gain and loss must be legible in both themes, and are distinct from the
-accent. An accent that reads as "up" or "down" is not an accent, it is a semantic color
-wearing the wrong label.
+Supporting neutrals: surface `#FFFFFF`, border `#DCE2EA`, secondary text `#64748B`
+(nudged darker to `#5E6C7E` so body text clears 4.5:1 on Cool Ivory), muted surface
+`#EDF1F5`. Inline text links use a dedicated `--link` token — Slate Blue `#344A64`
+on light, light blue `#7FB0E0` on dark — because `--primary` is a fill and reads
+below 3:1 where its value would double as link text on the dark ground.
 
-- **Source**: owner's own answer, 2026-10-02.
+Financial semantics, distinct from the accent:
+
+- **Positive:** `#16845B` (nudged to `#14764A`: `#15804F` measured 4.37:1 on the muted
+  surface `#EDF1F5`, so the text colour is taken darker until gain clears 4.5:1 on both
+  Cool Ivory and the muted surface).
+- **Negative:** `#D14343` (nudged to `#C63B3B` for text on the light ground).
+- **Neutral:** `#64748B` (nudged to `#5E6C7E` for text on the light ground).
+
+Financial status colors are semantic, not decorative. Never communicate gain or loss
+through color alone; include the sign, value, or label.
+
+- **Source:** owner's own answer, transcribed 2026-10-10.
 
 ## Typography
 
-A characterful display face for headings and figures, plus a workhorse sans for interface
-and controls.
+- **Display face, Manrope (Google Fonts):** page titles, key metrics, section
+  headings, and prominent summaries. Weights 500, 600, 700.
+- **Workhorse sans, Inter (Google Fonts):** body text, navigation, forms, tables,
+  labels, and analytical explanations. Weights 400, 500, 600.
+- **Tabular-figures face, IBM Plex Mono (Google Fonts):** stock prices, portfolio
+  values, percentages, timestamps, financial tables, and technical identifiers.
+  Weights 400, 500. Tabular numerals enabled where supported so numeric columns and
+  price ladders scan.
 
-- **Display face**: `[OWNER TO NAME]`
-- **Workhorse sans**: `[OWNER TO NAME]`
-- **Tabular figures**: `[OWNER TO NAME]`. Numeric columns and price ladders need tabular
-  figures or they do not scan.
+Figures must read as figures. The numbers are the product.
 
-Figures must read as figures. A display face without usable tabular figures cannot carry
-the numbers, and the numbers are the product.
+- **Source:** owner's own answer, transcribed 2026-10-10.
 
-- **Source**: owner's own answer, 2026-10-02.
+## Iconography
+
+- **Library:** Lucide (`lucide-react`), minimal consistent outline icons.
+- **Default stroke width:** 1.75 to 2px.
+- **Usage:** icons must improve recognition or navigation, not fill empty space.
+- **Restrictions:** no emoji icons, no decorative icon clusters, no gratuitous
+  gradients, no mixed icon styles.
+- **Fallback:** use clear text labels when an icon does not improve usability.
+
+- **Source:** owner's own answer, transcribed 2026-10-10.
 
 ## Theme
 
-Light default, with a working dark toggle. Both modes fully functional, both verified by
-contrast check and by click-through before delivery. A mode that breaks the other is a
-defect, not a preference.
+Light default, with a working dark toggle. Both modes fully functional, both verified
+by contrast check and by click-through before delivery. A mode that breaks the other
+is a defect, not a preference.
 
-The admin portal follows this same rule. It is not a separate dark surface, and it gets no
-theme of its own. An operator is doing the same job as a subscriber, so the two portals
-share one ground.
+Navigation is Midnight Navy in both themes: it is a brand surface, not a dark-mode
+default. The admin portal follows this same rule. It is not a separate surface, and
+it gets no theme of its own. An operator does the same job as a subscriber, so the
+two portals share one ground.
 
-- **Source**: owner's own answer, 2026-10-02, extended by the owner's decision on
-  2026-10-02 that the admin portal follows the light default.
+- **Source:** owner's own answer, transcribed 2026-10-10, extended by the owner's
+  decision on 2026-10-02 that the admin portal follows the light default.
 
 ## Dials
 
-> Reading this as: investment decision support for self-directed investors, in a
-> restrained analytical language, dial ENERGY 1 / RHYTHM 2 / MOTION 1.
+> Reading this as: investment decision support for self-directed investors, in an
+> institutional-finance language, dial ENERGY 1 / RHYTHM 2 / MOTION 1.
 
-- **ENERGY 1**: inferred from "restrained, nothing tries to impress you".
-- **RHYTHM 2**: inferred, not stated. A multi-view analytical tool whose views all
-  compose identically reads as a template, so composition varies between views while the
-  voice stays level. If the owner wants flat uniformity, this is the dial to correct.
-- **MOTION 1**: inferred from "unfussy". Hover and state feedback only. Motion used to
-  direct attention to a signal is still permitted under ENERGY 1, and still needs its
+- **ENERGY 1:** restrained, nothing tries to impress the reader.
+- **RHYTHM 2:** composition varies between views while the voice stays level. A
+  multi-view analytical tool whose views all compose identically reads as a template.
+- **MOTION 1:** unfussy. Hover and state feedback only. Motion used to direct
+  attention to a signal is still permitted under ENERGY 1, and still needs its
   purpose written down.
 
-## Open before build
+## Implementation Principles
 
-These are the owner's to decide. An agent must not pick them silently.
-
-1. Product name.
-2. The two core colors and the accent.
-3. The display face and the workhorse sans.
-4. The tabular figures face.
-5. The icon set. None is named yet. Until it is, a new surface takes either text labels
-   alone or glyphs already used elsewhere in the app, and a new icon family is not
-   introduced as a side effect of a feature.
-
-Until these are named, any UI built against this file is a draft, not a deliverable.
+- Prioritize information hierarchy and readable financial data.
+- Midnight Navy and Slate Blue are the primary visual foundation.
+- Reserve Emerald Teal for a limited number of meaningful interactions.
+- Surfaces stay restrained, borders subtle, shadows minimal.
+- Consistent spacing and alignment across tables and dashboards.
+- Prefer explicit labels, units, and timestamps over ambiguous visual indicators.
+- Ensure accessible contrast; never rely on color alone to convey financial outcomes.
+- Avoid excessive rounded cards, ornamental gradients, glowing effects, and
+  unnecessary animation.

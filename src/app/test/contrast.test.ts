@@ -21,9 +21,9 @@ const ROOT = resolve(__dirname, '../..')
 const theme = readFileSync(resolve(ROOT, 'styles/theme.css'), 'utf8')
 
 const TOKEN_LIGHT = '#7d8794'
-const TOKEN_DARK = '#606c7b'
-const SURFACES_LIGHT = ['#f6f8fa', '#ffffff']
-const SURFACES_DARK = ['#060a0f', '#0b1118']
+const TOKEN_DARK = '#6e7c8d'
+const SURFACES_LIGHT = ['#f5f7fa', '#ffffff']
+const SURFACES_DARK = ['#0e1726', '#14243a']
 const FLOOR = 3
 
 function channel(v: number): number {
@@ -96,7 +96,7 @@ describe('the control border token', () => {
   it('still fails as a divider colour, which is why --border still exists', () => {
     // The point of the split. If this ever passes, the two tokens have converged
     // and the distinction the split was built on has stopped existing.
-    expect(contrast(TOKEN_LIGHT, '#f6f8fa')).toBeLessThan(4.5)
+    expect(contrast(TOKEN_LIGHT, '#f5f7fa')).toBeLessThan(4.5)
   })
 })
 
@@ -195,24 +195,45 @@ describe('no control removes its own focus ring', () => {
 
 describe('the focus ring is visible where it lands', () => {
   it('is not drawn inside the primary button, where it would be invisible', () => {
-    // --ring on --primary is 1.00:1. The offset is what puts the ring on the page
-    // background instead, where --ring clears 4.5:1.
-    expect(contrast('#0b7c5e', '#0b7c5e')).toBeCloseTo(1, 5)
-    expect(contrast('#0b7c5e', '#f6f8fa')).toBeGreaterThanOrEqual(4.5)
-    expect(contrast('#00d4aa', '#060a0f')).toBeGreaterThanOrEqual(4.5)
+    // --ring on --primary is 1.00:1 in light. The offset is what puts the ring on
+    // the page background instead, where --ring clears 4.5:1.
+    expect(contrast('#14243a', '#14243a')).toBeCloseTo(1, 5)
+    expect(contrast('#14243a', '#f5f7fa')).toBeGreaterThanOrEqual(4.5)
+    expect(contrast('#0f9d78', '#0e1726')).toBeGreaterThanOrEqual(4.5)
   })
 })
 
 describe('the auth form text pairings', () => {
   it('keeps error text readable on the surface it is painted on', () => {
-    // --destructive on --loss-bg over --background measured 4.23:1 and failed.
-    // The box now uses --card, which clears the bar in both themes.
-    expect(contrast('#d52525', '#ffffff')).toBeGreaterThanOrEqual(4.5)
-    expect(contrast('#ff4f5f', '#0b1118')).toBeGreaterThanOrEqual(4.5)
+    // --destructive on --loss-bg over --background misses; the box uses --card,
+    // which clears the bar in both themes.
+    expect(contrast('#c63b3b', '#ffffff')).toBeGreaterThanOrEqual(4.5)
+    expect(contrast('#e26a6a', '#14243a')).toBeGreaterThanOrEqual(4.5)
   })
 
   it('keeps muted helper text readable on the page background', () => {
-    expect(contrast('#686e7c', '#f6f8fa')).toBeGreaterThanOrEqual(4.5)
-    expect(contrast('#7892ad', '#060a0f')).toBeGreaterThanOrEqual(4.5)
+    expect(contrast('#5e6c7e', '#f5f7fa')).toBeGreaterThanOrEqual(4.5)
+    expect(contrast('#93a6ba', '#0e1726')).toBeGreaterThanOrEqual(4.5)
+  })
+})
+
+describe('the link token clears 4.5:1 as link text', () => {
+  // --primary is a fill; the places where a link sits on the page ground use
+  // --link instead, so it has to read as text on every surface, both themes.
+  it('is declared in both themes', () => {
+    const declarations = theme.match(/--link:\s*(#[0-9a-f]{6})/gi) ?? []
+    expect(declarations.length).toBe(2)
+  })
+
+  it('light: Slate Blue on the light surfaces', () => {
+    for (const surface of SURFACES_LIGHT) {
+      expect(contrast('#344a64', surface)).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('dark: light blue on the dark surfaces', () => {
+    for (const surface of SURFACES_DARK) {
+      expect(contrast('#7fb0e0', surface)).toBeGreaterThanOrEqual(4.5)
+    }
   })
 })
