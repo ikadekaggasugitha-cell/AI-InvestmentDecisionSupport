@@ -40,7 +40,7 @@ export function ReportsView() {
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5">
       {/* Stats */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
         {stats.map((card) => (

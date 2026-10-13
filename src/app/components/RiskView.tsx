@@ -208,7 +208,7 @@ export function RiskView({ market }: Props) {
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5">
 
       {/* Toolbar: manual refresh (the view otherwise only auto-polls). */}
       <div className="flex items-center justify-end">

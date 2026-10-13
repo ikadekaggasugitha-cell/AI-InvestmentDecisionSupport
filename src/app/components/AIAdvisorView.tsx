@@ -801,7 +801,7 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
         />
       )}
 
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+      <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5">
 
         {/* Offline / simulated-data banner — shown only when the live fetch
             failed. The cards below still render the last good snapshot (or the

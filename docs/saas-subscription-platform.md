@@ -215,7 +215,11 @@ CREATE TABLE IF NOT EXISTS transactions (
     payment_gateway        VARCHAR(30) NOT NULL CHECK (payment_gateway IN ('midtrans', 'manual')),
     payment_method         VARCHAR(50) NOT NULL,
     status                 VARCHAR(30) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'settlement', 'expire', 'deny', 'cancel')),
-    midtrans_transaction_id VARCHAR(100),
+    -- Kunci idempotensi webhook. UNIQUE, karena Midtrans memutar ulang order yang
+    -- sama saat responsnya hilang, dan tanpa batasan itu tiap tangkapan membuat
+    -- Transaction baru. NULL tetap berulang: pembayaran manual tidak punya id
+    -- gateway, dan PostgreSQL mengabaikan NULL pada UNIQUE.
+    midtrans_transaction_id VARCHAR(100) UNIQUE,
     proof_image_url        TEXT,
     approved_by            UUID REFERENCES users(id),
     approved_at            TIMESTAMPTZ,
@@ -282,25 +286,25 @@ Untuk meminimalkan *drop-off* calon pelanggan, alur checkout didesain dalam satu
 
 ### 4.2 Siklus Pembayaran Midtrans (Otomatis)
 1. Frontend mengirim payload ke `POST /v1/auth/signup`. Di Fase 1 endpoint ini hanya membuat akun, tanpa pembayaran; checkout pindah ke Fase 2.
-2. Backend membuat record `user`, `subscription` (`pending`), `transaction` (`pending`), lalu memanggil Midtrans Snap API untuk memperoleh `snap_token`.
+2. Backend membuat record `user` dan `transaction` (`pending`), lalu memanggil Midtrans Snap API untuk memperoleh `snap_token`. Subscription belum dibuat pada tahap ini: masa aktifnya hanya sah kalau uangnya benar-benar masuk, dan Transaction-lah yang mencatat alur uang (_ADR-0002_).
 3. Frontend membuka dialog pembayaran `window.snap.pay(snapToken, { onSuccess: ..., onPending: ... })`.
 4. Saat pembayaran diverifikasi oleh bank/QRIS, Midtrans mengirimkan HTTP POST Webhook ke Backend: `POST /v1/payments/midtrans/webhook`.
 5. Backend memvalidasi signature SHA-512:
    $$\text{Signature} = \text{SHA512}(\text{order\_id} + \text{status\_code} + \text{gross\_amount} + \text{ServerKey})$$
 6. Jika valid dan status transaksi `settlement`:
    * Status transaksi diubah menjadi `settlement`.
-   * Status langganan diubah menjadi `active`, `start_date = NOW()`, `end_date = NOW() + INTERVAL '30 days'` (atau 365 hari).
+   * Status `transaction` diubah menjadi `settlement`, lalu satu baris `subscription` baru dibuat dengan `expires_at` dihitung dari waktu pembayaran terverifikasi: `NOW() + INTERVAL '30 days'` (atau 365 hari). Subscription tidak pernah diubah setelah dibuat, jadi perpanjangan selalu membuat baris baru dan bukan menggeser tanggal yang lama (_ADR-0002_). Perpanjangan lebih awal sengaja ditambahkan, bukan ditimpa: dua masa aktif yang tumpang tindih sama-sama sah, dan akses dibaca dari `MAX(expires_at)` yang belum lewat.
    * Celery memicu background task `send_notification_task` (Email invoice via Resend + WhatsApp via API).
    * Frontend mendeteksi pembayaran selesai, melakukan otomatisasi login, dan langsung mengarahkan pengguna ke Dashboard AIDSS.
 
 ### 4.3 Siklus Pembayaran Transfer Manual
 1. Jika pengguna memilih Transfer Manual, formulir menampilkan detail rekening bank tujuan serta nominal yang harus ditransfer.
 2. Pengguna mengunggah gambar bukti transfer (`.jpg`, `.png`, `.pdf` max 5MB).
-3. Backend menyimpan berkas bukti pembayaran, membuat akun user dengan status langganan `pending`.
+3. Backend menyimpan berkas bukti pembayaran, lalu membuat akun `user` dan `transaction` (`pending`, `payment_gateway = 'manual'`). Belum ada Subscription: uangnya belum diverifikasi, dan masa aktif yang sudah ditulis tidak bisa ditarik kembali (_ADR-0002_).
 4. Pengguna diarahkan ke layar **"Pembayaran Sedang Diverifikasi"** lengkap dengan kontak konfirmasi WhatsApp Admin.
 5. Transaksi otomatis muncul di antrean verifikasi **Admin Panel** (`/admin/transactions`).
 6. Begitu Admin menekan tombol **"Approve"**:
-   * Status langganan berubah menjadi `active` dengan masa aktif terhitung sejak waktu approval.
+   * `transaction` berubah menjadi `settlement`, lalu satu baris `subscription` baru dibuat dengan `expires_at` dihitung sejak waktu approval. Masa aktif yang sudah ditulis tidak pernah digeser (_ADR-0002_).
    * Sistem otomatis mengirim pesan WhatsApp & Email: *"Halo [Nama], pembayaran Anda telah disetujui! Akun Anda sudah aktif, silakan login di https://app.aidss.id"*.
 
 ---
@@ -404,7 +408,7 @@ Zona waktu mengikuti konvensi yang sudah ada di `backend/workers/celery_app.py`:
   Halo {{full_name}}, selamat datang di AIDSS! 🚀
   
   Pembayaran langganan paket {{plan_name}} (Rp{{amount}}) telah BERHASIL diverifikasi.
-  Akun Anda kini telah AKTIF hingga: {{end_date}}.
+  Akun Anda kini telah AKTIF hingga: {{expires_at}}.
   
   Silakan login langsung untuk mengakses AI Signals, Portfolio Risk, dan AI Advisor:
   🔗 https://app.aidss.id/login
@@ -416,7 +420,7 @@ Zona waktu mengikuti konvensi yang sudah ada di `backend/workers/celery_app.py`:
 #### Template 2: Pengingat Perpanjangan H-3 Sebelum Expired
 * **WhatsApp:**
   ```text
-  Halo {{full_name}}, masa aktif langganan AIDSS Anda akan berakhir dalam 3 hari ({{end_date}}).
+  Halo {{full_name}}, masa aktif langganan AIDSS Anda akan berakhir dalam 3 hari ({{expires_at}}).
   
   Agar akses analisis sinyal AI dan rekomendasi portofolio Anda tidak terputus, Anda dapat memperpanjang paket langganan Anda melalui tautan berikut:
   🔗 https://app.aidss.id/renew
@@ -437,7 +441,7 @@ Zona waktu mengikuti konvensi yang sudah ada di `backend/workers/celery_app.py`:
    * WebSocket memakai tiket sekali pakai berumur pendek, diambil lewat HTTP yang sudah diautentikasi. Browser tidak bisa mengirim header saat handshake, dan query param bocor ke access log.
 2. **Validasi Webhook Midtrans:**
    * Wajib mencocokkan SHA-512 `signature_key` yang dihitung server. Request tanpa signature yang valid langsung ditolak dengan status HTTP 400/403.
-   * Bersifat *idempotent*: Jika Midtrans mengirim webhook berulang kali untuk ID transaksi yang sama, status tidak akan dihitung ganda.
+   * *Idempoten*: webhook berulang untuk satu `midtrans_transaction_id` yang sama tidak boleh menghasilkan Subscription kedua, karena setiap Subscription memberi satu masa aktif penuh. Idempotensi dipegang baris `transaction`, bukan `subscriptions`: dua masa aktif yang tumpang tindih itu sah dan tidak bisa dibedakan satu sama lain, jadi `subscriptions` tidak punya apa pun untuk ditegakkan. Pemrosesan berhenti di baris Transaction yang sudah ada, dan Subscription baru hanya ditulis saat baris itu masuk `settlement` untuk pertama kalinya. webhook yang datang setelah itu tetap dijawab 200, supaya Midtrans tidak mengirim ulang.
 3. **Keamanan Upload Berkas:**
    * Gambar bukti transfer divalidasi tipe MIME aslinya (`image/jpeg`, `image/png`, `application/pdf`).
    * Batas ukuran berkas maksimal 5 MB.

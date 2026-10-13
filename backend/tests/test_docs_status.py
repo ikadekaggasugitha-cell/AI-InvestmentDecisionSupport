@@ -199,6 +199,41 @@ class TestPlanDocumentAgreesWithDecisions:
             "the canonical registration path is /v1/auth/signup"
         )
 
+    def test_no_nonexistent_subscription_columns(self):
+        """`subscriptions` has three columns, and these are not two of them.
+
+        The plan wrote `start_date` and `end_date` where the table has only
+        `expires_at` (backend/db/schema.sql:150). A start date would have to be
+        reconstructed from a guess rather than read, so documenting it as a real
+        column invents the one field the plan already admits it cannot report.
+        """
+        plan = PLAN.read_text()
+        absent = [c for c in ("start_date", "end_date") if c in plan]
+        assert not absent, (
+            f"the plan names {absent}, which subscriptions does not have; "
+            "the real column is expires_at"
+        )
+
+    def test_subscription_is_never_given_a_stored_status(self):
+        """Access is derived from expires_at, so no step may write a status.
+
+        These phrases described mutating a Subscription to pending or active,
+        which is the payment lifecycle ADR-0002 moved onto Transaction. Guarded
+        as phrases rather than as "status langganan" because a derived access
+        check is legitimate; naming that check is not the defect.
+        """
+        plan = PLAN.read_text()
+        for phrase in (
+            "Status langganan diubah menjadi",
+            "Status langganan berubah menjadi",
+            "status langganan `pending`",
+            "status langganan `active`",
+        ):
+            assert phrase not in plan, (
+                f"{phrase!r} gives Subscription a stored status; the payment "
+                "lifecycle belongs to Transaction (ADR-0002)"
+            )
+
 
 class TestContextAndAdrsExist:
     def test_context_glossary_exists(self):

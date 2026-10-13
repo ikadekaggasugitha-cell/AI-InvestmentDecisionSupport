@@ -173,7 +173,7 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5">
 
       {/* KPI cards */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">

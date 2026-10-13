@@ -196,7 +196,7 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
                 <X size={16} />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 flex flex-col gap-2">
               {(() => {
                 const suggestions = ranked
                   .map((w) => {

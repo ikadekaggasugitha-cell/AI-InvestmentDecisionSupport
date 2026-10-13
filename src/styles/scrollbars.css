@@ -1,0 +1,44 @@
+/*
+ * App scrollbars.
+ *
+ * macOS Chrome follows the OS "Show scroll bars" preference, so in overlay
+ * mode the native bars already appear on scroll and hide on idle — nothing
+ * here fights them. When the OS is set to always-show, a permanent 15px bar
+ * eats width from every scroll container, so instead the app draws its own
+ * thin, token-coloured thumb: transparent at rest, visible while scrolling
+ * (the `.scrolling` class, toggled by useOverlayScrollbars and dropped after
+ * ~1s of idle) or while the cursor sits over the container. Every app scroll
+ * container paints over the same page ground, so one global rule suffices.
+ */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground) 50%, transparent) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted-foreground) 60%, transparent);
+}
+
+*:hover::-webkit-scrollbar-thumb,
+.scrolling::-webkit-scrollbar-thumb {
+  opacity: 1;
+}

@@ -64,7 +64,7 @@ export function AlertsView({ alerts, onDismiss, onClearAll, locale = "id", isLiv
   const clearAll = onClearAll;
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5">
       {!isLive && alerts.length > 0 && (
         <div
           className="flex items-center gap-2 rounded p-3"

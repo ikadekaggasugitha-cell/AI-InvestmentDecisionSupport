@@ -49,7 +49,7 @@ export function NewsView({ news, loading, isLive, error, retry }: Props) {
   const filtered = filter === "all" ? news : news.filter((n) => n.category === filter);
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
 
       {/* No <h2> here: App.tsx already renders the view title in Header, so one
           printed the same line twice. The <p> below is kept because it is the

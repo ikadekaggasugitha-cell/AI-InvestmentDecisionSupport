@@ -76,7 +76,7 @@ export function Sidebar({
       position: "fixed",
       top: 0,
       left: 0,
-      height: "100vh",
+      height: "100dvh",
       zIndex: 50,
       transform: isOpen ? "translateX(0)" : "translateX(-100%)",
       transition: "transform 0.25s ease",

@@ -173,7 +173,7 @@ export function PortfolioView({ market, fx, holdings, loading, error, onAdd, onU
   const benchFmt   = (v: number) => [fmt(v), "IHSG"];
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5">
 
       {/* Modal */}
       {modalMode && (

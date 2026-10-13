@@ -136,7 +136,7 @@ export function AdminView() {
   const accounts = state.kind === "ready" ? state.page.accounts : [];
 
   return (
-    <div className="flex-1 h-full overflow-y-auto" style={{ padding: 24 }}>
+    <div className="min-h-0 flex-1 h-full overflow-y-auto" style={{ padding: 24 }}>
       <div style={{ maxWidth: 900, display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
           <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>

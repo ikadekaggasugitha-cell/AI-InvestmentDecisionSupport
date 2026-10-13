@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect, memo, type CSSProperties, type ReactNode } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect, memo, forwardRef, type CSSProperties, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Search, ChevronUp, ChevronDown, ChevronsUpDown,
@@ -111,18 +111,25 @@ interface MarketRowProps {
   onSelect:  (symbol: string) => void;
   accum?:    AccumulationBadgeData;
   accumLoading?: boolean;
+  /** Row index in the filtered list, so the virtualizer can measure this row. */
+  virtualIndex: number;
 }
 
 const MarketRow = memo(
-  function MarketRow({ stock, fx, isId, isEven, isWatched, board, onToggle, onSelect, accum, accumLoading }: MarketRowProps) {
+  forwardRef<HTMLTableRowElement, MarketRowProps>(function MarketRow(
+    { stock, fx, isId, isEven, isWatched, board, onToggle, onSelect, accum, accumLoading, virtualIndex },
+    ref,
+  ) {
     const pos        = stock.changePct >= 0;
     const foreignPos = stock.foreignNet >= 0;
     const tierCfg    = TIER_CONFIG[stock.tier] ?? TIER_FALLBACK;
 
     return (
       <tr
+        ref={ref}
+        data-index={virtualIndex}
         onClick={() => onSelect(stock.symbol)}
-        style={{ borderBottom: "1px solid var(--border)", background: isEven ? "transparent" : "var(--muted)", cursor: "pointer" }}
+        style={{ height: ROW_HEIGHT, borderBottom: "1px solid var(--border)", background: isEven ? "transparent" : "var(--muted)", cursor: "pointer" }}
       >
         <td style={{ padding: "0 4px 0 12px", width: 28, textAlign: "center" }}>
           <button
@@ -211,7 +218,21 @@ const MarketRow = memo(
           >
             {tierCfg.label}
           </span>
-          <div style={{ fontSize: 9, color: "var(--muted-foreground)", marginTop: 2 }}>{tierCfg.title}</div>
+          {/* The tier sentence must never wrap. It is a caption, and a wrapped
+              caption makes the row taller than ROW_HEIGHT, which is exactly the
+              height the virtualizer budgets for — so the board's scroll extent
+              would drift with the width of the widest market-cap string. It is
+              clipped instead, with the full sentence still on the pill above. */}
+          <div
+            title={tierCfg.title}
+            style={{
+              fontSize: 9, color: "var(--muted-foreground)", marginTop: 2,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              maxWidth: 150,
+            }}
+          >
+            {tierCfg.title}
+          </div>
         </td>
         <td style={{ padding: "10px 12px", textAlign: "right" }}>
           <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: foreignPos ? "var(--gain)" : "var(--loss)", fontWeight: 500 }}>
@@ -219,13 +240,20 @@ const MarketRow = memo(
           </span>
         </td>
         <td style={{ padding: "10px 12px" }}>
-          <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+          <span
+            title={isId ? stock.sector : stock.sectorEn}
+            style={{
+              fontSize: 11, color: "var(--muted-foreground)",
+              display: "block", whiteSpace: "nowrap", overflow: "hidden",
+              textOverflow: "ellipsis", maxWidth: 130,
+            }}
+          >
             {isId ? stock.sector : stock.sectorEn}
           </span>
         </td>
       </tr>
     );
-  },
+  }),
   (prev, next) =>
     prev.stock.price          === next.stock.price          &&
     prev.stock.changePct      === next.stock.changePct      &&
@@ -242,7 +270,8 @@ const MarketRow = memo(
     prev.board                === next.board                &&
     prev.accumLoading         === next.accumLoading         &&
     prev.accum?.phase         === next.accum?.phase         &&
-    prev.accum?.score         === next.accum?.score
+    prev.accum?.score         === next.accum?.score         &&
+    prev.virtualIndex         === next.virtualIndex
 );
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
@@ -288,7 +317,17 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 /* ── Main view ────────────────────────────────────────────────────────────── */
 
 const COL_COUNT = 12;
-const ROW_HEIGHT = 48;
+/*
+ * Height of one row, in whole pixels. Rows are uniform by construction (fixed
+ * cell padding, single-line values, an inline-flex badge), so a fixed integer
+ * keeps the layout height and the virtualizer's estimate identical. The two must
+ * agree to the pixel: the spacer rows above and below the window are derived
+ * from this number, so any mismatch makes the scroll extent drift while you
+ * scroll and rows visibly repeat during a hard fling. Integer values also stop
+ * ResizeObserver's fractional borderBoxSize from fighting the layout and
+ * ratcheting a few pixels in per jump.
+ */
+const ROW_HEIGHT = 58;
 
 export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSymbol = null, focusNonce = 0 }: Props) {
   const { locale } = useApp();
@@ -343,52 +382,81 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
     return ["all", ...Array.from(seen).sort((a, b) => a.localeCompare(b))];
   }, [stocks, isId]);
 
+  // Filtering reads live values, so it re-runs on every tick.
+  const matching = useMemo(() => {
+    return stocks.filter((s) => {
+      const q = search.toLowerCase();
+      const matchSearch = s.symbol.toLowerCase().includes(q) || s.name.toLowerCase().includes(q);
+      const matchSector =
+        sector === "all" ? true : (isId ? s.sector : s.sectorEn) === sector;
+      // Quick-view lens filter, on top of search + sector.
+      const matchView =
+        view === "watchlist" ? watchlist.has(s.symbol) :
+        view === "gainers"   ? s.changePct > 0 :
+        view === "losers"    ? s.changePct < 0 :
+        true;
+      return matchSearch && matchSector && matchView;
+    });
+  }, [stocks, search, sector, isId, watchlist, view]);
+
+  /*
+   * Ordering must NOT re-run on a tick, and that is the whole point of this
+   * split. A market-cap, gainers or volume sort is derived from live prices, so
+   * re-sorting per tick swaps rows underneath a parked cursor: the symbol you
+   * are reading is replaced by a different one every second, which reads as the
+   * list flickering rather than as the market moving. The rank is therefore
+   * frozen until the reader changes the sort or the row set itself changes
+   * (search, sector, quick view, watchlist). Ticks refresh the values in place,
+   * and the column header re-sorts on demand.
+   */
+  const membership = useMemo(() => matching.map((s) => s.symbol).join("|"), [matching]);
+  const sortRef = useRef<{ key: string; members: string; rank: Map<string, number> } | null>(null);
+
   const filtered = useMemo(() => {
-    return stocks
-      .filter((s) => {
-        const q = search.toLowerCase();
-        const matchSearch = s.symbol.toLowerCase().includes(q) || s.name.toLowerCase().includes(q);
-        const matchSector =
-          sector === "all" ? true : (isId ? s.sector : s.sectorEn) === sector;
-        // Quick-view lens filter, on top of search + sector.
-        const matchView =
-          view === "watchlist" ? watchlist.has(s.symbol) :
-          view === "gainers"   ? s.changePct > 0 :
-          view === "losers"    ? s.changePct < 0 :
-          true;
-        return matchSearch && matchSector && matchView;
-      })
-      .sort((a, b) => {
-        const dir = sortDir === "asc" ? 1 : -1;
-        if (sortKey === "mktCap") {
-          return dir * (parseMktCap(a.mktCap) - parseMktCap(b.mktCap));
-        }
-        // String columns → locale-aware compare.
-        if (sortKey === "symbol" || sortKey === "tier" || sortKey === "sector") {
-          const av = sortKey === "sector" ? (isId ? a.sector : a.sectorEn) : (a[sortKey] as string);
-          const bv = sortKey === "sector" ? (isId ? b.sector : b.sectorEn) : (b[sortKey] as string);
-          return dir * av.localeCompare(bv);
-        }
-        // Trend has no discrete field: sort by the 7-day move implied by the
-        // sparkline history (last vs first), so uptrends group together.
-        if (sortKey === "trend") {
-          const move = (s: typeof a) => {
-            const h = s.history;
-            return h && h.length > 1 && h[0] ? (h[h.length - 1] - h[0]) / h[0] : 0;
-          };
-          return dir * (move(a) - move(b));
-        }
-        // Numeric columns: price, changePct, volume, pe, foreignNet.
-        const av = (a[sortKey] as number) ?? 0, bv = (b[sortKey] as number) ?? 0;
-        return dir * (av - bv);
-      });
-  }, [stocks, search, sector, sortKey, sortDir, isId, watchlist, view]);
+    const bySort = (a: StockTick, b: StockTick) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortKey === "mktCap") {
+        return dir * (parseMktCap(a.mktCap) - parseMktCap(b.mktCap));
+      }
+      // String columns → locale-aware compare.
+      if (sortKey === "symbol" || sortKey === "tier" || sortKey === "sector") {
+        const av = sortKey === "sector" ? (isId ? a.sector : a.sectorEn) : (a[sortKey] as string);
+        const bv = sortKey === "sector" ? (isId ? b.sector : b.sectorEn) : (b[sortKey] as string);
+        return dir * av.localeCompare(bv);
+      }
+      // Trend has no discrete field: sort by the 7-day move implied by the
+      // sparkline history (last vs first), so uptrends group together.
+      if (sortKey === "trend") {
+        const move = (s: typeof a) => {
+          const h = s.history;
+          return h && h.length > 1 && h[0] ? (h[h.length - 1] - h[0]) / h[0] : 0;
+        };
+        return dir * (move(a) - move(b));
+      }
+      // Numeric columns: price, changePct, volume, pe, foreignNet.
+      const av = (a[sortKey] as number) ?? 0, bv = (b[sortKey] as number) ?? 0;
+      return dir * (av - bv);
+    };
+
+    const key = `${sortKey}|${sortDir}|${isId}`;
+    let cache = sortRef.current;
+    if (!cache || cache.key !== key || cache.members !== membership) {
+      const rank = new Map([...matching].sort(bySort).map((s, i) => [s.symbol, i]));
+      cache = { key, members: membership, rank };
+      sortRef.current = cache;
+    }
+    const rank = cache.rank;
+    return [...matching].sort((a, b) => (rank.get(a.symbol) ?? 0) - (rank.get(b.symbol) ?? 0));
+  }, [matching, membership, sortKey, sortDir, isId]);
 
   const rowVirtualizer = useVirtualizer({
     count: filtered.length,
     getScrollElement: () => tableContainerRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 4,
+    // A fling can outrun the render loop; without headroom the rows that scroll
+    // into view late arrive after the frame that needed them, which reads as
+    // flicker even when every offset is correct.
+    overscan: 12,
   });
 
   const virtualItems  = rowVirtualizer.getVirtualItems();
@@ -431,7 +499,7 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5">
 
       {/* Summary bar */}
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
@@ -534,7 +602,7 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
         <div
           ref={tableContainerRef}
           className="overflow-auto"
-          style={{ maxHeight: "calc(100vh - 340px)", minHeight: 300 }}
+          style={{ maxHeight: "calc(100dvh - 340px)", minHeight: 300, overflowAnchor: "none" }}
         >
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -593,6 +661,8 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
                 return (
                   <MarketRow
                     key={stock.symbol}
+                    ref={rowVirtualizer.measureElement}
+                    virtualIndex={virtualRow.index}
                     stock={stock}
                     fx={fx}
                     isId={isId}

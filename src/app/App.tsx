@@ -33,6 +33,7 @@ import { useTranslation } from "./i18n/translations";
 import { Toaster } from "./components/ui/sonner";
 import { onAuthExpired } from "./config/api";
 import { useAuth } from "./hooks/useAuth";
+import { useOverlayScrollbars } from "./hooks/useOverlayScrollbars";
 import { AuthScreen } from "./components/AuthScreen";
 import { toast } from "sonner";
 
@@ -57,6 +58,7 @@ function AppInner() {
   const { isDark, locale } = useApp();
   const { t } = useTranslation(locale);
   const auth = useAuth();
+  useOverlayScrollbars();
   const navigate = useNavigate();
 
   const market        = useLiveMarket();
@@ -158,7 +160,7 @@ function AppInner() {
   // renders the auth screen instead and none of this is reached.
   const shell = (
     <div
-      className={`flex h-screen overflow-hidden${isDark ? " dark" : ""}`}
+      className={`flex h-dvh overflow-hidden${isDark ? " dark" : ""}`}
       style={{ background: "var(--background)", fontFamily: "var(--font-sans)", color: "var(--foreground)" }}
     >
       <Sidebar
