@@ -28,6 +28,19 @@ formulir pendaftaran; itu sudah dilampaui oleh keputusan yang lebih baru.
 nomornya. Volume satu operator tidak membenarkan adanya upload: verifikasi tipe
 berkas, batas ukuran, dan nama berkas yang disajikan kembali ke peramban.
 
+**Transaksi manual kedaluwarsa setelah satu jam.** Keputusan pemilik. Yang
+menjaga dari akibatnya ada di bawah — satu jam tidak boleh berarti uang orang
+hilang.
+
+**Kedaluwarsa adalah kebersihan antrean, bukan vonis akhir atas uang.** Transaksi
+`expire` berhenti muncul sebagai tawaran, tapi admin **tetap boleh** menyetujuinya.
+Alasannya konkret: transfer bank di luar jam kerja — transfer jam 22.00, admin
+melihat panel jam 09.00 keesokan harinya — akan kedaluwarsa sebelum sempat
+disentuh. Kalau `expire` menutup persetujuan, sistemnya bisa menelan uang
+seseorang tanpa jejak dan tanpa satu pun tempat untuk melapor. Satu operator
+dengan rekening bank sendiri membuat verifikasi manual jadi kenyataan, bukan
+formalitas, jadi kemampuan menyetujui yang sudah lewat tetap penting.
+
 **Durasi mengikuti blueprint: 30 hari bulanan, 365 hari tahunan.** Satu baris
 `subscriptions` per pembelian, `expires_at = NOW() + N days`, tidak pernah
 digeser. Perpanjangan menulis baris baru, dan akses dibaca dari
@@ -145,12 +158,30 @@ menghasilkan keadaan yang terlihat, bukan toast yang lewat.
 | Pengguna membayar dua kali | Sedang | Dua masa aktif tumpang tindih itu sah dan hanya satu yang terpakai. Ruganya di pengguna, bukan di sistem; dicatat sebagai utang |
 | `proof_image_url` jadi kolom mati | Rendah | Sengaja tidak diisi. Dicatat di `status.md` sebagai utang yang ditunda dengan sadar |
 
+## Yang Membuat Fase 4 Tertahan
+
+**`ServerKey` Midtrans tidak ada di proyek ini.** Sudah diperiksa 2026-10-14:
+
+- `backend/.env` tidak punya variabel Midtrans apa pun (yang ada: `APP_ENV`,
+  `AUTH_BYPASS`, `PAYWALL_ENABLED`, `LLM_PROVIDER`, `GROQ_API_KEY`, `LLM_MODEL`,
+  `LLM_MAX_TOKENS`, `DATABASE_URL`, `REDIS_URL`).
+- `.env.local` hanya berisi `VITE_*`.
+- `backend/api/core/config.py` tidak punya field untuk midtrans — belum ada
+  tempat untuk meletakkannya.
+
+Kemungkinan besar kuncinya ada di akun Midtrans tetapi belum pernah ditaruh di
+sini. Yang perlu ada sebelum Fase 4 bisa jalan: `midtrans_server_key` di
+`Settings`, `midtrans_is_production` untuk membedakan URL sandbox dan produksi,
+dan keputusan apakah client key juga perlu dikirim ke frontend untuk Snap.
+
+Fase 1–3 tidak butuh satu pun dari itu, dan bisa diselesaikan lebih dulu.
+
 ## Pertanyaan Terbuka
 
-- **Apakah `ServerKey` Midtrans sudah ada?** Fase 4 blocked tanpa itu. Fase 1–3
-  tidak butuh apa pun dari pihak ketiga dan bisa diselesaikan lebih dulu.
-- **Berapa lama transaksi manual boleh menggantung sebelum expired?** Angka ini
-  kebijakan, bukan teknis.
-- **Apakah nominal bulanan dan tahunan perlu dibedakan di satu transaksi?** today
-  `amount` ada per baris, jadi satu orang bisa mencampur; pertanyaannya apakah itu
-  perlu dilarang.
+- **Apakah nominal bulanan dan tahunan perlu dibedakan di satu transaksi?** `amount`
+  ada per baris, jadi satu orang bisa mencampur; pertanyaannya apakah itu perlu
+  dilarang.
+- **Apakah satu jam berlaku juga untuk transfer yang diunggah sore hari?** Kalau
+  satu jam turunan dengan Watching, banyak transaksi nyata akan kedaluwarsa
+  sebelum sempat diverifikasi — dan itu yang membuat approve-setelah-expire
+  bukan sekadar、保险 tetapi keharusan.

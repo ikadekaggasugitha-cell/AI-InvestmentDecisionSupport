@@ -221,6 +221,9 @@ tidak menyentuh Subscription yang sedang berjalan.
       dan memanggil `grant()` dalam **satu transaksi database**
 - [ ] `POST .../deny` menulis `deny` + alasan, dan **tidak** menyentuh langganan
 - [ ] Approve transaksi yang sudah `settlement` tidak menghasilkan Subscription kedua
+- [ ] **Approve transaksi `expire` tetap diizinkan.** Kedaluwarsa adalah kebersihan
+      antrean, bukan vonis akhir atas uang — transfer jam 22.00 tidak boleh
+      menggantung tanpa jalan pada 22.59
 - [ ] Approve atas akun yang diblokir tetap menulis langganan (aturan 8)
 - [ ] Non-admin mendapat **403**
 
@@ -230,6 +233,7 @@ tidak menyentuh Subscription yang sedang berjalan.
 - [ ] Test: approve dua kali → satu Subscription, dan dua grant kedua memakai
       transaksi berbeda
 - [ ] Test: deny tidak mengubah langganan yang sedang berjalan
+- [ ] Test: approve transaksi `expire` tetap menulis Subscription
 - [ ] Test: kegagalan di tengah tidak meninggalkan `settlement` tanpa Subscription
 - [ ] Manual check: `GET /v1/signals` berhenti membalas 402 setelah approve
 
@@ -275,19 +279,31 @@ Settings sudah jadi tempat yang tepat — itu tab langganan.
 ## Task 8: Transaksi manual yang menggantung kedaluwarsa
 
 **Deskripsi:** Transaksi `pending` yang tidak pernah disetujui akan menumpuk tanpa
-batas. Beat menjadwalkannya `expire` setelah sejumlah hari.
+batas. Beat menjadwalkannya `expire`. **Tenggatnya satu jam** (keputusan pemilik),
+dan angka itu konfigurasi — bukan literal di dalam fungsi — supaya bisa diubah
+tanpa menyentuh kode.
+
+Satu jam tidak banyak, dan itu pilihan yang sadar. Yang membuatnya aman bukan
+melonggarkan kendali, melainkan aturan di bawah: `expire` menghentikan tawaran,
+bukan menutup pintu.
 
 **Acceptance criteria:**
-- [ ] Ada task beat yang mengubah `pending` yang sudah lewat tenggat menjadi `expire`
+- [ ] Ada task beat yang mengubah `pending` yang sudah lewat satu jam menjadi `expire`
+- [ ] `MANUAL_TRANSACTION_TTL_SECONDS` di konfigurasi, default 3600
 - [ ] Idempoten — menjalankan dua kali tidak mengubah apa pun
 - [ ] Hanya `pending` yang terpengaruh; `settlement` tidak pernah disentuh
-- [ ] Tidak ada Subscription yang created atau dihapus
-- [ ] Nilai tenggat berasal dari konfigurasi, bukan literal di dalam fungsi
+- [ ] Tidak ada Subscription yang dibuat atau dihapus
+- [ ] **`expire` bukan kondisi final.** Approve terhadap baris `expire` tetap
+      menulis Subscription (Task 6). Kalau tidak, transfer di luar jam kerja akan
+      menelan uang seseorang tanpa jejak — dan tidak ada tempat untuk melapor
 
 **Verification:**
 - [ ] `cd backend && .venv/bin/python -m pytest tests/test_transaction_expiry.py -q` hijau
+- [ ] Test: `pending` yang sudah lewat satu jam menjadi `expire`
+- [ ] Test: `pending` yang belum satu jam **tidak** berubah
 - [ ] Test: `settlement` lama tidak diubah
 - [ ] Test: menjalankan dua kali menghasilkan hasil yang sama
+- [ ] Test: approve setelah `expire` tetap menghasilkan Subscription
 - [ ] Test: `test_beat_schedule.py` masih hijau
 
 **Dependencies:** Task 5
@@ -312,9 +328,15 @@ batas. Beat menjadwalkannya `expire` setelah sejumlah hari.
 
 ## Fase 4: Gerbang dan QRIS dinamis
 
-**BLOCKED sampai `MIDTRANS_SERVER_KEY` dan akun aktif tersedia.** Fase 1–3 tidak
-perlu apa pun dari pihak ketiga. Jangan mulai fase ini lebih dulu — setiap test
-yang bisa ditulis tanpa kredensial hanya akan menguji mock.
+**BLOCKED.** `ServerKey` Midtrans **tidak ada di proyek ini** — sudah diperiksa di
+`backend/.env`, `.env.local`, dan `api/core/config.py`, dan tidak ada field untuk
+meletakkannya. Kemungkinan besar kuncinya ada di akun Midtrans tapi belum pernah
+dimasukkan ke sini.
+
+Sebelum Task 9 bisa jalan, `Settings` butuh `midtrans_server_key` dan
+`midtrans_is_production` (sandbox vs produksi). Fase 1–3 tidak butuh apa pun dari
+pihak ketiga. Jangan mulai fase ini lebih dulu — setiap test yang bisa ditulis
+tanpa kredensial hanya akan menguji mock.
 
 ## Task 9: Konfigurasi dan pembuatan snap
 
