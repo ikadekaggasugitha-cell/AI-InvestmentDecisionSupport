@@ -66,42 +66,42 @@ menjadi dua tanggung jawab; komponennya dipisah dan `/admin` memakai tab.
 
 ### Fase 1: Sumber tunggal
 
-- [ ] Task 1: Tabel `system_settings` + migrasi 0011 + `schema.sql`
-- [ ] Task 2: `api/services/settings.py` — baca & tulis harga dengan validasi
+- [x] Task 1: Tabel `system_settings` + migrasi 0011 + `schema.sql`
+- [x] Task 2: `api/services/settings.py` — baca & tulis harga dengan validasi
 
 ### Checkpoint: Fase 1
-- [ ] Tabel ada di migration **dan** `schema.sql`
-- [ ] Migrasi idempoten dan tidak menimpa harga yang sudah diubah admin
-- [ ] Harga negatif, nol, atau di luar batas ditolak
+- [x] Tabel ada di migration **dan** `schema.sql`
+- [x] Migrasi idempoten dan tidak menimpa harga yang sudah diubah admin
+- [x] Harga negatif, nol, atau di luar batas ditolak
 
 ### Fase 2: Dua arah baca
 
-- [ ] Task 3: `GET /v1/subscriptions/pricing` — publik
-- [ ] Task 4: `PUT /v1/admin/settings/pricing` — admin
+- [x] Task 3: `GET /v1/subscriptions/pricing` — publik
+- [x] Task 4: `PUT /v1/admin/settings/pricing` — admin
 
 ### Checkpoint: Fase 2
-- [ ] Publik: tanpa sesi tetap dijawab 200
-- [ ] Non-admin mendapat **403**, bukan 402 (bukan masalah langganan)
-- [ ] Admin mengubah harga → endpoint publik langsung melaporkan yang baru
+- [x] Publik: tanpa sesi tetap dijawab 200
+- [x] Non-admin mendapat **403**, bukan 402 (bukan masalah langganan)
+- [x] Admin mengubah harga → endpoint publik langsung melaporkan yang baru
 
 ### Fase 3: Panel dan konsumen
 
-- [ ] Task 5: `AdminPricingView` + tab di `/admin`
-- [ ] Task 6: Tab 2 Settings menampilkan harga dari server
+- [x] Task 5: `AdminPricingView` + tab di `/admin`
+- [x] Task 6: Tab 2 Settings menampilkan harga dari server
 
 ### Checkpoint: Fase 3
-- [ ] Admin menyimpan harga dan melihat nilai server, bukan yang diketik
-- [ ] Kegagalan simpan tidak mengubah tampilan
-- [ ] Tab 2 menampilkan harga tanpa mengarang apa pun saat gagal
+- [x] Admin menyimpan harga dan melihat nilai server, bukan yang diketik
+- [x] Kegagalan simpan tidak mengubah tampilan
+- [x] Tab 2 menampilkan harga tanpa mengarang apa pun saat gagal
 
 ### Fase 4: Bukti dan dokumen
 
-- [ ] Task 7: `docs/status.md`, `saas-subscription-platform.md`, ADR-0010
+- [x] Task 7: `docs/status.md`, `saas-subscription-platform.md`, ADR-0010
 
 ### Checkpoint: Lengkap
-- [ ] `test_docs_status.py` hijau
-- [ ] `cd backend && pytest` hijau, `ruff` bersih
-- [ ] `npm run typecheck && npm run lint && npm run test` hijau
+- [x] `test_docs_status.py` hijau
+- [x] `cd backend && pytest` hijau, `ruff` bersih
+- [x] `npm run typecheck && npm run lint && npm run test` hijau
 - [ ] Tinjau dengan manusia
 
 ## Risiko dan Mitigasi

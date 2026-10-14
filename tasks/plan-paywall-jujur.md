@@ -170,47 +170,47 @@ dan Checkpoint 1 membuktikannya dengan test.
 
 ### Fase 1: Dua penolakan, dua jawaban
 
-- [ ] Task 1: Kode close WebSocket terpisah untuk paywall
-- [ ] Task 2: `useLiveMarket` berhenti logout saat paywall
+- [x] Task 1: Kode close WebSocket terpisah untuk paywall
+- [x] Task 2: `useLiveMarket` berhenti logout saat paywall
 
 ### Checkpoint: Fase 1
-- [ ] WS auth tetap 1008
-- [ ] WS paywall 4403, dengan `reason` yang menyebut langganan
-- [ ] `AUTH_EXPIRED_EVENT` tidak lagi terpancarkan oleh paywall
-- [ ] Suite backend + frontend hijau
+- [x] WS auth tetap 1008
+- [x] WS paywall 4403, dengan `reason` yang menyebut langganan
+- [x] `AUTH_EXPIRED_EVENT` tidak lagi terpancarkan oleh paywall
+- [x] Suite backend + frontend hijau
 
 ### Fase 2: 403 jadi sinyal
 
-- [ ] Task 3: `PAYWALL_EVENT` di `apiFetch`
-- [ ] Task 4: State paywall di AppContext
-- [ ] Task 5: Banner aplikasi yang mengarahkan ke Settings
+- [x] Task 3: `PAYWALL_EVENT` di `apiFetch`
+- [x] Task 4: State paywall di AppContext
+- [x] Task 5: Banner aplikasi yang mengarahkan ke Settings
 
 ### Checkpoint: Fase 2
-- [ ] Satu 403 → satu event, bukan satu per request
-- [ ] Request sukses berikutnya melepas latch
-- [ ] Banner menyebut langganan dan punya tujuan, bukan tombol mati
+- [x] Satu 403 → satu event, bukan satu per request
+- [x] Request sukses berikutnya melepas latch
+- [x] Banner menyebut langganan dan punya tujuan, bukan tombol mati
 
 ### Fase 3: Setiap view menjawab dengan jujur
 
-- [ ] Task 6: Hook menyimpan penyebab, bukan cuma `error: string`
-- [ ] Task 7: `RiskView` berhenti melaporkan paywall sebagai backend mati
-- [ ] Task 8: `PortfolioView`, `AIAdvisorView`, `ViewError` berhenti menampilkan "HTTP 403"
+- [x] Task 6: Hook menyimpan penyebab, bukan cuma `error: string`
+- [x] Task 7: `RiskView` berhenti melaporkan paywall sebagai backend mati
+- [x] Task 8: `PortfolioView`, `AIAdvisorView`, `ViewError` berhenti menampilkan "HTTP 403"
 
 ### Checkpoint: Fase 3
-- [ ] 403 → "terkunci karena belum berlangganan"
-- [ ] Gagal jaringan → "backend tidak terjangkau" (masih)
-- [ ] Tidak ada hook paid yang jatuh diam-diam ke seed tanpa label
+- [x] 403 → "terkunci karena belum berlangganan"
+- [x] Gagal jaringan → "backend tidak terjangkau" (masih)
+- [x] Tidak ada hook paid yang jatuh diam-diam ke seed tanpa label
 
 ### Fase 4: Bukti dan dokumen
 
-- [ ] Task 9: Peringatan kombinasi dev yang menyembunyikan semua ini
-- [ ] Task 10: Test frontend untuk kombinasi bypass + paywall
-- [ ] Task 11: Sinkronisasi `docs/status.md`, `settings-module-spec.md`, ADR
+- [x] Task 9: Peringatan kombinasi dev yang menyembunyikan semua ini
+- [x] Task 10: Test frontend untuk kombinasi bypass + paywall
+- [x] Task 11: Sinkronisasi `docs/status.md`, `settings-module-spec.md`, ADR
 
 ### Checkpoint: Lengkap
-- [ ] Semua acceptance criteria terpenuhi
-- [ ] `npm run typecheck && npm run lint && npm run test` hijau
-- [ ] `cd backend && pytest` hijau
+- [x] Semua acceptance criteria terpenuhi
+- [x] `npm run typecheck && npm run lint && npm run test` hijau
+- [x] `cd backend && pytest` hijau
 - [ ] Tinjau dengan manusia
 
 ## Risiko dan Mitigasi
