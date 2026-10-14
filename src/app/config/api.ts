@@ -107,8 +107,15 @@ export const ENDPOINTS = {
   positions:      `${API_BASE}/v1/portfolio/positions`,
   /** The caller's own subscription state. Read-only; there is no way to buy one. */
   subscription:   `${API_BASE}/v1/subscription/current`,
+  /**
+   * What a subscription costs. The only unauthenticated data endpoint in the app:
+   * a price that can only be read after signing up is not a price.
+   */
+  pricing:        `${API_BASE}/v1/subscriptions/pricing`,
   /** Admin account list. Block/unblock: POST then DELETE on `${adminAccounts}/{id}/block`. */
   adminAccounts:  `${API_BASE}/v1/admin/accounts`,
+  /** Admin-only. Writes both prices in one request; a partial body is refused. */
+  adminPricing:   `${API_BASE}/v1/admin/settings/pricing`,
   /** Claude-powered Q&A, server-sent events */
   advisorChat:    `${API_BASE}/v1/advisor/chat`,
 

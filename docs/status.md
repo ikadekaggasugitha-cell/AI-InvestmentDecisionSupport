@@ -41,7 +41,12 @@ Diverifikasi terhadap kode pada **2026-10-07**, setelah migrasi `0008` diterapka
 | Angka simulasi diberi label yang benar | Ada | `RiskView` dan `AIAdvisorView` menampilkan "langganan belum aktif" untuk 402 dan "backend tidak terjangkau" hanya untuk kegagalan jaringan. `ReportsView` dan `AllocationPanel` berhenti menampilkan status mentah. `DataFreshnessBadge` membedakan feed yang terkunci dari yang mati. Angka seed tetap tampil dan tetap berlabel — yang diperbaiki adalah penyebabnya |
 | Banner langganan di shell | Ada | `src/app/components/PaywallNotice.tsx`, satu elemen di `src/app/App.tsx`, mengarah ke Tab 2 Settings. **Tanpa tombol beli** — tidak ada jalur pembayaran (R-26) |
 | Peringatan kombinasi dev | Ada | `AUTH_BYPASS=true` + `PAYWALL_ENABLED=true` memunculkan peringatan saat start: gerbang tidak akan pernah menyala di proses itu. Peringatan, bukan penolakan boot — berhenti boot akan menghentikan kerja lokal dan menambah satu alasan gerbang tidak pernah diuji |
-| Harga langganan dan endpoint publiknya | **Sudah diputuskan, belum ada kodenya** | Harga **sudah diputuskan**: Rp 15.000/bulan dan Rp 150.000/tahun (`docs/saas-subscription-platform.md:16-19`). Endpoint `GET /v1/subscriptions/pricing` **sudah dispesifikasikan sebagai publik** (`docs/saas-subscription-platform.md:371`). Yang belum ada adalah tabel `system_settings` tempat harga dibaca, jadi halaman harga untuk pengunjung tanpa sesi masuk Fase 2. Bukan "harga belum diputuskan" |
+| Harga langganan dan sumbernya | Ada | Tabel `system_settings` (`backend/db/migrations/0011_system_settings_pricing.sql`) memuat `pricing` = `{"monthly": 15000, "annual": 150000}` sebagai **nilai awal**, dan itu satu-satunya tempat harga ditulis. Angka di `docs/saas-subscription-platform.md:16-19` berhenti mengikat begitu admin mengubahnya ([ADR-0010](adr/0010-harga-di-system-settings.md)) |
+| Endpoint harga publik | Ada | `GET /v1/subscriptions/pricing`, tanpa sesi — satu-satunya endpoint data tanpa autentikasi, dan disengaja: harga yang hanya bisa dibaca setelah mendaftar bukan harga. Menjawab **503** kalau barisnya hilang, bukan `{"monthly": 0}`, karena nol adalah harga yang tidak pernah ditetapkan |
+| Admin dapat mengubah harga | Ada | `PUT /v1/admin/settings/pricing`, `require_admin` bukan `require_entitlement` (CONTEXT.md aturan 6). Non-admin mendapat **403**, bukan 402: penolakan karena peran bukan masalah tagihan. Kedua harga ditulis dalam satu pernyataan supaya tidak pernah ada bulanan baru berdampingan dengan tahunan lama |
+| Form harga di panel admin | Ada | `/admin` → tab **Harga** (`src/app/components/AdminPricingView.tsx`), memuat lewat `GET /v1/admin/settings/pricing` dan menyimpan lewat `PUT` di path yang sama. Setelah simpan, layar memuat ulang dari server, bukan menampilkan angka yang diketik. Simpan yang gagal **tidak mengubah** harga di layar — bahkan kalau re-read-nya juga gagal, field dikembalikan ke harga terakhir yang dikonfirmasi server. Tanpa pemilih paket dan tanpa sakelar aktif: tidak ada jalur pembelian di belakangnya (R-26) |
+| Harga tampil di Tab 2 Settings | Ada | `src/app/components/SettingsView.tsx` membaca `GET /v1/subscriptions/pricing` dan menampilkan kedua nominal. Kegagalan dibaca ditampilkan sebagai "harga tidak dapat dimuat", **tidak pernah** sebagai nol |
+| Rekening tujuan dan kontak | Belum | `bank_accounts` dan `contact_support` masih kosong di `system_settings`. Keduanya milik jalur pembayaran yang belum ada |
 | **Riwayat chat tidak dijamin** | **Diserahkan** | Hanya ada di Redis, TTL satu jam, tanpa salinan di Postgres. Sekarang juga bisa ter-evict oleh `allkeys-lru`. **Keputusan pemilik: boleh hilang.** Kalau percakapan perlu bertahan, ia harus pindah ke Postgres dulu — lihat Task 1 di [tasks/plan-beban.md](../tasks/plan-beban.md) |
 | CLI operasional | Ada | `backend/db/promote_admin.py` membaca `ADMIN_EMAIL`, `backend/db/purge_sessions.py` menghapus session kedaluwarsa, `backend/db/purge_consent.py` membersihkan consent lama, `backend/db/purge_positions.py` membersihkan posisi yang ticker-nya tidak tercatat. Semuanya punya `--dry-run` dan tes. Belum dijadwalkan di Celery beat |
 | Analytics per portfolio | Ada | `backend/api/services/portfolio_access.py` `load_lots` adalah satu-satunya jalur baca posisi. Risk, kurva ekuitas, snapshot WebSocket, dan risk worker semuanya memakainya ([ADR-0005](adr/0005-analytics-baca-baris-portfolio.md)) |
@@ -58,9 +63,10 @@ Tidak ada satu pun item di bawah ini yang ada di kode. Setiapnya tercatat supaya
 
 | Area | Status | Kenapa belum |
 | --- | --- | --- |
-| Tabel `system_settings` | Belum | Ditunda ke Fase 2. Harga dan rekening tujuan tidak ada sumbernya |
+
 | Tabel `notification_logs` | Belum | Ditunda ke Fase 2. Belum ada kanal notifikasi |
-| Checkout dan pembayaran | Belum | Tidak ada UI dan tidak ada endpoint. Midtrans, QRIS, dan upload bukti nol baris kode |
+| Checkout dan pembayaran | Belum | Harga bisa dibaca dan diubah, tapi tidak ada yang bisa dibeli. Midtrans, QRIS, dan upload bukti nol baris kode |
+| Halaman harga untuk pengunjung tanpa sesi | Belum | `GET /v1/subscriptions/pricing` sudah ada dan publik, tapi tidak ada layar yang memakainya untuk pengunjung tanpa sesi |
 | Integrasi email dan WhatsApp | Belum | Nol baris kode. Ini kanal notifikasi tunggal yang dirancang, dan belum ada |
 
 

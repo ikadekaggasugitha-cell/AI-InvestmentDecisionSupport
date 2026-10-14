@@ -16,14 +16,28 @@ const subState = {
   throws: false,
 }
 
+// The price is a separate read with a separate failure mode, because an account
+// can have a working status endpoint and still be on an install with no price
+// configured.
+const priceState = {
+  body: { monthly: 15000, annual: 150000, updatedAt: '2026-10-01T09:30:00+00:00' } as unknown,
+  status: 200,
+  throws: false,
+}
+
 // Only the transport is faked; the real error classification stays real.
 vi.mock('../config/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../config/api')>()),
   ENDPOINTS: {
     subscription: '/v1/subscription/current',
+    pricing: '/v1/subscriptions/pricing',
     authMe: '/v1/auth/me',
   },
   apiFetch: vi.fn(async (url: string) => {
+    if (url.includes('/v1/subscriptions/pricing')) {
+      if (priceState.throws) throw new Error('offline')
+      return { ok: priceState.status < 400, status: priceState.status, json: async () => priceState.body } as unknown as Response
+    }
     if (url.includes('/v1/subscription/current')) {
       if (subState.throws) throw new Error('offline')
       return { ok: subState.status < 400, status: subState.status, json: async () => subState.body } as unknown as Response
@@ -528,10 +542,12 @@ describe('SettingsView — Tab 2 reports the subscription state from the server'
       ?.parentElement?.parentElement
     const text = panel?.textContent ?? ''
     // None of these is recorded anywhere, and any of them on screen would be
-    // fabricated — which is what this tab used to be careful about.
-    expect(text).not.toMatch(/Rp\\s*\\d/i)
-    expect(text).not.toMatch(/\\d+\\s*%/)
-    expect(text).not.toMatch(/monthly|annual|bulanan|tahunan/i)
+    // A percentage is still fabricated: `subscriptions` stores only an end date,
+    // so "70% remaining" would be a number reconstructed and shown as fact.
+    expect(text).not.toMatch(/\d+\s*%/)
+    // The prices ARE on screen now, because the server reports them. What must
+    // not appear is a price the server did not give — asserted in the block
+    // below by pinning them to exactly what it returned.
   })
 
   it('offers no progress bar driven by a number that does not exist', async () => {
@@ -547,5 +563,58 @@ describe('SettingsView — Tab 2 reports the subscription state from the server'
     // progressbar is the ARIA role a meter would carry. No meter, no invented scale.
     expect(screen.queryByRole('progressbar')).toBeNull()
     expect(screen.queryByRole('meter')).toBeNull()
+  })
+})
+
+describe('SettingsView — Tab 2 shows what it costs', () => {
+  beforeEach(() => {
+    // Both reads, reset: a leaked `subState` from an earlier describe would make
+    // these tests pass or fail for the wrong reason.
+    priceState.body = { monthly: 15000, annual: 150000, updatedAt: '2026-10-01T09:30:00+00:00' }
+    priceState.status = 200
+    priceState.throws = false
+    subState.body = { active: false, expiresAt: null, daysRemaining: null, startDate: null }
+    subState.status = 200
+    subState.throws = false
+  })
+
+  async function openBilling() {
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
+  }
+
+  it('reports both prices from the server', async () => {
+    priceState.body = { monthly: 20000, annual: 200000 }
+    await openBilling()
+
+    expect(await screen.findByText('Rp 20.000')).toBeInTheDocument()
+    expect(screen.getByText('Rp 200.000')).toBeInTheDocument()
+  })
+
+  it('says the price cannot be loaded rather than printing zero', async () => {
+    // "Rp 0" is a number nobody set, and showing it would be quoting for free.
+    priceState.status = 503
+    await openBilling()
+
+    expect(await screen.findByText(/tidak dapat dimuat/i)).toBeInTheDocument()
+    expect(screen.queryByText('Rp 0')).not.toBeInTheDocument()
+  })
+
+  it('still reports the subscription status when the price fails', async () => {
+    // Two questions, two answers. One failing must not blank the other.
+    priceState.status = 503
+    await openBilling()
+
+    expect(await screen.findByText(/Belum ada langganan/i)).toBeInTheDocument()
+    expect(screen.getByText(/Harga tidak dapat dimuat/i)).toBeInTheDocument()
+  })
+
+  it('shows no renew or buy control', async () => {
+    await openBilling()
+
+    // There is no payment path. A control that looks live and does nothing is
+    // worse than its absence (R-26).
+    expect(screen.queryByRole('button', { name: /Perpanjang|Beli|Upgrade|Renew|Buy/i })).toBeNull()
   })
 })

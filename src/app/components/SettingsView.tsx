@@ -422,6 +422,17 @@ function TabSubscription({ id }: { id: boolean }) {
     } | null;
   }>({ loading: true, error: null, subscription: null });
 
+  /* The price, read separately from the status because they answer different
+     questions and can fail independently: an account with no subscription can
+     still read what one costs, and a working status endpoint says nothing about
+     whether this install has a price configured. */
+  const [price, setPrice] = useState<{
+    loading: boolean;
+    error: string | null;
+    monthly: number | null;
+    annual: number | null;
+  }>({ loading: true, error: null, monthly: null, annual: null });
+
   useEffect(() => {
     const controller = new AbortController();
     (async () => {
@@ -432,6 +443,24 @@ function TabSubscription({ id }: { id: boolean }) {
       } catch (err) {
         if (controller.signal.aborted) return;
         setState({ loading: false, error: "unknown", subscription: null });
+      }
+    })();
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await apiFetch(ENDPOINTS.pricing, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = (await res.json()) as { monthly: number; annual: number };
+        setPrice({ loading: false, error: null, monthly: body.monthly, annual: body.annual });
+      } catch {
+        // Left as `unknown` rather than zero. A price of zero is a number nobody
+        // set, and printing "Rp 0" here would be quoting for free.
+        if (controller.signal.aborted) return;
+        setPrice({ loading: false, error: "unknown", monthly: null, annual: null });
       }
     })();
     return () => controller.abort();
@@ -453,6 +482,44 @@ function TabSubscription({ id }: { id: boolean }) {
 
   return (
     <Panel title={id ? "Langganan & Tagihan" : "Subscription & Billing"}>
+      {/* What it costs, whether or not there is one. Read from the server, never
+          from a constant: an administrator can change it, and a build-time copy
+          of the number would be a second source drifting from the first. */}
+      {price.loading ? (
+        <div className="setting-row" style={{ paddingBottom: 12 }}>
+          <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+            {id ? "Memuat harga…" : "Loading price…"}
+          </span>
+        </div>
+      ) : price.error ? (
+        <div className="setting-row" style={{ paddingBottom: 12 }}>
+          <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+            {id
+              ? "Harga tidak dapat dimuat. Tidak ditampilkan sebagai nol — nol bukan harga yang ditetapkan."
+              : "The price could not be loaded. Not shown as zero — zero is not a price anyone set."}
+          </span>
+        </div>
+      ) : (
+        <div className="setting-row" style={{ paddingBottom: 12, display: "flex", gap: 24 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)" }}>
+              {id ? "Harga" : "Price"}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
+              {id
+                ? "Bulanan dan tahunan, dari server. Belum ada cara membayar."
+                : "Monthly and annual, from the server. There is no way to pay yet."}
+            </div>
+          </div>
+          <div style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+            <div>{`Rp ${price.monthly?.toLocaleString(id ? "id-ID" : "en-GB")}`}</div>
+            <div style={{ color: "var(--muted-foreground)", marginTop: 2 }}>
+              {`Rp ${price.annual?.toLocaleString(id ? "id-ID" : "en-GB")}`}
+            </div>
+          </div>
+        </div>
+      )}
+
       {active ? (
         <>
           <div className="setting-row" style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>

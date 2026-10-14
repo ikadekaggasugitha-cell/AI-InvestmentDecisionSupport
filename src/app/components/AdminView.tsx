@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ENDPOINTS, apiFetch } from "../config/api";
 import { useApp } from "../context/AppContext";
+import { AdminPricingView } from "./AdminPricingView";
 
 /**
  * Account administration: the list, and blocking or unblocking.
@@ -40,9 +41,12 @@ type LoadState =
   | { kind: "ready"; page: AccountsPage; offset: number }
   | { kind: "error"; message: string };
 
+type AdminTab = "accounts" | "pricing";
+
 export function AdminView() {
   const { locale } = useApp();
   const isId = locale === "id";
+  const [tab, setTab] = useState<AdminTab>("accounts");
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   // The account being acted on, so exactly one row shows progress and a failure
   // cannot leave every row looking busy.
@@ -138,6 +142,49 @@ export function AdminView() {
   return (
     <div className="min-h-0 flex-1 h-full overflow-y-auto" style={{ padding: 24 }}>
       <div style={{ maxWidth: 900, display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Two tabs, not two routes. /admin is already an operational tool at its
+            own URL with no sidebar entry, so a second URL would add routing and a
+            nav element to solve a problem the page does not have. */}
+        <div
+          role="tablist"
+          aria-label={isId ? "Bagian admin" : "Admin sections"}
+          style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border)" }}
+        >
+          {([
+            ["accounts", isId ? "Akun" : "Accounts"],
+            ["pricing", isId ? "Harga" : "Pricing"],
+          ] as [AdminTab, string][]).map(([id, label]) => (
+            <button
+              key={id}
+              id={`admin-tab-${id}`}
+              role="tab"
+              type="button"
+              aria-selected={tab === id}
+              aria-controls={`admin-panel-${id}`}
+              tabIndex={tab === id ? 0 : -1}
+              onClick={() => setTab(id)}
+              style={{
+                fontSize: 12,
+                padding: "8px 12px",
+                border: "none",
+                borderBottom: `2px solid ${tab === id ? "var(--primary)" : "transparent"}`,
+                background: "transparent",
+                color: tab === id ? "var(--foreground)" : "var(--muted-foreground)",
+                fontWeight: tab === id ? 600 : 400,
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "pricing" ? (
+          <div id="admin-panel-pricing" role="tabpanel" aria-labelledby="admin-tab-pricing">
+            <AdminPricingView />
+          </div>
+        ) : (
+        <div id="admin-panel-accounts" role="tabpanel" aria-labelledby="admin-tab-accounts">
         <div>
           <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
             {isId ? "Kelola Akun" : "Manage Accounts"}
@@ -311,6 +358,8 @@ export function AdminView() {
               {state.offset + 1}–{state.offset + accounts.length}
             </span>
           </div>
+        )}
+        </div>
         )}
       </div>
     </div>

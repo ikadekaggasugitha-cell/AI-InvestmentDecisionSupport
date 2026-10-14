@@ -192,6 +192,35 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions (user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions (status);
 
+-- ── System settings ─────────────────────────────────────────────────────────
+-- The price lives here and nowhere else. It was previously written in a
+-- document, which is why docs/status.md could say "harga tidak ada sumbernya":
+-- nothing could read it, nobody could change it, and every consumer would have
+-- had to hardcode it. Mirrors db/migrations/0011_system_settings_pricing.sql.
+--
+-- A key/value table rather than a `prices` table because the price is
+-- configuration, not a domain entity — CONTEXT.md's Plan has no identity and
+-- changes without a trace, so it must not own rows that later histories could
+-- disagree with.
+--
+-- No `active` flag beside the price. Whether the price is current is the row
+-- existing at all; a boolean would be a second place for one fact to disagree
+-- with itself (CONTEXT.md rule 5).
+CREATE TABLE IF NOT EXISTS system_settings (
+    key         VARCHAR(100) PRIMARY KEY,
+    value       JSONB NOT NULL,
+    description TEXT,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ON CONFLICT DO NOTHING so applying this to a database that already has a price
+-- an operator changed keeps that price. The seed is the initial value; the table
+-- is the truth from then on.
+INSERT INTO system_settings (key, value, description) VALUES
+('pricing', '{"monthly": 15000, "annual": 150000}'::jsonb,
+ 'Harga paket langganan dalam IDR')
+ON CONFLICT (key) DO NOTHING;
+
 -- ── Portfolios (ownable rows) ────────────────────────────────────────────────
 -- A portfolio is a real row so ownership can be enforced. Before this, every
 -- portfolio-scoped endpoint took its identity from a query parameter any caller

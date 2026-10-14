@@ -14,6 +14,11 @@
 AIDSS saat ini beroperasi sebagai *single-operator personal decision tool*. Untuk mentransformasikannya menjadi produk komersial berbasis langganan (**SaaS B2C/B2B retail**), diperlukan infrastruktur multi-user, sistem penagihan (*billing*), sistem proteksi fitur penuh (*Full Paywall*), portal panel administrasi khusus (*Dedicated Admin Panel*), serta orkestrasi notifikasi otomatis (Email & WhatsApp).
 
 ### 1.2 Model Harga & Paket Langganan
+> **Nilai di bawah adalah nilai awal, bukan harga yang berlaku.**
+> Harga disimpan di `system_settings` dan dibaca lewat `GET /v1/subscriptions/pricing`.
+> Admin dapat mengubahnya dari panel `/admin`. Begitu itu terjadi, tabel yang berlaku
+> dan angka di tabel ini berbeda ([ADR-0010](adr/0010-harga-di-system-settings.md)).
+
 | Parameter | Paket Bulanan (*Monthly*) | Paket Tahunan (*Annual*) |
 | :--- | :--- | :--- |
 | **Harga Normal** | **Rp 15.000 / bulan** | **Rp 150.000 / tahun** |
@@ -248,7 +253,7 @@ CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions (status);
 -- Tidak ada index di invoice_code: kolom itu sudah UNIQUE, jadi ia sudah punya
 -- index sendiri dan index kedua hanya menambah biaya tulis.
 
--- ── 5. Tabel System Settings (Dinamis: Rekening & Harga) ── FASE 2 ─────────
+-- ── 5. Tabel System Settings — SEBAGIAN (hanya `pricing` sudah ada) ──────
 CREATE TABLE IF NOT EXISTS system_settings (
     key         VARCHAR(100) PRIMARY KEY,
     value       JSONB NOT NULL,
@@ -256,15 +261,22 @@ CREATE TABLE IF NOT EXISTS system_settings (
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- SUDAH DITERAPKAN — `backend/db/migrations/0011_system_settings_pricing.sql`.
+-- Hanya `pricing` yang diisi. `bank_accounts` dan `contact_support` di bawah
+-- masih tertunda: keduanya milik jalur pembayaran yang belum ada
+-- (lihat docs/status.md).
+--
 -- Inisialisasi konfigurasi awal
 INSERT INTO system_settings (key, value, description) VALUES
-('pricing', '{"monthly": 15000, "annual": 150000}', 'Harga paket langganan dalam IDR'),
-('bank_accounts', '[
-  {"bank": "BCA", "account_number": "1234567890", "holder_name": "PT AIDSS Finansial Teknologi"},
-  {"bank": "Mandiri", "account_number": "9876543210", "holder_name": "PT AIDSS Finansial Teknologi"}
-]', 'Rekening tujuan transfer manual'),
-('contact_support', '{"whatsapp": "081234567890", "email": "support@aidss.id"}', 'Kontak layanan pelanggan')
+('pricing', '{"monthly": 15000, "annual": 150000}', 'Harga paket langganan dalam IDR')
 ON CONFLICT (key) DO NOTHING;
+
+-- 'bank_accounts' dan 'contact_support' TIDAK ikut di-seed. Keduanya milik jalur
+-- pembayaran yang belum ada, dan menuliskannya sekarang berarti shipping baris
+-- yang tidak bisa dibaca dan tidak bisa ditulis siapa pun — status yang
+-- docs/status.md sudah catat sebagai utang. Bentuknya sengaja kept di sini
+-- sebagai rancangan, bukan sebagai SQL yang boleh dijalankan. Lihat
+-- docs/status.md dan ADR-0010.
 
 -- ── 6. Tabel Notification Logs ── FASE 2 ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS notification_logs (
@@ -368,7 +380,7 @@ Admin Portal (/admin)
 | `POST` | `/v1/auth/signup` | Registrasi Akun. Di Fase 1 tanpa pembayaran | Publik |
 | `POST` | `/v1/auth/login` | Login Email & Password, mereturn JWT + Role + Sub Status | Publik |
 | `POST` | `/v1/auth/refresh` | Refresh JWT Token | Authenticated |
-| `GET`  | `/v1/subscriptions/pricing` | Ambil harga aktif & daftar rekening tujuan | Publik |
+| `GET`  | `/v1/subscriptions/pricing` | Ambil harga. **Sudah ada**; daftar rekening tujuan belum | Publik |
 | `POST` | `/v1/payments/midtrans/webhook` | Webhook HTTP POST dari Midtrans | Server-to-Server |
 | `POST` | `/v1/payments/manual/upload-proof` | Upload berkas bukti transfer manual | Authenticated/Public |
 
@@ -388,7 +400,7 @@ Admin Portal (/admin)
 | `POST` | `/v1/admin/transactions/{id}/reject` | Tolak transfer manual disertai catatan alasan | Admin |
 | `GET`  | `/v1/admin/users` | Daftar seluruh user + filter status & pencarian | Admin |
 | `POST` | `/v1/admin/users/{id}/grant-subscription` | Membuat Subscription baru (perpanjangan) | Admin |
-| `PUT`  | `/v1/admin/settings/pricing` | Perbarui nominal harga bulanan & tahunan | Admin |
+| `PUT`  | `/v1/admin/settings/pricing` | Perbarui nominal harga bulanan & tahunan. **Sudah ada** | Admin |
 | `PUT`  | `/v1/admin/settings/bank-accounts` | Perbarui daftar rekening bank transfer manual | Admin |
 
 ---

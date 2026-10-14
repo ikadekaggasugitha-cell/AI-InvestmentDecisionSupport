@@ -15,6 +15,7 @@ Kolom Status membedakan **diterima** dari **diterapkan**. Keduanya tidak sama, d
 | [0007](0007-lantai-kontras-batas-kontrol.md) | Batas kontrol punya lantai kontras; pembatas tidak | Ya | Ya |
 | [0008](0008-transaksi-kunci-idempotensi-webhook.md) | Kunci idempotensi ada di Transaction, bukan di Subscription | Ya | Ya, lewat migrasi `0010_transactions.sql`. Handler webhook yang memakainya belum ada |
 | [0009](0009-kode-penolakan-per-penyebab.md) | Satu kode penolakan per penyebab: WS 1008 untuk auth, 4403 untuk langganan, HTTP 402 untuk langganan | Ya | Ya |
+| [0010](0010-harga-di-system-settings.md) | Harga tinggal di `system_settings`, bukan di dokumen | Ya | Ya, lewat migrasi `0011_system_settings_pricing.sql` |
 
 Nomor 0003 sengaja dilewati. Slot itu dipesan untuk keputusan penundaan penagihan, dan akan diisi ketika batas Fase 2 benar-benar digambar — menulisnya sekarang akan mencatat batasan yang belum ada. Angka pada label di tabel selalu sama dengan angka pada nama filenya, jadi membacanya tidak perlu menebak.
 

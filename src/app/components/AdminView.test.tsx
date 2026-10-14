@@ -20,6 +20,7 @@ const calls: { url: string; method: string }[] = []
 const state = {
   list: null as Reply | null,
   block: null as Reply | null,
+  pricing: null as Reply | null,
   failList: false,
 }
 
@@ -33,6 +34,7 @@ vi.mock('../config/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../config/api')>()),
   ENDPOINTS: {
     adminAccounts: '/v1/admin/accounts',
+    adminPricing: '/v1/admin/settings/pricing',
     subscription: '/v1/subscription/current',
   },
   apiFetch: vi.fn(async (url: string, init?: RequestInit) => {
@@ -45,6 +47,14 @@ vi.mock('../config/api', async (importOriginal) => ({
     }
 
     if (state.failList) throw new Error('offline')
+
+    if (url.endsWith('/v1/admin/settings/pricing')) {
+      const reply = state.pricing ?? {
+        status: 200,
+        body: { monthly: 15000, annual: 150000, updatedAt: '2026-10-01T09:30:00+00:00' },
+      }
+      return { ok: reply.status < 400, status: reply.status, json: async () => reply.body } as unknown as Response
+    }
 
     const reply = state.list ?? { status: 200, body: { accounts: ACCOUNTS, hasMore: false } }
     return { ok: reply.status < 400, status: reply.status, json: async () => reply.body } as unknown as Response
@@ -225,5 +235,23 @@ describe('what the page says about blocking', () => {
     renderAdmin()
     await screen.findByText('Siti Rahayu')
     expect(screen.getByText(/tidak dihapus/i)).toBeInTheDocument()
+  })
+})
+
+describe('the admin tabs', () => {
+  it('reaches the price without a second URL', async () => {
+    // /admin is already an operational tool at its own URL. A second route would
+    // add routing and a nav element to solve a problem this page does not have.
+    const user = userEvent.setup()
+    renderAdmin()
+    await screen.findByText('Siti Rahayu')
+    expect(screen.getByRole('tab', { name: /Akun/i })).toHaveAttribute('aria-selected', 'true')
+
+    await user.click(screen.getByRole('tab', { name: /Harga/i }))
+
+    // The price form is what proves the switch happened; a selected tab would
+    // also pass with an empty panel.
+    await waitFor(() => expect(screen.getByLabelText(/Bulanan/i)).toHaveValue(15000))
+    expect(screen.queryByText('Siti Rahayu')).not.toBeInTheDocument()
   })
 })

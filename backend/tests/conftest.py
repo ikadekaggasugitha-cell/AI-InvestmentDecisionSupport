@@ -441,11 +441,29 @@ class _IdentityPool:
         self.subscriptions: list[dict] = []
         self.fail = False                         # simulate a full outage
         self.fail_subscriptions = False            # simulate the entitlement query alone failing
+        # system_settings. Seeded with the prices migration 0011 writes, so tests
+        # read the same starting state a fresh install would have.
+        self.settings: dict[str, dict] = {
+            "pricing": {
+                "value": {"monthly": 15000, "annual": 150000},
+                "updated_at": self._now.now(self._tz.utc),
+            }
+        }
 
     # -- accounts
 
     async def fetchrow(self, query, *args):
         self._guard()
+        if "FROM system_settings" in query:
+            row = self.settings.get(args[0])
+            return None if row is None else dict(row)
+        if "INSERT INTO system_settings" in query:
+            # settings.write_pricing: key, monthly, annual.
+            self.settings[args[0]] = {
+                "value": {"monthly": args[1], "annual": args[2]},
+                "updated_at": self._now.now(self._tz.utc),
+            }
+            return {"updated_at": self.settings[args[0]]["updated_at"]}
         if "INSERT INTO users" in query:
             email = args[0].lower()
             if email in self.users:
@@ -637,5 +655,6 @@ def fake_identity():
          patch("api.services.sessions.get_pool", _get_pool), \
          patch("api.services.entitlements.get_pool", _get_pool), \
          patch("api.services.consent.get_pool", _get_pool), \
-         patch("api.routers.subscription.get_pool", _get_pool):
+         patch("api.routers.subscription.get_pool", _get_pool), \
+         patch("api.services.settings.get_pool", _get_pool):
         yield pool

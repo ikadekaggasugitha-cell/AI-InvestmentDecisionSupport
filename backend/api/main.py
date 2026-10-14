@@ -23,8 +23,8 @@ from api.core.auth import get_current_user, require_entitlement
 from api.core.config import get_settings
 from api.core.rate_limit_middleware import rate_limit_middleware
 from api.routers import (
-    admin, advisor, alerts, auth, broksum, market_ws, news, portfolio, reports, risk,
-    signals, subscription, symbols, technicals,
+    admin, advisor, alerts, auth, broksum, market_ws, news, portfolio, pricing, reports,
+    risk, signals, subscription, symbols, technicals,
 )
 
 # ── Structured logging ────────────────────────────────────────────────────────
@@ -250,7 +250,7 @@ Set `AUTH_BYPASS=true` in `.env` for development.
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
     )
 
@@ -310,6 +310,10 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     # Authenticated but not entitlement-gated: this reports whether the caller has
     # a subscription, so gating it on having one would be circular.
     app.include_router(subscription.router, dependencies=protected)
+    # Public, and the only unauthenticated data endpoint here. The price has to be
+    # readable before anyone can decide to subscribe; it exposes two numbers and
+    # nothing else.
+    app.include_router(pricing.router)
     app.include_router(news.router, dependencies=protected)
 
     # ── Prometheus metrics (Phase 8) ──────────────────────────────────────────
