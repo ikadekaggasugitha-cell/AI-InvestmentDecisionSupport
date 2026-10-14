@@ -10,10 +10,11 @@ Diverifikasi terhadap kode pada **2026-10-07**, setelah migrasi `0008` diterapka
 
 | Area | Status | Bukti |
 | --- | --- | --- |
-| Skema data pasar | Ada | 12 tabel dan 1 continuous aggregate di `backend/db/schema.sql` |
+| Skema data pasar | Ada | 14 tabel dan 1 continuous aggregate di `backend/db/schema.sql`. Tambah 2 dari 12: `consent_acceptances` (migrasi `0009`) dan `transactions` (migrasi `0010`). Angka 12 yang ada sebelumnya sudah basi sejak `0009` |
 | Tabel `users` | Ada | `backend/db/migrations/0005_auth_and_sessions.sql`. Email unik per `lower(email)`, role hanya `user` dan `admin`, `blocked_at` nullable |
 | Tabel `sessions` | Ada | `backend/db/migrations/0005_auth_and_sessions.sql`. Menyimpan `SHA-256` token, bukan token mentah |
-| Tabel `subscriptions` | Ada | `backend/db/migrations/0005_auth_and_sessions.sql`. Hanya `user_id` dan `expires_at`, tanpa kolom status. Dipakai untuk menilai akses |
+| Tabel `subscriptions` | Ada | `backend/db/migrations/0005_auth_and_sessions.sql`. Hanya `user_id` dan `expires_at`, tanpa kolom status. Dipakai untuk menilai akses. **Tidak ada yang menulisnya**: nol baris `INSERT`/`UPDATE` di seluruh backend, jadi belum ada jalur yang bisa menghasilkannya ([ADR-0008](adr/0008-transaksi-kunci-idempotensi-webhook.md)) |
+| Tabel `transactions` | Ada, tapi kosong | `backend/db/migrations/0010_transactions.sql` dan `backend/db/schema.sql`. Alur uang saja, tidak menyentuh hak akses. `uq_transactions_midtrans_transaction_id` adalah kunci idempotensi webhook. **Belum ada yang menulisnya**: nol baris endpoint pembayaran dan webhook, jadi tabel ini kosong di setiap install dan batasan itu belum pernah dieksploitasi ([ADR-0008](adr/0008-transaksi-kunci-idempotensi-webhook.md)) |
 | Kepemilikan portfolio | Selesai | `owner_sub` dicabut di `0006`. `user_id` sekarang `NOT NULL` dengan foreign key, dan kedua index sudah pindah |
 | Migrasi DB | Ada | `backend/db/migrations/0001` sampai `0008`, runner `backend/db/migrate.py` dengan ledger sha256 |
 | Worker latar | Ada | 7 task terjadwal di `backend/workers/celery_app.py:66-144`, zona `Asia/Jakarta` |
@@ -49,7 +50,6 @@ Tidak ada satu pun item di bawah ini yang ada di kode. Setiapnya tercatat supaya
 
 | Area | Status | Kenapa belum |
 | --- | --- | --- |
-| Tabel `transactions` | Belum | Ditunda ke Fase 2. Tidak ada jalur pembayaran, jadi tidak ada yang bisa mengisinya |
 | Tabel `system_settings` | Belum | Ditunda ke Fase 2. Harga dan rekening tujuan tidak ada sumbernya |
 | Tabel `notification_logs` | Belum | Ditunda ke Fase 2. Belum ada kanal notifikasi |
 | Checkout dan pembayaran | Belum | Tidak ada UI dan tidak ada endpoint. Midtrans, QRIS, dan upload bukti nol baris kode |

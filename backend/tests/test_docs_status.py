@@ -30,6 +30,7 @@ CONTEXT = DOCS.parent / "CONTEXT.md"
 ADR_DIR = DOCS / "adr"
 PLAN = DOCS / "saas-subscription-platform.md"
 LEGAL = DOCS / "legal-and-consent.md"
+SCHEMA = DOCS.parent / "backend" / "db" / "schema.sql"
 
 # Sections whose backticked paths are claims of existence. The section that
 # lists what is missing is deliberately not here.
@@ -165,6 +166,27 @@ class TestRelativeLinksResolve:
         assert not orphans, f"ADR files not listed in docs/adr/README.md: {orphans}"
 
 
+def _ddl_body(text: str, table: str) -> list[str]:
+    """Normalised CREATE TABLE body for `table`: no comments, no blank lines.
+
+    Comment lines are dropped because the plan document explains each column and
+    the schema is terser. What is left is the shape that must not diverge.
+    """
+    match = re.search(
+        rf"CREATE TABLE IF NOT EXISTS\s+{table}\s*\((.*?)\n\);",
+        text,
+        re.I | re.S,
+    )
+    if not match:
+        return []
+    kept = []
+    for raw in match.group(1).splitlines():
+        line = raw.split("--", 1)[0].strip().rstrip(",").strip()
+        if line:
+            kept.append(re.sub(r"\s+", " ", line))
+    return kept
+
+
 class TestPlanDocumentAgreesWithDecisions:
     """The contradictions that ADR-0001, 0002 and 0004 removed from the plan."""
 
@@ -233,6 +255,24 @@ class TestPlanDocumentAgreesWithDecisions:
                 f"{phrase!r} gives Subscription a stored status; the payment "
                 "lifecycle belongs to Transaction (ADR-0002)"
             )
+
+    def test_plan_transactions_ddl_matches_the_migration(self):
+        """The plan's DDL and schema.sql must be the same table, not the same idea.
+
+        The plan is what Phase 2 will be built from. A DDL there that has drifted
+        from the migration is the same defect as the six contradictions removed
+        from this document earlier: the document describes something the database
+        does not do. Comment lines are stripped before comparing so the plan can
+        explain itself without that counting as drift.
+        """
+        schema_body = _ddl_body(SCHEMA.read_text(), "transactions")
+        plan_body = _ddl_body(PLAN.read_text(), "transactions")
+        assert schema_body, "no transactions CREATE TABLE parsed out of schema.sql"
+        assert plan_body, "no transactions CREATE TABLE parsed out of the plan document"
+        assert plan_body == schema_body, (
+            "the plan's transactions DDL has drifted from backend/db/schema.sql.\n"
+            f"plan:\n{plan_body}\nschema.sql:\n{schema_body}"
+        )
 
 
 class TestContextAndAdrsExist:

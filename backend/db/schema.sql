@@ -159,6 +159,39 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_access
     ON subscriptions (user_id, expires_at DESC);
 
+-- ── Transactions (money flow) ───────────────────────────────────────────────
+-- One row per attempt to pay. This table grants nothing: it records the money,
+-- and `subscriptions.expires_at` remains the only thing that decides access
+-- (CONTEXT.md rule 1). Nothing writes it yet, which is why it is an empty table
+-- on a fresh install rather than a claim that billing works. See ADR-0008.
+--
+-- uq_transactions_midtrans_transaction_id is the idempotency key: Midtrans
+-- replays an order when it does not see our response, and a replay would
+-- otherwise mint a second row and a second full period. NULLs stay repeatable
+-- so manual transfers, which have no gateway id, keep working.
+CREATE TABLE IF NOT EXISTS transactions (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                 UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    subscription_id         UUID REFERENCES subscriptions(id) ON DELETE SET NULL,
+    invoice_code            VARCHAR(50) NOT NULL UNIQUE,
+    amount                  NUMERIC(14,2) NOT NULL,
+    payment_gateway         VARCHAR(30) NOT NULL CHECK (payment_gateway IN ('midtrans', 'manual')),
+    payment_method          VARCHAR(50) NOT NULL,
+    status                  VARCHAR(30) NOT NULL DEFAULT 'pending'
+                                CHECK (status IN ('pending', 'settlement', 'expire', 'deny', 'cancel')),
+    midtrans_transaction_id VARCHAR(100),
+    proof_image_url         TEXT,
+    approved_by             UUID REFERENCES users(id),
+    approved_at             TIMESTAMPTZ,
+    admin_notes             TEXT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_transactions_midtrans_transaction_id UNIQUE (midtrans_transaction_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions (user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions (status);
+
 -- ── Portfolios (ownable rows) ────────────────────────────────────────────────
 -- A portfolio is a real row so ownership can be enforced. Before this, every
 -- portfolio-scoped endpoint took its identity from a query parameter any caller

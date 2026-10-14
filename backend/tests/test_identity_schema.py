@@ -27,6 +27,8 @@ DB = Path(__file__).resolve().parents[1] / "db"
 SCHEMA = DB / "schema.sql"
 MIGRATION = DB / "migrations" / "0005_auth_and_sessions.sql"
 MIGRATION_0006 = DB / "migrations" / "0006_retire_owner_sub.sql"
+MIGRATION_0010 = DB / "migrations" / "0010_transactions.sql"
+PLAN_DOC = Path(__file__).resolve().parents[2] / "docs" / "saas-subscription-platform.md"
 
 CREATE_TABLE_RE = re.compile(
     r"CREATE TABLE IF NOT EXISTS\s+(?P<name>\w+)\s*\((?P<body>.*?)\n\);", re.I | re.S
@@ -43,7 +45,13 @@ def _columns(body: str) -> dict[str, str]:
     out: dict[str, str] = {}
     for raw in body.splitlines():
         line = raw.strip().rstrip(",")
-        if not line or line.upper().startswith(("PRIMARY KEY", "UNIQUE", "CHECK", "FOREIGN KEY")):
+        # CONSTRAINT is a table-level constraint, not a column. Without it here,
+        # `CONSTRAINT uq_x UNIQUE (col)` parses as a column named "constraint"
+        # with the first word of its name as its type. `transactions` is currently
+        # the only table using this form, so re-check this tuple if another does.
+        if not line or line.upper().startswith(
+            ("PRIMARY KEY", "UNIQUE", "CHECK", "FOREIGN KEY", "CONSTRAINT")
+        ):
             continue
         name = line.split()[0]
         if re.fullmatch(r"\w+", name):
@@ -73,6 +81,113 @@ class TestSchemaAndMigrationAgree:
         declared = set(_tables(SCHEMA))
         for name in ("users", "sessions", "subscriptions"):
             assert name in declared, f"{name} missing from schema.sql"
+
+
+class TestTransactionsTable:
+    """ADR-0008: the idempotency key lives here, and nothing grants access here."""
+
+    def test_transaction_body_was_actually_parsed(self):
+        """Guard the guard.
+
+        Every assertion below reads this table. If the regex stopped matching,
+        they would all raise on a missing key anyway, but the failure would look
+        like a schema problem rather than a broken test. ADR-0007 records the
+        same trap: a checker that matched zero files and passed.
+        """
+        body = _tables(SCHEMA).get("transactions")
+        assert body, "failed to parse transactions out of schema.sql; the rest is meaningless"
+        cols = _columns(body)
+        assert cols, "parsed a transactions body but found no columns in it"
+        assert "constraint" not in cols, (
+            "_columns must skip table-level CONSTRAINT lines, or it reports a column "
+            "named 'constraint' and every column count below is off by one"
+        )
+
+    def test_present_in_both_migration_and_schema(self):
+        assert MIGRATION_0010.is_file(), "0010 is how an existing database gets transactions"
+        migrated = set(_tables(MIGRATION_0010))
+        assert migrated, "failed to parse any CREATE TABLE out of 0010"
+        declared = set(_tables(SCHEMA))
+        assert "transactions" in declared, (
+            "transactions exists only in 0010. db-init applies schema.sql and nothing "
+            "else, so a fresh stack would not have the table the migration creates."
+        )
+
+    def test_idempotency_key_is_declared(self):
+        """A replayed gateway callback must collide instead of duplicating.
+
+        This asserts the constraint is *declared*. It does not assert it rejects a
+        duplicate insert: CI runs no Postgres, so nothing can prove that here.
+        ADR-0008 records the real-database check as an open prerequisite.
+        """
+        body = _tables(SCHEMA)["transactions"]
+        assert "midtrans_transaction_id" in _columns(body), (
+            "the idempotency key is the gateway's own transaction id; without the "
+            "column there is nothing to be idempotent about"
+        )
+        assert re.search(
+            r"CONSTRAINT\s+uq_transactions_midtrans_transaction_id\s+UNIQUE\s*\(\s*midtrans_transaction_id\s*\)",
+            body,
+            re.I,
+        ), (
+            "uq_transactions_midtrans_transaction_id must stay a named UNIQUE over "
+            "midtrans_transaction_id. Inline UNIQUE works the same way but cannot be "
+            "named by a rollback or by hand during an incident."
+        )
+
+    def test_idempotency_key_is_nullable_for_manual_transfers(self):
+        """A manual bank transfer has no gateway id.
+
+        It must therefore be able to leave the column NULL, and PostgreSQL ignores
+        NULLs under UNIQUE, so several manual transfers coexist. NOT NULL here
+        would leave manual payment with nowhere to put its row.
+        """
+        cols = _columns(_tables(SCHEMA)["transactions"])
+        definition = cols["midtrans_transaction_id"]
+        assert "NOT NULL" not in definition.upper(), (
+            "midtrans_transaction_id is NOT NULL, so a manual transfer has no value "
+            "to write and cannot be recorded at all"
+        )
+
+    def test_no_redundant_invoice_index(self):
+        """invoice_code is UNIQUE, so it already carries an index."""
+        text = SCHEMA.read_text()
+        assert not re.search(
+            r"CREATE\s+(?:UNIQUE\s+)?INDEX[^;]*\bON\s+transactions\s*\(\s*invoice_code\s*\)",
+            text,
+            re.I,
+        ), (
+            "invoice_code is UNIQUE, which builds its own index. A second index on "
+            "the same column is pure write overhead and storage."
+        )
+
+    def test_no_column_grants_or_blocks_access(self):
+        """Access stays derived from subscriptions.expires_at (CONTEXT.md rule 1)."""
+        cols = _columns(_tables(SCHEMA)["transactions"])
+        for banned in ("is_active", "entitled", "access", "granted", "plan_type", "starts_at"):
+            assert banned not in cols, (
+                f"transactions.{banned} would put an access decision on the money "
+                "table, which is the coupling CONTEXT.md rule 1 rules out"
+            )
+
+    def test_subscription_id_does_not_block_user_deletion(self):
+        """users cascades to both children, so RESTRICT here would break DELETE.
+
+        PostgreSQL does not topologically sort cascading deletes (bug #18064), so
+        RESTRICT on this column makes deleting a user fail from the other cascade
+        branch. SET NULL is the chosen behaviour and must not drift back.
+        """
+        body = _tables(SCHEMA)["transactions"]
+        match = re.search(r"subscription_id[^,]*", body, re.I)
+        assert match, "subscription_id missing from transactions"
+        assert not re.search(r"ON\s+DELETE\s+RESTRICT", match.group(0), re.I), (
+            "subscription_id must stay ON DELETE SET NULL. RESTRICT here blocks "
+            "DELETE FROM users because users cascades to subscriptions and "
+            "transactions at once (PostgreSQL bug #18064)."
+        )
+        assert "subscriptions" in body and "ON DELETE CASCADE" in body, (
+            "this test only means something while transactions still hangs off users"
+        )
 
 
 class TestUsersTable:

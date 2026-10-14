@@ -203,34 +203,50 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_user_access
     ON subscriptions (user_id, expires_at DESC);
 
 -- ── 4. Tabel Transactions ──────────────────────────────────────────────────
--- FASE 2. Alur uang sepenuhnya: apa yang sudah dibayar, menunggu verifikasi
--- admin, ditolak, atau kedaluwarsa. Tidak ada kolom di sini yang menyentuh
--- hak akses.
+-- Alur uang sepenuhnya: apa yang sudah dibayar, menunggu verifikasi admin,
+-- ditolak, atau kedaluwarsa. Tidak ada kolom di sini yang menyentuh hak akses.
+--
+-- Tabel ini sudah ada lewat migrasi `0010_transactions.sql` dan ada di
+-- `backend/db/schema.sql`. Yang belum ada adalah jalur yang menulisnya: belum
+-- ada endpoint pembayaran maupun webhook, jadi di install baru tabel ini kosong.
+--
+-- Bentuk DDL di bawah identik dengan yang di migrasi. Kalau berubah, keduanya
+-- berubah bersama.
 CREATE TABLE IF NOT EXISTS transactions (
-    id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id                UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    subscription_id        UUID REFERENCES subscriptions(id) ON DELETE SET NULL,
-    invoice_code           VARCHAR(50) NOT NULL UNIQUE,
-    amount                 NUMERIC(14,2) NOT NULL,
-    payment_gateway        VARCHAR(30) NOT NULL CHECK (payment_gateway IN ('midtrans', 'manual')),
-    payment_method         VARCHAR(50) NOT NULL,
-    status                 VARCHAR(30) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'settlement', 'expire', 'deny', 'cancel')),
-    -- Kunci idempotensi webhook. UNIQUE, karena Midtrans memutar ulang order yang
-    -- sama saat responsnya hilang, dan tanpa batasan itu tiap tangkapan membuat
-    -- Transaction baru. NULL tetap berulang: pembayaran manual tidak punya id
-    -- gateway, dan PostgreSQL mengabaikan NULL pada UNIQUE.
-    midtrans_transaction_id VARCHAR(100) UNIQUE,
-    proof_image_url        TEXT,
-    approved_by            UUID REFERENCES users(id),
-    approved_at            TIMESTAMPTZ,
-    admin_notes            TEXT,
-    created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                 UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    subscription_id         UUID REFERENCES subscriptions(id) ON DELETE SET NULL,
+    invoice_code            VARCHAR(50) NOT NULL UNIQUE,
+    amount                  NUMERIC(14,2) NOT NULL,
+    payment_gateway         VARCHAR(30) NOT NULL CHECK (payment_gateway IN ('midtrans', 'manual')),
+    payment_method          VARCHAR(50) NOT NULL,
+    status                  VARCHAR(30) NOT NULL DEFAULT 'pending'
+                                CHECK (status IN ('pending', 'settlement', 'expire', 'deny', 'cancel')),
+    midtrans_transaction_id VARCHAR(100),
+    proof_image_url         TEXT,
+    approved_by             UUID REFERENCES users(id),
+    approved_at             TIMESTAMPTZ,
+    admin_notes             TEXT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- Kunci idempotensi webhook. Bernama, bukan inline, supaya rollback dan
+    -- inspeksi manual bisa menyebutnya. Midtrans memutar ulang order yang sama
+    -- saat responsnya hilang, dan tanpa batasan itu tiap tangkapan membuat
+    -- Transaction baru lalu satu masa aktif penuh. NULL tetap berulang:
+    -- pembayaran manual tidak punya id gateway, dan PostgreSQL mengabaikan
+    -- NULL pada UNIQUE.
+    --
+    -- ON DELETE SET NULL, bukan RESTRICT: `users` cascade ke dua anak, dan
+    -- PostgreSQL tidak melakukan topological sort pada cascading delete
+    -- (bug #18064), jadi RESTRICT di sini akan memblokir DELETE FROM users.
+    -- Lihat ADR-0008.
+    CONSTRAINT uq_transactions_midtrans_transaction_id UNIQUE (midtrans_transaction_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions (user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions (status);
-CREATE INDEX IF NOT EXISTS idx_transactions_invoice ON transactions (invoice_code);
+-- Tidak ada index di invoice_code: kolom itu sudah UNIQUE, jadi ia sudah punya
+-- index sendiri dan index kedua hanya menambah biaya tulis.
 
 -- ── 5. Tabel System Settings (Dinamis: Rekening & Harga) ── FASE 2 ─────────
 CREATE TABLE IF NOT EXISTS system_settings (
