@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ENDPOINTS, apiFetch } from "../config/api";
+import {
+  ENDPOINTS, HttpStatusError, apiFetch, classifyLoadError, type LoadFailure,
+} from "../config/api";
 import { LOT_MAX, PRICE_MAX } from "../constants";
 import { IDX_STOCKS } from "../data/idxData";
 
@@ -150,6 +152,9 @@ export interface UsePortfolioResult {
   loading:      boolean;
   /** Set when the server could not be reached. Distinct from "no positions". */
   error:        string | null;
+  /** Why the load failed. A refusal is not an empty portfolio and not a dead
+   *  server, and PortfolioView cannot say which happened from `error` alone. */
+  failure:      LoadFailure | null;
   /** True when the server answered, whatever it said. */
   loaded:       boolean;
   addHolding:    (h: PortfolioHolding) => void;
@@ -163,6 +168,7 @@ export function usePortfolio(): UsePortfolioResult {
   const [transactions, setTransactions] = useState<Transaction[]>(readTransactions);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState<string | null>(null);
+  const [failure,      setFailure]      = useState<LoadFailure | null>(null);
   const [loaded,       setLoaded]       = useState(false);
 
   // The in-flight write, if any. Positions are a whole-portfolio replace, so two
@@ -175,16 +181,19 @@ export function usePortfolio(): UsePortfolioResult {
     setLoading(true);
     try {
       const res = await apiFetch(ENDPOINTS.positions, signal ? { signal } : undefined);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new HttpStatusError(res.status);
       const body = await res.json();
       setHoldings(fromResponse(body));
       setError(null);
+      setFailure(null);
       setLoaded(true);
     } catch (err) {
       if (signal?.aborted) return;
       // An empty list here would be a lie: it would say "you hold nothing" when
-      // the truth is "I could not ask". The view shows the difference.
+      // the truth is "I could not ask". The view shows the difference, and it
+      // can only tell a refusal from a dead server if the cause travels with it.
       setError(err instanceof Error ? err.message : "Unknown error");
+      setFailure(classifyLoadError(err));
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
@@ -223,13 +232,15 @@ export function usePortfolio(): UsePortfolioResult {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(toPayload(next)),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new HttpStatusError(res.status);
         // The server is authoritative. Taking its response means a rejected or
         // clamped value is reflected rather than lingering on screen.
         setHoldings(fromResponse(await res.json()));
         setError(null);
+        setFailure(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
+        setFailure(classifyLoadError(err));
       } finally {
         writeInFlight.current = false;
       }
@@ -335,10 +346,10 @@ export function usePortfolio(): UsePortfolioResult {
 
   return useMemo(
     () => ({
-      holdings, transactions, loading, error, loaded,
+      holdings, transactions, loading, error, failure, loaded,
       addHolding, updateHolding, removeHolding, refetch,
     }),
-    [holdings, transactions, loading, error, loaded,
+    [holdings, transactions, loading, error, failure, loaded,
      addHolding, updateHolding, removeHolding, refetch]
   );
 }

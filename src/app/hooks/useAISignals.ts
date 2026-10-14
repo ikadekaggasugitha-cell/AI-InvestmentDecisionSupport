@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
+import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch, HttpStatusError,
+  classifyLoadError, type LoadFailure,
+} from "../config/api";
 import { signalsResponseSchema, parseOrThrow } from "../config/schemas";
 import { AI_RECOMMENDATIONS } from "../data/idxData";
 import { SEED_ENRICHMENT } from "../data/seedPhase10";
@@ -139,6 +141,10 @@ export interface AISignalsResult {
   signals: AISignal[];
   loading: boolean;
   error: string | null;
+  /** Refused or merely unreachable. A 403 is the server declining to
+   *  serve paid data, which is not an outage and must not be reported
+   *  as one. */
+  failure: LoadFailure | null;
   /**
    * ISO timestamp the backend stamped on the signals it returned. Null when we
    * have no honest answer: on the seed path this is null, because the bundle
@@ -234,7 +240,8 @@ function readModelMetrics(parsed: unknown): ModelMetrics | null {
 export function useAISignals(): AISignalsResult {
   const [signals, setSignals]         = useState<AISignal[]>(SEED_SIGNALS);
   const [loading, setLoading]         = useState(USE_LIVE_API);
-  const [error, setError]             = useState<string | null>(null);
+  const [error, setError]             = useState<string | null>(null)
+  const [failure, setFailure] = useState<LoadFailure | null>(null);
   const [isLive, setIsLive]           = useState(false);
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics | null>(null);
   const [modelVersion, setModelVersion] = useState<string | null>(null);
@@ -259,7 +266,7 @@ export function useAISignals(): AISignalsResult {
       const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       try {
         const res = await apiFetch(ENDPOINTS.signals, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new HttpStatusError(res.status);
         const data = await res.json();
         // Validate the core numeric fields before trusting the payload. A
         // malformed response throws here and lands in the error branch below,
@@ -270,6 +277,7 @@ export function useAISignals(): AISignalsResult {
           setSignals(signalList);
           setIsLive(true);
           setError(null);
+        setFailure(null);
           const env = parsed as Record<string, unknown>;
           setGeneratedAt(typeof env.generatedAt === "string" ? env.generatedAt : null);
           setServingSource(env.source === "live" || env.source === "mock" ? env.source : null);
@@ -283,6 +291,7 @@ export function useAISignals(): AISignalsResult {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : "Unknown error";
           setError(msg);
+          setFailure(classifyLoadError(err));
           setIsLive(false);
           // Keep whatever is already on screen (seed on first load, or the last
           // good live snapshot). The view renders it with a "simulated/offline"
@@ -312,5 +321,8 @@ export function useAISignals(): AISignalsResult {
     };
   }, []);
 
-  return { signals, loading, error, generatedAt, isLive, modelMetrics, modelVersion, servingSource };
+  return {
+    signals, loading, error, failure, generatedAt, isLive,
+    modelMetrics, modelVersion, servingSource,
+  };
 }

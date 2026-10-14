@@ -715,7 +715,10 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
   const [disclaimerAccepted, setDisclaimerAccepted] = useState<boolean>(
     () => hasAcceptedConsent(accountId)
   );
-  const { signals, loading, error, generatedAt, isLive, modelMetrics, modelVersion, servingSource } = useAISignals();
+  const {
+    signals, loading, error, failure, generatedAt, isLive,
+    modelMetrics, modelVersion, servingSource,
+  } = useAISignals();
 
   const avgUprob = signals.length
     ? Math.round(signals.reduce((s, r) => s + r.uprob, 0) / signals.length)
@@ -786,7 +789,7 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
   // banner below explains the numbers are simulated. Only a genuine empty state
   // (no data at all) falls through to the full error screen.
   if (error && signals.length === 0) {
-    return <ViewError message={error} locale={locale} />;
+    return <ViewError message={error} failure={failure} locale={locale} />;
   }
 
   return (
@@ -807,19 +810,42 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
             failed. The cards below still render the last good snapshot (or the
             bundled seed), and the hook re-polls, so this clears itself once the
             backend is reachable again. */}
+        {/* Same rule as RiskView: a refusal is an answer from a healthy server,
+            not an outage. Blaming the connection here sent people to debug the
+            wrong thing when their only real problem was the subscription. */}
         {error && !isLive && (
           <div
             className="flex items-center gap-3 px-4 py-3 rounded"
-            style={{ background: "var(--loss-bg)", border: "1px solid var(--loss)" }}
+            role="alert"
+            style={{
+              background: failure?.kind === "locked" ? "var(--warning-bg)" : "var(--loss-bg)",
+              border: `1px solid ${failure?.kind === "locked" ? "var(--warning)" : "var(--loss)"}`,
+            }}
           >
-            <AlertTriangle size={14} style={{ color: "var(--loss)", flexShrink: 0 }} />
+            <AlertTriangle
+              size={14}
+              style={{ color: failure?.kind === "locked" ? "var(--warning)" : "var(--loss)", flexShrink: 0 }}
+            />
             <div style={{ fontSize: 11, color: "var(--foreground)", flex: 1 }}>
-              <span style={{ fontWeight: 600, color: "var(--loss)" }}>
-                {isId ? "Mode simulasi:" : "Simulated mode:"}
-              </span>{" "}
-              {isId
-                ? "Backend tidak terjangkau, menampilkan data simulasi. Sistem mencoba menyambung kembali otomatis."
-                : "Backend unreachable, showing simulated data. The system is retrying automatically."}
+              {failure?.kind === "locked" ? (
+                <>
+                  <span style={{ fontWeight: 600, color: "var(--warning)" }}>
+                    {isId ? "Sinyal tidak dikirim:" : "Signals not served:"}
+                  </span>{" "}
+                  {isId
+                    ? "langganan belum aktif. Ini bukan masalah koneksi — server berjalan baik."
+                    : "the subscription is not active. This is not a connection problem — the server is healthy."}
+                </>
+              ) : (
+                <>
+                  <span style={{ fontWeight: 600, color: "var(--loss)" }}>
+                    {isId ? "Mode simulasi:" : "Simulated mode:"}
+                  </span>{" "}
+                  {isId
+                    ? "Backend tidak terjangkau, menampilkan data simulasi. Sistem mencoba menyambung kembali otomatis."
+                    : "Backend unreachable, showing simulated data. The system is retrying automatically."}
+                </>
+              )}
             </div>
           </div>
         )}

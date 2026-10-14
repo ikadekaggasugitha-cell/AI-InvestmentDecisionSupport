@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { ENDPOINTS, USE_LIVE_API, apiFetch, FETCH_TIMEOUT_MS } from "../config/api";
+import { ENDPOINTS, USE_LIVE_API, apiFetch, FETCH_TIMEOUT_MS, HttpStatusError,
+} from "../config/api";
 import { ALERTS_DATA } from "../data/idxData";
 import type { AlertItem } from "../components/AlertsView";
 
@@ -69,7 +70,7 @@ export function useAlerts(): UseAlertsResult {
         const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
         const res = await apiFetch(ENDPOINTS.alerts, { signal: controller.signal });
         clearTimeout(timer);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new HttpStatusError(res.status);
         const json = await res.json();
         const list: AlertItem[] = json.alerts ?? [];
         if (alive && list.length) {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
+import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch, HttpStatusError,
+} from "../config/api";
 
 /* ── Public types ────────────────────────────────────────────────────────── */
 
@@ -58,7 +59,7 @@ export function useAccumulationMap(symbols: readonly string[]): AccumulationMapR
         const res = await apiFetch(ENDPOINTS.accumulation(symbols), {
           signal: controller.signal,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new HttpStatusError(res.status);
         const data = await res.json();
         const items: AccumulationBadgeData[] = Array.isArray(data?.items) ? data.items : [];
         if (!cancelled) {

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { ENDPOINTS, FETCH_TIMEOUT_MS, USE_LIVE_API, apiFetch } from "../config/api";
+import { ENDPOINTS, FETCH_TIMEOUT_MS, USE_LIVE_API, apiFetch, HttpStatusError,
+  classifyLoadError, type LoadFailure,
+} from "../config/api";
 
 /**
  * Realised portfolio value over time, from GET /v1/portfolio/equity.
@@ -42,6 +44,11 @@ export interface EquityCurveResult {
   points: EquityPoint[];
   loading: boolean;
   error: string | null;
+  /** Refused or merely unreachable. A 403 is the server declining to serve
+   *  paid data — an answer, not an outage, and not the same as `null`.
+   */
+  failure: LoadFailure | null;
+
   isLive: boolean;
   /**
    * Why there are no points, when there are none. `null` when the curve is
@@ -59,6 +66,7 @@ const EMPTY: EquityCurveResult = {
   points: [],
   loading: false,
   error: null,
+            failure: null,
   isLive: false,
   emptyReason: null,
   startValue: null,
@@ -118,7 +126,7 @@ export function useEquityCurve(days = 252): EquityCurveResult {
         const res = await apiFetch(ENDPOINTS.portfolioEquity(days), {
           signal: controller.signal,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new HttpStatusError(res.status);
         const data = await res.json();
         if (cancelled) return;
         const points = parsePoints(data?.points);
@@ -126,6 +134,7 @@ export function useEquityCurve(days = 252): EquityCurveResult {
           points,
           loading: false,
           error: null,
+            failure: null,
           isLive: data?.source === "live" && points.length > 0,
           emptyReason:
             points.length > 0
@@ -149,6 +158,7 @@ export function useEquityCurve(days = 252): EquityCurveResult {
           // history yet. Reporting them identically would hide an outage behind
           // a "no history yet" message.
           error: err instanceof Error ? err.message : "Unknown error",
+            failure: classifyLoadError(err),
         });
       } finally {
         clearTimeout(timeout);

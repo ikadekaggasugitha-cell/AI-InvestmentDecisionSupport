@@ -20,7 +20,7 @@ export interface AllocationPanelProps {
 
 export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationPanelProps) {
   const isId = locale === "id";
-  const { weights, metrics, source, loading, error } = usePortfolioOptimisation();
+  const { weights, metrics, source, loading, error, failure } = usePortfolioOptimisation();
   const [showRebalance, setShowRebalance] = useState(false);
 
   // Current weights from live prices, so "current vs target" compares like
@@ -54,9 +54,17 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
           </span>
         </div>
         <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-          {error
-            ? (isId ? `Tidak tersedia: ${error}` : `Unavailable: ${error}`)
-            : (isId ? "Backend tidak terjangkau." : "Backend unreachable.")}
+          {/* Never the raw status string. "Unavailable: HTTP 403" tells the reader
+              nothing about whether to fix their network or their subscription. */}
+          {failure?.kind === "locked"
+            ? (isId
+                ? "Tidak tersedia: langganan belum aktif. Server berjalan baik."
+                : "Unavailable: the subscription is not active. The server is healthy.")
+            : error
+              ? (isId
+                  ? `Tidak tersedia: ${error}`
+                  : `Unavailable: ${error}`)
+              : (isId ? "Backend tidak terjangkau." : "Backend unreachable.")}
         </div>
       </div>
     );

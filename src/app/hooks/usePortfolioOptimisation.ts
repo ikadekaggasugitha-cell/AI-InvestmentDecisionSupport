@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
+import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch, HttpStatusError,
+  classifyLoadError, type LoadFailure,
+} from "../config/api";
 import { portfolioResponseSchema, parseOrThrow } from "../config/schemas";
 
 /**
@@ -36,6 +38,11 @@ export interface PortfolioOptimisationResult {
   disclaimer: string;
   loading: boolean;
   error: string | null;
+  /** Refused or merely unreachable. A 403 is the server declining to serve
+   *  paid data — an answer, not an outage, and not the same as `null`.
+   */
+  failure: LoadFailure | null;
+
 }
 
 const EMPTY: PortfolioOptimisationResult = {
@@ -45,6 +52,7 @@ const EMPTY: PortfolioOptimisationResult = {
   disclaimer: "",
   loading: false,
   error: null,
+  failure: null,
 };
 
 /** How often the live allocation is re-polled, in ms. Heavier than the other
@@ -70,7 +78,7 @@ export function usePortfolioOptimisation(): PortfolioOptimisationResult {
       const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       try {
         const res = await apiFetch(ENDPOINTS.portfolio(), { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new HttpStatusError(res.status);
         const data = await res.json();
         if (cancelled) return;
 
@@ -85,6 +93,7 @@ export function usePortfolioOptimisation(): PortfolioOptimisationResult {
           disclaimer: parsed.disclaimer ?? "",
           loading: false,
           error: null,
+            failure: null,
         });
       } catch (err) {
         if (cancelled) return;
@@ -93,8 +102,10 @@ export function usePortfolioOptimisation(): PortfolioOptimisationResult {
         // error state when nothing has loaded yet. The next poll recovers.
         setState((prev) =>
           prev.weights.length
-            ? { ...prev, loading: false, error: err instanceof Error ? err.message : "Unknown error" }
-            : { ...EMPTY, error: err instanceof Error ? err.message : "Unknown error" },
+            ? { ...prev, loading: false, error: err instanceof Error ? err.message : "Unknown error",
+            failure: classifyLoadError(err) }
+            : { ...EMPTY, error: err instanceof Error ? err.message : "Unknown error",
+            failure: classifyLoadError(err) },
         );
       } finally {
         clearTimeout(timeout);

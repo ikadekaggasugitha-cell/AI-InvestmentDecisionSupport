@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { DataFreshnessBadge } from './DataFreshnessBadge'
-import type { DataFreshness } from '../hooks/useLiveMarket'
+import { SIMULATED_FRESHNESS, type DataFreshness } from '../hooks/useLiveMarket'
 
 function freshness(overrides: Partial<DataFreshness> = {}): DataFreshness {
   return {
@@ -90,3 +90,48 @@ describe('DataFreshnessBadge', () => {
     expect(screen.getByText(/LIVE|DELAYED|SIMULATED|OFFLINE/)).toBeInTheDocument()
   })
 
+
+/**
+ * The badge has to say which of three very different things went wrong.
+ *
+ * It is the one piece of chrome visible on every screen, and it used to collapse
+ * "the server refused because there is no subscription" into "backend
+ * unreachable" — which is the sentence people act on by rebooting their router.
+ */
+const base = { ...SIMULATED_FRESHNESS };
+
+function renderBadge(overrides: Partial<typeof base> = {}, connected = false) {
+  return render(
+    <DataFreshnessBadge freshness={{ ...base, ...overrides }} isConnected={connected} />,
+  );
+}
+
+describe("DataFreshnessBadge — why the feed is not connected", () => {
+  it("names the subscription when the socket was refused for want of one", () => {
+    renderBadge({ streamRefused: "entitlement" });
+
+    expect(screen.getByText(/TERKUNCI/i)).toBeInTheDocument();
+    expect(screen.getByText(/langganan belum aktif/i)).toBeInTheDocument();
+    expect(screen.queryByText(/tidak terjangkau/i)).not.toBeInTheDocument();
+  });
+
+  it("names the session when the session itself was refused", () => {
+    renderBadge({ streamRefused: "auth" });
+
+    expect(screen.getByText(/sesi tidak berlaku/i)).toBeInTheDocument();
+    expect(screen.queryByText(/langganan/i)).not.toBeInTheDocument();
+  });
+
+  it("blames the backend only when that is actually what happened", () => {
+    renderBadge({ streamRefused: null });
+
+    expect(screen.getByText(/backend tidak terjangkau/i)).toBeInTheDocument();
+  });
+
+  it("clears the refusal once prices arrive again", () => {
+    renderBadge({ streamRefused: null, isSimulated: false, isDelayed: true }, true);
+
+    expect(screen.queryByText(/TERKUNCI/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/tidak terjangkau/i)).not.toBeInTheDocument();
+  });
+});

@@ -118,6 +118,12 @@ async def require_entitlement(
     the system"; this answers "may this person use the paid data". Collapsing them
     would mean an administrator silently had to be a paying subscriber, which is
     exactly the trade CONTEXT.md forbids.
+
+    402, not 403. A blocked account is also refused, and a non-admin is refused on
+    admin routes — all with 403. The client needs to tell those apart: telling a
+    blocked person that they need a subscription is a lie, and so is telling a
+    non-admin that their billing is the problem. 402 is the status that says the
+    request was understood, the identity is fine, and the answer is "pay first".
     """
     settings = get_settings()
     if not settings.paywall_enabled:
@@ -125,7 +131,7 @@ async def require_entitlement(
     if await entitlements.has_active_subscription(user.user_id):
         return user
     raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
+        status_code=status.HTTP_402_PAYMENT_REQUIRED,
         detail="An active subscription is required for this data.",
     )
 

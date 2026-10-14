@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
+import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch,
+  HttpStatusError, classifyLoadError, type LoadFailure,
+} from "../config/api";
 
 /* ── Public types ────────────────────────────────────────────────────────── */
 
@@ -24,6 +26,8 @@ export interface ReportsResult {
   reports: ReportMeta[];
   loading: boolean;
   error: string | null;
+  /** Refused or unreachable. Reports are a paid route, so a 402 is a lock. */
+  failure: LoadFailure | null;
   /** type currently generating (Buat Laporan), or null. */
   generating: ReportType | null;
   /** type currently downloading (Unduh), or null. */
@@ -54,6 +58,7 @@ export function useReports(): ReportsResult {
   const [reports, setReports] = useState<ReportMeta[]>(USE_LIVE_API ? [] : OFFLINE);
   const [loading, setLoading] = useState(USE_LIVE_API);
   const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<LoadFailure | null>(null);
   const [isLive, setIsLive] = useState(false);
   const [generating, setGenerating] = useState<ReportType | null>(null);
   const [downloading, setDownloading] = useState<ReportType | null>(null);
@@ -67,7 +72,7 @@ export function useReports(): ReportsResult {
     (async () => {
       try {
         const res = await apiFetch(ENDPOINTS.reports, { signal: controller.signal });
-        if (!res.ok) throw new Error(`reports HTTP ${res.status}`);
+        if (!res.ok) throw new HttpStatusError(res.status);
         const data = await res.json();
         if (!cancelled) {
           setReports(Array.isArray(data?.reports) ? data.reports : OFFLINE);
@@ -77,6 +82,7 @@ export function useReports(): ReportsResult {
         if (cancelled) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Unknown error");
+        setFailure(classifyLoadError(err));
         setReports(OFFLINE); // still render the catalogue
         setIsLive(false);
       } finally {
@@ -92,7 +98,7 @@ export function useReports(): ReportsResult {
     // Blob download so the bearer token rides the request (a plain <a href>
     // could not send Authorization). Object URL is revoked after the click.
     const res = await apiFetch(ENDPOINTS.reportDownload(type));
-    if (!res.ok) throw new Error(`download HTTP ${res.status}`);
+    if (!res.ok) throw new HttpStatusError(res.status);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -107,10 +113,12 @@ export function useReports(): ReportsResult {
   const download = useCallback(async (type: ReportType) => {
     if (!USE_LIVE_API) { setError("Live API disabled: cannot download."); return; }
     setDownloading(type); setError(null);
+        setFailure(null);
     try {
       await triggerDownload(type);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Download failed");
+        setFailure(classifyLoadError(err));
     } finally {
       setDownloading(null);
     }
@@ -119,9 +127,10 @@ export function useReports(): ReportsResult {
   const generate = useCallback(async (type: ReportType) => {
     if (!USE_LIVE_API) { setError("Live API disabled: cannot generate."); return; }
     setGenerating(type); setError(null);
+        setFailure(null);
     try {
       const res = await apiFetch(ENDPOINTS.reportGenerate(type), { method: "POST" });
-      if (!res.ok) throw new Error(`generate HTTP ${res.status}`);
+      if (!res.ok) throw new HttpStatusError(res.status);
       const meta = await res.json();
       setReports((rs) => rs.map((r) =>
         r.type === type ? { ...r, sizeKb: meta?.sizeKb, generatedAt: meta?.generatedAt } : r));
@@ -129,10 +138,11 @@ export function useReports(): ReportsResult {
       await triggerDownload(type);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Generate failed");
+        setFailure(classifyLoadError(err));
     } finally {
       setGenerating(null);
     }
   }, [triggerDownload]);
 
-  return { reports, loading, error, isLive, generating, downloading, generate, download };
+  return { reports, loading, error, failure, isLive, generating, downloading, generate, download };
 }

@@ -23,7 +23,9 @@ const typeColors: Record<ReportType, string> = {
 export function ReportsView() {
   const { locale } = useApp();
   const isId = locale === "id";
-  const { reports, loading, error, isLive, generating, downloading, generate, download } = useReports();
+  const {
+    reports, loading, error, failure, isLive, generating, downloading, generate, download,
+  } = useReports();
 
   const stats = [
     { label: isId ? "Jenis Laporan" : "Report Types", value: String(reports.length || 5), icon: FileBarChart2, color: "var(--neutral)" },
@@ -60,9 +62,26 @@ export function ReportsView() {
         ))}
       </div>
 
+      {/* Never the raw status. "Gagal memproses laporan: reports HTTP 402" tells
+          the reader nothing about whether to retry or to subscribe. */}
       {error && (
-        <div className="rounded px-4 py-2" style={{ background: "var(--loss-bg)", border: "1px solid var(--loss)", color: "var(--loss)", fontSize: 12 }}>
-          {isId ? "Gagal memproses laporan: " : "Report action failed: "}{error}
+        <div
+          role="alert"
+          className="rounded px-4 py-2"
+          style={{
+            background: failure?.kind === "locked" ? "var(--warning-bg)" : "var(--loss-bg)",
+            border: `1px solid ${failure?.kind === "locked" ? "var(--warning)" : "var(--loss)"}`,
+            color: failure?.kind === "locked" ? "var(--warning)" : "var(--loss)",
+            fontSize: 12,
+          }}
+        >
+          {failure?.kind === "locked"
+            ? (isId
+                ? "Laporan tidak dibuat: langganan belum aktif. Ini bukan masalah koneksi."
+                : "No report generated: the subscription is not active. This is not a connection problem.")
+            : (isId
+                ? "Gagal memproses laporan. Periksa koneksi dan coba lagi."
+                : "Could not process the report. Check your connection and try again.")}
         </div>
       )}
 

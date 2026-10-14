@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import {  TrendingUp, BarChart2, DollarSign, FlaskConical, Pencil, Plus, Trash2 , TrendingDown } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import type { LoadFailure } from "../config/api";
 import { useTranslation } from "../i18n/translations";
 import { SECTOR_ALLOCATION } from "../data/idxData";
 import { usePortfolioOptimisation } from "../hooks/usePortfolioOptimisation";
@@ -44,12 +45,17 @@ interface Props {
    * different mistake from showing them an empty page.
    */
   error?:        string | null;
+  /** Why the read failed, when it did. Names the cause instead of guessing. */
+  failure?:      LoadFailure | null;
   onAdd:         (h: PortfolioHolding) => void;
   onUpdate:      (symbol: string, updates: Partial<Omit<PortfolioHolding, "symbol">>) => void;
   onRemove:      (symbol: string, price: number) => void;
 }
 
-export function PortfolioView({ market, fx, holdings, loading, error, onAdd, onUpdate, onRemove }: Props) {
+export function PortfolioView({
+  market, fx, holdings, loading, error, failure: positionsFailure,
+  onAdd, onUpdate, onRemove,
+}: Props) {
   const { locale } = useApp();
   const { t }      = useTranslation(locale);
   const isId       = locale === "id";
@@ -276,7 +282,11 @@ export function PortfolioView({ market, fx, holdings, loading, error, onAdd, onU
               {equity.loading
                 ? (isId ? "Memuat kurva…" : "Loading curve…")
                 : equity.error
-                  ? (isId ? "Kurva tidak dapat dimuat." : "Curve could not be loaded.")
+                  ? (equity.failure?.kind === "locked"
+                      ? (isId
+                          ? "Kurva tidak ditampilkan: langganan belum aktif."
+                          : "Curve not shown: the subscription is not active.")
+                      : (isId ? "Kurva tidak dapat dimuat." : "Curve could not be loaded."))
                   : equity.emptyReason === "no-positions"
                     ? (isId
                         ? "Belum ada posisi. Kurva muncul setelah posisi pertama tercatat."
@@ -446,9 +456,13 @@ export function PortfolioView({ market, fx, holdings, loading, error, onAdd, onU
         {positions.length === 0 && (
           <div style={{ padding: 32, textAlign: "center", color: "var(--muted-foreground)", fontSize: 13 }}>
             {error
-              ? (isId
-                  ? "Posisi tidak dapat dimuat. Bukan berarti portofolio Anda kosong."
-                  : "Positions could not be loaded. That does not mean your portfolio is empty.")
+              ? (positionsFailure?.kind === "locked"
+                  ? (isId
+                      ? "Posisi tidak ditampilkan: langganan belum aktif. Bukan berarti portofolio Anda kosong."
+                      : "Positions not shown: the subscription is not active. That does not mean your portfolio is empty.")
+                  : (isId
+                      ? "Posisi tidak dapat dimuat. Bukan berarti portofolio Anda kosong."
+                      : "Positions could not be loaded. That does not mean your portfolio is empty."))
               : loading
                 ? (isId ? "Memuat posisi…" : "Loading positions…")
                 : (isId

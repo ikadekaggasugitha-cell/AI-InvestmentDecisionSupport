@@ -71,7 +71,7 @@ class TestGateStates:
     def test_signed_in_without_a_subscription_is_refused(self, gated_client, fake_identity):
         """Signing in is not the same as paying. Until Phase 2 there is no way to pay."""
         _signup(gated_client)
-        assert gated_client.get("/v1/signals").status_code == 403
+        assert gated_client.get("/v1/signals").status_code == 402
 
     def test_an_unexpired_subscription_opens_the_data(self, gated_client, fake_identity):
         _signup(gated_client)
@@ -84,7 +84,7 @@ class TestGateStates:
         _signup(gated_client)
         account_id = next(iter(fake_identity.users.values()))["id"]
         fake_identity.add_subscription(account_id, days=-1)
-        assert gated_client.get("/v1/signals").status_code == 403
+        assert gated_client.get("/v1/signals").status_code == 402
 
     def test_early_renewal_uses_the_longer_period(self, gated_client, fake_identity):
         """MAX(expires_at), so an overlapping renewal is not a reason to deny."""
@@ -102,9 +102,9 @@ class TestGateStates:
         assert gated_client.get("/v1/signals").status_code == 200
 
         fake_identity.fail_subscriptions = True
-        assert gated_client.get("/v1/signals").status_code == 403
+        assert gated_client.get("/v1/signals").status_code == 402
 
-    def test_unreachable_database_is_a_503_not_a_403(self, gated_client, fake_identity):
+    def test_unreachable_database_is_a_503_not_a_refusal(self, gated_client, fake_identity):
         """A total outage is a different failure from knowing and refusing.
 
         "We cannot tell who you are" must not be reported as "you have no
@@ -140,7 +140,43 @@ class TestGateScope:
     def test_analysis_routes_are_gated(self, gated_client, fake_identity):
         _signup(gated_client)
         for path in ("/v1/signals", "/v1/portfolio/optimise", "/v1/alerts"):
-            assert gated_client.get(path).status_code == 403, path
+            assert gated_client.get(path).status_code == 402, path
+
+
+class TestRefusalsAreDistinguishable:
+    """Three refusals, three statuses, so the client can tell them apart.
+
+    They used to share one. A blocked account and a non-admin both answered 403,
+    which is the same status an unsubscribed account got — so a frontend reading
+    403 as "needs a subscription" would tell a banned person to check their
+    billing, and tell an ordinary user their billing was the reason an admin page
+    would not open.
+    """
+
+    def test_an_entitlement_refusal_is_402_not_403(self, gated_client, fake_identity):
+        _signup(gated_client)
+        assert gated_client.get("/v1/signals").status_code == 402
+
+    def test_a_blocked_account_is_refused_with_403_not_402(self, gated_client, fake_identity):
+        _signup(gated_client)
+        account = next(iter(fake_identity.users.values()))
+        account["blocked_at"] = "2026-01-01T00:00:00+00:00"
+        assert gated_client.get("/v1/signals").status_code == 403
+
+    def test_a_non_admin_on_an_admin_route_gets_403_not_402(self, gated_client):
+        _signup(gated_client)
+        assert gated_client.get("/v1/admin/accounts").status_code == 403
+
+    def test_an_admin_without_a_subscription_gets_402_on_paid_routes(
+        self, gated_client, fake_identity
+    ):
+        """Role is not entitlement, in both directions: 403 to open, 402 to read."""
+        _signup(gated_client, email="admin-402@aidss.id")
+        account = next(iter(fake_identity.users.values()))
+        account["role"] = "admin"
+
+        assert gated_client.get("/v1/signals").status_code == 402
+        assert gated_client.get("/v1/admin/accounts").status_code == 200
 
 
 class TestRoleIsNotEntitlement:
@@ -155,9 +191,72 @@ class TestRoleIsNotEntitlement:
         account = next(iter(fake_identity.users.values()))
         account["role"] = "admin"
 
-        assert gated_client.get("/v1/signals").status_code == 403
+        assert gated_client.get("/v1/signals").status_code == 402
         # The role itself still works: /v1/auth/me answers for an admin.
         assert gated_client.get("/v1/auth/me").status_code == 200
+
+
+class TestDevelopmentCannotSeeTheGate:
+    """Why the bugs this suite guards against survived as long as they did.
+
+    `AUTH_BYPASS=true` is the development default and makes `get_current_user`
+    return a dev principal, so the entitlement check never fires locally. Every
+    paid route answers 200, the refusal paths are unreachable, and a frontend bug
+    in the 402 handling is invisible to the person writing it — which is exactly
+    how "a refusal signs you out" and "a refusal is reported as a dead backend"
+    both shipped.
+
+    This does not fail the boot. It says out loud that the app on screen is not
+    the one that will be deployed.
+    """
+
+    def _settings(self, monkeypatch, **env):
+        for k, v in {"AUTH_BYPASS": "true", "PAYWALL_ENABLED": "true",
+                     "APP_ENV": "development"}.items():
+            monkeypatch.setenv(k, env.get(k, v))
+        get_settings.cache_clear()
+
+    def test_the_bypass_and_gate_combination_is_announced(
+        self, monkeypatch, caplog
+    ):
+        self._settings(monkeypatch)
+        try:
+            with caplog.at_level("WARNING", logger="api.core.config"):
+                get_settings()
+            announced = " ".join(r.getMessage() for r in caplog.records)
+            assert "PAYWALL_ENABLED" in announced
+            assert "AUTH_BYPASS" in announced
+        finally:
+            get_settings.cache_clear()
+
+    def test_it_changes_no_behaviour(self, monkeypatch):
+        """The warning is a logger call and nothing else.
+
+        If this ever started refusing to boot, local development would stop — and
+        the refusal would be one more reason the gate never gets exercised.
+        """
+        self._settings(monkeypatch)
+        try:
+            settings = get_settings()
+            assert settings.auth_bypass is True
+            assert settings.paywall_enabled is True
+        finally:
+            get_settings.cache_clear()
+
+    def test_it_is_silent_when_the_gate_can_actually_be_reached(
+        self, monkeypatch, caplog
+    ):
+        monkeypatch.setenv("AUTH_BYPASS", "false")
+        monkeypatch.setenv("PAYWALL_ENABLED", "true")
+        monkeypatch.setenv("APP_ENV", "development")
+        get_settings.cache_clear()
+        try:
+            with caplog.at_level("WARNING", logger="api.core.config"):
+                get_settings()
+            announced = " ".join(r.getMessage() for r in caplog.records)
+            assert "AUTH_BYPASS" not in announced
+        finally:
+            get_settings.cache_clear()
 
 
 class TestProductionRefusesAnOpenGate:
@@ -199,10 +298,46 @@ class TestWebSocketGate:
     def test_signed_in_without_a_subscription_is_refused(self, gated_client):
         _signup(gated_client)
         code, reason = _refuse(gated_client)
-        assert code == 1008
+        assert code == 4403
         # The reason has to name the subscription, so a frontend can tell the
         # person why the feed did not open rather than looking like a bug.
         assert "subscription" in reason.lower()
+
+    def test_a_refusal_names_its_cause_in_the_close_code_alone(
+        self, gated_client, fake_identity
+    ):
+        """Two refusals, two codes, so a client never has to parse `reason`.
+
+        `reason` is the only thing that used to tell "your session ended" from "you
+        have no subscription", and it is the wrong thing to branch on: the browser
+        truncates CloseEvent.reason to 123 bytes, and a human-readable string can be
+        reworded by a copy edit without anything failing. The frontend read every
+        1008 as an expired session, so an account with a perfectly valid session and
+        no subscription was signed out by the paywall.
+        """
+        anonymous_code, _ = _refuse(gated_client)
+
+        gated_client.cookies.clear()
+        _signup(gated_client, email="cause@aidss.id")
+        paywall_code, _ = _refuse(gated_client)
+
+        assert paywall_code != anonymous_code, (
+            "a subscription refusal must be distinguishable from an identity "
+            "refusal by code, not by the wording of reason"
+        )
+
+    def test_the_subscription_code_cannot_collide_with_a_protocol_code(
+        self, gated_client
+    ):
+        """4400-4999 is the range reserved for applications.
+
+        A refusal that reused a reserved protocol code would be indistinguishable
+        from a transport failure to any client that switches on the number alone,
+        which is exactly the assumption this change introduces.
+        """
+        _signup(gated_client)
+        code, _ = _refuse(gated_client)
+        assert 4000 <= code <= 4999
 
     def test_an_unexpired_subscription_opens_the_stream(
         self, gated_client, fake_identity
@@ -219,7 +354,7 @@ class TestWebSocketGate:
         account_id = next(iter(fake_identity.users.values()))["id"]
         fake_identity.add_subscription(account_id, days=-1)
         code, _ = _refuse(gated_client)
-        assert code == 1008
+        assert code == 4403
 
     def test_an_admin_without_a_subscription_is_refused(
         self, gated_client, fake_identity
@@ -229,7 +364,7 @@ class TestWebSocketGate:
         account = next(iter(fake_identity.users.values()))
         account["role"] = "admin"
         code, _ = _refuse(gated_client)
-        assert code == 1008
+        assert code == 4403
 
     def test_a_blocked_account_is_refused(self, gated_client, fake_identity):
         """Blocking is immediate access loss, so it applies to the socket too."""
@@ -258,7 +393,7 @@ class TestWebSocketGate:
 
         ticket = gated_client.post("/v1/auth/ws-ticket").json()["ticket"]
         code, reason = _refuse(gated_client, f"/v1/ws/market?ticket={ticket}")
-        assert code == 1008
+        assert code == 4403
         assert "subscription" in reason.lower()
 
         # And the entitled case opens on the ticket as well as the cookie.
@@ -295,7 +430,7 @@ class TestWebSocketGate:
         ticket = gated_client.post("/v1/auth/ws-ticket").json()["ticket"]
         gated_client.cookies.clear()
         code, reason = _refuse(gated_client, f"/v1/ws/market?ticket={ticket}")
-        assert code == 1008
+        assert code == 4403
         assert "subscription" in reason.lower()
 
 
@@ -382,7 +517,7 @@ class TestSubscriptionCurrent:
 
     Authenticated but not entitlement-gated, because the question cannot be asked
     by someone the gate has already refused. The tests below assert that, since it
-    is the decision most likely to be "tidied up" into a 403 later.
+    is the decision most likely to be "tidied up" into a gated route later.
     """
 
     def test_a_signed_out_caller_is_refused(self, gated_client):
@@ -446,7 +581,7 @@ class TestSubscriptionCurrent:
         it is seeing no data."""
         _signup(gated_client)
         # No subscription, paywall on.
-        assert gated_client.get("/v1/signals").status_code == 403
+        assert gated_client.get("/v1/signals").status_code == 402
         assert gated_client.get("/v1/subscription/current").status_code == 200
 
     def test_an_unreadable_database_is_503_not_no_subscription(

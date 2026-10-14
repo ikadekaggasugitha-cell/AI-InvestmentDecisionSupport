@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { ENDPOINTS, USE_LIVE_API, apiFetch, FETCH_TIMEOUT_MS } from "../config/api";
+import { ENDPOINTS, USE_LIVE_API, apiFetch, FETCH_TIMEOUT_MS, HttpStatusError,
+} from "../config/api";
 import { IDX_STOCKS } from "../data/idxData";
 
 /**
@@ -66,7 +67,7 @@ async function loadUniverse(): Promise<void> {
       signal: controller.signal,
     });
     clearTimeout(timer);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw new HttpStatusError(res.status);
     const json = await res.json();
     const list: UniverseEntry[] = (json.symbols ?? []).map((s: Record<string, unknown>) => ({
       symbol: String(s.symbol),

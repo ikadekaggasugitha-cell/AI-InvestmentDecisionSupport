@@ -180,7 +180,8 @@ export function RiskView({ market }: Props) {
   const { t } = useTranslation(locale);
   const isId = locale === "id";
 
-  const { risk: rd, stressTests, sectorExposure, loading, error, isLive, refetch } = useRiskMetrics();
+  const { risk: rd, stressTests, sectorExposure, loading, failure, isLive, refetch } =
+    useRiskMetrics();
 
   if (loading) {
     return <ViewSkeleton rows={4} label={isId ? "Memuat data risiko…" : "Loading risk data…"} />;
@@ -222,22 +223,46 @@ export function RiskView({ market }: Props) {
         </button>
       </div>
 
-      {/* Offline / simulated-data banner — shown only when the live fetch failed.
-          The metrics below are the bundled seed; the hook re-polls and clears
-          this once the backend is reachable. */}
-      {error && !isLive && (
+      {/* Why the live figures are missing — the cause, not a guess.
+          The banner used to fire on any error and always say the backend was
+          unreachable. A 403 is not an outage: the backend is healthy and is
+          declining to serve the paid data. Telling someone without a
+          subscription to check their connection sends them to debug the wrong
+          thing. The seed metrics below stay either way, still labelled — the
+          simulated path is deliberate, only the explanation was wrong. */}
+      {failure && !isLive && (
         <div
           className="flex items-center gap-3 px-4 py-3 rounded"
-          style={{ background: "var(--loss-bg)", border: "1px solid var(--loss)" }}
+          role="alert"
+          style={{
+            background: failure.kind === "locked" ? "var(--warning-bg)" : "var(--loss-bg)",
+            border: `1px solid ${failure.kind === "locked" ? "var(--warning)" : "var(--loss)"}`,
+          }}
         >
-          <AlertTriangle size={14} style={{ color: "var(--loss)", flexShrink: 0 }} />
+          <AlertTriangle
+            size={14}
+            style={{ color: failure.kind === "locked" ? "var(--warning)" : "var(--loss)", flexShrink: 0 }}
+          />
           <div style={{ fontSize: 11, color: "var(--foreground)", flex: 1 }}>
-            <span style={{ fontWeight: 600, color: "var(--loss)" }}>
-              {isId ? "Mode simulasi:" : "Simulated mode:"}
-            </span>{" "}
-            {isId
-              ? "Backend tidak terjangkau, menampilkan data simulasi. Sistem mencoba menyambung kembali otomatis."
-              : "Backend unreachable, showing simulated data. The system is retrying automatically."}
+            {failure.kind === "locked" ? (
+              <>
+                <span style={{ fontWeight: 600, color: "var(--warning)" }}>
+                  {isId ? "Data tidak ditampilkan:" : "Data not shown:"}
+                </span>{" "}
+                {isId
+                  ? "langganan belum aktif, jadi analisis risiko tidak dikirim. Ini bukan masalah koneksi — server berjalan baik. Angka di bawah tetap data simulasi."
+                  : "the subscription is not active, so risk analysis is not served. This is not a connection problem — the server is healthy. The figures below remain simulated data."}
+              </>
+            ) : (
+              <>
+                <span style={{ fontWeight: 600, color: "var(--loss)" }}>
+                  {isId ? "Mode simulasi:" : "Simulated mode:"}
+                </span>{" "}
+                {isId
+                  ? "Backend tidak terjangkau, menampilkan data simulasi. Sistem mencoba menyambung kembali otomatis."
+                  : "Backend unreachable, showing simulated data. The system is retrying automatically."}
+              </>
+            )}
           </div>
         </div>
       )}

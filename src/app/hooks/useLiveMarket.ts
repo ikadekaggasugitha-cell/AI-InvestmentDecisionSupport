@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { ENDPOINTS, USE_LIVE_API, apiFetch, signalAuthExpired } from "../config/api";
+import {
+  ENDPOINTS, USE_LIVE_API, WS_CLOSE_AUTH_REFUSED, WS_CLOSE_ENTITLEMENT_REQUIRED,
+  apiFetch, signalAuthExpired, signalPaywalled,
+} from "../config/api";
 import { IDX_STOCKS } from "../data/idxData";
 import type { LiveFxRate } from "./useExchangeRate";
 
@@ -65,6 +68,14 @@ export interface DataFreshness {
    */
   isIntradaySimulated: boolean;
   /**
+   * Why the feed is not connected, when the backend said so.
+   *
+   * The socket is refused for want of a subscription just as it is for a dead
+   * session, and the badge used to call both "backend unreachable" — pointing at
+   * the reader's network when their server was answering perfectly well.
+   */
+  streamRefused: "entitlement" | "auth" | null;
+  /**
    * Symbols whose quote trails the batch by more than a trading week —
    * long-suspended or delisted names. Surfaced so the robust age above is not
    * read as "nothing is stale".
@@ -98,6 +109,7 @@ export const SIMULATED_FRESHNESS: DataFreshness = {
   isDelayed: false,
   isSimulated: true,
   isIntradaySimulated: false,
+  streamRefused: null,
   outdatedSymbols: [],
 };
 
@@ -266,6 +278,7 @@ export function useLiveMarket(): LiveMarketData {
     let attempt = 0;
     const BASE_DELAY_MS = 1_000;
     const MAX_DELAY_MS = 30_000;
+    const SUBSCRIPTION_RETRY_MS = 60_000;
 
     function scheduleReconnect() {
       if (isUnmounted) return;
@@ -273,6 +286,19 @@ export function useLiveMarket(): LiveMarketData {
       const jitter = backoff * 0.25 * Math.random();
       attempt += 1;
       reconnectTimeout = setTimeout(() => void connectWs(), backoff + jitter);
+    }
+
+    /**
+     * Back off slowly while the feed refuses us for want of a subscription.
+     *
+     * Deliberately not the 1s ramp a transport failure gets. Nothing about the
+     * account changes on a 1s cadence, so retrying hard is just asking a server
+     * to refuse us repeatedly; a minute is enough to notice a purchase made
+     * elsewhere and cheap enough to leave running all day.
+     */
+    function scheduleSubscriptionRetry() {
+      if (isUnmounted) return;
+      reconnectTimeout = setTimeout(() => void connectWs(), SUBSCRIPTION_RETRY_MS);
     }
 
     async function connectWs() {
@@ -348,6 +374,9 @@ export function useLiveMarket(): LiveMarketData {
                       snapshot.dataSource === "placeholder" ||
                       snapshot.dataSource === "mock",
                     isIntradaySimulated: Boolean(snapshot.isIntradaySimulated),
+                    // Cleared here, not on connect: the socket opening is not
+                    // evidence the data is flowing.
+                    streamRefused: null,
                     outdatedSymbols: Array.isArray(snapshot.outdatedSymbols)
                       ? (snapshot.outdatedSymbols as string[])
                       : [],
@@ -368,11 +397,31 @@ export function useLiveMarket(): LiveMarketData {
 
         ws.onclose = (event) => {
           isWsConnected.current = false;
-          // 1008 = policy violation: the backend rejected the token. Retrying
-          // with the same credentials just loops, so surface it as an expired
-          // session (clears the token, raises the app-wide banner) and stop.
-          if (event.code === 1008) {
+          // Two refusals, and they mean opposite things.
+          //
+          // 1008 = the session is not usable (never authenticated, or blocked).
+          // Retrying with the same credentials just loops, and the session really
+          // has to be re-established, so raise the app-wide expiry signal and stop.
+          //
+          // 4403 = the session is fine and the data is simply not theirs. Retrying
+          // cannot help and retrying *is* what used to happen: this used to close
+          // with 1008 too, so the paywall signed out accounts that were perfectly
+          // valid, and told them their session had ended when their only real
+          // problem was that they had not subscribed.
+          if (event.code === WS_CLOSE_AUTH_REFUSED) {
+            setData((prev) => ({ ...prev, freshness: { ...prev.freshness, streamRefused: "auth" } }));
             signalAuthExpired();
+            return;
+          }
+          if (event.code === WS_CLOSE_ENTITLEMENT_REQUIRED) {
+            setData((prev) => ({ ...prev, freshness: { ...prev.freshness, streamRefused: "entitlement" } }));
+            signalPaywalled();
+            // Retry once the account's subscription changes. The refusal is
+            // terminal for this connection, but the *reason* is not: someone can
+            // subscribe in another tab, and without this the badge would keep
+            // reading TERKUNCI long after the server would have let us in — which
+            // is the flag-and-status drift this whole change exists to remove.
+            scheduleSubscriptionRetry();
             return;
           }
           scheduleReconnect();

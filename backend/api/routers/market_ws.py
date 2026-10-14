@@ -32,6 +32,23 @@ router = APIRouter(tags=["market"])
 
 TICK_INTERVAL = 2.0  # seconds — matches frontend 2s setInterval
 
+# Close codes for the two ways the handshake can be refused.
+#
+# These used to be the same code for everything, which made them
+# indistinguishable to the only client that acts on them. `useLiveMarket` read
+# every 1008 as "the session ended" and signed the account out — so a valid
+# session with no subscription got logged out by the paywall rather than shown a
+# locked screen.
+#
+# The application range (4000-4999) is reserved by the protocol for exactly this,
+# and it cannot collide with a transport-level failure that a client would switch
+# on by number alone. `reason` still rides along: it is what a human reads in a
+# console, and it is what these tests assert names the subscription. It is
+# deliberately not the discriminator — browsers truncate CloseEvent.reason to 123
+# bytes, and a reworded sentence must not change what a client does.
+WS_CLOSE_AUTH_REFUSED = status.WS_1008_POLICY_VIOLATION  # not authenticated, or blocked
+WS_CLOSE_ENTITLEMENT_REQUIRED = 4403  # authenticated, but no active subscription
+
 # Re-read this connection's positions every 30s (15 ticks). Positions are edited by
 # hand, not streamed, so a tick-by-tick read would buy nothing and cost one query
 # per open socket every two seconds.
@@ -159,15 +176,15 @@ async def market_websocket(ws: WebSocket) -> None:
         account = await _ws_account(ws)
         if account is None:
             raise WebSocketException(
-                code=status.WS_1008_POLICY_VIOLATION, reason="Not authenticated"
+                code=WS_CLOSE_AUTH_REFUSED, reason="Not authenticated"
             )
         if account.blocked_at is not None:
             raise WebSocketException(
-                code=status.WS_1008_POLICY_VIOLATION, reason="This account is blocked."
+                code=WS_CLOSE_AUTH_REFUSED, reason="This account is blocked."
             )
         if settings.paywall_enabled and not await has_active_subscription(account.id):
             raise WebSocketException(
-                code=status.WS_1008_POLICY_VIOLATION,
+                code=WS_CLOSE_ENTITLEMENT_REQUIRED,
                 reason="An active subscription is required for this feed.",
             )
         principal_id = account.id

@@ -28,8 +28,14 @@ function jsonResponse(body: unknown, status = 200) {
   } as unknown as Response
 }
 
-vi.mock('../config/api', () => ({
-  ENDPOINTS: { positions: '/v1/portfolio/positions' },
+// Only the transport is faked. The real error classification has to stay real or
+// these tests would agree with whatever the hook does by construction.
+vi.mock('../config/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../config/api')>()),
+  ENDPOINTS: {
+    positions: '/v1/portfolio/positions',
+    subscription: '/v1/subscription/current',
+  },
   apiFetch: vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'PUT') {
       if (state.putError) throw new Error('network down')
@@ -152,5 +158,37 @@ describe('writing positions', () => {
     act(() => result.current.addHolding({ symbol: 'TLKM', lots: 100, avgPrice: 3000, sector: 'Telekomunikasi' }))
     await waitFor(() => expect(result.current.error).toBeTruthy())
     expect(state.stored).toHaveLength(0)
+  })
+})
+
+describe('usePortfolio — why the load failed', () => {
+  it('reports a refusal as a lock rather than as an empty book', async () => {
+    // Empty is the answer to "you hold nothing". A refusal is the answer to "we
+    // would not tell you", and PortfolioView already refuses to confuse the two.
+    state.getStatus = 402
+
+    const { result } = renderHook(() => usePortfolio())
+
+    await waitFor(() => expect(result.current.failure).not.toBeNull())
+    expect(result.current.failure).toEqual({ kind: 'locked' })
+    expect(result.current.holdings).toEqual([])
+  })
+
+  it('reports an unreachable server as unreachable', async () => {
+    state.getError = true
+
+    const { result } = renderHook(() => usePortfolio())
+
+    await waitFor(() => expect(result.current.failure).not.toBeNull())
+    expect(result.current.failure).toEqual({ kind: 'unreachable' })
+  })
+
+  it('reports no failure once the positions arrive', async () => {
+    state.stored = [{ symbol: 'BBCA', lots: 10, avgPrice: 9000 }]
+
+    const { result } = renderHook(() => usePortfolio())
+
+    await waitFor(() => expect(result.current.loaded).toBe(true))
+    expect(result.current.failure).toBeNull()
   })
 })

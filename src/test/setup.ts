@@ -28,6 +28,22 @@ class MemoryStorage implements Storage {
   }
 }
 
+// jsdom has no ResizeObserver, and Recharts (the sector-exposure chart) and the
+// resizable panels both construct one on mount. Without this, every test that
+// renders a view containing a chart fails on a browser API rather than on
+// anything about the view.
+class NoopResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+if (!('ResizeObserver' in globalThis)) {
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    configurable: true,
+    value: NoopResizeObserver,
+  })
+}
+
 const memoryStorage = new MemoryStorage()
 Object.defineProperty(globalThis, 'localStorage', {
   configurable: true,

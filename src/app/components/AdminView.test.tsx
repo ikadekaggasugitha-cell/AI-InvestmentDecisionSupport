@@ -28,8 +28,13 @@ const ACCOUNTS = [
   { id: 'a2', email: 'budi@aidss.id', full_name: 'Budi Santoso', phone_number: '0813', role: 'admin', blocked: true, blocked_at: '2026-10-01T00:00:00+00:00' },
 ]
 
-vi.mock('../config/api', () => ({
-  ENDPOINTS: { adminAccounts: '/v1/admin/accounts' },
+// Only the transport is faked; the real error classification stays real.
+vi.mock('../config/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../config/api')>()),
+  ENDPOINTS: {
+    adminAccounts: '/v1/admin/accounts',
+    subscription: '/v1/subscription/current',
+  },
   apiFetch: vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
     calls.push({ url, method })

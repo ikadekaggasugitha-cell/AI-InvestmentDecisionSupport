@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
-import { USE_LIVE_API, ENDPOINTS, apiFetch } from "../config/api";
+import { USE_LIVE_API, ENDPOINTS, apiFetch, HttpStatusError,
+} from "../config/api";
 
 /**
  * Streaming Q&A against the backend advisor.
@@ -87,7 +88,7 @@ export function useAdvisorChat(locale: "id" | "en" = "id"): AdvisorChatResult {
           signal: controller.signal,
         });
 
-        if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok || !res.body) throw new HttpStatusError(res.status);
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();

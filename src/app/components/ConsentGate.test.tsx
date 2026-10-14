@@ -12,8 +12,13 @@ vi.mock('../hooks/useAuth', () => ({ useAuth: () => useAuthMock() }))
 // records it rather than stubbing it away.
 const posted: string[] = []
 const postState = { ok: true, throw: false }
-vi.mock('../config/api', () => ({
-  ENDPOINTS: { authConsent: '/v1/auth/consent' },
+// Only the transport is faked; the real error classification stays real.
+vi.mock('../config/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../config/api')>()),
+  ENDPOINTS: {
+    authConsent: '/v1/auth/consent',
+    subscription: '/v1/subscription/current',
+  },
   apiFetch: vi.fn(async (url: string) => {
     posted.push(url)
     if (postState.throw) throw new Error('offline')

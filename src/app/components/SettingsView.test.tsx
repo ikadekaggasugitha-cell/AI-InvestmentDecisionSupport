@@ -16,7 +16,9 @@ const subState = {
   throws: false,
 }
 
-vi.mock('../config/api', () => ({
+// Only the transport is faked; the real error classification stays real.
+vi.mock('../config/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../config/api')>()),
   ENDPOINTS: {
     subscription: '/v1/subscription/current',
     authMe: '/v1/auth/me',

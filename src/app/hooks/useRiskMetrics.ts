@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
+import {
+  USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, HttpStatusError, apiFetch,
+  classifyLoadError, type LoadFailure,
+} from "../config/api";
 import { riskResponseSchema, parseOrThrow } from "../config/schemas";
 import { RISK_DATA, STRESS_TESTS, SECTOR_EXPOSURE } from "../data/idxData";
 
@@ -44,6 +47,13 @@ export interface RiskMetricsResult {
   sectorExposure: SectorExposureItem[];
   loading: boolean;
   error: string | null;
+  /**
+   * Why the load failed, for a view that has to say something useful about it.
+   *
+   * `error` alone cannot carry that: a refusal and a dead backend are the same
+   * string, and RiskView answered both with "backend unreachable".
+   */
+  failure: LoadFailure | null;
   /** True when the metrics came from the live backend, false for seed. */
   isLive: boolean;
   /** Trigger an immediate re-fetch (manual "Refresh" button). */
@@ -77,6 +87,7 @@ export function useRiskMetrics(): RiskMetricsResult {
   const [sectorExposure, setSectorExposure] = useState<SectorExposureItem[]>(SEED_EXPOSURE);
   const [loading, setLoading]             = useState(USE_LIVE_API);
   const [error, setError]                 = useState<string | null>(null);
+  const [failure, setFailure]             = useState<LoadFailure | null>(null);
   const [isLive, setIsLive]               = useState(false);
   const [refreshTick, setRefreshTick]     = useState(0);
   const refetch = useCallback(() => setRefreshTick((t) => t + 1), []);
@@ -92,7 +103,7 @@ export function useRiskMetrics(): RiskMetricsResult {
       const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
       try {
         const res = await apiFetch(ENDPOINTS.riskMetrics, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new HttpStatusError(res.status);
         const data = await res.json();
         // Validate before use: a malformed metric would otherwise render as
         // `undefined` in the risk tiles. On failure this throws and the seed
@@ -104,11 +115,13 @@ export function useRiskMetrics(): RiskMetricsResult {
           setSectorExposure(parsed.sectorExposure as SectorExposureItem[]);
           setIsLive(true);
           setError(null);
+          setFailure(null);
         }
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : "Unknown error";
           setError(msg);
+          setFailure(classifyLoadError(err));
           setIsLive(false);
           // Seed values already in state stand — the view renders them with an
           // offline badge instead of a blank error page, and the next poll
@@ -130,5 +143,5 @@ export function useRiskMetrics(): RiskMetricsResult {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshTick]);
 
-  return { risk, stressTests, sectorExposure, loading, error, isLive, refetch };
+  return { risk, stressTests, sectorExposure, loading, error, failure, isLive, refetch };
 }

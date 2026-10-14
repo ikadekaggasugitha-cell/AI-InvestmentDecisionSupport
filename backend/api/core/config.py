@@ -1,7 +1,11 @@
 from functools import lru_cache
+
+import logging
 from typing import Annotated
 
 from pydantic import field_validator, model_validator
+logger = logging.getLogger(__name__)
+
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # List settings that accept a comma-separated string as well as JSON.
@@ -416,6 +420,32 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"CONSENT_RETENTION_MONTHS={self.consent_retention_months} is "
                 "negative. Use 0 to keep every row, or a positive number of months."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _warn_when_development_cannot_exercise_the_gate(self) -> "Settings":
+        """Say so when the running app cannot demonstrate the paywall.
+
+        `AUTH_BYPASS=true` — the development default — makes every route answer
+        as a dev principal, so the entitlement check never fires and every paid
+        endpoint returns 200. The refusal paths are unreachable from the app you
+        are looking at, which is how a frontend that signs people out on a 403
+        can sit unnoticed for months: the failure only exists in the deployment
+        that matters and nowhere in development.
+
+        A warning, not a refusal. Refusing to boot here would stop local work
+        outright and add one more reason the gate never gets exercised.
+        """
+        if self.app_env == "production":
+            return self
+        if self.auth_bypass and self.paywall_enabled:
+            logger.warning(
+                "AUTH_BYPASS=true with PAYWALL_ENABLED=true: the entitlement gate "
+                "never fires in this process, so every paid route answers 200 "
+                "regardless of subscription. The app on screen is not the one "
+                "that will be deployed — verify the refusal paths against "
+                "AUTH_BYPASS=false."
             )
         return self
 

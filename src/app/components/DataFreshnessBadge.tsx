@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Radio, Clock, FlaskConical, WifiOff } from "lucide-react";
+import { Radio, Clock, FlaskConical, Lock, WifiOff } from "lucide-react";
 import type { DataFreshness } from "../hooks/useLiveMarket";
 
 /**
@@ -63,11 +63,28 @@ export function DataFreshnessBadge({
   let detail = "";
 
   if (!isConnected) {
-    icon = WifiOff;
-    color = "var(--loss)";
-    bg = "var(--loss-bg)";
-    title = isId ? "TERPUTUS" : "OFFLINE";
-    detail = isId ? "backend tidak terjangkau" : "backend unreachable";
+    // Three different causes, three different sentences. "Backend unreachable"
+    // is only true of one of them, and it is the one people go and debug their
+    // router over.
+    if (freshness.streamRefused === "entitlement") {
+      icon = Lock;
+      color = "var(--warning)";
+      bg = "var(--warning-bg)";
+      title = isId ? "TERKUNCI" : "LOCKED";
+      detail = isId ? "langganan belum aktif" : "subscription not active";
+    } else if (freshness.streamRefused === "auth") {
+      icon = Lock;
+      color = "var(--loss)";
+      bg = "var(--loss-bg)";
+      title = isId ? "TERPUTUS" : "OFFLINE";
+      detail = isId ? "sesi tidak berlaku" : "session not valid";
+    } else {
+      icon = WifiOff;
+      color = "var(--loss)";
+      bg = "var(--loss-bg)";
+      title = isId ? "TERPUTUS" : "OFFLINE";
+      detail = isId ? "backend tidak terjangkau" : "backend unreachable";
+    }
   } else if (freshness.isSimulated) {
     icon = FlaskConical;
     color = "var(--warning)";

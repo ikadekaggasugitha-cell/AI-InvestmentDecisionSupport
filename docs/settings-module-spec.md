@@ -157,6 +157,28 @@ Tanggal    Invoice              Paket     Nominal    Status
 24 Agu 26  INV-20260824-88     Bulanan   Rp15.000   Lunas
 ```
 
+#### Yang sudah jadi, dan yang belum
+
+Tab ini sekarang menampilkan **hanya** yang bisa dibaca dari server:
+
+- Masa aktif dan sisa hari, dari `GET /v1/subscription/current`.
+- Tiga keadaan yang tetap terpisah: `active`, `none` (server menjawab tidak punya),
+  dan `unknown` (server tidak bisa ditanyakan). Yang terakhir **bukan** `none`.
+  Kalau keduanya disamakan, orang dengan langganan aktif akan diberi tahu — di
+  halaman Settings miliknya sendiri — bahwa langganannya habis.
+- Banner di shell aplikasi (`src/app/components/PaywallNotice.tsx`) yang mengarah ke
+  tab ini ketika data berbayar ditolak.
+
+**Yang dispesifikasikan tapi belum ada kodenya, semuanya Fase 2:** `RenewModal`,
+tombol `Perpanjang Paket`, tombol `Upgrade ke Tahunan`, tabel riwayat pembayaran, dan
+nama paket. Semuanya butuh jalur pembayaran, dan `subscriptions` belum punya kolom apa
+pun untuk menulis lewat.
+
+Kontrol yang terlihat hidup tanpa fungsi lebih buruk daripada tidak ada (R-26), jadi
+selagi tidak ada jalur pembayaran **tidak ada tombolnya** — bukan tombol yang
+dinonaktifkan. Spesifikasi di bawah tetap berlaku sebagai target, bukan sebagai
+deskripsi keadaan sekarang.
+
 #### Komponen:
 1. **Status langganan (teks, bukan badge):**
    - Nama paket: `font-size: 14px`, `--foreground`.

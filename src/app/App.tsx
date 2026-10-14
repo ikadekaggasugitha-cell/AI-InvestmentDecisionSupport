@@ -32,6 +32,7 @@ import { useAlerts } from "./hooks/useAlerts";
 import { useTranslation } from "./i18n/translations";
 import { Toaster } from "./components/ui/sonner";
 import { onAuthExpired } from "./config/api";
+import { PaywallNotice } from "./components/PaywallNotice";
 import { useAuth } from "./hooks/useAuth";
 import { useOverlayScrollbars } from "./hooks/useOverlayScrollbars";
 import { AuthScreen } from "./components/AuthScreen";
@@ -55,7 +56,7 @@ function formatDashboardSubtitle(locale: string): string {
 
 function AppInner() {
   const [view, setView] = useState<ViewType>("dashboard");
-  const { isDark, locale } = useApp();
+  const { isDark, locale, locked, subscription } = useApp();
   const { t } = useTranslation(locale);
   const auth = useAuth();
   useOverlayScrollbars();
@@ -184,6 +185,22 @@ function AppInner() {
           onMenuToggle={() => setSidebarOpen(true)}
           onSelectSymbol={selectSymbol}
         />
+        {/* One banner for the whole app, not one per panel. Every paid view
+            refusing at once is one fact about the account; saying it eight times
+            is noise that hides the one thing worth reading. */}
+        {locked && (
+          <PaywallNotice locale={locale} onOpenSettings={() => setView("settings")} />
+        )}
+        {/* `unknown` gets its own line rather than nothing. A server that will
+            not answer is not the same as an account with no subscription, and
+            silently showing nothing there is the claim that they are the same. */}
+        {!locked && subscription.kind === "unknown" && (
+          <PaywallNotice
+            locale={locale}
+            reason="unknown"
+            onOpenSettings={() => setView("settings")}
+          />
+        )}
           <Suspense fallback={<ViewSkeleton />}>
           {view === "dashboard"  && (
             <ErrorBoundary key="dashboard" locale={locale}>
@@ -215,6 +232,7 @@ function AppInner() {
                 holdings={portfolio.holdings}
                 loading={portfolio.loading}
                 error={portfolio.error}
+                failure={portfolio.failure}
                 onAdd={portfolio.addHolding}
                 onUpdate={portfolio.updateHolding}
                 onRemove={portfolio.removeHolding}

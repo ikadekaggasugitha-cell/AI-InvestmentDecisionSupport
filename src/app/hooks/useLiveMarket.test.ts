@@ -169,3 +169,136 @@ describe("useLiveMarket — offline switch", () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 });
+
+/**
+ * The backend closes with 1008 when a session is not usable and 4403 when the
+ * session is fine but there is no active subscription. Those are literal numbers
+ * on purpose: importing a shared constant would make these tests agree with the
+ * backend automatically and prove nothing about whether the two sides match.
+ */
+describe("useLiveMarket — a refusal is not an expired session", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    FakeWebSocket.reset();
+    vi.stubGlobal("WebSocket", FakeWebSocket as unknown as typeof WebSocket);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  /** Counts app-wide auth-expiry broadcasts. The hook's import shares this registry. */
+  function watchAuthExpiry() {
+    const api = import("../config/api");
+    let authExpired = 0;
+    let paywalled = 0;
+    const onAuth = () => { authExpired += 1; };
+    const onPaywall = () => { paywalled += 1; };
+    return api.then(({ AUTH_EXPIRED_EVENT, PAYWALL_EVENT }) => {
+      window.addEventListener(AUTH_EXPIRED_EVENT, onAuth);
+      window.addEventListener(PAYWALL_EVENT, onPaywall);
+      return {
+        counts: () => ({ authExpired, paywalled }),
+        stop: () => {
+          window.removeEventListener(AUTH_EXPIRED_EVENT, onAuth);
+          window.removeEventListener(PAYWALL_EVENT, onPaywall);
+        },
+      };
+    });
+  }
+
+  it("does not sign the account out when the feed is refused for want of a subscription", async () => {
+    const { useLiveMarket } = await loadHook(true);
+    const watcher = await watchAuthExpiry();
+    renderHook(() => useLiveMarket());
+    await vi.advanceTimersByTimeAsync(100);
+
+    FakeWebSocket.instances[0].emitClose(4403);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(watcher.counts().authExpired).toBe(0);
+    watcher.stop();
+  });
+
+  it("reports the lock instead, so the app can offer a way out of it", async () => {
+    const { useLiveMarket } = await loadHook(true);
+    const watcher = await watchAuthExpiry();
+    renderHook(() => useLiveMarket());
+    await vi.advanceTimersByTimeAsync(100);
+
+    FakeWebSocket.instances[0].emitClose(4403);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(watcher.counts().paywalled).toBe(1);
+    watcher.stop();
+  });
+
+  it("still signs the account out when the session itself is refused", async () => {
+    const { useLiveMarket } = await loadHook(true);
+    const watcher = await watchAuthExpiry();
+    renderHook(() => useLiveMarket());
+    await vi.advanceTimersByTimeAsync(100);
+
+    FakeWebSocket.instances[0].emitClose(1008);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(watcher.counts().authExpired).toBe(1);
+    watcher.stop();
+  });
+
+  it("retries a subscription refusal slowly rather than not at all", async () => {
+    // Someone can subscribe in another tab. Refusing forever leaves the badge
+    // reading LOCKED after the server would already have let us in, which is the
+    // same flag-outliving-the-fact failure the rest of this change removes.
+    const { useLiveMarket } = await loadHook(true);
+    const { result } = renderHook(() => useLiveMarket());
+    await vi.advanceTimersByTimeAsync(100);
+
+    FakeWebSocket.instances[0].emitClose(4403);
+    await waitFor(() =>
+      expect(result.current.freshness.streamRefused).toBe("entitlement"),
+    );
+
+    // The transport ramp is 1s; a subscription changes on human timescales.
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(FakeWebSocket.instances.length).toBeGreaterThan(1);
+  });
+
+  it("clears the refusal once prices actually arrive", async () => {
+    const { useLiveMarket } = await loadHook(true);
+    const { result } = renderHook(() => useLiveMarket());
+    await vi.advanceTimersByTimeAsync(100);
+
+    FakeWebSocket.instances[0].emitClose(4403);
+    await waitFor(() =>
+      expect(result.current.freshness.streamRefused).toBe("entitlement"),
+    );
+
+    // The retry is on a minute cadence, so wait for the second socket.
+    await vi.advanceTimersByTimeAsync(60_000);
+    FakeWebSocket.instances[1].emitSnapshot(SNAPSHOT);
+
+    await waitFor(() => expect(result.current.freshness.streamRefused).toBeNull());
+    expect(result.current.source).toBe("backend_ws");
+  });
+
+  it("does not hammer the server after a subscription refusal", async () => {
+    // It does retry — a subscription can change elsewhere — but nothing about
+    // the account changes on a one-second cadence, so the transport backoff ramp
+    // would be asking to be refused repeatedly.
+    const { useLiveMarket } = await loadHook(true);
+    renderHook(() => useLiveMarket());
+    await vi.advanceTimersByTimeAsync(100);
+
+    FakeWebSocket.instances[0].emitClose(4403);
+    // Enough to exhaust several 1s backoff steps.
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+});

@@ -1,4 +1,8 @@
-import { createContext, useContext, useState, useLayoutEffect, type ReactNode } from "react";
+import {
+  createContext, useCallback, useContext, useEffect,
+  useLayoutEffect, useState, type ReactNode,
+} from "react";
+import { ENDPOINTS, apiFetch, onPaywalled } from "../config/api";
 import type { Locale } from "../i18n/translations";
 
 const STORAGE_THEME  = "aidss-theme";
@@ -23,12 +27,38 @@ function readLocale(): Locale {
   return "id"; // default: Bahasa Indonesia
 }
 
+/**
+ * What the server knows about this account's subscription.
+ *
+ * `none` and `unknown` are deliberately different states. They look identical
+ * from outside a boolean and they mean opposite things: one is a billing fact
+ * and the other is a lookup that failed. Collapsing them would let a 503 tell
+ * someone with an active subscription that they have none.
+ */
+export type SubscriptionStatus =
+  | { kind: "loading" }
+  | { kind: "active"; expiresAt: string; daysRemaining: number }
+  | { kind: "none" }
+  | { kind: "unknown" };
+
 interface AppContextValue {
   isDark: boolean;
   toggleTheme: () => void;
   locale: Locale;
   toggleLocale: () => void;
   setLocale: (l: Locale) => void;
+  /**
+   * Whether a paid request is currently being refused.
+   *
+   * Derived from `subscription` rather than a flag that latches on the first 403.
+   * A flag and a subscription status are two records of one fact and they drift:
+   * a period that ends while the tab is open leaves the flag saying "fine" long
+   * after the server started refusing. CONTEXT.md rule 5, in the shell.
+   */
+  locked: boolean;
+  subscription: SubscriptionStatus;
+  /** Re-ask the server. Fired by a refusal, and by the tab regaining focus. */
+  refreshSubscription: () => void;
 }
 
 const AppContext = createContext<AppContextValue>({
@@ -37,11 +67,62 @@ const AppContext = createContext<AppContextValue>({
   locale: "id",
   toggleLocale: () => {},
   setLocale: () => {},
+  locked: false,
+  subscription: { kind: "loading" },
+  refreshSubscription: () => {},
 });
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isDark, setIsDark]         = useState<boolean>(readTheme);
   const [locale, setLocaleState]    = useState<Locale>(readLocale);
+  const [subscription, setSubscription] = useState<SubscriptionStatus>({ kind: "loading" });
+  const [askToken, setAskToken]       = useState(0);
+  const refreshSubscription = useCallback(() => setAskToken((n) => n + 1), []);
+
+  /* Ask the server, and keep "answered" apart from "could not ask".
+
+     This endpoint is deliberately behind the session rather than behind the
+     paywall: the question cannot be asked by someone the gate has already
+     refused, and without this the app has no honest way to explain why the paid
+     data is missing. */
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await apiFetch(ENDPOINTS.subscription, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = (await res.json()) as {
+          active: boolean;
+          expiresAt?: string | null;
+          daysRemaining?: number | null;
+        };
+        setSubscription(
+          body.active && body.expiresAt && typeof body.daysRemaining === "number"
+            ? { kind: "active", expiresAt: body.expiresAt, daysRemaining: body.daysRemaining }
+            : { kind: "none" },
+        );
+      } catch {
+        if (controller.signal.aborted) return;
+        setSubscription({ kind: "unknown" });
+      }
+    })();
+    return () => controller.abort();
+  }, [askToken]);
+
+  /* A refusal is not the answer, it is the reason to ask again. */
+  useEffect(() => onPaywalled(refreshSubscription), [refreshSubscription]);
+
+  /* And a tab that sat in the background may have missed a purchase made in
+     another one. Re-ask when it comes back, so the lock does not outlive the
+     thing that caused it. */
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshSubscription();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refreshSubscription]);
 
   /* Apply .dark class synchronously before paint — prevents flash of wrong theme */
   useLayoutEffect(() => {
@@ -83,7 +164,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AppContext.Provider value={{ isDark, toggleTheme, locale, toggleLocale, setLocale }}>
+    <AppContext.Provider
+      value={{
+        isDark, toggleTheme, locale, toggleLocale, setLocale,
+        locked: subscription.kind === "none",
+        subscription,
+        refreshSubscription,
+      }}
+    >
       {children}
     </AppContext.Provider>
   );

@@ -82,8 +82,10 @@ class TestAuthorisation:
         try:
             # Admin still administers...
             assert client.get("/v1/admin/accounts").status_code == 200
-            # ...but does not get the paid analysis for free.
-            assert client.get("/v1/signals").status_code == 403
+            # ...but does not get the paid analysis for free. 402, not 403: the role
+            # is fine, the subscription is not, and a 403 here would be
+            # indistinguishable from the refusal a non-admin gets on this route.
+            assert client.get("/v1/signals").status_code == 402
         finally:
             get_settings.cache_clear()
 
