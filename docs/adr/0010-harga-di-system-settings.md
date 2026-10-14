@@ -67,6 +67,18 @@ punya kolom dan pembaca tapi tidak ada penulisnya.
   halaman harga untuk pengunjung tanpa sesi belum dibangun, dan panel admin
   sengaja tidak punya pemilih paket atau sakelar aktif — tidak ada yang bisa
   derrière di belakang sana (R-26).
+- **Tidak ada deteksi konflik, dan itu disengaja.** Instalasi ini punya satu
+  administrator. Tidak ada pihak kedua yang bisa menimpa harga yang baru
+  disimpan, jadi `updatedAt` ditampilkan tanpa dipakai sebagai benturan.
+  Menambahkan optimistic locking akan membangun mekanisme untuk kasus yang
+  tidak bisa terjadi.
+
+  Perhatikan bahwa kode **tidak** mengasumsikan hanya satu admin: `users.role`
+  menerima admin sebanyak apa pun, dan `db/promote_admin.py` bisa menaikkannya
+  kapan saja. Batas ini operasional, bukan ditegakkan.
+
+  Kalau suatu saat ada admin kedua, form itu akan diam-diam menimpa — dan tidak
+  ada yang memperingatkan.
 - `bank_accounts` dan `contact_support` masih tertunda. Keduanya milik jalur
   pembayaran yang belum ada.
 
