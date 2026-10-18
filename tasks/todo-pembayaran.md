@@ -291,7 +291,7 @@ bukan menutup pintu.
 
 **Acceptance criteria:**
 - [x] Ada task beat yang mengubah `pending` yang sudah lewat satu jam menjadi `expire`
-- [x] `MANUAL_TRANSACTION_TTL_SECONDS` di konfigurasi, default 3600
+- [x] `MANUAL_TRANSACTION_TTL_SECONDS` di konfigurasi, default 3600 — dinaikkan ke **86400 (24 jam)** di tinjauan 2026-10-18
 - [x] Idempoten — menjalankan dua kali tidak mengubah apa pun
 - [x] Hanya `pending` yang terpengaruh; `settlement` tidak pernah disentuh
 - [x] Tidak ada Subscription yang dibuat atau dihapus
@@ -467,4 +467,4 @@ ada penulisnya, dan batas Fase 2–4 tercatat apa adanya.
 - [x] `npx tsc --noEmit`, `npx eslint src`, `npx vitest run` hijau — 306 passed
 - [x] `git diff` tidak menambah kolom status ke `subscriptions`, dan tidak
       memblokir akses berdasarkan status pembayaran (aturan 1 dan 3)
-- [ ] Tinjau dengan manusia
+- [x] Tinjau dengan manusia

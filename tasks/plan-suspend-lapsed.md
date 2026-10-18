@@ -150,7 +150,25 @@ tidak boleh saling menimpa dengan alasan yang berbeda.
 - [x] Semua acceptance criteria terpenuhi
 - [x] `cd backend && pytest` hijau, `ruff` bersih
 - [x] `npx tsc --noEmit && npx eslint src && npx vitest run` hijau
-- [ ] Tinjau dengan manusia
+- [x] Tinjau dengan manusia
+
+### Hasil tinjauan (dilakukan 2026-10-18)
+
+- Penolakan tertangguh di route data **403 → 402** dengan kalimat detailnya
+  sendiri; ban admin tetap 403. 402 = "dibayar akan memperbaiki", 403 =
+  "uang tidak akan memperbaiki". Belum pernah vs berakhir dibedakan lewat
+  kalimat detail + `blockedReason` di auth/me. ADR-0012, status.md, dan
+  tes ikut diperbarui (termasuk membalik arah tes yang dulu mengunci 403).
+- Celah yang ditemukan tinjauan dan ditutup: `useLiveMarket` tidak punya
+  cabang untuk penutupan WS **4404** — sebelumnya jatuh ke
+  `scheduleReconnect()` dan menanduk ulang pintu tertutup pada ramp 1
+  detik, selamanya. Sekarang: sinyal paywall, badge `suspended`
+  (DITANGGUHKAN), retry pelan irama menit seperti 4403, tanpa ramp.
+- "Suspensi menolak data saat paywall mati" dipertahankan; alasan eksplisit
+  (keadaan akun vs keputusan harga; loop mengepul antar beat) ditulis di
+  ADR-0012.
+- Migrasi yang terpakai **0013** (`0012` milik plan-pembayaran) — sudah
+  dicatat di file ini dan todo sebelumnya.
 
 ## Risiko dan Mitigasi
 

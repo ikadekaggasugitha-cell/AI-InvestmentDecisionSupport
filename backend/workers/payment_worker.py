@@ -2,7 +2,7 @@
 Payment Worker — the manual queue's only clock.
 
 Ages declared manual transfers: a row still `pending` past the configured
-window (settings.manual_transaction_ttl_seconds, one hour by default) becomes
+window (settings.manual_transaction_ttl_seconds, one day by default) becomes
 `expire`, so the admin queue shows what needs a human today and shows it apart
 from week-old noise.
 

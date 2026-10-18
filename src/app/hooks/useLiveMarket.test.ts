@@ -171,10 +171,11 @@ describe("useLiveMarket — offline switch", () => {
 });
 
 /**
- * The backend closes with 1008 when a session is not usable and 4403 when the
- * session is fine but there is no active subscription. Those are literal numbers
- * on purpose: importing a shared constant would make these tests agree with the
- * backend automatically and prove nothing about whether the two sides match.
+ * The backend closes with 1008 when a session is not usable, 4403 when the
+ * session is fine but there is no active subscription, and 4404 when that
+ * subscription has ended. Those are literal numbers on purpose: importing a
+ * shared constant would make these tests agree with the backend automatically
+ * and prove nothing about whether the two sides match.
  */
 describe("useLiveMarket — a refusal is not an expired session", () => {
   beforeEach(() => {
@@ -300,5 +301,53 @@ describe("useLiveMarket — a refusal is not an expired session", () => {
     await vi.advanceTimersByTimeAsync(30_000);
 
     expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it("does not sign an ended-subscription account out either", async () => {
+    // A suspension is also a door payment opens. The refusal used to fall
+    // through to the default branch, which only means "no refusal matched" —
+    // no signal, no word from the badge, just reconnects.
+    const { useLiveMarket } = await loadHook(true);
+    const watcher = await watchAuthExpiry();
+    renderHook(() => useLiveMarket());
+    await vi.advanceTimersByTimeAsync(100);
+
+    FakeWebSocket.instances[0].emitClose(4404);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(watcher.counts().authExpired).toBe(0);
+    expect(watcher.counts().paywalled).toBe(1);
+    watcher.stop();
+  });
+
+  it("names a suspension its own word, not the never-paid headline", async () => {
+    const { useLiveMarket } = await loadHook(true);
+    const { result } = renderHook(() => useLiveMarket());
+    await vi.advanceTimersByTimeAsync(100);
+
+    FakeWebSocket.instances[0].emitClose(4404);
+    await waitFor(() =>
+      expect(result.current.freshness.streamRefused).toBe("suspended"),
+    );
+  });
+
+  it("retries a suspension on the subscription cadence, never the transport ramp", async () => {
+    // The reconnect-loop trap the refusal sat in: re-handshaking against the
+    // closed door on the 1s ramp, forever. Nothing real moves a suspension on
+    // that cadence — a payment or an admin does — so the slow poll notices.
+    const { useLiveMarket } = await loadHook(true);
+    const { result } = renderHook(() => useLiveMarket());
+    await vi.advanceTimersByTimeAsync(100);
+
+    FakeWebSocket.instances[0].emitClose(4404);
+    await waitFor(() =>
+      expect(result.current.freshness.streamRefused).toBe("suspended"),
+    );
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(FakeWebSocket.instances.length).toBeGreaterThan(1);
   });
 });

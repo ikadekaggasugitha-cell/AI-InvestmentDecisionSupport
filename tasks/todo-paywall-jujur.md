@@ -430,4 +430,4 @@ harga untuk pengunjung tanpa sesi masuk Fase 2 — bukan "harga belum diputuskan
 - [x] `npx tsc --noEmit`, `npx eslint src`, `npx vitest run` hijau
 - [x] `git diff` tidak menyentuh `require_entitlement`, `entitlements.py`,
       `config.py:paywall_enabled`, dan tidak menambah kolom ke `subscriptions`
-- [ ] Tinjau dengan manusia
+- [x] Tinjau dengan manusia

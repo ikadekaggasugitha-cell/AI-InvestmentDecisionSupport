@@ -11,7 +11,7 @@ import { useApp } from "../context/AppContext";
  *   'subscription_expired' — the person paid once and the clock ran out. The
  *   billing pane is rendered right here rather than somewhere behind a link,
  *   because the app is replaced by this screen: every data route refuses a
- *   suspended caller (HTTP 403, WebSocket 4404), so a link into the shell
+ *   suspended caller (HTTP 402, WebSocket 4404), so a link into the shell
  *   would arrive at a room full of dead controls. Everything on this screen is
  *   an endpoint the gate still answers — price, destination accounts, the
  *   declaration form, the payment history. A settled payment reopens the

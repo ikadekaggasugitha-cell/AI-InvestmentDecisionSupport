@@ -141,24 +141,26 @@ async def require_entitlement(
     would mean an administrator silently had to be a paying subscriber, which is
     exactly the trade CONTEXT.md forbids.
 
-    402, not 403. A suspended account is also refused — with 403 and its own
-    reason, because "pay first" is not what happened to them: they paid once and
-    the period ended. A non-admin on admin routes is refused 403 as well. The
-    client needs to tell those apart: telling a suspended person they never had
-    a subscription is a lie, so is telling a non-admin their billing is the
-    problem. 402 is reserved for "the identity is fine and has simply never
-    held the entitlement".
+    402 whenever payment is the way back in. Two refusals ride that status: an
+    account that has simply never held the entitlement, and one whose period
+    has just ended — paying is how each of them returns, so both sit behind one
+    status and the *detail sentence* tells the two apart. 403 keeps meaning
+    "money will not fix this": the refusal of the identity itself, on login,
+    auth/me and admin routes. The doors must not blur — telling a suspended
+    person they were banned is a lie, and so is telling a banned one their
+    billing is the problem.
     """
     settings = get_settings()
     # Suspended is account state, checked before the paywall switch: an install
     # running with the paywall off has not made a lapsed account's period live
     # again — only a settled payment can, so a suspended caller sees data here
     # only if a payment already reopened them and the beat is not asked over
-    # again. 403, with a sentence of its own, so it never reads as "no
-    # subscription" (402) nor as an admin's refusal of the identity.
+    # again. 402 — the door money opens — with a sentence of its own, so the
+    # client tells "the period ended, pay to reopen" apart from both the
+    # never-held refusal and an admin's refusal of the identity.
     if user.is_suspended:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=(
                 "This account's subscription has ended. "
                 "Paying again reopens the account."

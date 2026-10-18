@@ -211,7 +211,7 @@ dan Checkpoint 1 membuktikannya dengan test.
 - [x] Semua acceptance criteria terpenuhi
 - [x] `npm run typecheck && npm run lint && npm run test` hijau
 - [x] `cd backend && pytest` hijau
-- [ ] Tinjau dengan manusia
+- [x] Tinjau dengan manusia
 
 ## Risiko dan Mitigasi
 

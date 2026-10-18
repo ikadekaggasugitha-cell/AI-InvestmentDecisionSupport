@@ -144,7 +144,15 @@ menghasilkan keadaan yang terlihat, bukan toast yang lewat.
 ### Checkpoint: Lengkap
 - [x] `cd backend && pytest` hijau, `ruff` bersih
 - [x] `npm run typecheck && npm run lint && npm run test` hijau
-- [ ] Tinjau dengan manusia
+- [x] Tinjau dengan manusia
+
+### Hasil tinjauan (dilakukan 2026-10-18)
+
+- TTL antrean manual **3600 → 86400 (24 jam)**: verifikasi dilakukan manusia
+  membaca mutasi bank, dan cek esok pagi tidak boleh terbaca sebagai
+  "Kedaluwarsa". Default di `config.py`, nilai contoh `.env.example`, dan
+  baris status.md ikut diperbarui; "expired tetap approvable" tidak berubah.
+  Fase 4 Midtrans tetap menunggu kredensial.
 
 ## Risiko dan Mitigasi
 

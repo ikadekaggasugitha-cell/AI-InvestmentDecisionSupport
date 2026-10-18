@@ -122,6 +122,14 @@ describe("DataFreshnessBadge — why the feed is not connected", () => {
     expect(screen.queryByText(/langganan/i)).not.toBeInTheDocument();
   });
 
+  it("names an ended subscription — not the headline of never subscribing", () => {
+    renderBadge({ streamRefused: "suspended" });
+
+    expect(screen.getByText(/DITANGGUHKAN/i)).toBeInTheDocument();
+    expect(screen.getByText(/langganan berakhir/i)).toBeInTheDocument();
+    expect(screen.queryByText(/langganan belum aktif/i)).not.toBeInTheDocument();
+  });
+
   it("blames the backend only when that is actually what happened", () => {
     renderBadge({ streamRefused: null });
 

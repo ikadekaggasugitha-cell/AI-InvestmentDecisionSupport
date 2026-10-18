@@ -72,6 +72,14 @@ export function DataFreshnessBadge({
       bg = "var(--warning-bg)";
       title = isId ? "TERKUNCI" : "LOCKED";
       detail = isId ? "langganan belum aktif" : "subscription not active";
+    } else if (freshness.streamRefused === "suspended") {
+      // Not the never-paid headline: this account held a subscription and its
+      // period ended, so payment is the way back in — say that, not "locked".
+      icon = Lock;
+      color = "var(--warning)";
+      bg = "var(--warning-bg)";
+      title = isId ? "DITANGGUHKAN" : "SUSPENDED";
+      detail = isId ? "langganan berakhir" : "subscription ended";
     } else if (freshness.streamRefused === "auth") {
       icon = Lock;
       color = "var(--loss)";

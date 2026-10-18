@@ -102,7 +102,7 @@ menjadi dua tanggung jawab; komponennya dipisah dan `/admin` memakai tab.
 - [x] `test_docs_status.py` hijau
 - [x] `cd backend && pytest` hijau, `ruff` bersih
 - [x] `npm run typecheck && npm run lint && npm run test` hijau
-- [ ] Tinjau dengan manusia
+- [x] Tinjau dengan manusia
 
 ## Risiko dan Mitigasi
 

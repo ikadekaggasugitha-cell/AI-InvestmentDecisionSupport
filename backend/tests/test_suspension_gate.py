@@ -9,9 +9,11 @@ reach pricing and `/v1/payments` (that is how they come back), and an admin ban
 must never be readable as anything they could satisfy by paying.
 
 Statuses here answer the person, not the check: 401 "who are you", 403 "the
-account is closed, and here is which closure", 402 "you have simply never
-held the entitlement". The WebSocket refuses on codes the client cannot
-confuse — 1008 would bounce a still-valid session into the login page.
+account is closed, and money will not fix it", 402 "payment is the way back
+in" — riding both a person who never held the entitlement and one whose
+period just ended; the *sentence* is what carries which of the two. The
+WebSocket refuses on codes the client cannot confuse — 1008 would bounce a
+still-valid session into the login page.
 """
 
 import pytest
@@ -93,14 +95,18 @@ class TestAAccountSuspendedByTheBeat:
 
     def test_the_paid_data_is_refused_with_its_own_sentence(self, suspended):
         resp = suspended.get("/v1/signals")
-        assert resp.status_code == 403, resp.text
+        assert resp.status_code == 402, resp.text
         assert "subscription has ended" in resp.json()["detail"]
 
-    def test_refusal_is_not_402_and_not_the_admin_refusal(self, suspended):
-        """Three refusals, three messages: 402 says "never held it", the admin
-        403 says "closed", this one says "closed, and here is how it opens"."""
+    def test_the_ending_is_402_with_a_sentence_of_its_own(self, suspended):
+        """One status, two headlines now: "never held it" and "the period
+        ended" both answer 402 — the sentence is what tells them apart, and
+        neither is the admin's "blocked", the door money does not open."""
         resp = suspended.get("/v1/signals")
-        assert resp.json()["detail"] != "This account is blocked."
+        assert resp.status_code == 402, resp.text
+        detail = resp.json()["detail"]
+        assert detail != "An active subscription is required for this data."
+        assert detail != "This account is blocked."
 
     def test_the_websocket_refuses_with_4404(self, suspended):
         code, reason = _wbail(suspended)
@@ -165,7 +171,7 @@ class TestTheDoorsStaySeparated:
         _signup(gated_client, "noflag@aidss.id")
         _close(fake_identity, "noflag@aidss.id", "subscription_expired")
         # gated_client's fixture already runs the paywall off.
-        assert gated_client.get("/v1/signals").status_code == 403
+        assert gated_client.get("/v1/signals").status_code == 402
 
     def test_a_suspended_administrator_still_runs_the_admin_panel(
         self, gated_client, fake_identity
@@ -179,4 +185,4 @@ class TestTheDoorsStaySeparated:
         _close(fake_identity, "boss@aidss.id", "subscription_expired")
 
         assert gated_client.get("/v1/admin/accounts").status_code == 200
-        assert gated_client.get("/v1/signals").status_code == 403
+        assert gated_client.get("/v1/signals").status_code == 402

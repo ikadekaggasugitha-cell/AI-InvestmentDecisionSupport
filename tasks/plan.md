@@ -106,7 +106,7 @@ seseorang sudah menyetujui sesuatu yang tidak tercatat.
 - [x] `npx tsc --noEmit` bersih, ruff bersih, 8 warning ESLint baseline
 - [x] Semua 11 task selesai, 1 dibatalkan dengan alasan tercatat
 - [x] `docs/status.md`, `legal-and-consent.md`, dan `settings-module-spec.md` disinkronkan
-- [ ] Tinjau dengan manusia
+- [x] Tinjau dengan manusia
 
 ## Risiko dan Mitigasi
 

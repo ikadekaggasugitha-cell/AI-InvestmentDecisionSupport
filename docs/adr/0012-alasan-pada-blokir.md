@@ -55,12 +55,24 @@ menjalankan keduanya. Guard-nya juga di dalam `WHERE`: hanya baris beralasan
   auth/me, route data, dan WebSocket **1008**.
 - `'subscription_expired'` → tetap bisa login, membaca auth/me, harga, dan
   payments/me; justru dia yang harus tahu jalan kembali. Route data
-  (`require_entitlement`) dijawab **403 dengan kalimatnya sendiri**, diperiksa
+  (`require_entitlement`) dijawab **402** — pintu yang dibuka uang — dengan
+  kalimatnya sendiri ("This account's subscription has ended. Paying again
+  reopens the account."), diperiksa
   **sebelum** switch paywall: instalasi dengan paywall mati tidak
   menghidupkan masa aktif yang sudah lewat — pembayaran yang melakukannya.
+  402 milik kedua keadaan yang pembayaran membukanya (belum pernah
+  berlangganan dan yang periodenya habis); 403 milik penolakan yang uang
+  tidak bisa perbaiki — pembeda belum-pernah vs berakhir hidup di kalimat
+  detail dan di `blockedReason` auth/me, bukan di status.
   WebSocket penangguhan ditutup **4404** (`WS_CLOSE_SUBSCRIPTION_ENDED`),
   bukan 1008: klien tidak boleh membaca penangguhan sebagai sesi mati dan
-  menendang orangnya ke login page.
+  menendang orangnya ke login page. Perilaku ini sengaja tidak peduli
+  `PAYWALL_ENABLED`: paywall adalah keputusan harga instalasi, penangguhan
+  adalah keadaan akun. Kalau flag mematikan penangguhan, akun mengepul —
+  beat menutupnya tiap jam, data terbuka di antara dua beat, lalu tertutup
+  lagi — lebih membingungkan daripada tetap tertutup sampai dibayar.
+  Jalur dev sudah aman: akun bypass tidak pernah disentuh beat, dan
+  buka-blokir admin satu klik.
 
 **5. Frontend menampilkan alasan ini.** `/v1/auth/me` melaporkan
 `blockedReason`. `App` me-render `SuspensionScreen`: untuk tertangguh, panel
@@ -79,10 +91,16 @@ pembayaran.
   tidak ada periode berjalan, belum terblokir) tidak sama bentuknya dengan
   menulis ban satu akun; melewatkannya lewat satu fungsi membuat dua keputusan
   yang berbeda terlihat seperti satu jenis aksi yang sama. Bedanya sengaja.
-- **1008 untuk dua-duanya, penangguhan dijawab 402** — klien membaca 1008
-  sebagai sesi habis dan menendang orang tertangguh ke login page; justru
-  perbedaan kodenya yang berguna (ADR-0009). Dan 402 berarti "belum pernah
-  berlangganan" — salah dua-duanya untuk tertangguh.
+- **1008 untuk dua-duanya** — klien membaca 1008 sebagai sesi habis dan
+  menendang orang tertangguh ke login page; justru perbedaan kodenya yang
+  berguna (ADR-0009).
+- **Penangguhan dijawab 403, 402 hanya untuk "belum pernah"** — hasil awal
+  keputusan ini, dibalik setelah tinjauan. Di tengah sesi, 403 tertangguh
+  dibaca frontend sebagai "backend tidak terjangkau" — kesan server rusak
+  untuk keadaan yang justru dibuka dengan bayar. Semantik HTTP yang sehat:
+  402 = "dibayar akan memperbaiki ini", 403 = "uang tidak akan memperbaiki".
+  Yang membedakan keadaannya dipindah ke kalimat detail dan `blockedReason`
+  auth/me, bukan ke status.
 
 ## Konsekuensi
 

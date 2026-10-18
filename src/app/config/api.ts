@@ -197,11 +197,19 @@ export const HTTP_PAYWALL_REFUSED = 402;
  * failing test rather than as a silently mis-signed-out account.
  *
  * 1008 is the protocol's "policy violation" and stays on identity refusals, which
- * is what clients already understand. 4403 is in the 4000-4999 range the protocol
- * reserves for applications, so it cannot collide with a transport failure.
+ * is what clients already understand. 4403 and 4404 are in the 4000-4999 range
+ * the protocol reserves for applications, so neither can collide with a
+ * transport failure.
  */
 export const WS_CLOSE_AUTH_REFUSED = 1008;
 export const WS_CLOSE_ENTITLEMENT_REQUIRED = 4403;
+/**
+ * The session is valid but the account's subscription has ended — the beat has
+ * suspended it. Payment reopens it, so like 4403 this belongs to the paywall's
+ * door, not to the "dead session" door: raise the paywall signal, keep the slow
+ * subscription cadence alive, and never re-handshake against the closed door.
+ */
+export const WS_CLOSE_SUBSCRIPTION_ENDED = 4404;
 
 // Dedupe: many hooks fire concurrently, so a single expiry would otherwise
 // dispatch a dozen identical events. Latch on the first 401 and release once a
@@ -240,8 +248,10 @@ export function signalAuthExpired(): void {
  * `signalAuthExpired`: a socket does not go through `apiFetch`.
  *
  * The backend closes with 4403 when the handshake carried a valid session and the
- * account has no active subscription. It used to close with 1008 for that too,
- * which is why this had to exist — the client was signing people out.
+ * account has no active subscription, and with 4404 when that account's
+ * subscription has ended — both are doors payment opens, so both raise this.
+ * It used to close with 1008 for that too, which is why this had to exist —
+ * the client was signing people out.
  */
 export function signalPaywalled(): void {
   handlePaywall();

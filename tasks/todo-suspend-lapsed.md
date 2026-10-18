@@ -149,7 +149,8 @@ tapi tidak melihat isi aplikasi. Akun beralasan `admin` tidak masuk sama sekali.
       `require_entitlement` jalan lebih dulu dari flag paywall)
 - [x] `subscription_expired` **ditolak** di semua route analisis dan data
       (403 dengan kalimatnya sendiri, lewat dependency yang dilampirkan di
-      `main.py` ke semua router berbayar)
+      `main.py` ke semua router berbayar; dibalik menjadi **402** di
+      tinjauan 2026-10-18 — catatan di plan-suspend-lapsed)
 - [x] `admin` ditolak di mana pun, termasuk route autentikasi (403, termasuk
       POST login; suspension boleh login)
 - [x] `admin` menutup WebSocket dengan 1008, seperti sekarang
@@ -327,4 +328,4 @@ dokumentasinya tidak menyusul, kode dan dokumentasi akan berbeda dalam dua mingg
 - [x] Manual check: scenarios manual — admin banned + membayar **tetap** banned
       (`test_settlement_reopens.py::TestSettlementNeverOpensAnAdminBan`,
       `TestTheOperatorGrantAlsoReopens`)
-- [ ] Tinjau dengan manusia
+- [x] Tinjau dengan manusia

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   ENDPOINTS, USE_LIVE_API, WS_CLOSE_AUTH_REFUSED, WS_CLOSE_ENTITLEMENT_REQUIRED,
+  WS_CLOSE_SUBSCRIPTION_ENDED,
   apiFetch, signalAuthExpired, signalPaywalled,
 } from "../config/api";
 import { IDX_STOCKS } from "../data/idxData";
@@ -73,8 +74,11 @@ export interface DataFreshness {
    * The socket is refused for want of a subscription just as it is for a dead
    * session, and the badge used to call both "backend unreachable" — pointing at
    * the reader's network when their server was answering perfectly well.
+   * "suspended" is its own word because an ended subscription is not the same
+   * headline as "no subscription yet": the account held one and the clock ran
+   * out.
    */
-  streamRefused: "entitlement" | "auth" | null;
+  streamRefused: "entitlement" | "auth" | "suspended" | null;
   /**
    * Symbols whose quote trails the batch by more than a trading week —
    * long-suspended or delisted names. Surfaced so the robust age above is not
@@ -397,7 +401,7 @@ export function useLiveMarket(): LiveMarketData {
 
         ws.onclose = (event) => {
           isWsConnected.current = false;
-          // Two refusals, and they mean opposite things.
+          // Three refusals, and they do not all mean the same thing.
           //
           // 1008 = the session is not usable (never authenticated, or blocked).
           // Retrying with the same credentials just loops, and the session really
@@ -421,6 +425,18 @@ export function useLiveMarket(): LiveMarketData {
             // subscribe in another tab, and without this the badge would keep
             // reading TERKUNCI long after the server would have let us in — which
             // is the flag-and-status drift this whole change exists to remove.
+            scheduleSubscriptionRetry();
+            return;
+          }
+          if (event.code === WS_CLOSE_SUBSCRIPTION_ENDED) {
+            setData((prev) => ({ ...prev, freshness: { ...prev.freshness, streamRefused: "suspended" } }));
+            signalPaywalled();
+            // Same fix as the 4403 refusal — payment — so the same slow retry
+            // notices when it settles. What it must never get is the transport
+            // ramp: a suspension is lifted by a payment or an admin, and
+            // neither changes on a one-second cadence. The default branch
+            // below used to catch this and re-handshake against the closed
+            // door on that ramp, forever.
             scheduleSubscriptionRetry();
             return;
           }
