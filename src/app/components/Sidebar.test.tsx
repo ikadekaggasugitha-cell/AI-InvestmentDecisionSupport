@@ -63,7 +63,7 @@ describe('Sidebar operator block', () => {
       full_name: 'Siti Rahayu',
       phone_number: '081234567890',
       role: 'user',
-      blocked: false,
+      blocked: false, blockedReason: null,
     })
     expect(screen.getByText('Siti Rahayu')).toBeInTheDocument()
     expect(screen.queryByText('Belum ada akun terhubung')).not.toBeInTheDocument()
@@ -76,7 +76,7 @@ describe('Sidebar operator block', () => {
       full_name: 'Siti Rahayu',
       phone_number: '081234567890',
       role: 'user',
-      blocked: false,
+      blocked: false, blockedReason: null,
     })
     for (const el of Array.from(container.querySelectorAll('div'))) {
       expect(el.textContent?.trim()).not.toMatch(/^[A-Z]{2}$/)
@@ -90,7 +90,7 @@ describe('Sidebar operator block', () => {
       full_name: 'Budi Santoso',
       phone_number: '081234567891',
       role: 'admin',
-      blocked: false,
+      blocked: false, blockedReason: null,
     })
     expect(screen.getByText('Administrator')).toBeInTheDocument()
     // CONTEXT.md rule 2: role is not entitlement, so this must not read as one.

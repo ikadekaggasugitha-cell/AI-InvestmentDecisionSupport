@@ -48,6 +48,12 @@ TICK_INTERVAL = 2.0  # seconds — matches frontend 2s setInterval
 # bytes, and a reworded sentence must not change what a client does.
 WS_CLOSE_AUTH_REFUSED = status.WS_1008_POLICY_VIOLATION  # not authenticated, or blocked
 WS_CLOSE_ENTITLEMENT_REQUIRED = 4403  # authenticated, but no active subscription
+# A suspended account: the subscription it had has ended. Distinct from 1008 on
+# purpose — 1008 would tell the client the session itself is dead and have it
+# bounce the person to the login page, which is wrong: they are signed in, the
+# clock ran out, and paying reopens the feed. Distinct from 4403 for the same
+# honesty in the other direction: they once HAD the entitlement.
+WS_CLOSE_SUBSCRIPTION_ENDED = 4404
 
 # Re-read this connection's positions every 30s (15 ticks). Positions are edited by
 # hand, not streamed, so a tick-by-tick read would buy nothing and cost one query
@@ -179,8 +185,16 @@ async def market_websocket(ws: WebSocket) -> None:
                 code=WS_CLOSE_AUTH_REFUSED, reason="Not authenticated"
             )
         if account.blocked_at is not None:
+            if account.blocked_reason == "admin":
+                raise WebSocketException(
+                    code=WS_CLOSE_AUTH_REFUSED, reason="This account is blocked."
+                )
+            # A suspension: the identity is valid, the period ended. 4404, so
+            # the client neither logs the person out (1008) nor tells them to
+            # pay for what they never had (4403).
             raise WebSocketException(
-                code=WS_CLOSE_AUTH_REFUSED, reason="This account is blocked."
+                code=WS_CLOSE_SUBSCRIPTION_ENDED,
+                reason="The subscription ended. Paying again reopens the feed.",
             )
         if settings.paywall_enabled and not await has_active_subscription(account.id):
             raise WebSocketException(

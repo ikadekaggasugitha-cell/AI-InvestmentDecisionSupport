@@ -32,19 +32,19 @@ tidak pernah menggeser baris yang sudah ada. Modul ini akan jadi tempat seluruh
 pembayaran bertemu.
 
 **Acceptance criteria:**
-- [ ] `grant()` adalah satu-satunya tempat yang menulis tabel `subscriptions`
-- [ ] `expires_at` dihitung dari waktu grant, dan baris lama tidak pernah diubah
-- [ ] Idempoten terhadap `transaction_id` yang sama — dipanggil dua kali, hasilnya
+- [x] `grant()` adalah satu-satunya tempat yang menulis tabel `subscriptions`
+- [x] `expires_at` dihitung dari waktu grant, dan baris lama tidak pernah diubah
+- [x] Idempoten terhadap `transaction_id` yang sama — dipanggil dua kali, hasilnya
       satu baris
-- [ ] Mengembalikan baris Subscription yang dibuat, bukan hanya `True`
-- [ ] Days harus positif; days ≤ 0 ditolak, bukan membuat masa aktif yang sudah lewat
+- [x] Mengembalikan baris Subscription yang dibuat, bukan hanya `True`
+- [x] Days harus positif; days ≤ 0 ditolak, bukan membuat masa aktif yang sudah lewat
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_subscriptions_service.py -q` hijau
-- [ ] Test: dua grant dengan `transaction_id` sama menghasilkan satu baris
-- [ ] Test: grant kedua dengan `transaction_id` berbeda menghasilkan baris kedua,
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_subscriptions_service.py -q` hijau
+- [x] Test: dua grant dengan `transaction_id` sama menghasilkan satu baris
+- [x] Test: grant kedua dengan `transaction_id` berbeda menghasilkan baris kedua,
       dan `MAX(expires_at)` memilih yang panjang
-- [ ] Test: `days=0` dan `days=-1` ditolak
+- [x] Test: `days=0` dan `days=-1` ditolak
 
 **Dependencies:** None
 
@@ -65,22 +65,23 @@ instalasi yang belum punya pembayaran, dan cara operator membuka akses untuk
 dirinya sendiri.
 
 **Acceptance criteria:**
-- [ ] `POST /v1/admin/accounts/{account_id}/subscription` menerima hari dan opsional
+- [x] `POST /v1/admin/accounts/{account_id}/subscription` menerima hari dan opsional
       alasan, dan memanggil `grant()`
-- [ ] `require_admin`, bukan `require_entitlement` (aturan 6) — admin tanpa
+- [x] `require_admin`, bukan `require_entitlement` (aturan 6) — admin tanpa
       langganan tetap boleh memanggilnya
-- [ ] Non-admin mendapat **403**, bukan 402
-- [ ] Akun yang diblokir masih boleh diberi langganan — blokir mengatur akses,
+- [x] Non-admin mendapat **403**, bukan 402
+- [x] Akun yang diblokir masih boleh diberi langganan — blokir mengatur akses,
       bukan hak Kauf (aturan 8)
-- [ ] Tidak ada kolom status baru di mana pun
+- [x] Tidak ada kolom status baru di mana pun
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_admin_subscription.py -q` hijau
-- [ ] Test: setelah grant, `GET /v1/subscription/current` untuk akun itu
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_admin_subscription.py -q` hijau
+- [x] Test: setelah grant, `GET /v1/subscription/current` untuk akun itu
       melaporkan `active: true`
-- [ ] Test: akun yang sama diberi dua kali, `expires_at` tidak bergeser — masa
+- [x] Test: akun yang sama diberi dua kali, `expires_at` tidak bergeser — masa
       kedua menambah baris baru
-- [ ] Manual check: `GET /v1/signals` untuk akun itu berhenti membalas 402
+- [x] Manual check: `GET /v1/signals` untuk akun itu berhenti membalas 402
+      (`test_the_paid_data_stops_refusing_after_the_grant`, 402 → grant → 200)
 
 **Dependencies:** Task 1
 
@@ -92,10 +93,11 @@ dirinya sendiri.
 
 ### Checkpoint: Fase 1
 
-- [ ] `subscriptions` punya penulis untuk pertama kalinya
-- [ ] Idempoten terhadap `transaction_id` yang sama
-- [ ] Admin tanpa langganan tetap boleh memanggilnya (aturan 6)
-- [ ] `cd backend && .venv/bin/python -m pytest -q` hijau
+- [x] `subscriptions` punya penulis untuk pertama kalinya
+- [x] Idempoten terhadap `transaction_id` yang sama
+- [x] Admin tanpa langganan tetap boleh memanggilnya (aturan 6)
+- [x] `cd backend && .venv/bin/python -m pytest -q` hijau (suite penuh: 752 passed,
+      coverage 67,7%; Postgres local di port 55432 dinyalakan untuk verifikasi)
 
 ---
 
@@ -111,19 +113,19 @@ ditentukan blueprint: `[{bank, account_number, holder_name}]`. Service dengan
 satu fungsi tulis, mengikuti pola `pricing`.
 
 **Acceptance criteria:**
-- [ ] Baca dan tulis lewat `api/services/settings.py`, bukan SQL di router
-- [ ] Bentuk divalidasi: `bank`, `account_number`, dan `holder_name` wajib ada;
+- [x] Baca dan tulis lewat `api/services/settings.py`, bukan SQL di router
+- [x] Bentuk divalidasi: `bank`, `account_number`, dan `holder_name` wajib ada;
       nomor rekening hanya digit
-- [ ] Daftar kosong **ditolak** saat menulis — menyimpannya berarti menghapus
+- [x] Daftar kosong **ditolak** saat menulis — menyimpannya berarti menghapus
       semua rekening, dan itu harus jadi pilihan sadar, bukan hasil accident
-- [ ] Tidak ada kolom status di samping daftar
-- [ ] Kunci `contact_support` **tidak** ikut — masih tertunda, bukan satu bundel
+- [x] Tidak ada kolom status di samping daftar
+- [x] Kunci `contact_support` **tidak** ikut — masih tertunda, bukan satu bundel
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_bank_accounts.py -q` hijau
-- [ ] Test: daftar kosong ditolak
-- [ ] Test: nomor rekening dengan huruf ditolak
-- [ ] Test: hanya `pricing` yang terisi di migrasi — `test_system_settings_schema.py` masih hijau
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_bank_accounts.py -q` hijau
+- [x] Test: daftar kosong ditolak
+- [x] Test: nomor rekening dengan huruf ditolak
+- [x] Test: hanya `pricing` yang terisi di migrasi — `test_system_settings_schema.py` masih hijau
 
 **Dependencies:** Task 1
 
@@ -143,18 +145,18 @@ bagi pembaca tanpa sesi — seperti endpoint harga, alasan yang sama: orang yang
 memutuskan membayar belum pernah masuk.
 
 **Acceptance criteria:**
-- [ ] Admin dapat menambah dan menghapus rekening dari `/admin`
-- [ ] Pembaca tanpa sesi dapat membaca daftar rekening
-- [ ] Rekening yang belum diisi ditampilkan sebagai "belum ada", bukan daftar
+- [x] Admin dapat menambah dan menghapus rekening dari `/admin`
+- [x] Pembaca tanpa sesi dapat membaca daftar rekening
+- [x] Rekening yang belum diisi ditampilkan sebagai "belum ada", bukan daftar
       kosong yang terlihat seperti daftar
-- [ ] Setelah simpan, layar memuat ulang dari server, bukan menampilkan input
-     lokal
-- [ ] Tidak ada tombol "verifikasi rekening" — tidak ada yang diverifikasi
+- [x] Setelah simpan, layar memuat ulang dari server, bukan menampilkan input
+      lokal
+- [x] Tidak ada tombol "verifikasi rekening" — tidak ada yang diverifikasi
 
 **Verification:**
-- [ ] `npx vitest run src/app/components/AdminBankAccountsView.test.tsx` hijau
-- [ ] `npx tsc --noEmit` bersih
-- [ ] Test: daftar kosong → "belum ada rekening tujuan", bukan `<ul>` kosong
+- [x] `npx vitest run src/app/components/AdminBankAccountsView.test.tsx` hijau
+- [x] `npx tsc --noEmit` bersih
+- [x] Test: daftar kosong → "belum ada rekening tujuan", bukan `<ul>` kosong
 
 **Dependencies:** Task 3
 
@@ -168,10 +170,10 @@ memutuskan membayar belum pernah masuk.
 
 ### Checkpoint: Fase 2
 
-- [ ] Rekening bisa diisi dan diubah dari panel admin
-- [ ] Pembaca tanpa sesi bisa membaca rekening tujuan
-- [ ] Rekening kosong dijawab "belum ada", bukan daftar kosong
-- [ ] `cd backend && .venv/bin/python -m pytest -q` dan `npx vitest run` hijau
+- [x] Rekening bisa diisi dan diubah dari panel admin
+- [x] Pembaca tanpa sesi bisa membaca rekening tujuan
+- [x] Rekening kosong dijawab "belum ada", bukan daftar kosong
+- [x] `cd backend && .venv/bin/python -m pytest -q` dan `npx vitest run` hijau
 
 ---
 
@@ -185,18 +187,18 @@ yang dibuat — uangnya belum diverifikasi, dan masa aktif yang sudah ditulis ti
 bisa ditarik kembali.
 
 **Acceptance criteria:**
-- [ ] `status` mulai dari `'pending'`, bukan `'settlement'`
-- [ ] `payment_gateway = 'manual'`, `payment_method` distinguishes
-- [ ] `amount` diambil dari harga server saat itu, **bukan** dari body
-- [ ] `invoice_code` unik dan dibuat server
-- [ ] Tidak ada baris `subscriptions` yang tercipta
-- [ ] Satu akun bisa punya beberapa transaksi pending — itu bukan error
+- [x] `status` mulai dari `'pending'`, bukan `'settlement'`
+- [x] `payment_gateway = 'manual'`, `payment_method` distinguishes
+- [x] `amount` diambil dari harga server saat itu, **bukan** dari body
+- [x] `invoice_code` unik dan dibuat server
+- [x] Tidak ada baris `subscriptions` yang tercipta
+- [x] Satu akun bisa punya beberapa transaksi pending — itu bukan error
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_manual_payment.py -q` hijau
-- [ ] Test: body mengarang `amount: 1`, baris tetap berisi harga sebenarnya
-- [ ] Test: setelah request, `GET /v1/subscription/current` masih `active: false`
-- [ ] Test: `invoice_code` yang sama ditolak
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_manual_payment.py -q` hijau
+- [x] Test: body mengarang `amount: 1`, baris tetap berisi harga sebenarnya
+- [x] Test: setelah request, `GET /v1/subscription/current` masih `active: false`
+- [x] Test: `invoice_code` yang sama ditolak
 
 **Dependencies:** Tasks 1, 3
 
@@ -215,27 +217,27 @@ mengubah status transaksi **dan** menulis Subscription dalam satu jalan; deny
 tidak menyentuh Subscription yang sedang berjalan.
 
 **Acceptance criteria:**
-- [ ] `GET /v1/admin/transactions?status=pending` dengan nomor, catatan, waktu,
+- [x] `GET /v1/admin/transactions?status=pending` dengan nomor, catatan, waktu,
       dan tanggal kedaluwarsa
-- [ ] `POST .../approve` menulis `settlement` + `approved_by` + `approved_at`
+- [x] `POST .../approve` menulis `settlement` + `approved_by` + `approved_at`
       dan memanggil `grant()` dalam **satu transaksi database**
-- [ ] `POST .../deny` menulis `deny` + alasan, dan **tidak** menyentuh langganan
-- [ ] Approve transaksi yang sudah `settlement` tidak menghasilkan Subscription kedua
-- [ ] **Approve transaksi `expire` tetap diizinkan.** Kedaluwarsa adalah kebersihan
+- [x] `POST .../deny` menulis `deny` + alasan, dan **tidak** menyentuh langganan
+- [x] Approve transaksi yang sudah `settlement` tidak menghasilkan Subscription kedua
+- [x] **Approve transaksi `expire` tetap diizinkan.** Kedaluwarsa adalah kebersihan
       antrean, bukan vonis akhir atas uang — transfer jam 22.00 tidak boleh
       menggantung tanpa jalan pada 22.59
-- [ ] Approve atas akun yang diblokir tetap menulis langganan (aturan 8)
-- [ ] Non-admin mendapat **403**
+- [x] Approve atas akun yang diblokir tetap menulis langganan (aturan 8)
+- [x] Non-admin mendapat **403**
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_admin_transactions.py -q` hijau
-- [ ] Test: approve → `GET /v1/subscription/current` melaporkan `active: true`
-- [ ] Test: approve dua kali → satu Subscription, dan dua grant kedua memakai
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_admin_transactions.py -q` hijau
+- [x] Test: approve → `GET /v1/subscription/current` melaporkan `active: true`
+- [x] Test: approve dua kali → satu Subscription, dan dua grant kedua memakai
       transaksi berbeda
-- [ ] Test: deny tidak mengubah langganan yang sedang berjalan
-- [ ] Test: approve transaksi `expire` tetap menulis Subscription
-- [ ] Test: kegagalan di tengah tidak meninggalkan `settlement` tanpa Subscription
-- [ ] Manual check: `GET /v1/signals` berhenti membalas 402 setelah approve
+- [x] Test: deny tidak mengubah langganan yang sedang berjalan
+- [x] Test: approve transaksi `expire` tetap menulis Subscription
+- [x] Test: kegagalan di tengah tidak meninggalkan `settlement` tanpa Subscription
+- [x] Manual check: `GET /v1/signals` berhenti membalas 402 setelah approve
 
 **Dependencies:** Tasks 1, 5
 
@@ -254,16 +256,16 @@ tidak menyentuh Subscription yang sedang berjalan.
 Settings sudah jadi tempat yang tepat — itu tab langganan.
 
 **Acceptance criteria:**
-- [ ] Tab 2 menampilkan transaksi `pending` milik akun itu, dengan nominal dan waktu
-- [ ] Status **tidak** memblokir akses: akun tanpa langganan yang sedang
+- [x] Tab 2 menampilkan transaksi `pending` milik akun itu, dengan nominal dan waktu
+- [x] Status **tidak** memblokir akses: akun tanpa langganan yang sedang
       menunggu verifikasi tetap bisa masuk dan melihat apa yang terjadi
-- [ ] Transaksi yang ditolak tampil sebagai ditolak, bukan menghilang
-- [ ] Tidak ada nomor rekening rekening hardcoded di frontend — semuanya dari server
+- [x] Transaksi yang ditolak tampil sebagai ditolak, bukan menghilang
+- [x] Tidak ada nomor rekening rekening hardcoded di frontend — semuanya dari server
 
 **Verification:**
-- [ ] `npx vitest run src/app/components/SettingsView.test.tsx` hijau
-- [ ] Test: transaksi pending tampil, dan teksnya menyatakan akses belum aktif
-- [ ] `npx tsc --noEmit` bersih
+- [x] `npx vitest run src/app/components/SettingsView.test.tsx` hijau
+- [x] Test: transaksi pending tampil, dan teksnya menyatakan akses belum aktif
+- [x] `npx tsc --noEmit` bersih
 
 **Dependencies:** Tasks 5, 6
 
@@ -288,23 +290,23 @@ melonggarkan kendali, melainkan aturan di bawah: `expire` menghentikan tawaran,
 bukan menutup pintu.
 
 **Acceptance criteria:**
-- [ ] Ada task beat yang mengubah `pending` yang sudah lewat satu jam menjadi `expire`
-- [ ] `MANUAL_TRANSACTION_TTL_SECONDS` di konfigurasi, default 3600
-- [ ] Idempoten — menjalankan dua kali tidak mengubah apa pun
-- [ ] Hanya `pending` yang terpengaruh; `settlement` tidak pernah disentuh
-- [ ] Tidak ada Subscription yang dibuat atau dihapus
-- [ ] **`expire` bukan kondisi final.** Approve terhadap baris `expire` tetap
+- [x] Ada task beat yang mengubah `pending` yang sudah lewat satu jam menjadi `expire`
+- [x] `MANUAL_TRANSACTION_TTL_SECONDS` di konfigurasi, default 3600
+- [x] Idempoten — menjalankan dua kali tidak mengubah apa pun
+- [x] Hanya `pending` yang terpengaruh; `settlement` tidak pernah disentuh
+- [x] Tidak ada Subscription yang dibuat atau dihapus
+- [x] **`expire` bukan kondisi final.** Approve terhadap baris `expire` tetap
       menulis Subscription (Task 6). Kalau tidak, transfer di luar jam kerja akan
       menelan uang seseorang tanpa jejak — dan tidak ada tempat untuk melapor
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_transaction_expiry.py -q` hijau
-- [ ] Test: `pending` yang sudah lewat satu jam menjadi `expire`
-- [ ] Test: `pending` yang belum satu jam **tidak** berubah
-- [ ] Test: `settlement` lama tidak diubah
-- [ ] Test: menjalankan dua kali menghasilkan hasil yang sama
-- [ ] Test: approve setelah `expire` tetap menghasilkan Subscription
-- [ ] Test: `test_beat_schedule.py` masih hijau
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_transaction_expiry.py -q` hijau
+- [x] Test: `pending` yang sudah lewat satu jam menjadi `expire`
+- [x] Test: `pending` yang belum satu jam **tidak** berubah
+- [x] Test: `settlement` lama tidak diubah
+- [x] Test: menjalankan dua kali menghasilkan hasil yang sama
+- [x] Test: approve setelah `expire` tetap menghasilkan Subscription
+- [x] Test: `test_beat_schedule.py` masih hijau
 
 **Dependencies:** Task 5
 
@@ -318,11 +320,11 @@ bukan menutup pintu.
 
 ### Checkpoint: Fase 3
 
-- [ ] Approve menulis Subscription dan mengubah status dalam satu jalan
-- [ ] Deny tidak menyentuh Subscription yang sedang berjalan
-- [ ] Transaksi expired tidak memblokir apa pun
-- [ ] Alur lengkap bisa dicoba tanpa gerbang pihak ketiga
-- [ ] `cd backend && .venv/bin/python -m pytest -q` dan `npx vitest run` hijau
+- [x] Approve menulis Subscription dan mengubah status dalam satu jalan
+- [x] Deny tidak menyentuh Subscription yang sedang berjalan
+- [x] Transaksi expired tidak memblokir apa pun
+- [x] Alur lengkap bisa dicoba tanpa gerbang pihak ketiga
+- [x] `cd backend && .venv/bin/python -m pytest -q` dan `npx vitest run` hijau
 
 ---
 
@@ -437,16 +439,16 @@ salah satu: signature SHA-512, dan nominal yang cocok.
 ada penulisnya, dan batas Fase 2–4 tercatat apa adanya.
 
 **Acceptance criteria:**
-- [ ] `docs/status.md` mencatat siapa yang menulis `subscriptions` sekarang
-- [ ] `transactions.proof_image_url` dicatat sebagai kolom yang **tidak** diisi —
+- [x] `docs/status.md` mencatat siapa yang menulis `subscriptions` sekarang
+- [x] `transactions.proof_image_url` dicatat sebagai kolom yang **tidak** diisi —
       sengaja, bukan oversight
-- [ ] Admin manual, transfer manual, dan gerbang dicatat apa adanya
-- [ ] ADR-0011 merekam keputusan satu penulis dan idempotensi di baris Transaction
-- [ ] `backend/tests/test_docs_status.py` hijau
+- [x] Admin manual, transfer manual, dan gerbang dicatat apa adanya
+- [x] ADR-0011 merekam keputusan satu penulis dan idempotensi di baris Transaction
+- [x] `backend/tests/test_docs_status.py` hijau
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_docs_status.py -q` hijau
-- [ ] `git ls-files` mengonfirmasi setiap path yang diklaim ada
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_docs_status.py -q` hijau
+- [x] `git ls-files` mengonfirmasi setiap path yang diklaim ada
 
 **Dependencies:** Tasks 1–11
 
@@ -459,10 +461,10 @@ ada penulisnya, dan batas Fase 2–4 tercatat apa adanya.
 
 ### Checkpoint: Lengkap
 
-- [ ] Semua acceptance criteria di atas terpenuhi
-- [ ] `cd backend && .venv/bin/python -m pytest -q` hijau
-- [ ] `cd backend && .venv/bin/python -m ruff check .` bersih
-- [ ] `npx tsc --noEmit`, `npx eslint src`, `npx vitest run` hijau
-- [ ] `git diff` tidak menambah kolom status ke `subscriptions`, dan tidak
+- [x] Semua acceptance criteria di atas terpenuhi
+- [x] `cd backend && .venv/bin/python -m pytest -q` hijau — 813 passed, coverage 68.77%
+- [x] `cd backend && .venv/bin/python -m ruff check .` bersih
+- [x] `npx tsc --noEmit`, `npx eslint src`, `npx vitest run` hijau — 306 passed
+- [x] `git diff` tidak menambah kolom status ke `subscriptions`, dan tidak
       memblokir akses berdasarkan status pembayaran (aturan 1 dan 3)
 - [ ] Tinjau dengan manusia

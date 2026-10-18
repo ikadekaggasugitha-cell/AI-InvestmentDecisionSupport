@@ -42,10 +42,20 @@ class Principal:
     user_id: uuid.UUID
     role: str
     email: str
+    # Why the account is closed, when it is. Carried so the entitlement gate can
+    # tell a suspension ('subscription_expired' — this person paid once and the
+    # clock ran out) apart from a refusal ('admin' — never returns a Principal
+    # at all). None means the account is open.
+    blocked_reason: str | None = None
 
     @property
     def is_admin(self) -> bool:
         return self.role == "admin"
+
+    @property
+    def is_suspended(self) -> bool:
+        """True when the account was closed by the lapsed-subscription beat."""
+        return self.blocked_reason == "subscription_expired"
 
 
 def _unauthenticated() -> HTTPException:
@@ -76,9 +86,21 @@ async def _principal_from_request(request: Request) -> Principal | None:
     if account is None:
         return None
     if account.blocked_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This account is blocked.",
+        if account.blocked_reason == "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This account is blocked.",
+            )
+        # 'subscription_expired' is not a refusal of the identity: the person is
+        # in, and the entitlement gate decides what they may see. A Principal is
+        # returned with the reason attached rather than swallowed here, so auth,
+        # pricing and payments keep answering an account suspended by the beat —
+        # the whole point of suspending with a reason instead of a 403.
+        return Principal(
+            user_id=account.id,
+            role=account.role,
+            email=account.email,
+            blocked_reason=account.blocked_reason,
         )
     return Principal(user_id=account.id, role=account.role, email=account.email)
 
@@ -119,13 +141,29 @@ async def require_entitlement(
     would mean an administrator silently had to be a paying subscriber, which is
     exactly the trade CONTEXT.md forbids.
 
-    402, not 403. A blocked account is also refused, and a non-admin is refused on
-    admin routes — all with 403. The client needs to tell those apart: telling a
-    blocked person that they need a subscription is a lie, and so is telling a
-    non-admin that their billing is the problem. 402 is the status that says the
-    request was understood, the identity is fine, and the answer is "pay first".
+    402, not 403. A suspended account is also refused — with 403 and its own
+    reason, because "pay first" is not what happened to them: they paid once and
+    the period ended. A non-admin on admin routes is refused 403 as well. The
+    client needs to tell those apart: telling a suspended person they never had
+    a subscription is a lie, so is telling a non-admin their billing is the
+    problem. 402 is reserved for "the identity is fine and has simply never
+    held the entitlement".
     """
     settings = get_settings()
+    # Suspended is account state, checked before the paywall switch: an install
+    # running with the paywall off has not made a lapsed account's period live
+    # again — only a settled payment can, so a suspended caller sees data here
+    # only if a payment already reopened them and the beat is not asked over
+    # again. 403, with a sentence of its own, so it never reads as "no
+    # subscription" (402) nor as an admin's refusal of the identity.
+    if user.is_suspended:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "This account's subscription has ended. "
+                "Paying again reopens the account."
+            ),
+        )
     if not settings.paywall_enabled:
         return user
     if await entitlements.has_active_subscription(user.user_id):

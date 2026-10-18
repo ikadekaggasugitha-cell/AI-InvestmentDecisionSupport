@@ -108,8 +108,24 @@ CREATE TABLE IF NOT EXISTS users (
     full_name     VARCHAR(150) NOT NULL,
     phone_number  VARCHAR(30)  NOT NULL,
     role          VARCHAR(20)  NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
-    blocked_at    TIMESTAMPTZ,             -- NULL = not blocked. Set in Phase 4.
-    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    -- NULL = not blocked. Set by accounts.set_blocked (the endpoint's writer),
+    -- not by anything in the money path.
+    blocked_at    TIMESTAMPTZ,
+    -- Why the account is closed: 'admin' (an administrator's decision, opened
+    -- only by the admin unblock endpoint) or 'subscription_expired' (the clock
+    -- ran out; paying reopens it). Payment code may only satisfy the second —
+    -- the reason IS the guarantee, not a note. Mirrors
+    -- db/migrations/0013_subscription_suspension.sql.
+    blocked_reason VARCHAR(30),
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_users_blocked_reason
+        CHECK (blocked_reason IS NULL
+               OR blocked_reason IN ('admin', 'subscription_expired')),
+    -- One fact in two columns, or none: a closed account with a blank why — or
+    -- an open one carrying a why — is a row every reader would guess about.
+    CONSTRAINT ck_users_blocked_reason_shape
+        CHECK ((blocked_at IS NULL AND blocked_reason IS NULL)
+               OR (blocked_at IS NOT NULL AND blocked_reason IS NOT NULL))
 );
 
 -- Uniqueness on lower(email), not on email: without this, `User@aidss.id` and
@@ -177,6 +193,12 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount                  NUMERIC(14,2) NOT NULL,
     payment_gateway         VARCHAR(30) NOT NULL CHECK (payment_gateway IN ('midtrans', 'manual')),
     payment_method          VARCHAR(50) NOT NULL,
+    -- Which length of access the money is for: 30 days monthly, 365 days
+    -- annual, decided at declaration time. It is not derivable from `amount`
+    -- once a price has changed, and the admin's approve action needs it.
+    -- Mirrors db/migrations/0012_transactions_plan.sql.
+    plan                    VARCHAR(20) NOT NULL DEFAULT 'monthly'
+                                CHECK (plan IN ('monthly', 'annual')),
     status                  VARCHAR(30) NOT NULL DEFAULT 'pending'
                                 CHECK (status IN ('pending', 'settlement', 'expire', 'deny', 'cancel')),
     midtrans_transaction_id VARCHAR(100),

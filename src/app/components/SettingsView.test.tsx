@@ -25,6 +25,29 @@ const priceState = {
   throws: false,
 }
 
+// The account's own attempts to pay — [] is the fact, not a failure.
+const payState = {
+  rows: [] as unknown[],
+  status: 200,
+  throws: false,
+}
+
+// The destinations a transfer can go to. Read from the server because a
+// destination typed into the client is a destination the server never honoured.
+const banksState = {
+  accounts: [] as Array<{ bank: string; accountNumber: string; holderName: string }>,
+  status: 200,
+  throws: false,
+}
+
+// The declaration POST's honest outcome, plus the bodies it was sent — read
+// back by the tests, not guessed.
+const declareState = {
+  accepted: true,
+  afterBody: null as unknown, // what GET /payments/me holds after the POST
+}
+const declared: unknown[] = []
+
 // Only the transport is faked; the real error classification stays real.
 vi.mock('../config/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../config/api')>()),
@@ -32,8 +55,11 @@ vi.mock('../config/api', async (importOriginal) => ({
     subscription: '/v1/subscription/current',
     pricing: '/v1/subscriptions/pricing',
     authMe: '/v1/auth/me',
+    payments: '/v1/payments/me',
+    paymentsDeclare: '/v1/payments/manual',
+    bankAccounts: '/v1/subscriptions/bank-accounts',
   },
-  apiFetch: vi.fn(async (url: string) => {
+  apiFetch: vi.fn(async (url: string, init?: RequestInit) => {
     if (url.includes('/v1/subscriptions/pricing')) {
       if (priceState.throws) throw new Error('offline')
       return { ok: priceState.status < 400, status: priceState.status, json: async () => priceState.body } as unknown as Response
@@ -41,6 +67,23 @@ vi.mock('../config/api', async (importOriginal) => ({
     if (url.includes('/v1/subscription/current')) {
       if (subState.throws) throw new Error('offline')
       return { ok: subState.status < 400, status: subState.status, json: async () => subState.body } as unknown as Response
+    }
+    if (url.includes('/v1/payments/me')) {
+      if (payState.throws) throw new Error('offline')
+      return { ok: payState.status < 400, status: payState.status, json: async () => payState.rows } as unknown as Response
+    }
+    if (url.includes('/v1/subscriptions/bank-accounts')) {
+      if (banksState.throws) throw new Error('offline')
+      return { ok: banksState.status < 400, status: banksState.status, json: async () => ({ accounts: banksState.accounts }) } as unknown as Response
+    }
+    if (url.includes('/v1/payments/manual')) {
+      declared.push(JSON.parse(String(init?.body ?? '{}')))
+      if (declareState.afterBody !== null) payState.rows = declareState.afterBody as unknown[]
+      return {
+        ok: declareState.accepted,
+        status: declareState.accepted ? 200 : 422,
+        json: async () => ({}),
+      } as unknown as Response
     }
     return { ok: true, status: 200, json: async () => ({}) } as unknown as Response
   }),
@@ -53,6 +96,7 @@ const TEST_ACCOUNT = {
   phone_number: '081234567890',
   role: 'user' as const,
   blocked: false,
+  blockedReason: null,
 }
 
 function auth(overrides: Partial<AuthState> = {}): AuthState {
@@ -613,8 +657,139 @@ describe('SettingsView — Tab 2 shows what it costs', () => {
   it('shows no renew or buy control', async () => {
     await openBilling()
 
-    // There is no payment path. A control that looks live and does nothing is
-    // worse than its absence (R-26).
+    // Declaring a transfer starts a human review; no control here promises an
+    // instant purchase or a renewal the server would have to honor (R-26).
     expect(screen.queryByRole('button', { name: /Perpanjang|Beli|Upgrade|Renew|Buy/i })).toBeNull()
+  })
+})
+
+describe('SettingsView — the declared manual transfer (Tab 2, pembayaran)', () => {
+  const PENDING = {
+    id: 'tx-1',
+    invoiceCode: 'INV-20261017120000-ABC123',
+    amount: 15000,
+    plan: 'monthly',
+    paymentGateway: 'manual',
+    paymentMethod: 'bank_transfer',
+    status: 'pending',
+    notes: 'BCA 999000111',
+    createdAt: '2026-10-17T12:00:00+00:00',
+    expiresAt: '2026-10-17T13:00:00+00:00',
+  }
+
+  beforeEach(() => {
+    payState.rows = []
+    payState.status = 200
+    payState.throws = false
+    banksState.accounts = []
+    banksState.status = 200
+    banksState.throws = false
+    declareState.accepted = true
+    declareState.afterBody = null
+    declared.length = 0
+  })
+
+  it('shows the waiting transfer with its amount and its moment, and states access is not active yet', async () => {
+    payState.rows = [PENDING]
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
+
+    const block = await screen.findByRole('status')
+    expect(within(block).getByText('Transfer sedang diperiksa')).toBeInTheDocument()
+    expect(within(block).getByText('Rp 15.000')).toBeInTheDocument()
+    expect(within(block).getByText(/Menunggu pemeriksaan admin/)).toBeInTheDocument()
+    expect(within(block).getByText(/INV-20261017120000-ABC123/)).toBeInTheDocument()
+    // The sentence that keeps the state honest: money declared is not access.
+    expect(within(block).getByText(/belum aktif sampai admin memeriksa/i)).toBeInTheDocument()
+  })
+
+  it('keeps a refused payment on the record instead of letting it vanish', async () => {
+    payState.rows = [
+      {
+        ...PENDING,
+        id: 'tx-2',
+        status: 'deny',
+        notes: 'BCA 999000111 — Ditolak: nominal tidak cocok',
+      },
+    ]
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
+
+    expect(await screen.findByText('Riwayat pembayaran')).toBeInTheDocument()
+    expect(screen.getByText(/Ditolak/)).toBeInTheDocument()
+    expect(screen.getByText(/nominal tidak cocok/)).toBeInTheDocument()
+  })
+
+  it('reads the destination account from the server, never from a constant', async () => {
+    banksState.accounts = [
+      { bank: 'BNI', accountNumber: '9876543210', holderName: 'PT AIDSS JAYA' },
+    ]
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
+
+    expect(
+      await screen.findByText(/BNI · 9876543210 · a\.n PT AIDSS JAYA/),
+    ).toBeInTheDocument()
+  })
+
+  it('when the server has written no destination, the tab says so instead of showing digits', async () => {
+    banksState.accounts = []
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
+
+    expect(await screen.findByText(/Belum ada rekening tujuan/)).toBeInTheDocument()
+  })
+
+  it('declares the transfer to the server and then shows what the re-read holds', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
+    await screen.findByText(/Rekening tujuan/)
+
+    await user.click(screen.getByLabelText('Tahunan'))
+    await user.type(screen.getByLabelText(/Catatan untuk admin/), 'BCA 555222333')
+    declareState.afterBody = [PENDING]
+    await user.click(screen.getByRole('button', { name: /Saya sudah transfer/i }))
+
+    expect(declared).toHaveLength(1)
+    expect(declared[0]).toEqual({
+      plan: 'annual',
+      payment_method: 'bank_transfer',
+      note: 'BCA 555222333',
+    })
+    // The review state, from what the server now holds — not a locally
+    // invented row.
+    expect(await screen.findByText('Transfer sedang diperiksa')).toBeInTheDocument()
+    expect(screen.getByLabelText(/Catatan untuk admin/)).toHaveValue('')
+  })
+
+  it('a refused declaration is said out loud, not swallowed', async () => {
+    declareState.accepted = false
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
+    await screen.findByText(/Rekening tujuan/)
+
+    await user.click(screen.getByRole('button', { name: /Saya sudah transfer/i }))
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('alert').textContent).toMatch(/ditolak server/i)
+    expect(screen.queryByText('Transfer sedang diperiksa')).not.toBeInTheDocument()
+  })
+
+  it('the tab still loads and speaks when the payment history cannot be read', async () => {
+    // An account with no subscription and an unreachable history read must not
+    // lose its page: money state failing is not the tab's failure mode.
+    payState.throws = true
+    const user = userEvent.setup()
+    renderSettings()
+    await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
+
+    expect(await screen.findByText(/Belum ada langganan/i)).toBeInTheDocument()
+    expect(screen.getByText(/Rekening tujuan/)).toBeInTheDocument()
   })
 })

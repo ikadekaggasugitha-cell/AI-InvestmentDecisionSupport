@@ -19,7 +19,12 @@ import logging
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from api.services.settings import PricingUnavailable, read_pricing
+from api.services.settings import (
+    BankAccountsUnavailable,
+    PricingUnavailable,
+    read_bank_accounts,
+    read_pricing,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,4 +78,66 @@ async def current_pricing() -> PricingResponse:
         monthly=pricing.monthly,
         annual=pricing.annual,
         updatedAt=pricing.updated_at,
+    )
+
+# ── Rekening tujuan ──────────────────────────────────────────────────────────
+
+class BankAccountResponse(BaseModel):
+    """One transfer destination, public for the same reason the price is.
+
+    A person deciding to transfer to what they cannot yet read is a person
+    guessing. `accountNumber` is digits-only as stored; there is no formatting
+    promise here, so a consumer renders it exactly.
+    """
+
+    bank: str
+    accountNumber: str
+    holderName: str
+
+
+class BankAccountsResponse(BaseModel):
+    """The destinations as installed. An empty list is an honest answer.
+
+    Not yet configured is not an error state for the visitor: the front
+    end turns `"accounts": []` into "belum ada rekening tujuan", one message,
+    rather than rendering an empty list that looks like a list that lost its
+    contents.
+    """
+
+    accounts: list[BankAccountResponse]
+
+
+@router.get(
+    "/bank-accounts",
+    response_model=BankAccountsResponse,
+    summary="Where to pay, before an account exists",
+    description=(
+        "Public with the price: someone who has not signed up yet still needs to\n"
+        "know where the transfer goes.\n\n"
+        "Answers `\"accounts\": []` when nothing was ever written — the reader's\n"
+        "cue to say so, not a list to render empty. A row that holds something\n"
+        "unusable answers 503, because installed state that reads as noise was\n"
+        "written by something else, and repeating it here would serve it as fact."
+    ),
+    responses={503: {"description": "The stored list is unreadable"}},
+)
+async def public_bank_accounts() -> BankAccountsResponse:
+    try:
+        entries, _updated = await read_bank_accounts()
+    except BankAccountsUnavailable as exc:
+        logger.error("bank-accounts: system_settings holds an unusable list: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The transfer destinations on this server are unreadable.",
+        ) from exc
+
+    return BankAccountsResponse(
+        accounts=[
+            BankAccountResponse(
+                bank=e.bank,
+                accountNumber=e.account_number,
+                holderName=e.holder_name,
+            )
+            for e in entries
+        ]
     )

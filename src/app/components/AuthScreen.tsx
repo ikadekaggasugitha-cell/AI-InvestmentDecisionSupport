@@ -119,6 +119,29 @@ export function AuthScreen({ auth, locale, onAuthed }: AuthScreenProps) {
           {mode === "login" ? t("auth_signin_sub") : t("auth_signup_sub")}
         </p>
 
+        {/* The server's own verdict, not the form's: auth/me answered 403 for
+            this account, which is an administrator's closure. Stated here and
+            only here — a ban has no payment path, and the login form must not
+            hint at one. */}
+        {auth.error === "blocked" && (
+          <p
+            role="alert"
+            style={{
+              fontSize: "13px",
+              color: "var(--foreground)",
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              padding: "10px 12px",
+              margin: "0 0 16px",
+            }}
+          >
+            {locale === "id"
+              ? "Akun ini ditutup oleh administrator. Pembayaran tidak dapat membukanya kembali."
+              : "This account was closed by an administrator. A payment cannot reopen it."}
+          </p>
+        )}
+
         {error && (
           <p
             id={errorId}

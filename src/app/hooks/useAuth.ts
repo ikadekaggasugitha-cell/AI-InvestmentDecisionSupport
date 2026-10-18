@@ -9,6 +9,10 @@ export interface Account {
   phone_number: string;
   role: "user" | "admin";
   blocked: boolean;
+  /** Why the account is closed: 'admin' or 'subscription_expired'. Present
+   * exactly when `blocked` is true, and the reason decides which screen the app
+   * shows — a ban is refused with a sentence, a lapse gets the billing pane. */
+  blockedReason: "admin" | "subscription_expired" | null;
 }
 
 export type AuthStatus = "checking" | "signed-in" | "signed-out";

@@ -36,6 +36,7 @@ import { PaywallNotice } from "./components/PaywallNotice";
 import { useAuth } from "./hooks/useAuth";
 import { useOverlayScrollbars } from "./hooks/useOverlayScrollbars";
 import { AuthScreen } from "./components/AuthScreen";
+import { SuspensionScreen } from "./components/SuspensionScreen";
 import { toast } from "sonner";
 
 function formatDashboardSubtitle(locale: string): string {
@@ -136,6 +137,22 @@ function AppInner() {
           auth={auth}
           locale={locale}
           onAuthed={() => navigate("/", { replace: true })}
+        />
+      </div>
+    );
+  }
+
+  // A closed account with a reason: the app frame is replaced, because every
+  // data route refuses this account server-side. The screen carries the billing
+  // pane itself for a lapse, and a refusal with no payment path for a ban.
+  // Signed-in, not signed-out — the session is valid; only the data is closed.
+  const suspensionReason = auth.account?.blockedReason;
+  if (suspensionReason) {
+    return (
+      <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
+        <SuspensionScreen
+          reason={suspensionReason}
+          onRefresh={() => auth.refresh()}
         />
       </div>
     );

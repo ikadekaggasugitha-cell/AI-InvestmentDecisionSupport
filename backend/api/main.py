@@ -23,8 +23,8 @@ from api.core.auth import get_current_user, require_entitlement
 from api.core.config import get_settings
 from api.core.rate_limit_middleware import rate_limit_middleware
 from api.routers import (
-    admin, advisor, alerts, auth, broksum, market_ws, news, portfolio, pricing, reports,
-    risk, signals, subscription, symbols, technicals,
+    admin, advisor, alerts, auth, broksum, market_ws, news, payments, portfolio,
+    pricing, reports, risk, signals, subscription, symbols, technicals,
 )
 
 # ── Structured logging ────────────────────────────────────────────────────────
@@ -310,6 +310,11 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     # Authenticated but not entitlement-gated: this reports whether the caller has
     # a subscription, so gating it on having one would be circular.
     app.include_router(subscription.router, dependencies=protected)
+    # Payments: declaring a transfer and reading one's own money history. Money
+    # state never decides access (CONTEXT.md rule 3), so no endpoint in the
+    # router is entitlement-gated — the account asking where its payment stands
+    # is exactly the one the gate refuses.
+    app.include_router(payments.router, dependencies=protected)
     # Public, and the only unauthenticated data endpoint here. The price has to be
     # readable before anyone can decide to subscribe; it exposes two numbers and
     # nothing else.

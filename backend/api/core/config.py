@@ -89,6 +89,13 @@ class Settings(BaseSettings):
     # written there would be copied into every install and never rotated.
     admin_email: str = ""
 
+    # How long a declared manual transfer may sit pending in the admin queue
+    # before the beat marks it `expire`. The owner's decision is one hour; the
+    # number is configuration rather than a literal inside the function so that
+    # changing it needs no deploy of new code. Expiry is queue hygiene, not a
+    # verdict on the money: an expired transaction stays approvable.
+    manual_transaction_ttl_seconds: int = 3600
+
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 

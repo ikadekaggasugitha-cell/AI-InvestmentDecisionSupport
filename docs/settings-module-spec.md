@@ -540,9 +540,9 @@ Spec ini sudah diimplementasikan dan diverifikasi. Yang selesai dan yang belum.
 | Bagian | Alasan |
 |---|---|
 | Tab 2 Langganan: tanggal berakhir, sisa hari | **Sudah ada.** `GET /v1/subscription/current` menjawab status, `expiresAt`, dan `daysRemaining`. Hari tersisa dihitung di server, bukan dari jam peramban. |
-| Tab 2: riwayat invoice dan tombol unduh | Bergantung pada tabel `transactions` dan endpoint pembayaran, semuanya ditunda ke Fase 2. |
+| Tab 2: riwayat transaksi transfer manual | **Sudah**. `GET /v1/payments/me` membawa baris sendiri — yang menunggu, yang kedaluwarsa antrian, yang ditolak dengan alasannya. Tombol unduh PDF/invoice tidak ada dan tidak disiapkan: itu pekerjaan gerbang (Fase 4), bukan Tab 2. |
 | Tab 2: tanggal mulai periode | `subscriptions` hanya punya `expires_at`. Menampilkan tanggal mulai berarti merekonstruksi, jadi tidak ditampilkan. |
-| Tombol "Perpanjang Paket", "Upgrade ke Tahunan" | Bergantung pada endpoint pembayaran yang belum ada. Menampilkannya sekarang berarti kontrol mati (R-26). |
+| Tombol "Perpanjang Paket", "Upgrade ke Tahunan" | Tetap tidak ada, sengaja. Jalur manual yang ada sekarang melayani mulai berlangganan; perpanjangan dan upgrade butuh keputusan produk tersendiri (durasi menumpuk, refund), dan kontrol untuk itu tidak dibuat sebelum keputusannya ada. |
 
 Tab 2 menampilkan empty state yang menyebut penyebabnya. Tidak ada nama, avatar,
 nomor invoice, atau angka langganan yang dikarik.
@@ -592,7 +592,7 @@ seluruhnya sudah diperbaiki. Ringkasnya:
 - [x] `setting-row` stacking vertikal di bawah 640px
 - [x] `focus-visible` di setiap elemen interaktif
 - [x] `contrast-check.py` dijalankan untuk setiap pasangan teks/latar
-- [ ] Empty/loading/error state di Tab 1 dan Tab 2 (blocked: endpoint belum ada, lihat §14.2)
+- [x] Empty/loading/error state di Tab 1 dan Tab 2. Tab 2 kini membaca `GET /v1/payments/me` dan `GET /v1/subscriptions/bank-accounts`: transfer yang menunggu tampil, ditolak tetap terbaca, rekening dari server; setiap kegagalan baca punya kalimatnya sendiri dan tidak pernah tampil sebagai nol atau data karangan
 - [x] Dark mode diverifikasi manual, bukan hanya light
 
-Tabel riwayat pembayaran menjadi kartu pada mobile: belum dapat diverifikasi, karena tabelnya sendiri belum ada (lihat §14.2).
+Tabel riwayat pembayaran menjadi kartu pada mobile: riwayat kini ada sebagai daftar baris (bukan tabel kolom) dan langsung reflow satu kolom di layar sempit.

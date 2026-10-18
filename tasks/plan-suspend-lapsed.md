@@ -107,41 +107,49 @@ tidak boleh saling menimpa dengan alasan yang berbeda.
 
 ### Fase 1: Alasan pada blokir
 
-- [ ] Task 1: Migrasi 0012 — `users.blocked_reason`
-- [ ] Task 2: `set_blocked()` membawa alasan, dan satu-satunya jalan memblokir
+- [x] Task 1: Migrasi 0013 — `users.blocked_reason` (0012 sudah dipakai
+      `0012_transactions_plan.sql` dari plan-pembayaran)
+- [x] Task 2: `set_blocked()` membawa alasan + `reopen_after_payment()`, dan satu-satunya jalan memblokir
 
 ### Checkpoint: Fase 1
-- [ ] Baris `blocked_at` yang sudah ada ter-backfill ke `'admin'`
-- [ ] Ban admin tidak bisa dibuka oleh kode mana pun selain endpoint admin
+- [x] Baris `blocked_at` yang sudah ada ter-backfill ke `'admin'`
+- [x] Ban admin tidak bisa dibuka oleh kode mana pun selain endpoint admin
+      (guard di `WHERE` `reopen_after_payment`;
+      `test_settlement_reopens.py::TestSettlementNeverOpensAnAdminBan`)
 
 ### Fase 2: Menangguhkan yang jatuh tempo
 
-- [ ] Task 3: Beat menangguhkan akun yang langganannya habis
-- [ ] Task 4: Gerbang membedakan dua alasan
+- [x] Task 3: Beat menangguhkan akun yang langganannya habis (beat hourly di
+      :05; SQL guard-nya ada di `services.accounts` agar penulis `users`
+      tetap satu modul)
+- [x] Task 4: Gerbang membedakan dua alasan (WS 4404 untuk suspensi, 1008
+      admin; suspensi menolak data bahkan saat paywall mati)
 
 ### Checkpoint: Fase 2
-- [ ] Akun yang belum pernah berlangganan tidak pernah tersuspend
-- [ ] Ban admin tidak pernah disentuh beat
-- [ ] Akun tersuspend bisa masuk tapi tidak melihat data apa pun
+- [x] Akun yang belum pernah berlangganan tidak pernah tersuspend
+- [x] Ban admin tidak pernah disentuh beat
+- [x] Akun tersuspend bisa masuk tapi tidak melihat data apa pun
 
 ### Fase 3: Membuka dengan membayar
 
-- [ ] Task 5: Penyelesaian pembayaran membuka hanya yang tertangguh
-- [ ] Task 6: Layar "langganan berakhir" di sisi pengguna
+- [x] Task 5: Penyelesaian pembayaran membuka hanya yang tertangguh
+- [x] Task 6: Layar "langganan berakhir" di sisi pengguna
 
 ### Checkpoint: Fase 3
-- [ ] Membayar membuka akun tertangguh
-- [ ] Membayar **tidak** membuka ban admin
-- [ ] Penyebab yang salah tidak dibaca sebagai langganan habis
+- [x] Membayar membuka akun tertangguh
+- [x] Membayar **tidak** membuka ban admin
+- [x] Penyebab yang salah tidak dibaca sebagai langganan habis
 
 ### Fase 4: Bukti dan dokumen
 
-- [ ] Task 7: CONTEXT.md, `docs/status.md`, ADR-0011
+- [x] Task 7: CONTEXT.md, `docs/status.md`, ADR-0012 (todo aslinya menulis
+      ADR-0011; 0011 sudah dipakai plan-pembayaran, jadi penangguhan menjadi
+      `docs/adr/0012-alasan-pada-blokir.md`)
 
 ### Checkpoint: Lengkap
-- [ ] Semua acceptance criteria terpenuhi
-- [ ] `cd backend && pytest` hijau, `ruff` bersih
-- [ ] `npx tsc --noEmit && npx eslint src && npx vitest run` hijau
+- [x] Semua acceptance criteria terpenuhi
+- [x] `cd backend && pytest` hijau, `ruff` bersih
+- [x] `npx tsc --noEmit && npx eslint src && npx vitest run` hijau
 - [ ] Tinjau dengan manusia
 
 ## Risiko dan Mitigasi
@@ -157,8 +165,13 @@ tidak boleh saling menimpa dengan alasan yang berbeda.
 
 ## Pertanyaan Terbuka
 
-- **Kapan beat dijalankan?** Setiap menit, atau setiap jam? Satu jam terasa cukup
-  untuk kasus ini dan jauh lebih murah.
+- **Kapan beat dijalankan?** ~~Setiap menit, atau setiap jam?~~ **Terjawab dari
+  pengerjaan:** tiap jam di menit :05 (beat `suspend-lapsed-subscriptions`,
+  `workers/celery_app.py`). Satu jam cukup karena pintu pembayaran tetap
+  terbuka bagi tertangguh, dan :05 menghindari gemetar menit-0 job jam pasar.
 - **Apakah langganan yang kedaluwarsa bisa dipulihkan tanpa pembayaran baru?**
   Admin sudah bisa membuka blokir manual, jadi secara teknis bisa — tapi itu
-  memberi jalan keluar yang tidak tercatat sebagai transaksi.
+  memberi jalan keluar yang tidak tercatat sebagai transaksi. **Keputusan yang
+  tertimbun saat pengerjaan:** unblock admin tetap satu-satunya jalan keluar
+  tanpa uang; uang yang masuk membuka lewat `grant()` dan tidak butuh unblock.
+  Perilaku tidak berubah dari rencana.

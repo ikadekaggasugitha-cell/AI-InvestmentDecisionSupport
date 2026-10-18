@@ -47,6 +47,7 @@ celery_app = Celery(
         "workers.broksum_worker",
         "workers.monitoring_worker",
         "workers.instruments_worker",
+        "workers.payment_worker",
     ],
 )
 
@@ -140,6 +141,26 @@ celery_app.conf.update(
                 hour="8",
                 day_of_week="sat",   # WIB
             ),
+        },
+        # ── Payments — the manual queue's hygiene beat ────────────────────────
+        # Pending declarations past the TTL window become `expire`. Every 10
+        # minutes, around the clock: transfers arrive when a buyer decides to
+        # pay, not when IDX trades, and the UPDATE is guarded and idempotent —
+        # a second pass over the same window moves nothing. Expiry never
+        # touches access: it is queue hygiene, not a verdict on the money.
+        "expire-pending-manual-transactions": {
+            "task": "workers.payment_worker.expire_pending_transactions",
+            "schedule": crontab(minute="*/10"),
+        },
+        # Accounts whose last subscription has ended become fully suspended
+        # (users.blocked_reason = 'subscription_expired') until they pay again.
+        # Hourly at :05: a lapse keeps its own payment queue open, so there is no
+        # urgency to race the minute, and :05 stays clear of the minute-0 jobs.
+        # The UPDATE is guarded — only accounts that once had a subscription and
+        # hold no live one, and never a row already carrying 'admin'.
+        "suspend-lapsed-subscriptions": {
+            "task": "workers.payment_worker.suspend_lapsed_subscriptions",
+            "schedule": crontab(minute="5"),
         },
     },
 )

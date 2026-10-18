@@ -161,6 +161,7 @@ class TestRefusalsAreDistinguishable:
         _signup(gated_client)
         account = next(iter(fake_identity.users.values()))
         account["blocked_at"] = "2026-01-01T00:00:00+00:00"
+        account["blocked_reason"] = "admin"
         assert gated_client.get("/v1/signals").status_code == 403
 
     def test_a_non_admin_on_an_admin_route_gets_403_not_402(self, gated_client):
@@ -371,9 +372,24 @@ class TestWebSocketGate:
         _signup(gated_client, email="blocked-ws@aidss.id")
         account = next(iter(fake_identity.users.values()))
         account["blocked_at"] = "2026-01-01T00:00:00+00:00"
+        account["blocked_reason"] = "admin"
         fake_identity.add_subscription(account["id"], days=30)
         code, _ = _refuse(gated_client)
         assert code == 1008
+
+    def test_a_suspended_account_and_a_banned_one_are_told_apart(self,
+                                                                 gated_client,
+                                                                 fake_identity):
+        """Same column, opposite doors: 1008 for the ban (the session is dead
+        from the account's own state), 4404 for the lapse (the session is fine,
+        paying reopens). One code for both would turn the lapser away at the
+        login page and invite a banned one back at the payment step."""
+        _signup(gated_client, email="lapsed-ws@aidss.id")
+        account = next(iter(fake_identity.users.values()))
+        account["blocked_at"] = "2026-01-01T00:00:00+00:00"
+        account["blocked_reason"] = "subscription_expired"
+        code, _ = _refuse(gated_client)
+        assert code == 4404
 
     def test_anonymous_is_refused(self, gated_client):
         code, _ = _refuse(gated_client)

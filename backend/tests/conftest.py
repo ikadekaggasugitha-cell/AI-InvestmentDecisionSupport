@@ -439,8 +439,20 @@ class _IdentityPool:
         self.consents: dict[str, dict] = {}   # user_id -> latest acceptance
         self.sessions: dict[str, dict] = {}       # sha256(token) -> row
         self.subscriptions: list[dict] = []
+        # Payment rows, keyed by str(id). subscription_id is None until a grant
+        # claims the row — the guarded UPDATE in services.subscriptions is the
+        # idempotency key. invoice_codes mirrors the table's UNIQUE index.
+        self.transactions: dict[str, dict] = {}
+        self.invoice_codes: dict[str, str] = {}
         self.fail = False                         # simulate a full outage
         self.fail_subscriptions = False            # simulate the entitlement query alone failing
+        # Simulate the Subscription INSERT alone failing — the crash inside the
+        # admin approve transaction that the rollback test depends on.
+        self.fail_subscription_writes = False
+        # One snapshot per rollback-able transaction(): transactions,
+        # subscriptions, invoice_codes, users (users because a crashed settle
+        # must un-clear a suspension as well).
+        self._snapshot_data: tuple[dict, list, dict, dict] | None = None
         # system_settings. Seeded with the prices migration 0011 writes, so tests
         # read the same starting state a fresh install would have.
         self.settings: dict[str, dict] = {
@@ -458,9 +470,21 @@ class _IdentityPool:
             row = self.settings.get(args[0])
             return None if row is None else dict(row)
         if "INSERT INTO system_settings" in query:
-            # settings.write_pricing: key, monthly, annual.
+            # settings.write_pricing: key, monthly, annual. The bank_accounts
+            # upsert passes the whole JSON payload as $2 instead, as text — the
+            # way asyncpg carries jsonb params — so the parse is the fake doing
+            # what Postgres does when the value is read back as jsonb.
+            if args[0] == "pricing":
+                value = {"monthly": args[1], "annual": args[2]}
+            else:
+                payload = args[1]
+                if isinstance(payload, str):
+                    import json
+
+                    payload = json.loads(payload)
+                value = {"accounts": payload}
             self.settings[args[0]] = {
-                "value": {"monthly": args[1], "annual": args[2]},
+                "value": value,
                 "updated_at": self._now.now(self._tz.utc),
             }
             return {"updated_at": self.settings[args[0]]["updated_at"]}
@@ -476,6 +500,7 @@ class _IdentityPool:
                 "phone_number": args[3] if len(args) > 3 else "000000000000",
                 "role": args[4] if len(args) > 4 else "admin",
                 "blocked_at": None,
+                "blocked_reason": None,
                 "created_at": self._now.now(self._tz.utc),
             }
             self.users[email] = row
@@ -505,15 +530,37 @@ class _IdentityPool:
         if "FROM consent_acceptances" in query:
             return self.consents.get(str(args[0]))
         if "UPDATE users SET blocked_at" in query:
-            # accounts.set_blocked. $1 is the id, $2 the boolean.
+            # accounts.set_blocked. $1 is the id, $2 the boolean, $3 the reason
+            # it names — written only when blocking, cleared only when unblocking,
+            # matching the statement's two CASE arms.
             for row in self.users.values():
                 if str(row["id"]) == str(args[0]):
                     row["blocked_at"] = (
                         self._now.now(self._tz.utc) if args[1] else None
                     )
+                    row["blocked_reason"] = (
+                        str(args[2]) if len(args) > 2 and args[1] else None
+                    )
                     return {k: row[k] for k in
                             ("id", "email", "full_name", "phone_number", "role",
-                             "blocked_at", "created_at")}
+                             "blocked_at", "blocked_reason", "created_at")}
+            return None
+        if "UPDATE users SET blocked_reason" in query:
+            # accounts.reopen_after_payment, run on grant()'s connection during
+            # settlement. The WHERE clause is the whole guarantee — only a
+            # 'subscription_expired' row matches, so an admin ban is unreachable
+            # from the money path — and the fake enforces it the way Postgres
+            # would: a row that is not suspended matches nothing here.
+            for row in self.users.values():
+                if str(row["id"]) == str(args[0]):
+                    if (row["blocked_at"] is None
+                            or row["blocked_reason"] != "subscription_expired"):
+                        return None
+                    row["blocked_reason"] = None
+                    row["blocked_at"] = None
+                    return {k: row[k] for k in
+                            ("id", "email", "full_name", "phone_number", "role",
+                             "blocked_at", "blocked_reason", "created_at")}
             return None
         if "UPDATE users" in query and "full_name" in query:
             for row in self.users.values():
@@ -522,7 +569,7 @@ class _IdentityPool:
                     row["phone_number"] = args[2]
                     return {k: row[k] for k in
                             ("id", "email", "full_name", "phone_number", "role",
-                             "blocked_at", "created_at")}
+                             "blocked_at", "blocked_reason", "created_at")}
             return None
         if "FROM subscriptions" in query and "ORDER BY expires_at DESC" in query:
             # subscription router: the longest unexpired period. ORDER BY honoured
@@ -537,6 +584,80 @@ class _IdentityPool:
                 return None
             best = max(live, key=lambda r: r["expires_at"])
             return {"id": best["user_id"], "expires_at": best["expires_at"]}
+        if "FROM subscriptions" in query:
+            # subscriptions.grant: the period its transaction already claimed,
+            # read back by id for the idempotent return. The ORDER BY variant
+            # above is matched first.
+            for row in self.subscriptions:
+                if str(row.get("id")) == str(args[0]):
+                    return row
+            return None
+        if "INSERT INTO transactions" in query:
+            # payments.open_manual: one declared transfer, minting its own
+            # invoice code. $1 user, $2 code, $3 amount, $4 method, $5 note,
+            # $6 plan. Status starts pending; subscriptions is untouched.
+            now = self._now.now(self._tz.utc)
+            row = {
+                "id": self._uuid.uuid4(),
+                "user_id": args[0],
+                "invoice_code": args[1],
+                "amount": args[2],
+                "plan": args[5],
+                "payment_gateway": "manual",
+                "payment_method": args[3],
+                "admin_notes": args[4],
+                "subscription_id": None,
+                "status": "pending",
+                "created_at": now,
+                "updated_at": now,
+            }
+            self.transactions[str(row["id"])] = row
+            self.invoice_codes[row["invoice_code"]] = str(row["id"])
+            return row
+        if "SET status = 'settlement'" in query:
+            # payments.approve: only a pending or expired row settles. $1 the
+            # transaction, $2 the approving admin. A row already settled (or a
+            # denial) answers None, and the service re-reads to distinguish.
+            row = self.transactions.get(str(args[0]))
+            if row is None or row["status"] not in ("pending", "expire"):
+                return None
+            row["status"] = "settlement"
+            row["approved_by"] = args[1]
+            row["approved_at"] = self._now.now(self._tz.utc)
+            row["updated_at"] = row["approved_at"]
+            return row
+        if "SET status = 'deny'" in query:
+            # payments.deny: the same guard as approve, with the reason appended
+            # to whatever the row carried. $1 transaction, $2 admin, $3 reason.
+            row = self.transactions.get(str(args[0]))
+            if row is None or row["status"] not in ("pending", "expire"):
+                return None
+            row["status"] = "deny"
+            row["approved_by"] = args[1]
+            row["approved_at"] = self._now.now(self._tz.utc)
+            prior = row.get("admin_notes")
+            row["admin_notes"] = args[2] if not prior else f"{prior} — {args[2]}"
+            row["updated_at"] = row["approved_at"]
+            return row
+        if "INSERT INTO subscriptions" in query:
+            if self.fail_subscription_writes:
+                raise ConnectionError("subscription write failed inside the approve transaction")
+            # subscriptions.grant: the one INSERT this table has. $1 the account,
+            # $2 the whole days the period runs from the database's clock.
+            row = {
+                "id": self._uuid.uuid4(),
+                "user_id": args[0],
+                "expires_at": self._now.now(self._tz.utc)
+                + self._timedelta(days=args[1]),
+            }
+            self.subscriptions.append(row)
+            return row
+        if "FROM transactions" in query:
+            # The one row whose id was asked for: grant()'s idempotency re-read,
+            # and the approve/deny re-reads that tell a settled row apart from
+            # a refused action.
+            row = self.transactions.get(str(args[0]))
+            return dict(row) if row else None
         if "JOIN users" in query and "FROM sessions" in query:
             # accounts.authenticate: session lookup, expiry and blocked check in
             # one statement.
@@ -554,6 +675,7 @@ class _IdentityPool:
                         "phone_number": user["phone_number"],
                         "role": user["role"],
                         "blocked_at": user["blocked_at"],
+                        "blocked_reason": user["blocked_reason"],
                         "created_at": user["created_at"],
                     }
             return None
@@ -566,6 +688,65 @@ class _IdentityPool:
                 for r in self.consents.values()
             ]
             return rows
+        if "FROM transactions" in query and "WHERE user_id" in query:
+            # The caller's own payment history, newest first. Denials stay in
+            # the list: a rejected transfer is the account's fact too.
+            target = str(args[0])
+            rows = [
+                dict(r) for r in self.transactions.values()
+                if str(r["user_id"]) == target
+            ]
+            rows.sort(key=lambda r: r["created_at"], reverse=True)
+            return rows
+        if "JOIN users u" in query:
+            # The admin queue: the payment row with its payer attached, oldest
+            # first (order of arrival). $1 the status filter, or None for all.
+            wanted = None if args[0] is None else str(args[0])
+            rows = []
+            for r in self.transactions.values():
+                if wanted is not None and r["status"] != wanted:
+                    continue
+                out = dict(r)
+                for user in self.users.values():
+                    if str(user["id"]) == str(r["user_id"]):
+                        out["email"] = user["email"]
+                        break
+                rows.append(out)
+            rows.sort(key=lambda r: r["created_at"])
+            return rows
+        if "UPDATE users u SET" in query:
+            # The suspension beat: accounts.suspend_lapsed_accounts. Selection
+            # and write are one statement on the real database, so the fake
+            # applies the same three conditions before it mutates: never an
+            # already closed row, never an account with no subscription at all,
+            # never an account with a period still running.
+            now = self._now.now(self._tz.utc)
+            closed = []
+            for row in self.users.values():
+                if row["blocked_at"] is not None:
+                    continue
+                subs = [s for s in self.subscriptions
+                        if str(s["user_id"]) == str(row["id"])]
+                if not subs or any(s["expires_at"] > now for s in subs):
+                    continue
+                row["blocked_at"] = now
+                row["blocked_reason"] = "subscription_expired"
+                closed.append({"id": row["id"], "email": row["email"]})
+            return closed
+        if "FROM users u" in query and "EXISTS" in query:
+            # accounts.find_lapsed_accounts — the dry-run side of the beat.
+            # Same conditions, nothing written.
+            now = self._now.now(self._tz.utc)
+            lapsed = []
+            for row in self.users.values():
+                if row["blocked_at"] is not None:
+                    continue
+                subs = [s for s in self.subscriptions
+                        if str(s["user_id"]) == str(row["id"])]
+                if not subs or any(s["expires_at"] > now for s in subs):
+                    continue
+                lapsed.append({"id": row["id"], "email": row["email"]})
+            return lapsed
         if "FROM users" in query:
             # Newest first, matching the endpoint's ORDER BY. The fake does not
             # implement LIMIT/OFFSET: paging is FastAPI's job and is tested against
@@ -574,7 +755,7 @@ class _IdentityPool:
                           key=lambda r: r["created_at"], reverse=True)
             return [{k: r[k] for k in
                      ("id", "email", "full_name", "phone_number", "role",
-                      "blocked_at", "created_at")} for r in rows]
+                      "blocked_at", "blocked_reason", "created_at")} for r in rows]
         raise AssertionError(f"unexpected identity fetch: {query!r}")
 
     # -- sessions + entitlement
@@ -599,6 +780,35 @@ class _IdentityPool:
             for k in doomed:
                 del self.sessions[k]
             return f"DELETE {len(doomed)}"
+        if "SET status = 'expire'" in query:
+            # payments.expire_pending: only rows still pending and older than
+            # the window in $1. `settlement` and `deny` are unreachable from
+            # here, and no subscription row is touched.
+            cut = self._now.now(self._tz.utc) - self._timedelta(seconds=args[0])
+            affected = 0
+            for row in self.transactions.values():
+                if row["status"] == "pending" and row["created_at"] < cut:
+                    row["status"] = "expire"
+                    row["updated_at"] = self._now.now(self._tz.utc)
+                    affected += 1
+            return f"UPDATE {affected}"
+        if "UPDATE transactions" in query:
+            # subscriptions.grant's guarded claim: only an unclaimed transaction
+            # is taken. $1 the transaction, $2 the subscription it now points at.
+            row = self.transactions.get(str(args[0]))
+            if row is None or row["subscription_id"] is not None:
+                return "UPDATE 0"
+            row["subscription_id"] = args[1]
+            return "UPDATE 1"
+        if "DELETE FROM subscriptions" in query:
+            # subscriptions.grant discarding its own unlinked row after losing
+            # the claim: `transactions` never pointed at the loser's row, so no
+            # referencer can exist for it.
+            before = len(self.subscriptions)
+            self.subscriptions = [
+                r for r in self.subscriptions if str(r.get("id")) != str(args[0])
+            ]
+            return f"DELETE {before - len(self.subscriptions)}"
         if "UPDATE users SET password_hash" in query:
             for row in self.users.values():
                 if str(row["id"]) == str(args[0]):
@@ -633,6 +843,91 @@ class _IdentityPool:
             }
         )
 
+    def add_transaction(self, account_id) -> dict:
+        """A pending payment row for an account, as the fake stores it.
+
+        Keyed by str(id) because grant() passes the id through as text. The
+        subscription claim starts None: payment and access are different tables
+        (CONTEXT.md rule 1), so a transaction row grants nothing on its own.
+        """
+        n = len(self.transactions) + 1
+        row = {
+            "id": self._uuid.uuid4(),
+            "user_id": account_id,
+            "invoice_code": f"INV-TEST-{n:06d}",
+            "amount": 15000,
+            "plan": "monthly",
+            "payment_gateway": "manual",
+            "payment_method": "bank_transfer",
+            "admin_notes": None,
+            "subscription_id": None,
+            "status": "pending",
+            "created_at": self._now.now(self._tz.utc),
+            "updated_at": self._now.now(self._tz.utc),
+        }
+        self.transactions[str(row["id"])] = row
+        self.invoice_codes[row["invoice_code"]] = str(row["id"])
+        return row
+
+    # -- transactional behaviour, for the approve path --
+
+    def acquire(self):
+        """A checkout of one connection. The fake is a single object, so the
+        checkout is itself: every statement between acquire and release sees
+        the same state, the way one real connection does."""
+        pool = self
+
+        class _Checkout:
+            async def __aenter__(self):
+                return pool
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        return _Checkout()
+
+    def transaction(self):
+        """A database transaction: the block's mutations all happen, or none do.
+
+        Statements issued inside the block are real. If the block exits with an
+        exception, the state goes back to what it was — which is what
+        `conn.transaction()` says, and what the approve path's crash test
+        depends on: a settlement rolled back with the grant that failed.
+        """
+        pool = self
+
+        class _Tx:
+            async def __aenter__(self):
+                pool._snapshot()
+
+            async def __aexit__(self, exc_type, exc, tb):
+                if exc_type is not None:
+                    pool._rollback()
+                return False
+
+        return _Tx()
+
+    def _snapshot(self) -> None:
+        # users is in here because reopen_after_payment runs inside the approve
+        # transaction: a crashed settle must un-clear a suspension too, or the
+        # fake would be more forgiving about crash-atomicity than Postgres is.
+        self._snapshot_data = (
+            {k: dict(v) for k, v in self.transactions.items()},
+            [dict(r) for r in self.subscriptions],
+            dict(self.invoice_codes),
+            {k: dict(v) for k, v in self.users.items()},
+        )
+
+    def _rollback(self) -> None:
+        if self._snapshot_data is None:
+            return
+        transactions, subscriptions, invoice_codes, users = self._snapshot_data
+        self.transactions = transactions
+        self.subscriptions = subscriptions
+        self.invoice_codes = invoice_codes
+        self.users = users
+        self._snapshot_data = None
+
 
 @pytest.fixture(autouse=True)
 def fake_identity():
@@ -655,6 +950,8 @@ def fake_identity():
          patch("api.services.sessions.get_pool", _get_pool), \
          patch("api.services.entitlements.get_pool", _get_pool), \
          patch("api.services.consent.get_pool", _get_pool), \
+         patch("api.services.subscriptions.get_pool", _get_pool), \
+         patch("api.services.payments.get_pool", _get_pool), \
          patch("api.routers.subscription.get_pool", _get_pool), \
          patch("api.services.settings.get_pool", _get_pool):
         yield pool

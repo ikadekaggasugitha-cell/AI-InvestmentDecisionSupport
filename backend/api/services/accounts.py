@@ -7,6 +7,15 @@ the system"; whether they may use the paid data is answered by their Subscriptio
 evaluated separately. Keeping the two apart is why there is no `subscriber` value
 anywhere in this file. See CONTEXT.md.
 
+Blocking carries its reason with it (`blocked_reason`: 'admin' or
+'subscription_expired'). Two writers, two doors: `set_blocked` is the
+administrator's — it records 'admin', and only `POST /v1/admin/accounts/{id}/unblock`
+may clear that. `reopen_after_payment` is the payment path's — its WHERE clause
+only matches 'subscription_expired', so money can clear the suspension it is
+paying for and can never open an admin ban. One statement, guard and write
+together: a check in Python around a separate UPDATE would leave a window where
+the reason could change between reading and clearing.
+
 Raw SQL by choice (ADR-0001): five tables do not buy an ORM, and the driver is
 already asyncpg.
 """
@@ -17,7 +26,9 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 
+import asyncpg
 from fastapi import HTTPException, status
 
 from api.core.db import get_pool
@@ -40,6 +51,9 @@ class Account:
     phone_number: str
     role: str
     blocked_at: datetime | None
+    # Why the account is closed — 'admin' or 'subscription_expired'. The two
+    # carry different doors openers may use; None exactly when blocked_at is.
+    blocked_reason: str | None
     created_at: datetime
 
 
@@ -91,7 +105,7 @@ async def authenticate(token: str) -> Account | None:
         row = await pool.fetchrow(
             """
             SELECT u.id, u.email, u.full_name, u.phone_number, u.role,
-                   u.blocked_at, u.created_at
+                   u.blocked_at, u.blocked_reason, u.created_at
               FROM sessions s
               JOIN users u ON u.id = s.user_id
              WHERE s.id = $1
@@ -137,7 +151,8 @@ async def create_account(
         INSERT INTO users (email, password_hash, full_name, phone_number, role)
         VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT DO NOTHING
-        RETURNING id, email, full_name, phone_number, role, blocked_at, created_at
+        RETURNING id, email, full_name, phone_number, role,
+                  blocked_at, blocked_reason, created_at
         """,
         normalise_email(email),
         password_hash,
@@ -159,8 +174,8 @@ async def get_account_by_email(email: str) -> tuple[Account, str] | None:
     pool = await get_pool()
     row = await pool.fetchrow(
         """
-        SELECT id, email, full_name, phone_number, role, blocked_at, created_at,
-               password_hash
+        SELECT id, email, full_name, phone_number, role,
+               blocked_at, blocked_reason, created_at, password_hash
           FROM users
          WHERE lower(email) = lower($1)
         """,
@@ -175,7 +190,8 @@ async def get_account(account_id: uuid.UUID | str) -> Account | None:
     pool = await get_pool()
     row = await pool.fetchrow(
         """
-        SELECT id, email, full_name, phone_number, role, blocked_at, created_at
+        SELECT id, email, full_name, phone_number, role,
+               blocked_at, blocked_reason, created_at
           FROM users
          WHERE id = $1
         """,
@@ -212,7 +228,8 @@ async def update_profile(
         UPDATE users
            SET full_name = $2, phone_number = $3
          WHERE id = $1
-        RETURNING id, email, full_name, phone_number, role, blocked_at, created_at
+        RETURNING id, email, full_name, phone_number, role,
+                  blocked_at, blocked_reason, created_at
         """,
         str(account_id),
         cleaned,
@@ -245,18 +262,32 @@ async def revoke_all_sessions(account_id: uuid.UUID) -> int:
     return _affected(result)
 
 
-async def set_blocked(account_id: uuid.UUID, blocked: bool) -> Account:
+async def set_blocked(
+    account_id: uuid.UUID, blocked: bool, *, reason: Literal["admin"]
+) -> Account:
     """Block or unblock an account. Returns the updated account.
 
-    This is the only writer of `blocked_at` in the codebase. One function for both
-    directions because two writers would mean two places to get it wrong, and the
-    failure mode of a half-applied block is an account that still has access.
+    This is the only per-account writer of `blocked_at`/`blocked_reason` in the
+    codebase. One function for both directions because two writers would mean
+    two places to get it wrong, and the failure mode of a half-applied block is
+    an account that still has access.
+
+    A block always names its reason, and the only reason this function writes is
+    'admin' — the endpoint that calls it is the administrator's. The beat that
+    suspends lapsed subscriptions writes 'subscription_expired' through its own
+    single guarded statement, never here: if those two ever merged, a lapsed
+    account and a banned one would become indistinguishable, and so would the
+    doors that may open them. The type annotation is that boundary restated.
+
+    `blocked=False` is the administrator's own unblock — it clears both columns
+    whatever the reason was, because the person who wrote a ban may undo it,
+    and `POST /v1/admin/accounts/{id}/unblock` is the only caller.
 
     Blocking is immediate, not "on the next request after a cache expires":
-    `authenticate()` already reads `blocked_at` in its single JOIN, so nothing else
+    `authenticate()` already reads the block in its single JOIN, so nothing else
     has to change for a block to take hold. That is also why the session rows are
     deliberately left in place — CONTEXT.md rule 8 puts disabling access on the
-    Account, not on the Subscription, and `blocked_at` is checked on every request
+    Account, not on the Subscription, and the block is checked on every request
     rather than trusted to a session that might still be listed.
 
     Raises:
@@ -270,12 +301,15 @@ async def set_blocked(account_id: uuid.UUID, blocked: bool) -> Account:
         pool = await get_pool()
         row = await pool.fetchrow(
             """
-            UPDATE users SET blocked_at = CASE WHEN $2 THEN NOW() ELSE NULL END
-            WHERE id = $1
-            RETURNING id, email, full_name, phone_number, role, blocked_at, created_at
+            UPDATE users SET blocked_at = CASE WHEN $2 THEN NOW() ELSE NULL END,
+                   blocked_reason = CASE WHEN $2 THEN $3::text ELSE NULL END
+             WHERE id = $1
+            RETURNING id, email, full_name, phone_number, role,
+                      blocked_at, blocked_reason, created_at
             """,
             str(account_id),
             blocked,
+            reason,
         )
     except Exception as exc:  # noqa: BLE001
         logger.error("accounts: cannot set blocked=%s for %s — %s", blocked, account_id, exc)
@@ -295,6 +329,118 @@ async def set_blocked(account_id: uuid.UUID, blocked: bool) -> Account:
     return _to_account(row)
 
 
+async def reopen_after_payment(
+    account_id: uuid.UUID | str, conn: "asyncpg.Connection | None" = None
+) -> bool:
+    """Clear a suspension a payment may clear — and nothing else.
+
+    Called from `subscriptions.grant`, on the connection of whatever transaction
+    is writing the Subscription, so the period and the reopening commit together:
+    a crash between them rolls back both, and retrying the payment does both
+    again. A new period without the reopening would leave a paying person locked
+    out; a reopening without a new period would be the beat re-suspending them
+    on its next run.
+
+    The guard is inside the statement: only a row whose reason is
+    'subscription_expired' is matched. An admin ban never is — that is rule this
+    plan exists to enforce, and it holds even if a caller races or a reason were
+    changed, because the check and the clear are the same UPDATE. Returns whether
+    anything was cleared; a not-suspended account is a normal False, not an error.
+    """
+    db = conn if conn is not None else await get_pool()
+    row = await db.fetchrow(
+        """
+        UPDATE users SET blocked_reason = NULL, blocked_at = NULL
+         WHERE id = $1
+           AND blocked_at IS NOT NULL
+           AND blocked_reason = 'subscription_expired'
+        RETURNING id
+        """,
+        str(account_id),
+    )
+    if row is not None:
+        logger.info("accounts: payment reopened suspended account %s", account_id)
+    return row is not None
+
+
+# The place the suspension beat reads and writes: one statement, guard and write
+# together, so an account that pays and reopens between a candidate's selection
+# and the UPDATE cannot be caught by stale data — the same snapshot that finds
+# the row is the one that closes it or leaves it alone.
+_LAPSED_PREDICATE = """
+WHERE {alias}.blocked_at IS NULL
+  AND EXISTS (
+        SELECT 1 FROM subscriptions s
+         WHERE s.user_id = {alias}.id)
+  AND NOT EXISTS (
+        SELECT 1 FROM subscriptions a
+         WHERE a.user_id = {alias}.id
+           AND a.expires_at > NOW())
+"""
+
+
+async def find_lapsed_accounts(limit: int = 500) -> list[dict]:
+    """Accounts that once had a Subscription and have none left that is live.
+
+    Three conditions, all inside the statement on purpose:
+
+    * `blocked_at IS NULL` — an already closed account is not a candidate. That
+      is what keeps the beat from ever touching `blocked_reason = 'admin'`: an
+      admin ban is not an expired subscription, and "fixing" the reason column
+      would convert a ban into something payment can satisfy.
+    * EXISTS any subscription row at all — a person who signed up and never paid
+      has no lapsed subscription to suspend. Without this clause an empty
+      `subscriptions` table on a fresh install would close the door on every
+      free registration, which is the bug-shaped rule this plan forbids.
+    * NOT EXISTS a period still running — `expires_at > NOW()` on any row means
+      the account has future access; expiry is the absence of that, not the
+      presence of a past one.
+
+    Read-side companion of `suspend_lapsed_accounts`, for the CLI's dry run and
+    for any operator who wants to look before anything moves.
+    """
+    pool = await get_pool()
+    rows = await pool.fetch(
+        f"""
+        SELECT u.id, u.email
+          FROM users u
+        {_LAPSED_PREDICATE.format(alias="u")}
+        ORDER BY u.created_at, u.id
+        LIMIT $1
+        """,
+        limit,
+    )
+    return [{"id": r["id"], "email": r["email"]} for r in rows]
+
+
+async def suspend_lapsed_accounts() -> list[dict]:
+    """Suspend every lapsed account, and return the rows it closed.
+
+    The same predicate as `find_lapsed_accounts`, as an UPDATE — selection and
+    write in one statement, so the beat is exactly twice idempotent (nothing
+    changed the second time) and exactly as race-free as a single transaction.
+    It writes 'subscription_expired' and nothing else: a `subscriptions` row is
+    never created, changed or removed here — the beat closes access that the
+    expiry already ended, and rule 1 stays intact.
+
+    Admin bans are unreachable from this statement, at both ends: they are
+    filtered out by `blocked_at IS NULL`, and the reason written can only be
+    'subscription_expired'.
+    """
+    pool = await get_pool()
+    rows = await pool.fetch(
+        f"""
+        UPDATE users u SET blocked_at = NOW(),
+               blocked_reason = 'subscription_expired'
+        {_LAPSED_PREDICATE.format(alias="u")}
+        RETURNING u.id, u.email
+        """
+    )
+    if rows:
+        logger.info("accounts: suspended %d lapsed account(s)", len(rows))
+    return [{"id": r["id"], "email": r["email"]} for r in rows]
+
+
 async def list_accounts(limit: int = 100, offset: int = 0) -> list[Account]:
     """Accounts newest first, for the admin list.
 
@@ -304,7 +450,8 @@ async def list_accounts(limit: int = 100, offset: int = 0) -> list[Account]:
     pool = await get_pool()
     rows = await pool.fetch(
         """
-        SELECT id, email, full_name, phone_number, role, blocked_at, created_at
+        SELECT id, email, full_name, phone_number, role,
+               blocked_at, blocked_reason, created_at
         FROM users
         ORDER BY created_at DESC, id
         LIMIT $1 OFFSET $2
@@ -335,7 +482,8 @@ async def get_or_create_bypass_account(email: str) -> Account:
         INSERT INTO users (email, password_hash, full_name, phone_number, role)
         VALUES ($1, '!bypass', 'Operator Tunggal', '000000000000', 'admin')
         ON CONFLICT DO NOTHING
-        RETURNING id, email, full_name, phone_number, role, blocked_at, created_at
+        RETURNING id, email, full_name, phone_number, role,
+                  blocked_at, blocked_reason, created_at
         """,
         normalised,
     )
@@ -344,7 +492,8 @@ async def get_or_create_bypass_account(email: str) -> Account:
     # Conflict: another request or an earlier run already created it.
     row = await pool.fetchrow(
         """
-        SELECT id, email, full_name, phone_number, role, blocked_at, created_at
+        SELECT id, email, full_name, phone_number, role,
+               blocked_at, blocked_reason, created_at
           FROM users
          WHERE lower(email) = lower($1)
         """,
@@ -363,6 +512,7 @@ def _to_account(row) -> Account:
         phone_number=row["phone_number"],
         role=row["role"],
         blocked_at=row["blocked_at"],
+        blocked_reason=row.get("blocked_reason"),
         created_at=row["created_at"],
     )
 

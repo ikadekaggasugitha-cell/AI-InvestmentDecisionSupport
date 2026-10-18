@@ -16,6 +16,8 @@ Kolom Status membedakan **diterima** dari **diterapkan**. Keduanya tidak sama, d
 | [0008](0008-transaksi-kunci-idempotensi-webhook.md) | Kunci idempotensi ada di Transaction, bukan di Subscription | Ya | Ya, lewat migrasi `0010_transactions.sql`. Handler webhook yang memakainya belum ada |
 | [0009](0009-kode-penolakan-per-penyebab.md) | Satu kode penolakan per penyebab: WS 1008 untuk auth, 4403 untuk langganan, HTTP 402 untuk langganan | Ya | Ya |
 | [0010](0010-harga-di-system-settings.md) | Harga tinggal di `system_settings`, bukan di dokumen | Ya | Ya, lewat migrasi `0011_system_settings_pricing.sql` |
+| [0011](0011-satu-penulis-subscriptions.md) | Satu penulis `subscriptions`, idempoten di baris Transaction | Ya | Ya, lewat migrasi `0012_transactions_plan.sql`. `grant()` dipakai endpoint admin dan approve pembayaran; handler webhook yang memakainya belum ada |
+| [0012](0012-alasan-pada-blokir.md) | Blokir membawa alasannya: pembayaran membuka hanya `'subscription_expired'`, ban `'admin'` hanya endpoint admin | Ya | Ya, lewat migrasi `0013_subscription_suspension.sql` dan beat `suspend-lapsed-subscriptions` |
 
 Nomor 0003 sengaja dilewati. Slot itu dipesan untuk keputusan penundaan penagihan, dan akan diisi ketika batas Fase 2 benar-benar digambar — menulisnya sekarang akan mencatat batasan yang belum ada. Angka pada label di tabel selalu sama dengan angka pada nama filenya, jadi membacanya tidak perlu menebak.
 

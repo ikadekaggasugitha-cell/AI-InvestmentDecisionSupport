@@ -245,9 +245,26 @@ class TestSessionLifecycle:
         _signup(client)
         assert client.get("/v1/auth/me").status_code == 200
 
-        fake_identity.users["baru@aidss.id"]["blocked_at"] = "2026-01-01T00:00:00Z"
-
+        row = fake_identity.users["baru@aidss.id"]
+        row["blocked_at"] = "2026-01-01T00:00:00Z"
+        row["blocked_reason"] = "admin"
         assert client.get("/v1/auth/me").status_code == 403
+
+    def test_a_suspension_loses_access_but_keeps_the_identity(
+        self, secure_client, fake_identity
+    ):
+        """The other closure: same column, and /v1/auth/me still answers — a
+        lapsed person is signed in and must be able to reach pricing."""
+        client = TestClient(secure_client.app)
+        _signup(client)
+        row = fake_identity.users["baru@aidss.id"]
+        row["blocked_at"] = "2026-01-01T00:00:00Z"
+        row["blocked_reason"] = "subscription_expired"
+
+        resp = client.get("/v1/auth/me")
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["blocked"] is True
+        assert resp.json()["blockedReason"] == "subscription_expired"
 
     def test_expired_session_is_refused(self, secure_client, fake_identity):
         from datetime import datetime, timedelta, timezone

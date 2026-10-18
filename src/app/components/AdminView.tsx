@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ENDPOINTS, apiFetch } from "../config/api";
 import { useApp } from "../context/AppContext";
+import { AdminBankAccountsView } from "./AdminBankAccountsView";
 import { AdminPricingView } from "./AdminPricingView";
 
 /**
@@ -41,7 +42,7 @@ type LoadState =
   | { kind: "ready"; page: AccountsPage; offset: number }
   | { kind: "error"; message: string };
 
-type AdminTab = "accounts" | "pricing";
+type AdminTab = "accounts" | "pricing" | "payments";
 
 export function AdminView() {
   const { locale } = useApp();
@@ -142,7 +143,7 @@ export function AdminView() {
   return (
     <div className="min-h-0 flex-1 h-full overflow-y-auto" style={{ padding: 24 }}>
       <div style={{ maxWidth: 900, display: "flex", flexDirection: "column", gap: 16 }}>
-        {/* Two tabs, not two routes. /admin is already an operational tool at its
+        {/* Three tabs, not three routes. /admin is already an operational tool at its
             own URL with no sidebar entry, so a second URL would add routing and a
             nav element to solve a problem the page does not have. */}
         <div
@@ -153,6 +154,7 @@ export function AdminView() {
           {([
             ["accounts", isId ? "Akun" : "Accounts"],
             ["pricing", isId ? "Harga" : "Pricing"],
+            ["payments", isId ? "Pembayaran" : "Payments"],
           ] as [AdminTab, string][]).map(([id, label]) => (
             <button
               key={id}
@@ -182,6 +184,10 @@ export function AdminView() {
         {tab === "pricing" ? (
           <div id="admin-panel-pricing" role="tabpanel" aria-labelledby="admin-tab-pricing">
             <AdminPricingView />
+          </div>
+        ) : tab === "payments" ? (
+          <div id="admin-panel-payments" role="tabpanel" aria-labelledby="admin-tab-payments">
+            <AdminBankAccountsView />
           </div>
         ) : (
         <div id="admin-panel-accounts" role="tabpanel" aria-labelledby="admin-tab-accounts">

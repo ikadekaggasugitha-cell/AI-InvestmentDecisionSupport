@@ -107,15 +107,26 @@ export const ENDPOINTS = {
   positions:      `${API_BASE}/v1/portfolio/positions`,
   /** The caller's own subscription state. Read-only; there is no way to buy one. */
   subscription:   `${API_BASE}/v1/subscription/current`,
+  /** The caller's own attempts to pay — denials included, newest first. */
+  payments:       `${API_BASE}/v1/payments/me`,
+  /** Declare a manual transfer. The amount is the server's price, never the body's. */
+  paymentsDeclare: `${API_BASE}/v1/payments/manual`,
   /**
    * What a subscription costs. The only unauthenticated data endpoint in the app:
    * a price that can only be read after signing up is not a price.
    */
   pricing:        `${API_BASE}/v1/subscriptions/pricing`,
+  /**
+   * Where a manual transfer goes. Public with the price, for the same reason:
+   * someone who has not signed up yet still needs the destination.
+   */
+  bankAccounts:   `${API_BASE}/v1/subscriptions/bank-accounts`,
   /** Admin account list. Block/unblock: POST then DELETE on `${adminAccounts}/{id}/block`. */
   adminAccounts:  `${API_BASE}/v1/admin/accounts`,
   /** Admin-only. Writes both prices in one request; a partial body is refused. */
   adminPricing:   `${API_BASE}/v1/admin/settings/pricing`,
+  /** Admin-only. Replaces the transfer destinations; the server refuses an empty list. */
+  adminBankAccounts: `${API_BASE}/v1/admin/settings/bank-accounts`,
   /** Claude-powered Q&A, server-sent events */
   advisorChat:    `${API_BASE}/v1/advisor/chat`,
 

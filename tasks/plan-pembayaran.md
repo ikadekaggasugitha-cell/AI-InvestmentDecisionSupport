@@ -95,36 +95,36 @@ menghasilkan keadaan yang terlihat, bukan toast yang lewat.
 
 ### Fase 1: Satu tangan yang menulis Subscription
 
-- [ ] Task 1: `services/subscriptions.py` — `grant()` sebagai satu-satunya penulis
-- [ ] Task 2: `POST /v1/admin/accounts/{id}/subscription` — beri langganan tanpa pembayaran
+- [x] Task 1: `services/subscriptions.py` — `grant()` sebagai satu-satunya penulis
+- [x] Task 2: `POST /v1/admin/accounts/{id}/subscription` — beri langganan tanpa pembayaran
 
 ### Checkpoint: Fase 1
-- [ ] `subscriptions` punya penulis untuk pertama kalinya
-- [ ] Idempoten terhadap `transaction_id` yang sama
-- [ ] Admin tanpa langganan tetap boleh memanggilnya (aturan 6)
+- [x] `subscriptions` punya penulis untuk pertama kalinya
+- [x] Idempoten terhadap `transaction_id` yang sama
+- [x] Admin tanpa langganan tetap boleh memanggilnya (aturan 6)
 
 ### Fase 2: Rekening tujuan
 
-- [ ] Task 3: `bank_accounts` di `system_settings` — baca, tulis, validasi
-- [ ] Task 4: UI admin untuk rekening + tampilan publik
+- [x] Task 3: `bank_accounts` di `system_settings` — baca, tulis, validasi
+- [x] Task 4: UI admin untuk rekening + tampilan publik
 
 ### Checkpoint: Fase 2
-- [ ] Rekening bisa diisi dan diubah dari panel admin
-- [ ] Pembaca tanpa sesi bisa membaca rekening tujuan
-- [ ] Rekening kosong dijawab "belum ada", bukan daftar kosong yang terlihat seperti daftar
+- [x] Rekening bisa diisi dan diubah dari panel admin
+- [x] Pembaca tanpa sesi bisa membaca rekening tujuan
+- [x] Rekening kosong dijawab "belum ada", bukan daftar kosong yang terlihat seperti daftar
 
 ### Fase 3: Transfer manual
 
-- [ ] Task 5: `POST /v1/payments/manual` — pengguna menyatakan transfer
-- [ ] Task 6: Antrean admin + approve/deny
-- [ ] Task 7: Halaman "sedang diverifikasi" + Tab 2 menampilkan transaksi pending
-- [ ] Task 8: Kedaluwarsa transaksi manual yang menggantung
+- [x] Task 5: `POST /v1/payments/manual` — pengguna menyatakan transfer
+- [x] Task 6: Antrean admin + approve/deny
+- [x] Task 7: Halaman "sedang diverifikasi" + Tab 2 menampilkan transaksi pending
+- [x] Task 8: Kedaluwarsa transaksi manual yang menggantung
 
 ### Checkpoint: Fase 3
-- [ ] Approve menulis Subscription dan mengubah status transaksi dalam satu jalan
-- [ ] Deny tidak menyentuh Subscription yang sedang berjalan
-- [ ] Transaksi expired tidak memblokir apa pun
-- [ ] Alur lengkap bisa dicoba tanpa gerbang pihak ketiga
+- [x] Approve menulis Subscription dan mengubah status transaksi dalam satu jalan
+- [x] Deny tidak menyentuh Subscription yang sedang berjalan
+- [x] Transaksi expired tidak memblokir apa pun
+- [x] Alur lengkap bisa dicoba tanpa gerbang pihak ketiga
 
 ### Fase 4: Gerbang dan QRIS dinamis — **blocked oleh kredensial**
 
@@ -139,11 +139,11 @@ menghasilkan keadaan yang terlihat, bukan toast yang lewat.
 
 ### Fase 5: Bukti dan dokumen
 
-- [ ] Task 12: `docs/status.md`, ADR-0011
+- [x] Task 12: `docs/status.md`, ADR-0011
 
 ### Checkpoint: Lengkap
-- [ ] `cd backend && pytest` hijau, `ruff` bersih
-- [ ] `npm run typecheck && npm run lint && npm run test` hijau
+- [x] `cd backend && pytest` hijau, `ruff` bersih
+- [x] `npm run typecheck && npm run lint && npm run test` hijau
 - [ ] Tinjau dengan manusia
 
 ## Risiko dan Mitigasi

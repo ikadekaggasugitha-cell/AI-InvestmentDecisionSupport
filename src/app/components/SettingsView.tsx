@@ -3,6 +3,7 @@ import { useApp } from "../context/AppContext";
 import type { AuthState } from "../hooks/useAuth";
 import { useTranslation } from "../i18n/translations";
 import { ENDPOINTS, apiFetch } from "../config/api";
+import { usePayments } from "../hooks/usePayments";
 import type { ExchangeRateData } from "../hooks/useExchangeRate";
 import type { DataFreshness } from "../hooks/useLiveMarket";
 
@@ -13,17 +14,25 @@ import type { DataFreshness } from "../hooks/useLiveMarket";
  * already exist in src/styles/theme.css. No new colour, typeface, radius or
  * icon was introduced, because DESIGN.md has not named any.
  *
- * Two of the five tabs (Profile, Subscription) read endpoints that do not
- * exist yet: the backend is still single-operator (backend/api/routers/auth.py
- * issues a JWT from AUTH_USERNAME/AUTH_PASSWORD and has no user store), and
- * docs/saas-subscription-platform.md has not been implemented. Those tabs
- * say so plainly instead of showing placeholder people or invoices, per R-38.
+ * Tab 2 (Subscription) reads the price, the account's own payment attempts and
+ * the public bank-account list. Declaring a manual transfer needs the
+ * destination from the server — a number typed into the client would be a
+ * destination the server never honoured — and a waiting payment must be
+ * findable, because "where is my payment" has to have an answer.
  * Appearance, Notifications and About read state that genuinely exists.
  */
 
 const STORAGE_NOTIF = "aidss-notifications";
 
 type NotifKey = "ai_signals" | "risk_alerts" | "corp_news";
+
+/** Where a transfer can go, word for word the server's vocabulary. */
+const PAYMENT_METHODS: { value: string; label: string }[] = [
+  { value: "qris", label: "QRIS" },
+  { value: "va_bca", label: "Virtual Account BCA" },
+  { value: "va_mandiri", label: "Virtual Account Mandiri" },
+  { value: "bank_transfer", label: "Transfer bank" },
+];
 
 const NOTIF_DEFAULT: Record<NotifKey, boolean> = {
   ai_signals: true,
@@ -399,7 +408,12 @@ const signOutButton: React.CSSProperties = {
 
 /* ── Tab 2: Subscription ─────────────────────────────────────────────────── */
 
-function TabSubscription({ id }: { id: boolean }) {
+/* Exported because the suspension screen reuses it: a lapsed account reaches
+   this same billing pane on its own screen, where every endpoint it reads —
+   status, price, bank accounts, payment history — is one the access gate still
+   answers (backend/api/main.py keeps the payment router ungated). Rendering a
+   second copy of the form there would be two places claiming to bill. */
+export function TabSubscription({ id }: { id: boolean }) {
   /* Read from the server, three states kept apart:
    *
    *   - `active`   — there is a subscription, with a date and a day count
@@ -466,19 +480,89 @@ function TabSubscription({ id }: { id: boolean }) {
     return () => controller.abort();
   }, []);
 
+  /* The bank accounts, read the way the price is: from the server, per mount,
+     because the destination is the one fact a transfer depends on and a cached
+     copy of it would be a previous account's answer. */
+  const [banks, setBanks] = useState<{
+    loading: boolean;
+    error: string | null;
+    accounts: { bank: string; accountNumber: string; holderName: string }[];
+  }>({ loading: true, error: null, accounts: [] });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await apiFetch(ENDPOINTS.bankAccounts, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = (await res.json()) as {
+          accounts: { bank: string; accountNumber: string; holderName: string }[];
+        };
+        if (controller.signal.aborted) return;
+        setBanks({ loading: false, error: null, accounts: body.accounts ?? [] });
+      } catch {
+        if (controller.signal.aborted) return;
+        setBanks({ loading: false, error: "unknown", accounts: [] });
+      }
+    })();
+    return () => controller.abort();
+  }, []);
+
+  /* The account's own attempts to pay: the waiting money and the refusals. */
+  const payments = usePayments();
+
+  /* The declaration defaults are mild on purpose: the server still prices the
+     plan, so no default here can cost anyone the wrong amount. */
+  const [plan, setPlan] = useState<"monthly" | "annual">("monthly");
+  const [method, setMethod] = useState("bank_transfer");
+  const [note, setNote] = useState("");
+
   const emptyBody = state.error
     ? (id
         ? "Status langganan tidak dapat dimuat. Itu tidak berarti langganan Anda habis."
         : "Subscription status could not be loaded. That does not mean your subscription has ended.")
     : (id
-        ? "Pembayaran belum dibuka, jadi belum ada cara memulai langganan. Angka di tab ini dibaca dari server, tidak diketik manual."
-        : "Payment is not open yet, so there is no way to start a subscription. Every figure on this tab is read from the server, never typed in.");
+        ? "Transfer ke salah satu rekening di atas, nyatakan transfernya di formulir, dan akses menyala setelah pembayaran diperiksa admin."
+        : "Transfer to one of the accounts above, declare it with the form, and access starts once the payment has been reviewed.");
 
   const active = state.subscription?.active === true;
   const expiry = active && state.subscription?.expiresAt
     ? new Date(state.subscription.expiresAt)
     : null;
   const days = state.subscription?.daysRemaining ?? null;
+
+  const fmt = id ? "id-ID" : "en-GB";
+  const waiting = (payments.rows ?? []).filter(
+    (r) => r.status === "pending" || r.status === "expire",
+  );
+  const history = (payments.rows ?? []).filter(
+    (r) => r.status !== "pending" && r.status !== "expire",
+  );
+
+  /** The server's status names, said in this tab's words — no renaming of
+      facts, just the same fact with the words the account reads. */
+  const statusLabel = (status: string) =>
+    status === "pending"
+      ? (id ? "Menunggu pemeriksaan admin" : "Awaiting review")
+      : status === "expire"
+        ? (id
+            ? "Kedaluwarsa antrian — masih bisa disetujui"
+            : "Aged out of the queue — still approvable")
+        : status === "deny"
+          ? (id ? "Ditolak" : "Refused")
+          : status === "settlement"
+            ? (id ? "Disetujui" : "Approved")
+            : status;
+
+  const declare = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const outcome = await payments.declare({
+      plan,
+      payment_method: method,
+      note: note.trim() || null,
+    });
+    if (outcome === "ok") setNote("");
+  };
 
   return (
     <Panel title={id ? "Langganan & Tagihan" : "Subscription & Billing"}>
@@ -507,8 +591,8 @@ function TabSubscription({ id }: { id: boolean }) {
             </div>
             <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
               {id
-                ? "Bulanan dan tahunan, dari server. Belum ada cara membayar."
-                : "Monthly and annual, from the server. There is no way to pay yet."}
+                ? "Bulanan dan tahunan, dari server."
+                : "Monthly and annual, from the server."}
             </div>
           </div>
           <div style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: 12 }}>
@@ -552,17 +636,313 @@ function TabSubscription({ id }: { id: boolean }) {
           {id ? "Memuat status…" : "Loading status…"}
         </span>
       ) : (
-        <Unavailable
-          id={id}
-          title={state.error
-            ? (id ? "Status tidak dapat dimuat" : "Status unavailable")
-            : (id ? "Belum ada langganan" : "No subscription yet")}
-          body={emptyBody}
-        />
+        <>
+          {waiting.length > 0 && (
+            <div
+              role="status"
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius)",
+                padding: "14px 16px",
+                background: "var(--card)",
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+                {id ? "Transfer sedang diperiksa" : "Transfer under review"}
+              </div>
+              <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, marginBottom: 0 }}>
+                {id
+                  ? "Akses datanya belum aktif sampai admin memeriksa pembayaran ini — tidak ada yang menyala otomatis dari baris ini."
+                  : "Data access stays inactive until an administrator reviews this payment — nothing turns on by itself."}
+              </p>
+              {waiting.map((row) => (
+                <div
+                  key={row.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    fontSize: 12,
+                    borderTop: "1px solid var(--border)",
+                    paddingTop: 10,
+                    marginTop: 10,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
+                      {`Rp ${row.amount.toLocaleString(fmt)}`}
+                    </div>
+                    <div style={{ color: "var(--muted-foreground)", fontSize: 11, marginTop: 2 }}>
+                      {`${statusLabel(row.status)} · ${new Date(row.createdAt).toLocaleString(fmt)}`}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--muted-foreground)",
+                      fontSize: 11,
+                      textAlign: "right",
+                    }}
+                  >
+                    {row.invoiceCode}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* The declaration itself. The amount is never asked: the server
+              prices the plan — a claim the payer could price is a checkout the
+              payer would control. */}
+          <div
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              padding: "14px 16px",
+              background: "var(--card)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+                {id ? "Isi pembayaran transfer manual" : "Pay by manual transfer"}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
+                {id
+                  ? "Uang dikirim di luar aplikasi; di sini Anda menyatakan transfer. Admin mencocokkannya dengan mutasi, jadi tuliskan nomor dan nama pengirim."
+                  : "The money moves outside this app; here you declare that it moved. An administrator matches it to the statement, so leave the sender's number and name."}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
+                {id ? "Rekening tujuan" : "Destination account"}
+              </div>
+              {banks.loading ? (
+                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
+                  {id ? "Memuat rekening…" : "Loading accounts…"}
+                </div>
+              ) : banks.error ? (
+                <div style={{ fontSize: 12, color: "var(--warning)", marginTop: 4 }}>
+                  {id
+                    ? "Rekening tidak dapat dimuat. Transfer tanpa rekening yang ditulis server tidak boleh ditebak."
+                    : "The accounts could not be loaded. Transferring without the server's account is a guess nobody should make."}
+                </div>
+              ) : banks.accounts.length === 0 ? (
+                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
+                  {id
+                    ? "Belum ada rekening tujuan yang ditulis admin — tunggu sampai muncul di sini."
+                    : "No destination account has been written yet — wait for one to appear here."}
+                </div>
+              ) : (
+                banks.accounts.map((b, i) => (
+                  <div
+                    key={`${b.bank}-${b.accountNumber}-${i}`}
+                    style={{
+                      fontSize: 12,
+                      color: "var(--foreground)",
+                      fontFamily: "var(--font-mono)",
+                      marginTop: i === 0 ? 6 : 2,
+                    }}
+                  >
+                    {`${b.bank} · ${b.accountNumber} · a.n ${b.holderName}`}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <form
+              onSubmit={declare}
+              style={{ display: "flex", flexDirection: "column", gap: 10 }}
+            >
+              <fieldset
+                style={{ border: "none", padding: 0, margin: 0, display: "flex", gap: 16 }}
+              >
+                <legend style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", padding: 0 }}>
+                  {id ? "Paket" : "Plan"}
+                </legend>
+                {([
+                  ["monthly", id ? "Bulanan" : "Monthly"],
+                  ["annual", id ? "Tahunan" : "Annual"],
+                ] as const).map(([value, label]) => (
+                  <label
+                    key={value}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 13,
+                      color: "var(--foreground)",
+                      cursor: "pointer",
+                      minHeight: 32,
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="payment-plan"
+                      checked={plan === value}
+                      onChange={() => setPlan(value)}
+                      style={{ accentColor: "var(--primary)" }}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </fieldset>
+
+              <fieldset
+                style={{ border: "none", padding: 0, margin: 0, display: "flex", gap: 16, flexWrap: "wrap" }}
+              >
+                <legend style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", padding: 0 }}>
+                  {id ? "Cara transfer" : "Method"}
+                </legend>
+                {PAYMENT_METHODS.map((m) => (
+                  <label
+                    key={m.value}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 13,
+                      color: "var(--foreground)",
+                      cursor: "pointer",
+                      minHeight: 32,
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="payment-method"
+                      checked={method === m.value}
+                      onChange={() => setMethod(m.value)}
+                      style={{ accentColor: "var(--primary)" }}
+                    />
+                    {m.label}
+                  </label>
+                ))}
+              </fieldset>
+
+              <input
+                type="text"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={id ? "Nomor & nama pengirim (opsional)" : "Sender's number & name (optional)"}
+                aria-label={id ? "Catatan untuk admin yang memeriksa" : "Note for the reviewing administrator"}
+                maxLength={500}
+                style={{
+                  fontSize: 13,
+                  padding: "9px 12px",
+                  minHeight: 36,
+                  borderRadius: "var(--radius)",
+                  border: "1px solid var(--control-border)",
+                  background: "var(--input-background, #fff)",
+                  color: "var(--foreground)",
+                  width: "100%",
+                }}
+              />
+
+              {payments.declareError && (
+                <p role="alert" style={{ fontSize: 12, color: "var(--warning)", margin: 0 }}>
+                  {payments.declareError === "unavailable"
+                    ? (id
+                        ? "Server tidak dapat mencatat transfer sekarang — harga belum terbaca. Tidak ada yang tersimpan; coba lagi nanti."
+                        : "The server cannot record a transfer right now — the price is unreadable. Nothing was saved; try again later.")
+                    : payments.declareError === "network"
+                      ? (id
+                          ? "Server tidak terjangkau. Transfer belum tercatat."
+                          : "The server is unreachable. The transfer was not recorded.")
+                      : (id
+                          ? "Permintaan ditolak server. Periksa isian lalu kirim ulang."
+                          : "The request was refused. Check the fields and send again.")}
+                </p>
+              )}
+
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button
+                  type="submit"
+                  disabled={payments.declaring}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: "9px 16px",
+                    minHeight: 32,
+                    borderRadius: "var(--radius)",
+                    border: "1px solid var(--primary)",
+                    color: "var(--primary-foreground)",
+                    background: "var(--primary)",
+                    cursor: payments.declaring ? "default" : "pointer",
+                    opacity: payments.declaring ? 0.7 : 1,
+                  }}
+                >
+                  {payments.declaring
+                    ? (id ? "Mengirim…" : "Sending…")
+                    : (id ? "Saya sudah transfer" : "I've transferred")}
+                </button>
+                <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                  {id ? "Nominal yang dicatat adalah harga server untuk paket yang dipilih." : "The recorded amount is the server's price for the chosen plan."}
+                </span>
+              </div>
+            </form>
+          </div>
+
+          {history.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
+                {id ? "Riwayat pembayaran" : "Payment history"}
+              </div>
+              {history.map((row) => (
+                <div
+                  key={row.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    fontSize: 12,
+                    borderBottom: "1px solid var(--border)",
+                    paddingBottom: 8,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
+                      {`Rp ${row.amount.toLocaleString(fmt)}`}
+                    </div>
+                    <div style={{ color: row.status === "deny" ? "var(--loss)" : "var(--muted-foreground)", fontSize: 11, marginTop: 2 }}>
+                      {`${statusLabel(row.status)} · ${new Date(row.createdAt).toLocaleString(fmt)}`}
+                      {row.status === "deny" && row.notes
+                        ? ` · ${row.notes}`
+                        : ""}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--muted-foreground)",
+                      fontSize: 11,
+                      textAlign: "right",
+                    }}
+                  >
+                    {row.invoiceCode}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {waiting.length === 0 && (
+            <Unavailable
+              id={id}
+              title={state.error
+                ? (id ? "Status tidak dapat dimuat" : "Status unavailable")
+                : (id ? "Belum ada langganan" : "No subscription yet")}
+              body={emptyBody}
+            />
+          )}
+        </>
       )}
 
-      {/* No renew button (R-26). There is no payment path to wire it to, and a
-          control that looks live and does nothing is worse than its absence. */}
+      {/* Nothing here promises an instant purchase (R-26). Declaring a transfer
+          starts a human review; only the admin's approval turns money into
+          access, and no button on this tab says otherwise. */}
     </Panel>
   );
 }

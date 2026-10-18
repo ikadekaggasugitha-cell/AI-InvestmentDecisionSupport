@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+import asyncpg  # noqa: F401  (imported for typing the conn parameter in accounts)
 import pytest
 
 from api.services import accounts as accounts_service
@@ -68,6 +69,7 @@ class _IdentityPool:
                 phone_number=phone,
                 role=role,
                 blocked_at=None,
+                blocked_reason=None,
                 created_at=datetime.now(timezone.utc),
             )
             self.users[email] = row
@@ -78,15 +80,28 @@ class _IdentityPool:
         if "FROM users" in query and "WHERE id = $1" in query:
             return self.by_id.get(str(args[0]))
         if "UPDATE users SET blocked_at" in query:
-            # set_blocked. $1 is the id, $2 the boolean; CASE WHEN $2 THEN NOW()
-            # mirrors the SQL, so NULL must arrive as None and not as False.
+            # set_blocked. $1 is the id, $2 the boolean, $3 the reason; the two
+            # CASE arms mirror the SQL, so a block without its reason would be
+            # invisible here exactly as Postgres's shape CHECK would refuse it.
             row = self.by_id.get(str(args[0]))
             if row is None:
                 return None
             row["blocked_at"] = datetime.now(timezone.utc) if args[1] else None
+            row["blocked_reason"] = str(args[2]) if args[1] else None
             return _Row({k: row[k] for k in
                          ("id", "email", "full_name", "phone_number", "role",
-                          "blocked_at", "created_at")})
+                          "blocked_at", "blocked_reason", "created_at")})
+        if "UPDATE users SET blocked_reason" in query:
+            # reopen_after_payment: guarded by its own WHERE clause — the fake
+            # replicates that clause rather than trusting the service to.
+            row = self.by_id.get(str(args[0]))
+            if row is None:
+                return None
+            if row["blocked_reason"] != "subscription_expired":
+                return None
+            row["blocked_reason"] = None
+            row["blocked_at"] = None
+            return _Row({"id": row["id"]})
         if "JOIN users" in query and "FROM sessions" in query:
             row = self.sessions.get(args[0])
             if row is None or row["expires_at"] <= datetime.now(timezone.utc):
@@ -95,7 +110,7 @@ class _IdentityPool:
                 if str(user["id"]) == str(row["user_id"]):
                     return {k: user[k] for k in
                             ("id", "email", "full_name", "phone_number", "role",
-                             "blocked_at", "created_at")}
+                             "blocked_at", "blocked_reason", "created_at")}
             return None
         raise AssertionError(f"unexpected fetchrow: {query!r}")
 
@@ -109,7 +124,7 @@ class _IdentityPool:
             )
             return [_Row({k: r[k] for k in
                           ("id", "email", "full_name", "phone_number", "role",
-                           "blocked_at", "created_at")}) for r in rows]
+                           "blocked_at", "blocked_reason", "created_at")}) for r in rows]
         raise AssertionError(f"unexpected fetch: {query!r}")
 
     # -- sessions
@@ -257,7 +272,8 @@ class TestBlocking:
     """`blocked_at` had a column and a reader and no writer, so an account could
     not actually be blocked. CONTEXT.md rule 8 says disabling access is the
     Account's business and takes effect immediately, which is only true once
-    something writes the column.
+    something writes the column — and writes its reason with it, because an
+    unnamed block later reads as whichever block suits the caller's argument.
     """
 
     async def _account(self, pool, email="b@aidss.id"):
@@ -269,24 +285,34 @@ class TestBlocking:
         account = await self._account(pool)
         assert await accounts_service.get_account(account.id) is not None
 
-        blocked = await accounts_service.set_blocked(account.id, True)
+        blocked = await accounts_service.set_blocked(
+            account.id, True, reason="admin"
+        )
         assert blocked.blocked_at is not None
+        assert blocked.blocked_reason == "admin"
         assert blocked.id == account.id
 
     async def test_unblocking_clears_it(self, pool):
         account = await self._account(pool)
-        await accounts_service.set_blocked(account.id, True)
+        await accounts_service.set_blocked(
+            account.id, True, reason="admin"
+        )
 
-        restored = await accounts_service.set_blocked(account.id, False)
+        restored = await accounts_service.set_blocked(
+            account.id, False, reason="admin"
+        )
         # NULL, not a stale timestamp: a second block needs to record when it
         # happened, and a kept timestamp would say the block predates the unblock.
+        # The reason goes with it — a half-cleared row is the pairing the database
+        # refuses.
         assert restored.blocked_at is None
+        assert restored.blocked_reason is None
 
     async def test_blocking_is_visible_to_a_later_fetch(self, pool):
         """The write has to be readable by the JOIN in authenticate(), not just
         by the function that made it."""
         account = await self._account(pool)
-        await accounts_service.set_blocked(account.id, True)
+        await accounts_service.set_blocked(account.id, True, reason="admin")
 
         fetched = await accounts_service.get_account(account.id)
         assert fetched is not None
@@ -298,7 +324,7 @@ class TestBlocking:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as caught:
-            await accounts_service.set_blocked(uuid.uuid4(), True)
+            await accounts_service.set_blocked(uuid.uuid4(), True, reason="admin")
         assert caught.value.status_code == 404
 
     async def test_a_database_failure_is_503_not_a_false_success(self, pool):
@@ -311,11 +337,18 @@ class TestBlocking:
 
         with patch("api.services.accounts.get_pool", boom):
             with pytest.raises(HTTPException) as caught:
-                await accounts_service.set_blocked(uuid.uuid4(), True)
+                await accounts_service.set_blocked(uuid.uuid4(), True, reason="admin")
         assert caught.value.status_code == 503
 
-    async def test_one_function_writes_the_column(self, pool):
-        """Two writers would mean two places to get the block half-applied."""
+    async def test_two_writers_two_reasons(self, pool):
+        """Two writers, with a wall between their reasons.
+
+        `set_blocked` serves the admin endpoint and writes 'admin';
+        `suspend_lapsed_accounts` serves the beat and writes
+        'subscription_expired'. Anything else writing `blocked_at` — or a writer
+        leaving `blocked_reason` unnamed — is a third opinion about which door
+        may open the account, and the payment path is exactly one of the doors.
+        """
         from pathlib import Path
 
         import re
@@ -323,12 +356,18 @@ class TestBlocking:
         root = Path(__file__).resolve().parents[1] / "api"
         writers = []
         for path in root.rglob("*.py"):
-            for line in path.read_text(encoding="utf-8").splitlines():
+            text = path.read_text(encoding="utf-8")
+            for line in text.splitlines():
                 if re.search(r"SET\s+blocked_at", line, re.I) or re.search(
-                    r'blocked_at\s*=\s*\$', line
+                    r"blocked_at\s*=\s*\$", line
                 ):
                     writers.append(f"{path.relative_to(root)}: {line.strip()}")
-        assert len(writers) == 1, writers
+        assert all(w.startswith("services/accounts.py:") for w in writers), (
+            f"a writer of blocked_at escaped the identity module: {writers}"
+        )
+        assert len(writers) == 2, (
+            f"expected the admin writer and the suspension beat, got: {writers}"
+        )
 
 
 class TestAccountListing:
@@ -349,7 +388,7 @@ class TestAccountListing:
         created = await accounts_service.create_account(
             email="c@aidss.id", password_hash="h", full_name="C", phone_number="0812"
         )
-        await accounts_service.set_blocked(created.id, True)
+        await accounts_service.set_blocked(created.id, True, reason="admin")
         listed = await accounts_service.list_accounts()
         assert next(a for a in listed if a.id == created.id).blocked_at is not None
 

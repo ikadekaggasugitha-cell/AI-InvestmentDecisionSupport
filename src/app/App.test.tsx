@@ -21,6 +21,7 @@ const ACCOUNT = {
   phone_number: '081234567890',
   role: 'user' as const,
   blocked: false,
+  blockedReason: null,
 }
 
 beforeEach(() => {

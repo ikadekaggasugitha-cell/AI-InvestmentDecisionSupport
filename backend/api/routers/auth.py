@@ -131,6 +131,11 @@ class AccountResponse(BaseModel):
     phone_number: str
     role: str
     blocked: bool
+    # Why the account is closed: 'admin' or 'subscription_expired'. Not a
+    # paraphrase of `blocked` — the reason is what the app branches the renewal
+    # screen on: an admin closure shows a support sentence, a lapse shows
+    # prices and the way back in. None when the account is open.
+    blockedReason: str | None = None
 
 
 class SessionResponse(BaseModel):
@@ -187,11 +192,14 @@ async def login(body: LoginRequest, response: Response) -> SessionResponse:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password.",
         )
-    if account.blocked_at is not None:
+    if account.blocked_at is not None and account.blocked_reason == "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This account is blocked.",
         )
+    # A suspended subscription account may sign in — signing in is exactly what
+    # lets them reach pricing and declare a transfer. Refusing the login would
+    # close the door the suspension is meant to leave open.
     if passwords.needs_rehash(stored_hash):
         await accounts_service.update_password_hash(
             account.id, passwords.hash_password(body.password)
@@ -253,6 +261,7 @@ async def me(user: CurrentUser) -> AccountResponse:
         phone_number=account.phone_number,
         role=account.role,
         blocked=account.blocked_at is not None,
+        blockedReason=account.blocked_reason,
     )
 
 
@@ -275,6 +284,7 @@ async def update_profile(
         phone_number=account.phone_number,
         role=account.role,
         blocked=account.blocked_at is not None,
+        blockedReason=account.blocked_reason,
     )
 
 
@@ -319,6 +329,7 @@ async def _start_session(response: Response, account: accounts_service.Account) 
             phone_number=account.phone_number,
             role=account.role,
             blocked=account.blocked_at is not None,
+            blockedReason=account.blocked_reason,
         )
     )
 

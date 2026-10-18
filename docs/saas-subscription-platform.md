@@ -225,6 +225,12 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount                  NUMERIC(14,2) NOT NULL,
     payment_gateway         VARCHAR(30) NOT NULL CHECK (payment_gateway IN ('midtrans', 'manual')),
     payment_method          VARCHAR(50) NOT NULL,
+    -- Panjang akses yang dibeli: 30 hari bulanan, 365 hari tahunan, diputuskan
+    -- saat deklarasi. Tidak bisa disimpulkan dari `amount` begitu harga pernah
+    -- berubah, dan tindakan approve admin membutuhkannya. Mirip migrasi
+    -- `0012_transactions_plan.sql`.
+    plan                    VARCHAR(20) NOT NULL DEFAULT 'monthly'
+                                CHECK (plan IN ('monthly', 'annual')),
     status                  VARCHAR(30) NOT NULL DEFAULT 'pending'
                                 CHECK (status IN ('pending', 'settlement', 'expire', 'deny', 'cancel')),
     midtrans_transaction_id VARCHAR(100),

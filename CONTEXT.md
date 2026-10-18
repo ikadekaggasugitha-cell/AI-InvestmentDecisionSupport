@@ -40,6 +40,14 @@ _Avoid_: status Subscription, Access Status
 Alur akses. **Selalu diturunkan, tidak pernah disimpan.** Subscription aktif berarti tanggal berakhirnya belum lewat.
 _Avoid_: kolom status, Payment Status
 
+**Blocked Reason**:
+Alasan penutupan Account, disimpan pada Account (`blocked_reason`): `'admin'` (administrator) atau `'subscription_expired'` (beat penangguhan). Alasan ini menentukan **pintu yang boleh membukanya** — kode pembaca memangkas keputusan berdasarkan nilai ini, jadi kosakatanya tertutup dan berpasangan dengan `blocked_at`.
+_Avoid_: status, flag boolean, teks bebas di kolom, Keterangan
+
+**Tertangguh**:
+Account yang dulunya berlangganan dan tidak lagi punya periode berjalan; beat penangguhan menutupnya dengan `blocked_reason = 'subscription_expired'`. Berbeda dari Account yang belum pernah berlangganan — yang itu sah (aturan 4) dan tidak pernah ikut penangguhan. Tertangguh tetap bisa masuk, membaca harga, dan mendeklarasikan transfer; yang tertutup sampai bayar hanya data berbayar.
+_Avoid_: Banned (itu `'admin'`), di-block, tidak aktif
+
 **Owner**:
 Account yang memiliki sebuah resource milik dia sendiri, misalnya portfolio. Satu Account punya banyak resource; satu resource punya tepat satu Owner.
 _Avoid_: user_id (itu pengenal, bukan hubungan)
@@ -52,9 +60,9 @@ _Avoid_: akun sementara, akun dummy, admin
 
 1. **Subscription tidak menyimpan status pembayaran.** Pembayaran adalah urusan Transaction. Memindahkan `pending` ke Subscription mencampur dua lifecycle yang berbeda, dan membuat notifikasi serta pembatalan tidak bisa dibedakan.
 2. **Subscriber bukan field.** Kalau ia disimpan sebagai kolom, ada dua sumber kebenaran untuk satu fakta — role dan status Subscription — dan keduanya bisa menyimpang.
-3. **Payment Status tidak pernah memblokir akses.** Yang menentukan boleh atau tidaknya masuk adalah Access Status. Transaction yang gagal tidak pernah menutup akses.
-4. **Account tanpa Subscription tetap sah.** Ia bukan error, bukan kondisi yang perlu diperbaiki. Ia hanya punya lebih sedikit hak akses.
+3. **Payment Status tidak pernah memblokir akses.** Yang menentukan boleh atau tidaknya masuk adalah Access Status. Transaction yang gagal tidak pernah menutup akses. Penangguhan pun bukan Payment Status: beat turun ke `subscriptions.expires_at` dengan langganan, bukan ke transaksi yang gagal.
+4. **Account tanpa Subscription tetap sah.** Ia bukan error, bukan kondisi yang perlu diperbaiki. Ia hanya punya lebih sedikit hak akses. Ia juga tidak pernah tersuspensi: beat hanya menyentuh akun yang pernah punya Subscription, jadi instalasi baru dengan tabel `subscriptions` kosong tidak boleh menutup pintu untuk siapa pun.
 5. **Satu fakta, satu tempat.** Masa aktif Subscription ditentukan oleh tanggal berakhirnya. Status turunan yang disimpan terpisah perlahan akan menyimpang dari tanggal aslinya, dan setiap penyimpangan akan muncul sebagai bug di hari pertama penagihan.
 6. **Role dan Entitlement dihitung terpisah.** Keduanya boleh dijawab berbeda untuk satu Account yang sama, dan tidak ada yang boleh mengorbankan yang satu demi yang lain.
 7. **Subscription tidak pernah berubah.** Masa aktifnya ditulis sekali saat dibuat. Perpanjangan membuat Subscription baru, bukan menggeser tanggal yang lama. Karena itu Subscription tidak butuh status pembatalan: masa aktif yang sudah ditulis tidak bisa dicabut.
-8. **Menonaktifkan akses adalah urusan Account, bukan Subscription.** Akun yang diblokir kehilangan akses seketika. Menyimpan status pembatalan pada Subscription akan menggandakan satu fakta yang sudah dimiliki Account.
+8. **Menonaktifkan akses adalah urusan Account, bukan Subscription.** Akun yang diblokir kehilangan akses seketika. Menyimpan status pembatalan pada Subscription akan menggandakan satu fakta yang sudah dimiliki Account. Blokir membawa **alasannya** pada Account: `'admin'` identitasnya ditolak dan dibuka hanya endpoint admin, `'subscription_expired'` tetap sah dan dibuka oleh pembayaran yang menulis periode baru — dua pintu, dan tidak satu pintu pun boleh membuka kedua alasan.
