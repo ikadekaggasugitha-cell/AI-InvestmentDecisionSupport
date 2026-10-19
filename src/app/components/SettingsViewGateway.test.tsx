@@ -16,7 +16,7 @@ import type { ExchangeRateData } from "../hooks/useExchangeRate";
 import type { AuthState } from "../hooks/useAuth";
 
 const priceState = {
-  body: { monthly: 15000, annual: 150000 } as unknown,
+  body: { weekly: 15000, monthly: 44000, annual: 252000 } as unknown,
   throws: false,
 };
 const payState = {
@@ -145,8 +145,8 @@ async function openGatewayPage(user: ReturnType<typeof userEvent.setup>) {
   // The gateway card carries its own plan radios; the manual form above it
   // shares the visible words, so the input is reached by name, not by text.
   const inputs = document.querySelectorAll<HTMLInputElement>('input[name="gateway-plan"]');
-  expect(inputs.length).toBe(2);
-  await user.click(inputs[1] as HTMLElement); // annual
+  expect(inputs.length).toBe(3);
+  await user.click(inputs[2] as HTMLElement); // annual
   await user.click(screen.getByRole("button", { name: /Buka halaman bayar Midtrans/ }));
 }
 

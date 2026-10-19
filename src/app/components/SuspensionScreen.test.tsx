@@ -12,7 +12,12 @@ const apiFetchMock = apiFetch as unknown as ReturnType<typeof vi.fn>
  * is exercised with the same wiring it has in the real app — including the
  * claim that a suspended caller can still read price/history/destinations. */
 const priceState = {
-  body: { monthly: 15000, annual: 150000, updatedAt: '2026-10-01T09:30:00+00:00' } as unknown,
+  body: {
+    weekly: 15000,
+    monthly: 44000,
+    annual: 252000,
+    updatedAt: '2026-10-01T09:30:00+00:00',
+  } as unknown,
   status: 200,
   throws: false,
 }

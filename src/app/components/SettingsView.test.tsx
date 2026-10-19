@@ -20,7 +20,12 @@ const subState = {
 // can have a working status endpoint and still be on an install with no price
 // configured.
 const priceState = {
-  body: { monthly: 15000, annual: 150000, updatedAt: '2026-10-01T09:30:00+00:00' } as unknown,
+  body: {
+    weekly: 15000,
+    monthly: 44000,
+    annual: 252000,
+    updatedAt: '2026-10-01T09:30:00+00:00',
+  } as unknown,
   status: 200,
   throws: false,
 }
@@ -614,7 +619,12 @@ describe('SettingsView — Tab 2 shows what it costs', () => {
   beforeEach(() => {
     // Both reads, reset: a leaked `subState` from an earlier describe would make
     // these tests pass or fail for the wrong reason.
-    priceState.body = { monthly: 15000, annual: 150000, updatedAt: '2026-10-01T09:30:00+00:00' }
+    priceState.body = {
+      weekly: 15000,
+      monthly: 44000,
+      annual: 252000,
+      updatedAt: '2026-10-01T09:30:00+00:00',
+    }
     priceState.status = 200
     priceState.throws = false
     subState.body = { active: false, expiresAt: null, daysRemaining: null, startDate: null }
@@ -628,11 +638,12 @@ describe('SettingsView — Tab 2 shows what it costs', () => {
     await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
   }
 
-  it('reports both prices from the server', async () => {
-    priceState.body = { monthly: 20000, annual: 200000 }
+  it('reports the three prices from the server', async () => {
+    priceState.body = { weekly: 15000, monthly: 20000, annual: 200000 }
     await openBilling()
 
-    expect(await screen.findByText('Rp 20.000')).toBeInTheDocument()
+    expect(await screen.findByText('Rp 15.000')).toBeInTheDocument()
+    expect(screen.getByText('Rp 20.000')).toBeInTheDocument()
     expect(screen.getByText('Rp 200.000')).toBeInTheDocument()
   })
 

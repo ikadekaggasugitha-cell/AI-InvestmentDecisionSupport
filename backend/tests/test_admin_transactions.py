@@ -67,7 +67,7 @@ class TestTheQueue:
         row = rows[0]
         assert row["id"] == declared["id"]
         assert row["invoiceCode"] == declared["invoiceCode"]
-        assert row["amount"] == 15000
+        assert row["amount"] == 44000
         assert row["plan"] == "monthly"
         assert row["status"] == "pending"
         assert row["payerEmail"] == "antre@aidss.id"

@@ -39,6 +39,7 @@ class PricingResponse(BaseModel):
     second thing to keep true.
     """
 
+    weekly: int = Field(description="Mingguan, dalam rupiah penuh")
     monthly: int = Field(description="Bulanan, dalam rupiah penuh")
     annual: int = Field(description="Tahunan, dalam rupiah penuh")
     # Not the row's creation time and not a plan name. It is when this number was
@@ -75,6 +76,7 @@ async def current_pricing() -> PricingResponse:
         ) from exc
 
     return PricingResponse(
+        weekly=pricing.weekly,
         monthly=pricing.monthly,
         annual=pricing.annual,
         updatedAt=pricing.updated_at,

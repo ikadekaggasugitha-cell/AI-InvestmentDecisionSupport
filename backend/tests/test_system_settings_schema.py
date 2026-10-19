@@ -15,13 +15,12 @@ only place a price may be written from.
 import re
 from pathlib import Path
 
+from tests.test_pricing_service import SEED_WEEKLY, SEED_MONTHLY, SEED_ANNUAL
+
 BACKEND = Path(__file__).resolve().parents[1]
 SCHEMA = BACKEND / "db" / "schema.sql"
 MIGRATION = BACKEND / "db" / "migrations" / "0011_system_settings_pricing.sql"
-
-# The prices the owner decided, and the migration that writes them.
-SEED_MONTHLY = 15_000
-SEED_ANNUAL = 150_000
+MIGRATION_WEEKLY = BACKEND / "db" / "migrations" / "0014_pricing_weekly.sql"
 
 
 def _tables(text: str) -> dict[str, str]:
@@ -66,6 +65,9 @@ class TestTheTableExists:
     def test_both_files_exist(self):
         assert SCHEMA.is_file(), "schema.sql is what db-init applies on every deploy"
         assert MIGRATION.is_file(), "0011 is how an existing database gets the table"
+        assert MIGRATION_WEEKLY.is_file(), (
+            "0014 is how an existing two-key pricing row gets its weekly slot"
+        )
 
     def test_the_parser_still_matches(self):
         """Guard the guard, before anything reads through it."""
@@ -119,17 +121,24 @@ class TestThePricingKey:
         )
 
     def test_the_seeded_prices_are_the_ones_that_were_decided(self):
-        """Matched as numbers inside the JSON literal, not as substrings.
+        """The schema's seed is the migration chain's result, compared as numbers
+        inside the JSON literal, not as substrings.
 
         `str(15000) in text` also passes on 150000 and on the word "15000" in a
-        comment, so it would stay green with the monthly price deleted entirely.
+        comment, so it would stay green with the weekly price deleted entirely.
+        The numbers come from test_pricing_service, which composes 0011 and 0014
+        the way SQL applies them — one answer, not two hardcoded triples.
         """
-        body = re.sub(r"--[^\n]*", "", MIGRATION.read_text())
+        body = re.sub(r"--[^\n]*", "", SCHEMA.read_text())
         found = {
             field: int(re.search(rf'"{field}":\s*(\d+)', body).group(1))
-            for field in ("monthly", "annual")
+            for field in ("weekly", "monthly", "annual")
         }
-        assert found == {"monthly": SEED_MONTHLY, "annual": SEED_ANNUAL}
+        assert found == {
+            "weekly": SEED_WEEKLY,
+            "monthly": SEED_MONTHLY,
+            "annual": SEED_ANNUAL,
+        }
 
     def test_only_the_price_key_is_seeded(self):
         """`bank_accounts` and `contact_support` belong to a payment path that does

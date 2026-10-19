@@ -34,14 +34,15 @@ function respond(status: number, body: unknown) {
 describe("PublicPricing", () => {
   beforeEach(() => {
     mocked.mockReset();
-    respond(200, { monthly: 15000, annual: 150000, updatedAt: null });
+    respond(200, { weekly: 15000, monthly: 44000, annual: 252000, updatedAt: null });
   });
 
-  it("shows the two prices the server holds", async () => {
+  it("shows the three prices the server holds", async () => {
     render(<PublicPricing locale="id" onEnter={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Rp 15.000")).toBeInTheDocument());
-    expect(screen.getByText("Rp 150.000")).toBeInTheDocument();
+    expect(screen.getByText("Rp 44.000")).toBeInTheDocument();
+    expect(screen.getByText("Rp 252.000")).toBeInTheDocument();
   });
 
   it("says it is loading rather than flashing a number nobody set", () => {
@@ -96,7 +97,8 @@ describe("PublicPricing", () => {
     render(<PublicPricing locale="en" onEnter={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Rp 15,000")).toBeInTheDocument());
-    expect(screen.getByText("Rp 150,000")).toBeInTheDocument();
+    expect(screen.getByText("Rp 44,000")).toBeInTheDocument();
+    expect(screen.getByText("Rp 252,000")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Sign in or create an account/ })).toBeInTheDocument();
   });
 });

@@ -453,11 +453,12 @@ class _IdentityPool:
         # subscriptions, invoice_codes, users (users because a crashed settle
         # must un-clear a suspension as well).
         self._snapshot_data: tuple[dict, list, dict, dict] | None = None
-        # system_settings. Seeded with the prices migration 0011 writes, so tests
-        # read the same starting state a fresh install would have.
+        # system_settings. Seeded with the prices migration 0011 (and 0014 for
+        # `weekly`) writes, so tests read the same starting state a fresh
+        # install would have.
         self.settings: dict[str, dict] = {
             "pricing": {
-                "value": {"monthly": 15000, "annual": 150000},
+                "value": {"weekly": 15000, "monthly": 44000, "annual": 252000},
                 "updated_at": self._now.now(self._tz.utc),
             }
         }
@@ -470,12 +471,13 @@ class _IdentityPool:
             row = self.settings.get(args[0])
             return None if row is None else dict(row)
         if "INSERT INTO system_settings" in query:
-            # settings.write_pricing: key, monthly, annual. The bank_accounts
-            # upsert passes the whole JSON payload as $2 instead, as text — the
-            # way asyncpg carries jsonb params — so the parse is the fake doing
-            # what Postgres does when the value is read back as jsonb.
+            # settings.write_pricing: key, weekly, monthly, annual. The
+            # bank_accounts upsert passes the whole JSON payload as $2 instead,
+            # as text — the way asyncpg carries jsonb params — so the parse is
+            # the fake doing what Postgres does when the value is read back as
+            # jsonb.
             if args[0] == "pricing":
-                value = {"monthly": args[1], "annual": args[2]}
+                value = {"weekly": args[1], "monthly": args[2], "annual": args[3]}
             else:
                 payload = args[1]
                 if isinstance(payload, str):

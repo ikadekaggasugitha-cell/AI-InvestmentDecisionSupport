@@ -24,6 +24,7 @@ import { ENDPOINTS, apiFetch } from "../config/api";
  */
 
 interface PricingState {
+  weekly: number;
   monthly: number;
   annual: number;
   updatedAt: string | null;
@@ -59,6 +60,7 @@ const rupiah = (n: number) => `Rp ${n.toLocaleString("id-ID")}`;
 
 export function AdminPricingView() {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
+  const [weekly, setWeekly] = useState("");
   const [monthly, setMonthly] = useState("");
   const [annual, setAnnual] = useState("");
   const [saving, setSaving] = useState(false);
@@ -76,6 +78,7 @@ export function AdminPricingView() {
   const restoreFields = useCallback(() => {
     const pricing = lastKnown.current;
     if (!pricing) return;
+    setWeekly(String(pricing.weekly));
     setMonthly(String(pricing.monthly));
     setAnnual(String(pricing.annual));
   }, []);
@@ -98,11 +101,16 @@ export function AdminPricingView() {
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const pricing = (await res.json()) as PricingState;
-      if (!Number.isFinite(pricing.monthly) || !Number.isFinite(pricing.annual)) {
-        throw new Error("price payload is not two numbers");
+      if (
+        !Number.isFinite(pricing.weekly) ||
+        !Number.isFinite(pricing.monthly) ||
+        !Number.isFinite(pricing.annual)
+      ) {
+        throw new Error("price payload is not three numbers");
       }
       lastKnown.current = pricing;
       setState({ kind: "ready", pricing });
+      setWeekly(String(pricing.weekly));
       setMonthly(String(pricing.monthly));
       setAnnual(String(pricing.annual));
       return true;
@@ -120,6 +128,7 @@ export function AdminPricingView() {
   }, [load]);
 
   async function save() {
+    const w = Number(weekly);
     const m = Number(monthly);
     const a = Number(annual);
     setSaving(true);
@@ -129,7 +138,7 @@ export function AdminPricingView() {
       const res = await apiFetch(ENDPOINTS.adminPricing, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ monthly: m, annual: a }),
+        body: JSON.stringify({ weekly: w, monthly: m, annual: a }),
       });
       if (!res.ok) {
         setSaveError(String(res.status));
@@ -145,11 +154,16 @@ export function AdminPricingView() {
         return;
       }
       const saved = (await res.json()) as PricingState;
-      if (!Number.isFinite(saved.monthly) || !Number.isFinite(saved.annual)) {
-        throw new Error("price payload is not two numbers");
+      if (
+        !Number.isFinite(saved.weekly) ||
+        !Number.isFinite(saved.monthly) ||
+        !Number.isFinite(saved.annual)
+      ) {
+        throw new Error("price payload is not three numbers");
       }
       lastKnown.current = saved;
       setState({ kind: "ready", pricing: saved });
+      setWeekly(String(saved.weekly));
       setMonthly(String(saved.monthly));
       setAnnual(String(saved.annual));
       setSavedAt(Date.now());
@@ -221,6 +235,23 @@ export function AdminPricingView() {
       )}
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <label htmlFor="pricing-weekly" style={labelStyle}>
+            Mingguan (Rp)
+          </label>
+          <input
+            id="pricing-weekly"
+            type="number"
+            inputMode="numeric"
+            value={weekly}
+            onChange={(e) => setWeekly(e.target.value)}
+            style={inputStyle}
+          />
+          <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+            Sekarang: {rupiah(state.pricing.weekly)}
+          </p>
+        </div>
+
         <div style={{ flex: 1, minWidth: 180 }}>
           <label htmlFor="pricing-monthly" style={labelStyle}>
             Bulanan (Rp)

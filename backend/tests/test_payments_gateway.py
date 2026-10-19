@@ -96,7 +96,7 @@ def _webhook(
     order_id,
     transaction_status,
     *,
-    gross_amount="15000.00",
+    gross_amount="44000.00",
     status_code="200",
     transaction_id="mtr-777",
     payment_type=None,
@@ -136,7 +136,7 @@ class TestCheckout:
         assert body["status"] == "pending"
         assert body["paymentGateway"] == "midtrans"
         assert body["paymentMethod"] == "midtrans"
-        assert body["amount"] == 15000
+        assert body["amount"] == 44000
         assert body["expiresAt"]
         # The handover is the page itself: the URL Midtrans minted for this
         # order, and nothing else to embed.
@@ -145,7 +145,7 @@ class TestCheckout:
         )
 
         [call] = snap
-        assert call["gross_amount"] == 15000
+        assert call["gross_amount"] == 44000
         assert call["order_id"] == body["invoiceCode"]
         assert call["email"] == "gerbang@aidss.id"
         assert call["expiry_minutes"] == 1440  # the queue's 24 hours, in minutes
@@ -210,17 +210,35 @@ class TestCheckout:
         assert snap == []
         assert fake_identity.transactions == {}
 
-    def test_a_plan_that_is_not_one_of_the_two_refuses_before_calling_the_gateway(
+    def test_a_plan_that_is_not_one_of_the_three_refuses_before_calling_the_gateway(
         self, client, monkeypatch, snap
     ):
         _with_key(monkeypatch)
         signup(client, "mingguan@aidss.id")
         login(client, "mingguan@aidss.id")
 
-        resp = _checkout(client, plan="weekly")
+        resp = _checkout(client, plan="daily")
 
         assert resp.status_code == 422, resp.text
         assert snap == []
+
+    def test_the_weekly_slot_opens_a_page_at_its_own_price(
+        self, client, fake_identity, snap, monkeypatch
+    ):
+        """The third slot is not the monthly price re-labeled: the gateway is
+        asked for the weekly amount, and the row carries the weekly plan."""
+        _with_key(monkeypatch)
+        signup(client, "minggu2@aidss.id")
+        login(client, "minggu2@aidss.id")
+
+        resp = _checkout(client, plan="weekly")
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["amount"] == 15000
+        [call] = snap
+        assert call["gross_amount"] == 15000
+        row = fake_identity.transactions[resp.json()["id"]]
+        assert row["plan"] == "weekly"
 
 
 class TestWebhook:

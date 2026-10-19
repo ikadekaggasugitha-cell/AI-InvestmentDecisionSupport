@@ -228,4 +228,59 @@ Fase 1–3 tidak butuh satu pun dari itu, dan bisa diselesaikan lebih dulu.
 - **Apakah satu jam berlaku juga untuk transfer yang diunggah sore hari?** Kalau
   satu jam turunan dengan Watching, banyak transaksi nyata akan kedaluwarsa
   sebelum sempat diverifikasi — dan itu yang membuat approve-setelah-expire
-  bukan sekadar、保险 tetapi keharusan.
+  bukan sekadar kehati-hatian, melainkan keharusan.
+
+---
+
+## Fase 5 — Tiga slot paket: mingguan, bulanan, tahunan (2026-10-19)
+
+Keputusan pemilik menjawab pertanyaan dua-slot yang menunggu: paket dilengkapi
+slot mingguan, dan harga ditetapkan ulang — **mingguan Rp 15.000, bulanan
+Rp 44.000, tahunan Rp 252.000**. Durasi mengikuti slotnya: 7 / 30 / 365 hari.
+Panel admin tetap sumber pengaturan harga: ketiga angka tetap bisa diubah
+kapan saja tanpa migrasi lagi.
+
+Arsitekturnya tidak bergeser. Harga masih satu dokumen di `system_settings`,
+dibaca oleh `read_pricing()` dan ditulis oleh `write_pricing()` dalam satu
+pernyataan; yang berubah adalah jumlah kunci (dua menjadi tiga) dan kosakata
+plan — `PLAN_DAYS` menambah `weekly: 7`, dan CHECK kolom `transactions.plan`
+ikut. Penerimaan `plan` di deklarasi manual maupun checkout otomatis memakai
+`PLAN_NAMES`, jadi slot baru tidak menambah validasi di dua lokasi.
+
+Migrasinya `0014_pricing_weekly.sql`: menukar CHECK `transactions.plan`
+(minggu masuk kosakata) dan menulis keputusan harga baru ke baris `pricing`
+yang masih memuat seed 0011 persis. Baris yang adminnya sudah menetapkan harga
+sendiri hanya mendapat kunci `weekly`, bukan harga titipan; install fresh
+membaca dari seed `schema.sql` yang kini tiga-kunci. `schema.sql` disamakan
+(seed dan CHECK), dan DDL di `docs/saas-subscription-platform.md` ikut — tes
+dokumen (`test_docs_status.py`) mengunci DDL plan itu terhadap `schema.sql`.
+
+Endpoint tidak bertambah: `GET /v1/subscriptions/pricing` kini memuat tiga
+angka, `PUT /v1/admin/settings/pricing` wajib menerima ketiganya (body
+parsial ditolak 422), jadi kombinasi harga campuran dari dua masa berbeda
+tetap tidak mungkin muncul.
+
+Slot tampil di semua layar yang memilih paket: Tab 2 (deklarasi manual dan
+kartu Midtrans, default terpilih tetap bulanan), halaman publik `/harga`
+(tiga baris), dan form admin tab Harga (tiga input). `/harga` sekalian
+berhenti mengklaim pembayaran "transfer bank" saja — konfirmasi
+settlement datang juga dari Midtrans.
+
+Keputusan layar yang menyertai: teks catatan `AuthScreen` diperbarui pemilik
+menjadi "Pembayaran dibuka setelah masuk — Midtrans (kartu, QRIS, e-wallet)
+atau transfer manual" plus pasangan EN-nya, dan tesnya dibalik bersama
+faktanya (komit `e13a7fa`).
+
+### Hasil eksekusi Fase 5 (2026-10-19)
+
+- Tidak ada berkas tes baru: kasus mingguan masuk ke berkas yang sudah ada
+  (`test_payments_gateway.py`, `test_manual_payment.py`, `test_pricing_api.py`,
+  `test_pricing_service.py`, tes frontend yang menyentuh slot).
+- `test_pricing_service` kini menyusun seed dari dua migrasi (0011 lalu 0014)
+  sebagaimana SQL menerapkannya — "yang berlaku" adalah komposisinya, bukan
+  satu file. `test_system_settings_schema` membandingkan seed `schema.sql`
+  dengan hasil komposisi yang sama.
+- Nominal default di tes yang mengunci angka diadu ke seed baru (44.000 /
+  252.000); asersi yang sama maknanya, bukan angkanya, yang diubah.
+- Tes yang dulu mempermainkan `weekly` sebagai plan tak dikenal, kini
+  mempermainkan `daily` supaya maknanya tetap "plan di luar kosakata".

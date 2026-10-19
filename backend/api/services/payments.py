@@ -30,7 +30,7 @@ import asyncpg
 from api.core.config import get_settings
 from api.core.db import get_pool
 from api.services.midtrans import GatewayUnavailable, create_snap_token
-from api.services.settings import PricingUnavailable, read_pricing
+from api.services.settings import Pricing, PricingUnavailable, read_pricing
 from api.services.subscriptions import (
     TransactionNotFound,
     TransactionOwnershipError,
@@ -40,11 +40,22 @@ from api.services.subscriptions import (
 
 logger = logging.getLogger(__name__)
 
-# The blueprint's durations: a monthly purchase is 30 days of access, an annual
-# one is 365. Fixed here because they are the two periods the product sells —
-# not values an operator tunes per approval.
-PLAN_DAYS = {"monthly": 30, "annual": 365}
+# The blueprint's durations, one access length per slot the product sells: a
+# weekly purchase is 7 days of access, a monthly one is 30, an annual one is
+# 365. Fixed here because they are the three periods the product sells — not
+# values an operator tunes per approval.
+PLAN_DAYS = {"weekly": 7, "monthly": 30, "annual": 365}
 PLAN_NAMES = tuple(PLAN_DAYS)
+
+
+def _plan_amount(plan: str, pricing: Pricing) -> int:
+    """The rupiah amount to charge for `plan`, straight off `pricing`.
+
+    The plan names and the Pricing field names are one vocabulary — every field
+    matches a PLAN_DAYS key — so `getattr` answers with the row that belongs to
+    that gate and fails loudly if the two ever drift apart.
+    """
+    return getattr(pricing, plan)
 
 # A buyer says where the money went in one word; the queue shows it to the
 # operator matching the transfer. Rewritten to the blueprint's vocabulary:
@@ -212,7 +223,7 @@ async def open_manual_transaction(
         # Not a 500 and not the caller's error: the install has no price right
         # now, so no declaration can name what it owes.
         raise PricingUnavailable("the price is unreadable, so no transfer can be declared") from exc
-    amount = pricing.monthly if plan == "monthly" else pricing.annual
+    amount = _plan_amount(plan, pricing)
 
     pool = await get_pool()
     for _attempt in range(5):
@@ -559,7 +570,7 @@ async def open_gateway_transaction(
             "Gateway pembayaran belum diaktifkan di server ini."
         )
     pricing = await read_pricing()
-    amount = pricing.monthly if plan == "monthly" else pricing.annual
+    amount = _plan_amount(plan, pricing)
 
     pool = await get_pool()
     ttl_minutes = max(1, int(settings.manual_transaction_ttl_seconds // 60))

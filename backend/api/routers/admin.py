@@ -284,7 +284,7 @@ async def admin_grant_subscription(
 class PricingResponse(BaseModel):
     """The current price, as the operator sees it.
 
-    Same three fields as the public endpoint. It is a second read of one fact, and
+    Same four fields as the public endpoint. It is a second read of one fact, and
     that is deliberate: the public one answers for a prospective buyer and never
     fails with 403, while this one answers for somebody who is already an operator
     and says so plainly when they are not. Without it the admin form would either
@@ -292,6 +292,7 @@ class PricingResponse(BaseModel):
     and lose the refusal entirely.
     """
 
+    weekly: int
     monthly: int
     annual: int
     updatedAt: str | None = None
@@ -318,18 +319,22 @@ async def admin_get_pricing(admin: AdminUser) -> PricingResponse:
             detail="No pricing is configured on this server.",
         ) from exc
     return PricingResponse(
-        monthly=pricing.monthly, annual=pricing.annual, updatedAt=pricing.updated_at
+        weekly=pricing.weekly,
+        monthly=pricing.monthly,
+        annual=pricing.annual,
+        updatedAt=pricing.updated_at,
     )
 
 
 class PricingUpdateRequest(BaseModel):
-    """Both prices, or neither.
+    """All three prices, or none.
 
     Required rather than optional on purpose. A partial body would apply one
-    price from this moment beside the other from the last, and that combination
-    was never chosen by anyone.
+    price from this moment beside the others from the last, and that
+    combination was never chosen by anyone.
     """
 
+    weekly: int = Field(description="Harga mingguan dalam rupiah penuh")
     monthly: int = Field(description="Harga bulanan dalam rupiah penuh")
     annual: int = Field(description="Harga tahunan dalam rupiah penuh")
 
@@ -352,7 +357,7 @@ async def admin_set_pricing(
     admin: AdminUser,
     body: PricingUpdateRequest,
 ) -> PricingResponse:
-    """Set `body.monthly` and `body.annual`.
+    """Set `body.weekly`, `body.monthly`, and `body.annual`.
 
     The range check lives in the service, not here. This router rejects a body
     that is the wrong shape; deciding what counts as an amount of money is the
@@ -360,7 +365,7 @@ async def admin_set_pricing(
     disagree eventually.
     """
     try:
-        pricing = await write_pricing(body.monthly, body.annual)
+        pricing = await write_pricing(body.weekly, body.monthly, body.annual)
     except PriceOutOfRange as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -368,6 +373,7 @@ async def admin_set_pricing(
         ) from exc
 
     return PricingResponse(
+        weekly=pricing.weekly,
         monthly=pricing.monthly,
         annual=pricing.annual,
         updatedAt=pricing.updated_at,

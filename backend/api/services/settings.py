@@ -62,6 +62,7 @@ class PricingUnavailable(RuntimeError):
 
 @dataclass(frozen=True)
 class Pricing:
+    weekly: int
     monthly: int
     annual: int
     updated_at: str | None = None
@@ -116,8 +117,8 @@ def _json_value(value) -> dict:
     return value
 
 
-def _validate(monthly: int, annual: int) -> None:
-    for field, value in (("monthly", monthly), ("annual", annual)):
+def _validate(weekly: int, monthly: int, annual: int) -> None:
+    for field, value in (("weekly", weekly), ("monthly", monthly), ("annual", annual)):
         # No explicit bool check: bool is an int subclass, so True would pass
         # isinstance(value, int) — but True is 1 and False is 0, and both are
         # below MIN_PRICE_IDR, so the range test below refuses them anyway. A
@@ -143,59 +144,68 @@ async def read_pricing() -> Pricing:
         )
     try:
         value = _json_value(row["value"])
+        weekly = value["weekly"]
         monthly = value["monthly"]
         annual = value["annual"]
-        if isinstance(monthly, bool) or isinstance(annual, bool):
+        if isinstance(weekly, bool) or isinstance(monthly, bool) or isinstance(annual, bool):
             raise TypeError("a boolean is not a price")
         # The same check the writer runs. A row can be hand-edited or seeded
         # wrong, and `{"monthly": 0}` served as a 200 is exactly the "quote them
         # for free" failure this endpoint exists to avoid — validating only on
         # write would make the guarantee hold for exactly as long as nobody edits
         # the table by hand.
-        _validate(monthly, annual)
+        _validate(weekly, monthly, annual)
     except (KeyError, TypeError, ValueError, PriceOutOfRange) as exc:
         raise PricingUnavailable(
-            f"'{PRICING_KEY}' does not hold two usable prices: {exc}"
+            f"'{PRICING_KEY}' does not hold three usable prices: {exc}"
         ) from exc
 
     # No rounding on the way out. `int(15000.7)` would answer 15000 for a row that
     # says 15000.7 — quoting a number the server does not hold.
-    if monthly != int(monthly) or annual != int(annual):
+    if weekly != int(weekly) or monthly != int(monthly) or annual != int(annual):
         raise PricingUnavailable(f"'{PRICING_KEY}' holds a fractional price")
 
     updated = row["updated_at"]
     return Pricing(
+        weekly=int(weekly),
         monthly=int(monthly),
         annual=int(annual),
         updated_at=updated.isoformat() if updated else None,
     )
 
 
-async def write_pricing(monthly: int, annual: int) -> Pricing:
-    """Replace both prices and return what the server now holds.
+async def write_pricing(weekly: int, monthly: int, annual: int) -> Pricing:
+    """Replace all three prices and return what the server now holds.
 
-    Written as one statement so the two cannot be half-applied: a reader between
-    them would otherwise see a new monthly price against an old annual one, which
-    is a combination that never existed.
+    Written as one statement so the three cannot be half-applied: a reader
+    between them would otherwise see a new weekly price against old monthly and
+    annual ones, which is a combination that never existed.
     """
-    _validate(monthly, annual)
+    _validate(weekly, monthly, annual)
     pool = await get_pool()
     row = await pool.fetchrow(
         """
         INSERT INTO system_settings (key, value, updated_at)
-        VALUES ($1, jsonb_build_object('monthly', $2::int, 'annual', $3::int), NOW())
+        VALUES ($1, jsonb_build_object('weekly', $2::int, 'monthly', $3::int,
+                                        'annual', $4::int), NOW())
         ON CONFLICT (key) DO UPDATE
             SET value = EXCLUDED.value,
                 updated_at = EXCLUDED.updated_at
         RETURNING updated_at
         """,
         PRICING_KEY,
+        weekly,
         monthly,
         annual,
     )
-    logger.info("settings: pricing set to monthly=%s annual=%s", monthly, annual)
+    logger.info(
+        "settings: pricing set to weekly=%s monthly=%s annual=%s",
+        weekly,
+        monthly,
+        annual,
+    )
     updated = row["updated_at"] if row else None
-    return Pricing(monthly=monthly, annual=annual,
+    return Pricing(weekly=weekly, monthly=monthly, annual=annual,
                    updated_at=updated.isoformat() if updated else None)
 
 

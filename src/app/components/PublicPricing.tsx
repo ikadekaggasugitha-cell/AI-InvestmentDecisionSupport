@@ -33,7 +33,7 @@ export interface PublicPricingProps {
 
 type PriceState =
   | { kind: "loading" }
-  | { kind: "ready"; monthly: number; annual: number }
+  | { kind: "ready"; weekly: number; monthly: number; annual: number }
   | { kind: "unavailable" };
 
 const localeTag = (locale: Locale) => (locale === "id" ? "id-ID" : "en-GB");
@@ -48,12 +48,21 @@ export function PublicPricing({ locale, onEnter }: PublicPricingProps) {
       try {
         const res = await apiFetch(ENDPOINTS.pricing, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = (await res.json()) as { monthly: number; annual: number };
-        if (!Number.isFinite(body.monthly) || !Number.isFinite(body.annual)) {
-          throw new Error("pricing body is not two numbers");
+        const body = (await res.json()) as { weekly: number; monthly: number; annual: number };
+        if (
+          !Number.isFinite(body.weekly) ||
+          !Number.isFinite(body.monthly) ||
+          !Number.isFinite(body.annual)
+        ) {
+          throw new Error("pricing body is not three numbers");
         }
         if (controller.signal.aborted) return;
-        setPrice({ kind: "ready", monthly: body.monthly, annual: body.annual });
+        setPrice({
+          kind: "ready",
+          weekly: body.weekly,
+          monthly: body.monthly,
+          annual: body.annual,
+        });
       } catch {
         if (controller.signal.aborted) return;
         setPrice({ kind: "unavailable" });
@@ -144,6 +153,7 @@ export function PublicPricing({ locale, onEnter }: PublicPricingProps) {
 
         {price.kind === "ready" && (
           <>
+            {priceRow(isId ? "Mingguan" : "Weekly", isId ? "setiap minggu" : "every week", price.weekly)}
             {priceRow(isId ? "Bulanan" : "Monthly", isId ? "setiap bulan" : "every month", price.monthly)}
             {priceRow(isId ? "Tahunan" : "Annual", isId ? "setiap tahun" : "every year", price.annual)}
           </>
@@ -173,8 +183,8 @@ export function PublicPricing({ locale, onEnter }: PublicPricingProps) {
 
         <p style={{ fontSize: "12px", color: "var(--muted-foreground)", margin: "20px 0 0" }}>
           {isId
-            ? "Pembayaran berupa transfer bank yang dinyatakan di dalam aplikasi, lalu diperiksa admin."
-            : "Payment is a bank transfer declared in-app, then reviewed by an admin."}
+            ? "Pembayaran lewat transfer manual yang diperiksa admin, atau Midtrans — keduanya dari dalam aplikasi."
+            : "Pay by manual transfer reviewed by an admin, or Midtrans — both from inside the app."}
         </p>
 
         <button

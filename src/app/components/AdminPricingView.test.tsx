@@ -14,7 +14,8 @@ import { AdminPricingView } from "./AdminPricingView";
  *  - A failed save changes nothing on screen. The old price is still the price,
  *    and saying otherwise would be the same lie the rest of this change removed.
  *
- * There is no plan picker and no "active" switch. The price is two numbers; what
+ * There is no plan picker and no "active" switch. The price is three numbers;
+ * what
  * is sold is decided elsewhere (and nowhere yet, since there is no purchase
  * path).
  */
@@ -27,7 +28,12 @@ import { apiFetch } from "../config/api";
 
 const mocked = vi.mocked(apiFetch);
 
-const ON_SERVER = { monthly: 15000, annual: 150000, updatedAt: "2026-10-01T09:30:00+00:00" };
+const ON_SERVER = {
+  weekly: 15000,
+  monthly: 44000,
+  annual: 252000,
+  updatedAt: "2026-10-01T09:30:00+00:00",
+};
 
 function respond(status: number, body: unknown) {
   mocked.mockResolvedValue({
@@ -53,9 +59,10 @@ describe("AdminPricingView", () => {
     render(<AdminPricingView />);
 
     await waitFor(() =>
-      expect(screen.getByLabelText(/Bulanan/i)).toHaveValue(15000),
+      expect(screen.getByLabelText(/Bulanan/i)).toHaveValue(44000),
     );
-    expect(screen.getByLabelText(/Tahunan/i)).toHaveValue(150000);
+    expect(screen.getByLabelText(/Mingguan/i)).toHaveValue(15000);
+    expect(screen.getByLabelText(/Tahunan/i)).toHaveValue(252000);
   });
 
   it("says when the price was last changed", async () => {
@@ -64,9 +71,9 @@ describe("AdminPricingView", () => {
     await waitFor(() => expect(screen.getByText(/diperbarui/i)).toBeInTheDocument());
   });
 
-  it("sends both prices in one request", async () => {
+  it("sends all three prices in one request", async () => {
     render(<AdminPricingView />);
-    await waitFor(() => expect(screen.getByLabelText(/Bulanan/i)).toHaveValue(15000));
+    await waitFor(() => expect(screen.getByLabelText(/Bulanan/i)).toHaveValue(44000));
 
     await userEvent.clear(screen.getByLabelText(/Bulanan/i));
     await userEvent.type(screen.getByLabelText(/Bulanan/i), "20000");
@@ -75,14 +82,16 @@ describe("AdminPricingView", () => {
     await waitFor(() => expect(writes("/v1/admin/settings/pricing")).toHaveLength(1));
     const [, init] = writes("/v1/admin/settings/pricing")[0];
     expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      weekly: 15000,
       monthly: 20000,
-      annual: 150000,
+      annual: 252000,
     });
   });
 
   it("shows the server's answer after saving, not the typed number", async () => {
     // The server may clamp, round, or reject. Whatever it returns is the price.
     const SAVED = {
+      weekly: 9000,
       monthly: 19000,
       annual: 190000,
       updatedAt: "2026-10-14T10:00:00+00:00",
@@ -97,7 +106,7 @@ describe("AdminPricingView", () => {
     });
 
     render(<AdminPricingView />);
-    await waitFor(() => expect(screen.getByLabelText(/Bulanan/i)).toHaveValue(15000));
+    await waitFor(() => expect(screen.getByLabelText(/Bulanan/i)).toHaveValue(44000));
 
     await userEvent.clear(screen.getByLabelText(/Bulanan/i));
     await userEvent.type(screen.getByLabelText(/Bulanan/i), "20000");
@@ -105,12 +114,13 @@ describe("AdminPricingView", () => {
 
     // The server answers 19000 for a 20000 request.
     await waitFor(() => expect(screen.getByLabelText(/Bulanan/i)).toHaveValue(19000));
+    expect(screen.getByLabelText(/Mingguan/i)).toHaveValue(9000);
     expect(screen.getByLabelText(/Tahunan/i)).toHaveValue(190000);
   });
 
   it("keeps the old price on screen when the save fails", async () => {
     render(<AdminPricingView />);
-    await waitFor(() => expect(screen.getByLabelText(/Bulanan/i)).toHaveValue(15000));
+    await waitFor(() => expect(screen.getByLabelText(/Bulanan/i)).toHaveValue(44000));
 
     mocked.mockResolvedValue({
       ok: false,

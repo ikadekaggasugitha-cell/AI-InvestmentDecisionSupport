@@ -51,7 +51,12 @@ vi.mock('../config/api', async (importOriginal) => ({
     if (url.endsWith('/v1/admin/settings/pricing')) {
       const reply = state.pricing ?? {
         status: 200,
-        body: { monthly: 15000, annual: 150000, updatedAt: '2026-10-01T09:30:00+00:00' },
+        body: {
+          weekly: 15000,
+          monthly: 44000,
+          annual: 252000,
+          updatedAt: '2026-10-01T09:30:00+00:00',
+        },
       }
       return { ok: reply.status < 400, status: reply.status, json: async () => reply.body } as unknown as Response
     }
@@ -251,7 +256,7 @@ describe('the admin tabs', () => {
 
     // The price form is what proves the switch happened; a selected tab would
     // also pass with an empty panel.
-    await waitFor(() => expect(screen.getByLabelText(/Bulanan/i)).toHaveValue(15000))
+    await waitFor(() => expect(screen.getByLabelText(/Bulanan/i)).toHaveValue(44000))
     expect(screen.queryByText('Siti Rahayu')).not.toBeInTheDocument()
   })
 })

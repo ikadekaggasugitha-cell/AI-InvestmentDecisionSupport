@@ -18,7 +18,7 @@ Modul **Settings** saat ini dirancang untuk kebutuhan *single-operator personal 
 4. Notifikasi (*In-App Alert Toggles*)
 5. Informasi Aplikasi (*About*)
 
-Dengan beralihnya sistem ke model bisnis **SaaS Multi-User dengan Langganan (Rp 15.000/bln dan Rp 150.000/thn)**, modul Settings perlu ditransformasikan menjadi pusat manajemen pengguna (*User Account Center*) yang modern, terstruktur, dan modular menggunakan navigasi berbasis **Tab (Tab-Based Layout)**.
+Dengan beralihnya sistem ke model bisnis **SaaS Multi-User dengan Langganan (Rp 15.000/mgg, Rp 44.000/bln, dan Rp 252.000/thn)**, modul Settings perlu ditransformasikan menjadi pusat manajemen pengguna (*User Account Center*) yang modern, terstruktur, dan modular menggunakan navigasi berbasis **Tab (Tab-Based Layout)**.
 
 ## 2. Prinsip Desain yang Mengikat
 

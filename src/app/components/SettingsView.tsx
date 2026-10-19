@@ -443,9 +443,10 @@ export function TabSubscription({ id }: { id: boolean }) {
   const [price, setPrice] = useState<{
     loading: boolean;
     error: string | null;
+    weekly: number | null;
     monthly: number | null;
     annual: number | null;
-  }>({ loading: true, error: null, monthly: null, annual: null });
+  }>({ loading: true, error: null, weekly: null, monthly: null, annual: null });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -468,13 +469,25 @@ export function TabSubscription({ id }: { id: boolean }) {
       try {
         const res = await apiFetch(ENDPOINTS.pricing, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = (await res.json()) as { monthly: number; annual: number };
-        setPrice({ loading: false, error: null, monthly: body.monthly, annual: body.annual });
+        const body = (await res.json()) as { weekly: number; monthly: number; annual: number };
+        setPrice({
+          loading: false,
+          error: null,
+          weekly: body.weekly,
+          monthly: body.monthly,
+          annual: body.annual,
+        });
       } catch {
         // Left as `unknown` rather than zero. A price of zero is a number nobody
         // set, and printing "Rp 0" here would be quoting for free.
         if (controller.signal.aborted) return;
-        setPrice({ loading: false, error: "unknown", monthly: null, annual: null });
+        setPrice({
+          loading: false,
+          error: "unknown",
+          weekly: null,
+          monthly: null,
+          annual: null,
+        });
       }
     })();
     return () => controller.abort();
@@ -513,12 +526,12 @@ export function TabSubscription({ id }: { id: boolean }) {
 
   /* The declaration defaults are mild on purpose: the server still prices the
      plan, so no default here can cost anyone the wrong amount. */
-  const [plan, setPlan] = useState<"monthly" | "annual">("monthly");
+  const [plan, setPlan] = useState<"weekly" | "monthly" | "annual">("monthly");
   const [method, setMethod] = useState("bank_transfer");
   const [note, setNote] = useState("");
   /* The gateway's own plan choice, deliberate and separate: the two cards
      should never flip each other's state from underneath the reader. */
-  const [gatewayPlan, setGatewayPlan] = useState<"monthly" | "annual">("monthly");
+  const [gatewayPlan, setGatewayPlan] = useState<"weekly" | "monthly" | "annual">("monthly");
 
   const emptyBody = state.error
     ? (id
@@ -605,12 +618,15 @@ export function TabSubscription({ id }: { id: boolean }) {
             </div>
             <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
               {id
-                ? "Bulanan dan tahunan, dari server."
-                : "Monthly and annual, from the server."}
+                ? "Mingguan, bulanan, dan tahunan, dari server."
+                : "Weekly, monthly, and annual, from the server."}
             </div>
           </div>
           <div style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-            <div>{`Rp ${price.monthly?.toLocaleString(id ? "id-ID" : "en-GB")}`}</div>
+            <div>{`Rp ${price.weekly?.toLocaleString(id ? "id-ID" : "en-GB")}`}</div>
+            <div style={{ color: "var(--muted-foreground)", marginTop: 2 }}>
+              {`Rp ${price.monthly?.toLocaleString(id ? "id-ID" : "en-GB")}`}
+            </div>
             <div style={{ color: "var(--muted-foreground)", marginTop: 2 }}>
               {`Rp ${price.annual?.toLocaleString(id ? "id-ID" : "en-GB")}`}
             </div>
@@ -778,6 +794,7 @@ export function TabSubscription({ id }: { id: boolean }) {
                   {id ? "Paket" : "Plan"}
                 </legend>
                 {([
+                  ["weekly", id ? "Mingguan" : "Weekly"],
                   ["monthly", id ? "Bulanan" : "Monthly"],
                   ["annual", id ? "Tahunan" : "Annual"],
                 ] as const).map(([value, label]) => (
@@ -937,6 +954,7 @@ export function TabSubscription({ id }: { id: boolean }) {
                   {id ? "Paket" : "Plan"}
                 </legend>
                 {([
+                  ["weekly", id ? "Mingguan" : "Weekly"],
                   ["monthly", id ? "Bulanan" : "Monthly"],
                   ["annual", id ? "Tahunan" : "Annual"],
                 ] as const).map(([value, label]) => (

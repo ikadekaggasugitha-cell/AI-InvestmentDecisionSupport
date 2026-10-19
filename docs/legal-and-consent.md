@@ -1,7 +1,7 @@
 # Dokumen Legal, Syarat Layanan & Persetujuan Pengguna (Legal & Consent Agreement)
 ### AIDSS — AI Investment Decision Support System
 
-> **Versi Dokumen:** 0.2.0-draft  
+> **Versi Dokumen:** 0.3.0-draft  
 > **Tanggal Berlaku:** belum berlaku  
 > **Status:** **Draf internal. Tidak mengikat siapa pun.**  
 > **Lokasi File:** `docs/legal-and-consent.md`  
@@ -55,9 +55,10 @@ Platform **AIDSS (AI Investment Decision Support System)** adalah perangkat luna
 ## 3. Kebijakan Langganan, Pembayaran & Pengembalian Dana (*Billing & Refund Policy*)
 
 ### 3.1 Paket & Ketentuan Biaya
-1. **Paket Bulanan:** Rp 15.000 (Masa aktif 30 hari kalender).
-2. **Paket Tahunan:** Rp 150.000 (Masa aktif 365 hari kalender).
-3. Semua harga dalam denominasi Rupiah (IDR) dan dapat disesuaikan sewaktu-waktu dengan pemberitahuan wajar pada platform.
+1. **Paket Mingguan:** Rp 15.000 (Masa aktif 7 hari kalender).
+2. **Paket Bulanan:** Rp 44.000 (Masa aktif 30 hari kalender).
+3. **Paket Tahunan:** Rp 252.000 (Masa aktif 365 hari kalender).
+4. Semua harga dalam denominasi Rupiah (IDR) dan dapat disesuaikan sewaktu-waktu dengan pemberitahuan wajar pada platform.
 
 ### 3.2 Metode Pembayaran (Hybrid)
 1. **Otomatis (Midtrans):** Pembayaran instan melalui QRIS (GoPay, OVO, ShopeePay, DANA) dan Virtual Account Bank (BCA, Mandiri, BNI, BRI). Status akun aktif seketika setelah notifikasi pelunasan terverifikasi otomatis.
@@ -169,9 +170,10 @@ The **AIDSS (AI Investment Decision Support System)** platform is an independent
 ## 3. Subscription, Billing & Refund Policy
 
 ### 3.1 Pricing Tiers
-1. **Monthly Subscription:** IDR 15,000 (30 calendar days active duration).
-2. **Annual Subscription:** IDR 150,000 (365 calendar days active duration).
-3. Prices are quoted in Indonesian Rupiah (IDR) and remain subject to scheduled revision upon transparent platform notification.
+1. **Weekly Subscription:** IDR 15,000 (7 calendar days active duration).
+2. **Monthly Subscription:** IDR 44,000 (30 calendar days active duration).
+3. **Annual Subscription:** IDR 252,000 (365 calendar days active duration).
+4. Prices are quoted in Indonesian Rupiah (IDR) and remain subject to scheduled revision upon transparent platform notification.
 
 ### 3.2 Payment Processing
 1. **Automated Gateway (Midtrans):** Real-time activation via Indonesian QRIS and major Bank Virtual Accounts (BCA, Mandiri, BNI, BRI).

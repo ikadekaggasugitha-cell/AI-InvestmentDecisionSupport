@@ -128,7 +128,7 @@ export function usePayments() {
    * server by then, so an open tab never looks at nothing.
    */
   const checkout = useCallback(
-    async (plan: "monthly" | "annual"): Promise<CheckoutPage | null> => {
+    async (plan: "weekly" | "monthly" | "annual"): Promise<CheckoutPage | null> => {
       setCheckoutBusy(true);
       setCheckoutError(null);
       try {

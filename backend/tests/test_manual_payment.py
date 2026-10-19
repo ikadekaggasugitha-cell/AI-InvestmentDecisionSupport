@@ -65,15 +65,15 @@ class TestDeclareManualPayment:
         assert body["paymentGateway"] == "manual"
         assert body["plan"] == "monthly"
         assert body["invoiceCode"]
-        # 15000 is the seeded monthly price — what the server says the plan
+        # 44000 is the seeded monthly price — what the server says the plan
         # costs, not anything a body proposed.
-        assert body["amount"] == 15000
+        assert body["amount"] == 44000
         assert body["expiresAt"]  # the queue deadline, shown to the payer
         assert body["createdAt"]
 
         row = fake_identity.transactions[body["id"]]
         assert row["status"] == "pending"
-        assert row["amount"] == 15000
+        assert row["amount"] == 44000
         assert row["payment_gateway"] == "manual"
         assert row["admin_notes"] == "BCA a/n Suga 1234567890"
         assert str(row["user_id"]) == acct
@@ -85,10 +85,24 @@ class TestDeclareManualPayment:
         resp = _declare(client, plan="annual")
 
         assert resp.status_code == 200, resp.text
-        assert resp.json()["amount"] == 150000
+        assert resp.json()["amount"] == 252000
         stored = next(iter(fake_identity.transactions.values()))
         assert stored["plan"] == "annual"
-        assert stored["amount"] == 150000
+        assert stored["amount"] == 252000
+
+    def test_the_weekly_plan_declares_the_weekly_price(self, client, fake_identity):
+        """The third slot prices itself: a weekly declaration quotes the weekly
+        amount, not the monthly or annual number."""
+        signup(client, "minggumanual@aidss.id")
+        login(client, "minggumanual@aidss.id")
+
+        resp = _declare(client, plan="weekly")
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["amount"] == 15000
+        stored = next(iter(fake_identity.transactions.values()))
+        assert stored["plan"] == "weekly"
+        assert stored["amount"] == 15000
 
     def test_a_body_cannot_propose_the_amount_or_the_invoice(
         self, client, fake_identity
@@ -142,7 +156,7 @@ class TestDeclareManualPayment:
         signup(client, "mingguan@aidss.id")
         login(client, "mingguan@aidss.id")
 
-        resp = _declare(client, plan="weekly")
+        resp = _declare(client, plan="daily")
 
         assert resp.status_code == 422, resp.text
 

@@ -19,13 +19,13 @@ AIDSS saat ini beroperasi sebagai *single-operator personal decision tool*. Untu
 > Admin dapat mengubahnya dari panel `/admin`. Begitu itu terjadi, tabel yang berlaku
 > dan angka di tabel ini berbeda ([ADR-0010](adr/0010-harga-di-system-settings.md)).
 
-| Parameter | Paket Bulanan (*Monthly*) | Paket Tahunan (*Annual*) |
-| :--- | :--- | :--- |
-| **Harga Normal** | **Rp 15.000 / bulan** | **Rp 150.000 / tahun** |
-| **Hemat** | - | Hemat 16,7% (setara 2 bulan gratis) |
-| **Masa Aktif** | 30 Hari kalender | 365 Hari kalender |
-| **Fitur yang Didapat** | Akses Penuh Seluruh Fitur AIDSS | Akses Penuh Seluruh Fitur AIDSS |
-| **Model Perpanjangan**| Manual / Tagihan Berkala | Manual / Tagihan Berkala |
+| Parameter | Paket Mingguan (*Weekly*) | Paket Bulanan (*Monthly*) | Paket Tahunan (*Annual*) |
+| :--- | :--- | :--- | :--- |
+| **Harga Normal** | **Rp 15.000 / minggu** | **Rp 44.000 / bulan** | **Rp 252.000 / tahun** |
+| **Hemat** | - | - | Hemat 52% (setara sekitar 6 bulan gratis) |
+| **Masa Aktif** | 7 Hari kalender | 30 Hari kalender | 365 Hari kalender |
+| **Fitur yang Didapat** | Akses Penuh Seluruh Fitur AIDSS | Akses Penuh Seluruh Fitur AIDSS | Akses Penuh Seluruh Fitur AIDSS |
+| **Model Perpanjangan**| Manual / Tagihan Berkala | Manual / Tagihan Berkala | Manual / Tagihan Berkala |
 
 ### 1.3 Kebijakan Akses (*Full Paywall Model*)
 * **Prinsip Utama:** Pengguna hanya dapat mengakses Dashboard dan seluruh fiturnya jika punya Subscription yang masih berlaku. **Tidak ada kolom status untuk ini** — Subscription tidak pernah menyimpan status pembayaran, dan masa aktifnya dibaca dari tanggal berakhirnya. (_ADR-0002_)
@@ -225,12 +225,12 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount                  NUMERIC(14,2) NOT NULL,
     payment_gateway         VARCHAR(30) NOT NULL CHECK (payment_gateway IN ('midtrans', 'manual')),
     payment_method          VARCHAR(50) NOT NULL,
-    -- Panjang akses yang dibeli: 30 hari bulanan, 365 hari tahunan, diputuskan
-    -- saat deklarasi. Tidak bisa disimpulkan dari `amount` begitu harga pernah
-    -- berubah, dan tindakan approve admin membutuhkannya. Mirip migrasi
-    -- `0012_transactions_plan.sql`.
+    -- Panjang akses yang dibeli: 7 hari mingguan, 30 hari bulanan, 365 hari
+    -- tahunan, diputuskan saat deklarasi. Tidak bisa disimpulkan dari `amount`
+    -- begitu harga pernah berubah, dan tindakan approve admin membutuhkannya.
+    -- Mirip migrasi `0012_transactions_plan.sql` (dan 0014 untuk `weekly`).
     plan                    VARCHAR(20) NOT NULL DEFAULT 'monthly'
-                                CHECK (plan IN ('monthly', 'annual')),
+                                CHECK (plan IN ('weekly', 'monthly', 'annual')),
     status                  VARCHAR(30) NOT NULL DEFAULT 'pending'
                                 CHECK (status IN ('pending', 'settlement', 'expire', 'deny', 'cancel')),
     midtrans_transaction_id VARCHAR(100),
@@ -274,7 +274,7 @@ CREATE TABLE IF NOT EXISTS system_settings (
 --
 -- Inisialisasi konfigurasi awal
 INSERT INTO system_settings (key, value, description) VALUES
-('pricing', '{"monthly": 15000, "annual": 150000}', 'Harga paket langganan dalam IDR')
+('pricing', '{"weekly": 15000, "monthly": 44000, "annual": 252000}', 'Harga paket langganan dalam IDR')
 ON CONFLICT (key) DO NOTHING;
 
 -- 'bank_accounts' dan 'contact_support' TIDAK ikut di-seed. Keduanya milik jalur
@@ -311,8 +311,9 @@ Untuk meminimalkan *drop-off* calon pelanggan, alur checkout didesain dalam satu
    * Nomor WhatsApp (`phone_number`) — Format Indonesia (`08...` / `628...`) untuk notifikasi instan.
    * Kata Sandi (`password`) — Minimal 8 karakter.
 2. **Bagian 2: Pilihan Paket Langganan**
-   * Radio Card: **Bulanan (Rp 15.000 / bln)**
-   * Radio Card: **Tahunan (Rp 150.000 / thn)** — Dilengkapi badge penanda *🔥 Paling Hemat (Hemat 16,7%)*.
+   * Radio Card: **Mingguan (Rp 15.000 / mgg)**
+   * Radio Card: **Bulanan (Rp 44.000 / bln)**
+   * Radio Card: **Tahunan (Rp 252.000 / thn)** — Dilengkapi badge penanda *🔥 Paling Hemat (Hemat 52%)*.
 3. **Bagian 3: Pilihan Pembayaran (Hybrid)**
    * **Opsi A (Instan / Otomatis):** Midtrans Snap (QRIS Instant, GoPay, OVO, ShopeePay, Virtual Account BCA, Mandiri, BRI, BNI).
    * **Opsi B (Manual Transfer):** Transfer Rekening Bank Perusahaan (BCA / Mandiri) + Unggah Foto Bukti Transfer.
@@ -521,4 +522,4 @@ gantt
 ---
 
 ## 10. Kesimpulan
-Dokumen ini menjadi cetak biru (*blueprint*) acuan teknis lengkap untuk mengonversi AIDSS dari proyek personal menjadi platform SaaS komersial mandiri berpendapatan berulang (*Recurring Revenue*) dengan biaya berlangganan terjangkau (Rp15.000/bln dan Rp150.000/thn), didukung otomatisasi Midtrans serta fleksibilitas transfer bank lokal manual.
+Dokumen ini menjadi cetak biru (*blueprint*) acuan teknis lengkap untuk mengonversi AIDSS dari proyek personal menjadi platform SaaS komersial mandiri berpendapatan berulang (*Recurring Revenue*) dengan biaya berlangganan terjangkau (Rp15.000/mgg, Rp44.000/bln, dan Rp252.000/thn), didukung otomatisasi Midtrans serta fleksibilitas transfer bank lokal manual.

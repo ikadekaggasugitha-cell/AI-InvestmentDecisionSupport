@@ -193,12 +193,12 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount                  NUMERIC(14,2) NOT NULL,
     payment_gateway         VARCHAR(30) NOT NULL CHECK (payment_gateway IN ('midtrans', 'manual')),
     payment_method          VARCHAR(50) NOT NULL,
-    -- Which length of access the money is for: 30 days monthly, 365 days
-    -- annual, decided at declaration time. It is not derivable from `amount`
-    -- once a price has changed, and the admin's approve action needs it.
-    -- Mirrors db/migrations/0012_transactions_plan.sql.
+    -- Which length of access the money is for: 7 days weekly, 30 days monthly,
+    -- 365 days annual, decided at declaration time. It is not derivable from
+    -- `amount` once a price has changed, and the admin's approve action needs it.
+    -- Mirrors db/migrations/0012_transactions_plan.sql (and 0014 for `weekly`).
     plan                    VARCHAR(20) NOT NULL DEFAULT 'monthly'
-                                CHECK (plan IN ('monthly', 'annual')),
+                                CHECK (plan IN ('weekly', 'monthly', 'annual')),
     status                  VARCHAR(30) NOT NULL DEFAULT 'pending'
                                 CHECK (status IN ('pending', 'settlement', 'expire', 'deny', 'cancel')),
     midtrans_transaction_id VARCHAR(100),
@@ -239,7 +239,7 @@ CREATE TABLE IF NOT EXISTS system_settings (
 -- an operator changed keeps that price. The seed is the initial value; the table
 -- is the truth from then on.
 INSERT INTO system_settings (key, value, description) VALUES
-('pricing', '{"monthly": 15000, "annual": 150000}'::jsonb,
+('pricing', '{"weekly": 15000, "monthly": 44000, "annual": 252000}'::jsonb,
  'Harga paket langganan dalam IDR')
 ON CONFLICT (key) DO NOTHING;
 

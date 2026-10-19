@@ -79,10 +79,11 @@ class TestThePublicRead:
         resp = pricing_client.get("/v1/subscriptions/pricing")
         assert resp.status_code == 200, resp.text
 
-    def test_it_reports_both_prices_in_rupiah(self, pricing_client):
+    def test_it_reports_the_three_prices_in_rupiah(self, pricing_client):
         body = pricing_client.get("/v1/subscriptions/pricing").json()
-        assert body["monthly"] == 15000
-        assert body["annual"] == 150000
+        assert body["weekly"] == 15000
+        assert body["monthly"] == 44000
+        assert body["annual"] == 252000
 
     def test_it_says_when_the_price_last_changed(self, pricing_client):
         """So "why is it this now?" is answerable without a database session."""
@@ -101,16 +102,18 @@ class TestThePublicRead:
 
     def test_it_never_reveals_anything_but_the_price(self, pricing_client):
         body = pricing_client.get("/v1/subscriptions/pricing").json()
-        assert set(body) == {"monthly", "annual", "updatedAt"}
+        assert set(body) == {"weekly", "monthly", "annual", "updatedAt"}
 
 
 class TestTheAdminWrite:
     def test_an_admin_can_set_the_price(self, pricing_client, fake_identity):
         _signup_as_admin(pricing_client, fake_identity)
         resp = pricing_client.put(
-            "/v1/admin/settings/pricing", json={"monthly": 20000, "annual": 200000}
+            "/v1/admin/settings/pricing",
+            json={"weekly": 5000, "monthly": 20000, "annual": 200000},
         )
         assert resp.status_code == 200, resp.text
+        assert resp.json()["weekly"] == 5000
         assert resp.json()["monthly"] == 20000
 
     def test_the_public_read_reflects_it_immediately(
@@ -120,23 +123,27 @@ class TestTheAdminWrite:
         another."""
         _signup_as_admin(pricing_client, fake_identity)
         pricing_client.put(
-            "/v1/admin/settings/pricing", json={"monthly": 20000, "annual": 200000}
+            "/v1/admin/settings/pricing",
+            json={"weekly": 5000, "monthly": 20000, "annual": 200000},
         )
         body = pricing_client.get("/v1/subscriptions/pricing").json()
+        assert body["weekly"] == 5000
         assert body["monthly"] == 20000
         assert body["annual"] == 200000
 
     def test_a_normal_account_cannot_set_it(self, pricing_client, fake_identity):
         _signup_plain(pricing_client, fake_identity)
         resp = pricing_client.put(
-            "/v1/admin/settings/pricing", json={"monthly": 1, "annual": 1}
+            "/v1/admin/settings/pricing",
+            json={"weekly": 1, "monthly": 1, "annual": 1},
         )
         assert resp.status_code == 403
-        assert pricing_client.get("/v1/subscriptions/pricing").json()["monthly"] == 15000
+        assert pricing_client.get("/v1/subscriptions/pricing").json()["monthly"] == 44000
 
     def test_an_anonymous_caller_cannot_set_it(self, pricing_client):
         resp = pricing_client.put(
-            "/v1/admin/settings/pricing", json={"monthly": 1, "annual": 1}
+            "/v1/admin/settings/pricing",
+            json={"weekly": 1, "monthly": 1, "annual": 1},
         )
         assert resp.status_code == 401
 
@@ -145,7 +152,8 @@ class TestTheAdminWrite:
         reads it as a billing problem would send the person off to subscribe."""
         _signup_plain(pricing_client, fake_identity)
         assert pricing_client.put(
-            "/v1/admin/settings/pricing", json={"monthly": 15000, "annual": 150000}
+            "/v1/admin/settings/pricing",
+            json={"weekly": 5000, "monthly": 15000, "annual": 150000},
         ).status_code == 403
 
     def test_an_admin_without_a_subscription_can_still_set_it(
@@ -156,14 +164,17 @@ class TestTheAdminWrite:
         administrator a paying subscriber by accident (CONTEXT.md rule 6)."""
         _signup_as_admin(pricing_client, fake_identity)
         assert pricing_client.put(
-            "/v1/admin/settings/pricing", json={"monthly": 17000, "annual": 170000}
+            "/v1/admin/settings/pricing",
+            json={"weekly": 9000, "monthly": 17000, "annual": 170000},
         ).status_code == 200
 
     @pytest.mark.parametrize("body", [
-        {"monthly": 0, "annual": 150000},
-        {"monthly": -5000, "annual": 150000},
-        {"monthly": 15000, "annual": 0},
-        {"monthly": 10**12, "annual": 150000},
+        {"weekly": 5000, "monthly": 0, "annual": 150000},
+        {"weekly": 5000, "monthly": -5000, "annual": 150000},
+        {"weekly": 5000, "monthly": 15000, "annual": 0},
+        {"weekly": 5000, "monthly": 10**12, "annual": 150000},
+        {"weekly": 0, "monthly": 15000, "annual": 150000},
+        {"weekly": 10**12, "monthly": 15000, "annual": 150000},
     ])
     def test_a_price_that_is_not_a_price_is_refused(
         self, pricing_client, fake_identity, body
@@ -171,18 +182,20 @@ class TestTheAdminWrite:
         _signup_as_admin(pricing_client, fake_identity)
         resp = pricing_client.put("/v1/admin/settings/pricing", json=body)
         assert resp.status_code == 422
-        assert pricing_client.get("/v1/subscriptions/pricing").json()["monthly"] == 15000
+        assert pricing_client.get("/v1/subscriptions/pricing").json()["monthly"] == 44000
 
-    def test_a_refused_write_leaves_both_prices_untouched(
+    def test_a_refused_write_leaves_the_three_prices_untouched(
         self, pricing_client, fake_identity
     ):
         _signup_as_admin(pricing_client, fake_identity)
         pricing_client.put(
-            "/v1/admin/settings/pricing", json={"monthly": 0, "annual": 150000}
+            "/v1/admin/settings/pricing",
+            json={"weekly": 0, "monthly": 15000, "annual": 150000},
         )
         body = pricing_client.get("/v1/subscriptions/pricing").json()
-        assert body["monthly"] == 15000
-        assert body["annual"] == 150000
+        assert body["weekly"] == 15000
+        assert body["monthly"] == 44000
+        assert body["annual"] == 252000
 
     def test_a_partial_body_does_not_half_apply(self, pricing_client, fake_identity):
         """Sending only `monthly` and having it land would leave a monthly price
@@ -193,7 +206,7 @@ class TestTheAdminWrite:
             "/v1/admin/settings/pricing", json={"monthly": 20000}
         )
         assert resp.status_code == 422
-        assert pricing_client.get("/v1/subscriptions/pricing").json()["monthly"] == 15000
+        assert pricing_client.get("/v1/subscriptions/pricing").json()["monthly"] == 44000
 
 class TestTheFormCanReachItsOwnData:
     """The admin form loads from `GET /v1/admin/settings/pricing`.
@@ -208,7 +221,7 @@ class TestTheFormCanReachItsOwnData:
         _signup_as_admin(pricing_client, fake_identity)
         resp = pricing_client.get("/v1/admin/settings/pricing")
         assert resp.status_code == 200, resp.text
-        assert resp.json()["monthly"] == 15000
+        assert resp.json()["monthly"] == 44000
 
     def test_both_methods_exist_on_one_path(self, monkeypatch):
         """Guards the mismatch directly: a form that GETs what only PUTs answers

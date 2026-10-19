@@ -502,3 +502,86 @@ ada penulisnya, dan batas Fase 2–4 tercatat apa adanya.
 - [x] `git diff` tidak menambah kolom status ke `subscriptions`, dan tidak
       memblokir akses berdasarkan status pembayaran (aturan 1 dan 3)
 - [x] Tinjau dengan manusia
+
+---
+
+## Fase 5 — Tiga slot paket: mingguan, bulanan, tahunan (2026-10-19)
+
+**Task 12 — Backend slot ketiga:**
+- [x] `backend/api/services/settings.py`: `Pricing` + `weekly`; `_validate`
+      tiga field; `read_pricing` menuntut tiga kunci ("three usable prices",
+      pecahah ditolak); `write_pricing(weekly, monthly, annual)` satu
+      pernyataan tetap tiga kunci sekaligus
+- [x] `backend/api/services/payments.py`: `PLAN_DAYS = {"weekly": 7, ...}`;
+      `_plan_amount()` mengganti if/else dua-slot di titik nominal manual dan
+      gateway; komentar kosakata diperbarui
+- [x] Router `pricing.py` & `admin.py`: respons tiga harga; PUT wajib tiga —
+      body parsial ditolak; docstring "Both prices" → "All three prices"
+
+**Task 13 — Migrasi dan skema:**
+- [x] `0014_pricing_weekly.sql`: CHECK `plan IN ('weekly','monthly','annual')`
+      + keputusan harga (15rb/44rb/252rb) ke baris pricing yang masih seed
+      0011; idempoten; baris kustom hanya mendapat kunci `weekly`
+- [x] `schema.sql`: seed tiga-kunci + CHECK disamakan
+- [x] `docs/saas-subscription-platform.md`: DDL plan tiga slot (dikunci
+      `test_docs_status`), tabel harga 1.2, seed, radio checkout, penutup
+
+**Task 14 — Frontend tiga slot:**
+- [x] `usePayments.ts`: union `"weekly" | "monthly" | "annual"` di checkout
+- [x] `SettingsView.tsx`: state/tipe + angka tiga; radio "Mingguan" di kedua
+      kartu (default tetap bulanan); kalimat harga "Mingguan, bulanan, dan
+      tahunan, dari server"
+- [x] `PublicPricing.tsx`: tiga baris harga + kalimat pembayaran tak lagi
+      transfer-saja; `AdminPricingView.tsx`: input mingguan, restore
+      dan save tiga nilai
+
+**Task 15 — Tes:**
+- [x] `test_pricing_service.py`: seed disusun dari 0011+0014; kasus
+      out-of-range mingguan; tulis tiga harga
+- [x] `test_pricing_api.py`: body tiga kunci, default 44rb/252rb, PUT parsial
+      422 tetap teruji
+- [x] `test_payments_gateway.py`: checkout mingguan mengambil 15rb; plan
+      `daily` ditolak sebelum manggil gateway
+- [x] `test_manual_payment.py`: deklarasi mingguan ber-nominal mingguan;
+      `daily` ditolak
+- [x] `test_system_settings_schema.py + conftest`: seed & mirror konsisten
+
+**Task 16 — Dokumen:**
+- [x] `legal-and-consent.md`: §3.1 ID/EN tiga paket; versi dokumen 0.3.0-draft
+- [x] `settings-module-spec.md`: pembilang harga di kalimat pembuka
+- [x] `docs/status.md`: baris harga, endpoint publik, PUT admin, form admin,
+      harga Tab 2
+
+**Acceptance criteria:**
+- [x] Tiga slot muncul di semua layar yang memilih paket; durasi 7/30/365
+      hari datang dari satu sumber (`PLAN_DAYS`)
+- [x] Harga tetap bisa diubah admin lewat panel; migrasi hanya membawa
+      keputusan awal
+- [x] Install lama tidak rusak setelah migrasi (baris pricing tiga kunci,
+      CHECK memuat mingguan)
+- [x] `docs/status.md` dan blueprint menyebut apa yang benar-benar ada
+
+**Verification:**
+- [x] `cd backend && .venv/bin/python -m pytest tests -q` — **890 passed**,
+      coverage 69,24%
+- [x] `cd backend && .venv/bin/python -m ruff check .` — All checks passed
+- [x] `npx vitest run` — **329 passed** (30 berkas); `npx tsc --noEmit`
+      bersih; `npx eslint src` — 10 warning pra-ada, 0 error
+- [x] `pytest tests/test_docs_status.py` hijau (DDL plan = schema.sql)
+
+**Dependencies:** Tasks 1–11 (Fase 1–4)
+
+**Files touched:** `backend/api/services/settings.py`,
+`backend/api/services/payments.py`, `backend/api/routers/pricing.py`,
+`backend/api/routers/admin.py`, `backend/db/migrations/0014_pricing_weekly.sql`,
+`backend/db/schema.sql`, `backend/tests/conftest.py`,
+`backend/tests/test_pricing_service.py`, `backend/tests/test_pricing_api.py`,
+`backend/tests/test_payments_gateway.py`,
+`backend/tests/test_manual_payment.py`,
+`backend/tests/test_admin_transactions.py`,
+`backend/tests/test_system_settings_schema.py`,
+`src/app/hooks/usePayments.ts`, `src/app/components/SettingsView.tsx`,
+`src/app/components/PublicPricing.tsx`,
+`src/app/components/AdminPricingView.tsx`, tes frontend terkait,
+`docs/saas-subscription-platform.md`, `docs/legal-and-consent.md`,
+`docs/settings-module-spec.md`, `docs/status.md`, dokumen tugas ini.
