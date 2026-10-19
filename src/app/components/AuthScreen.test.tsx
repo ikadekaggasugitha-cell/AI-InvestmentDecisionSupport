@@ -153,11 +153,11 @@ describe('create account', () => {
 })
 
 describe('what the screen refuses to claim', () => {
-  it('says payment is not open, because it is not', () => {
-    // The backend has no payment path at all. A page that implied otherwise
-    // would be promising something the product cannot do.
+  it('says payment happens after sign in, not on this screen', () => {
+    // Checkout lives inside the app (Settings Tab 2). This screen must not
+    // claim payments are closed, and must not ask for money here either.
     renderScreen(makeAuth())
-    expect(screen.getByText(/Beta gratis/)).toBeInTheDocument()
+    expect(screen.getByText(/Pembayaran dibuka setelah masuk/)).toBeInTheDocument()
   })
 
   it('renders no emoji and no icon-only control', () => {
