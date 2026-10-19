@@ -189,3 +189,29 @@ describe('busy state', () => {
     release()
   })
 })
+
+describe('the price a visitor can read', () => {
+  // The person deciding whether to subscribe is, by definition, not yet
+  // subscribed — the price stays readable without an account, one link away.
+  it('stays silent when no pricing surface is wired', () => {
+    renderScreen(makeAuth())
+    expect(screen.queryByText(/Lihat harga/)).not.toBeInTheDocument()
+  })
+
+  it('sends a deciding visitor to the price', async () => {
+    const onViewPricing = vi.fn()
+    render(
+      <MemoryRouter>
+        <AuthScreen
+          auth={makeAuth()}
+          locale={locale}
+          onAuthed={vi.fn()}
+          onViewPricing={onViewPricing}
+        />
+      </MemoryRouter>,
+    )
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Lihat harga' }))
+    expect(onViewPricing).toHaveBeenCalledOnce()
+  })
+})

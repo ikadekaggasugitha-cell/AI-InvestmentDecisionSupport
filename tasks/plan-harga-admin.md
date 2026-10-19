@@ -120,5 +120,8 @@ menjadi dua tanggung jawab; komponennya dipisah dan `/admin` memakai tab.
   `{"monthly": ..., "annual": ...}` berarti menambah paket butuh migrasi. Rencana
   dan harga adalah data konfigurasi, bukan entitas, jadi dua slot adalah pilihan
   yang bisa dibalik — tapi pemilik yang memutuskan apakah itu cukup.
-- **Kapan halaman harga untuk pengunjung tanpa sesi dibangun?** Endpoint publiknya
-  sudah ada setelah plan ini. Halamannya belum, dan itu potongan berikutnya.
+- **Kapan halaman harga untuk pengunjung tanpa sesi dibangun?** ~~Belum~~ Terjawab
+  2026-10-19: `src/app/components/PublicPricing.tsx` pada `/harga` — endpoint publik
+  dibaca, dua angka + "yang dibuka", tanpa kontrol beli, kegagalan tetap kalimat
+  bukan nol; dijangkau lewat tautan "Lihat harga" di `AuthScreen`. Pertanyaan
+  dua-slot paket di atas tetap terbuka untuk pemilik.

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { AppProvider, useApp } from "./context/AppContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Sidebar, type ViewType } from "./components/Sidebar";
@@ -36,6 +36,7 @@ import { PaywallNotice } from "./components/PaywallNotice";
 import { useAuth } from "./hooks/useAuth";
 import { useOverlayScrollbars } from "./hooks/useOverlayScrollbars";
 import { AuthScreen } from "./components/AuthScreen";
+import { PublicPricing } from "./components/PublicPricing";
 import { SuspensionScreen } from "./components/SuspensionScreen";
 import { toast } from "sonner";
 
@@ -62,6 +63,7 @@ function AppInner() {
   const auth = useAuth();
   useOverlayScrollbars();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const market        = useLiveMarket();
   // Convert at the feed's USD/IDR, not an invented one.
@@ -131,12 +133,24 @@ function AppInner() {
   }
 
   if (auth.status === "signed-out") {
+    // `/harga` is the one URL a visitor can open without a session. The price is
+    // the fact they are exercising — the person deciding whether to subscribe
+    // is, by definition, not yet subscribed — so it stays readable with no
+    // account. Signing up from there lands back on the auth screen below.
+    if (location.pathname === "/harga") {
+      return (
+        <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
+          <PublicPricing locale={locale} onEnter={() => navigate("/", { replace: true })} />
+        </div>
+      );
+    }
     return (
       <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
         <AuthScreen
           auth={auth}
           locale={locale}
           onAuthed={() => navigate("/", { replace: true })}
+          onViewPricing={() => navigate("/harga")}
         />
       </div>
     );
@@ -303,6 +317,9 @@ function AppInner() {
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/signup" element={<Navigate to="/" replace />} />
+      {/* A signed-in person has no public-price question left: their facts live
+          in Settings → Langganan & Tagihan, so /harga folds back into the app. */}
+      <Route path="/harga" element={<Navigate to="/" replace />} />
       <Route path="/admin" element={adminPage} />
       <Route path="*" element={shell} />
     </Routes>

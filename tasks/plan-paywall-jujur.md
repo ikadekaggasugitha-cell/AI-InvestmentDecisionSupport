@@ -264,3 +264,8 @@ Kalau nanti dikerjakan, Task 3–5 di plan ini tidak perlu diubah: state paywall
 yang sudah dibangun di situ adalah tempat penanda status, dan `PAYWALL_EVENT`
 sudah membedakan "tidak punya akses" dari "sesi bermasalah" untuk semua dev
 yang mengikutinya.
+
+Update 2026-10-19: pertanyaan read-source-nya dijawab plan-harga-admin (server
+yang memegang harga, ADR-0010), dan halamannya telah dibangun —
+`PublicPricing.tsx` pada `/harga`, dijangkau tanpa sesi dan dari tautan
+"Lihat harga" di AuthScreen. Paragraf-paragraf di atas bersejarah.

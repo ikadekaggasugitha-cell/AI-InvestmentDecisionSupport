@@ -14,11 +14,14 @@
 import { useId, useState, type FormEvent } from "react";
 import type { AuthState } from "../hooks/useAuth";
 import { useTranslation, type Locale } from "../i18n/translations";
+import { PricingLink } from "./PublicPricing";
 
 export interface AuthScreenProps {
   auth: AuthState;
   locale: Locale;
   onAuthed: () => void;
+  /** The read-the-price surface. Absent → no link rendered. */
+  onViewPricing?: () => void;
 }
 
 type Mode = "login" | "signup";
@@ -50,7 +53,7 @@ const labelStyle: React.CSSProperties = {
   marginBottom: "6px",
 };
 
-export function AuthScreen({ auth, locale, onAuthed }: AuthScreenProps) {
+export function AuthScreen({ auth, locale, onAuthed, onViewPricing }: AuthScreenProps) {
   const { t } = useTranslation(locale);
   const [mode, setMode] = useState<Mode>("login");
   const [busy, setBusy] = useState(false);
@@ -291,6 +294,18 @@ export function AuthScreen({ auth, locale, onAuthed }: AuthScreenProps) {
             {mode === "login" ? t("auth_signup_action") : t("auth_signin_action")}
           </button>
         </p>
+
+        {onViewPricing && (
+          <p style={{ fontSize: "12px", color: "var(--muted-foreground)", marginTop: "12px" }}>
+            {locale === "id"
+              ? "Berapa harganya?"
+              : "What does it cost?"}{" "}
+            <PricingLink
+              label={locale === "id" ? "Lihat harga" : "See the price"}
+              onClick={onViewPricing}
+            />
+          </p>
+        )}
 
         <p style={{ fontSize: "12px", color: "var(--muted-foreground)", marginTop: "28px" }}>
           {t("auth_beta_note")}
