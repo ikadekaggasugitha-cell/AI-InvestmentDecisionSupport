@@ -516,6 +516,9 @@ export function TabSubscription({ id }: { id: boolean }) {
   const [plan, setPlan] = useState<"monthly" | "annual">("monthly");
   const [method, setMethod] = useState("bank_transfer");
   const [note, setNote] = useState("");
+  /* The gateway's own plan choice, deliberate and separate: the two cards
+     should never flip each other's state from underneath the reader. */
+  const [gatewayPlan, setGatewayPlan] = useState<"monthly" | "annual">("monthly");
 
   const emptyBody = state.error
     ? (id
@@ -562,6 +565,17 @@ export function TabSubscription({ id }: { id: boolean }) {
       note: note.trim() || null,
     });
     if (outcome === "ok") setNote("");
+  };
+
+  /* The gateway's one ask: a page. By the time it opens, the pending row
+     behind it is already in this tab's own history — the server wrote the
+     row in the same request whose answer carried the URL. */
+  const startCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const result = await payments.checkout(gatewayPlan);
+    if (result?.redirectUrl) {
+      window.open(result.redirectUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   return (
@@ -885,6 +899,117 @@ export function TabSubscription({ id }: { id: boolean }) {
             </form>
           </div>
 
+          {/* Midtrans' page, opened by redirect rather than embedded: the
+              server minted it for an order the tab already lists below. The
+              card stays below the manual form, and both stay listed when one
+              of them is unavailable — an install without the gateway says so
+              in sentence form instead of swallowing the option. */}
+          <div
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              padding: "14px 16px",
+              background: "var(--card)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+                {id ? "Bayar lewat Midtrans" : "Pay via Midtrans"}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
+                {id
+                  ? "Halaman pembayaran dibuka di tab baru — kartu, QRIS, atau e-wallet. Statusnya masuk ke daftar di bawah, dan akses menyala ketika pembayaran diterima."
+                  : "The payment page opens in a new tab — card, QRIS, or e-wallet. Its status appears in the list below, and access starts when the payment has been received."}
+              </div>
+            </div>
+
+            <form
+              onSubmit={startCheckout}
+              style={{ display: "flex", flexDirection: "column", gap: 10 }}
+            >
+              <fieldset
+                style={{ border: "none", padding: 0, margin: 0, display: "flex", gap: 16 }}
+              >
+                <legend style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", padding: 0 }}>
+                  {id ? "Paket" : "Plan"}
+                </legend>
+                {([
+                  ["monthly", id ? "Bulanan" : "Monthly"],
+                  ["annual", id ? "Tahunan" : "Annual"],
+                ] as const).map(([value, label]) => (
+                  <label
+                    key={value}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 13,
+                      color: "var(--foreground)",
+                      cursor: "pointer",
+                      minHeight: 32,
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="gateway-plan"
+                      checked={gatewayPlan === value}
+                      onChange={() => setGatewayPlan(value)}
+                      style={{ accentColor: "var(--primary)" }}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </fieldset>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button
+                  type="submit"
+                  disabled={payments.checkoutBusy}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: "9px 16px",
+                    minHeight: 32,
+                    borderRadius: "var(--radius)",
+                    border: "1px solid var(--primary)",
+                    color: "var(--primary-foreground)",
+                    background: "var(--primary)",
+                    cursor: payments.checkoutBusy ? "default" : "pointer",
+                    opacity: payments.checkoutBusy ? 0.7 : 1,
+                  }}
+                >
+                  {payments.checkoutBusy
+                    ? (id ? "Menunggu halaman bayar…" : "Waiting for the payment page…")
+                    : (id ? "Buka halaman bayar Midtrans" : "Open the Midtrans payment page")}
+                </button>
+                <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                  {id
+                    ? "Nominal yang dicatat adalah harga server untuk paket yang dipilih."
+                    : "The recorded amount is the server's price for the chosen plan."}
+                </span>
+              </div>
+
+              {payments.checkoutError && (
+                <p role="alert" style={{ fontSize: 12, color: "var(--warning)", margin: 0 }}>
+                  {payments.checkoutError === "unavailable"
+                    ? (id
+                        ? "Pembayaran online belum aktif di server ini. Transfer manual di atas masih berlaku."
+                        : "Online payment is not active on this server. The manual transfer above still works.")
+                    : payments.checkoutError === "network"
+                      ? (id
+                          ? "Server tidak terjangkau. Halaman pembayaran tidak dibuka."
+                          : "The server is unreachable. The payment page was not opened.")
+                      : (id
+                          ? "Pembayaran online tidak dapat dibuka sekarang. Transfer manual di atas masih berlaku."
+                          : "Online payment could not be opened right now. The manual transfer above still works.")}
+                </p>
+              )}
+            </form>
+          </div>
+
           {history.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
@@ -940,9 +1065,11 @@ export function TabSubscription({ id }: { id: boolean }) {
         </>
       )}
 
-      {/* Nothing here promises an instant purchase (R-26). Declaring a transfer
-          starts a human review; only the admin's approval turns money into
-          access, and no button on this tab says otherwise. */}
+      {/* Nothing here promises instant access from a click (R-26). A declared
+          transfer starts a human review; the gateway's checkout settles
+          itself — through Midtrans' callback, not this tab's button. Either
+          way it is money received that turns into access, written by `grant()`
+          from the settlement or the admin's approval — never a third hand. */}
     </Panel>
   );
 }

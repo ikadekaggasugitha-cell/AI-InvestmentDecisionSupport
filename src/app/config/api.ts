@@ -112,6 +112,12 @@ export const ENDPOINTS = {
   /** Declare a manual transfer. The amount is the server's price, never the body's. */
   paymentsDeclare: `${API_BASE}/v1/payments/manual`,
   /**
+   * Ask Midtrans to open its payment page. The total is the server's too;
+   * the handover is a redirect URL, so no Midtrans client key ever travels
+   * to the browser.
+   */
+  paymentsCheckout: `${API_BASE}/v1/payments/checkout`,
+  /**
    * What a subscription costs. The only unauthenticated data endpoint in the app:
    * a price that can only be read after signing up is not a price.
    */

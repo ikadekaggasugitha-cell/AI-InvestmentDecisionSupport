@@ -330,15 +330,25 @@ bukan menutup pintu.
 
 ## Fase 4: Gerbang dan QRIS dinamis
 
-**BLOCKED.** `ServerKey` Midtrans **tidak ada di proyek ini** — sudah diperiksa di
-`backend/.env`, `.env.local`, dan `api/core/config.py`, dan tidak ada field untuk
-meletakkannya. Kemungkinan besar kuncinya ada di akun Midtrans tapi belum pernah
-dimasukkan ke sini.
+**SELESAI (2026-10-19).** Kredensial masuk lewat `backend/.env` — `MIDTRANS_SERVER_KEY`
+(Sandbox) + `MIDTRANS_IS_PRODUCTION=false` — dan diverifikasi langsung dengan uji asap
+pembuatan snap token ke sandbox Midtrans: `HTTP 201`, token + `redirect_url` diterima.
+Keputusan handover yang dipilih pemilik: **`redirect_url`**, bukan Snap popup —
+sehingga tidak ada Client Key yang terekspos ke frontend dan tidak ada `snap.js`.
 
-Sebelum Task 9 bisa jalan, `Settings` butuh `midtrans_server_key` dan
-`midtrans_is_production` (sandbox vs produksi). Fase 1–3 tidak butuh apa pun dari
-pihak ketiga. Jangan mulai fase ini lebih dulu — setiap test yang bisa ditulis
-tanpa kredensial hanya akan menguji mock.
+Deviasi dari rincian di bawah (dipilih, bukan lupa):
+
+- File tes bukan `test_midtrans_checkout.py`/`test_midtrans_webhook.py`
+  terpisah, melainkan satu `tests/test_payments_gateway.py` (11 tes, terhadap
+  fake identity pool, tanpa jaringan sungguhan).
+- Layar checkout bukan `CheckoutView.tsx` — kartu **"Bayar lewat Midtrans"**
+  di dalam Tab 2 Settings di bawah formulir transfer manual, tombol membuka
+  tab baru ke `redirectUrl`. `App.tsx` tidak berubah (tidak ada route baru —
+  keputusan berbeli tetap di dalam aplikasi).
+- `midtrans_transaction_id` diisi **webhook** saat settlement/deny/expire
+  (id-nya Midtrans yang memberi, bukan saat checkout), dan mimpi baris
+  `pending` saat Midtrans menolak dipenuhi dengan urutan: page minted dulu,
+  baris ditulis kemudian.
 
 ## Task 9: Konfigurasi dan pembuatan snap
 
@@ -346,22 +356,30 @@ tanpa kredensial hanya akan menguji mock.
 `pending` lalu meminta snap token ke Midtrans. **Subscription belum dibuat.**
 
 **Acceptance criteria:**
-- [ ] `ServerKey` dari konfigurasi, tidak pernah dari body atau query
-- [ ] `amount` dari harga server; `payment_gateway = 'midtrans'`
-- [ ] `midtrans_transaction_id` terisi dan unik
-- [ ] Kalau Midtrans menolak, tidak ada baris `pending` yang menggantung
-- [ ] Tidak ada Subscription yang tercipta
+- [x] `ServerKey` dari konfigurasi, tidak pernah dari body atau query
+- [x] `amount` dari harga server; `payment_gateway = 'midtrans'`
+- [x] `midtrans_transaction_id` terisi dan unik — oleh webhook; kunci
+      `uq_transactions_midtrans_transaction_id` menjaga satu payment Midtrans
+      dari mengalias jadi baris lain
+- [x] Kalau Midtrans menolak, tidak ada baris `pending` yang menggantung —
+      halaman dimintakan **sebelum** INSERT; kegagalan mint dites tidak
+      meninggalkan apa pun
+- [x] Tidak ada Subscription yang tercipta
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_midtrans_checkout.py -q` hijau
-- [ ] Test: kegagalan Midtrans tidak meninggalkan transaksi menggantung
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_payments_gateway.py -q` hijau
+- [x] Test: kegagalan Midtrans tidak meninggalkan transaksi menggantung
 
-**Dependencies:** Task 1, **MIDTRANS_SERVER_KEY**
+**Dependencies:** Task 1, **MIDTRANS_SERVER_KEY** — kedua-duanya sudah hadir
 
-**Files likely touched:**
-- `backend/api/routers/payments.py`
-- `backend/api/services/midtrans.py`
-- `backend/api/core/config.py`
+**Files touched:**
+- `backend/api/config.py` → `backend/api/core/config.py` + `.env.example` (2 field baru)
+- `backend/api/services/midtrans.py` (transport: mint + verifikasi signature)
+- `backend/api/services/payments.py` (`open_gateway_transaction`, baris
+  gateway dari satu penulis tabel yang sama)
+- `backend/api/routers/payments_gateway.py` (router sendiri, **tanpa**
+  dependensi auth lintas router — webhook tidak bisa memegang sesi)
+- `backend/tests/test_payments_gateway.py`
 
 **Estimated scope:** M
 
@@ -373,26 +391,30 @@ tanpa kredensial hanya akan menguji mock.
 salah satu: signature SHA-512, dan nominal yang cocok.
 
 **Acceptance criteria:**
-- [ ] Signature diverifikasi dengan `SHA512(order_id + status_code + gross_amount + ServerKey)`
-- [ ] `gross_amount` harus sama dengan `amount` baris — tidak cocok berarti menolak
-- [ ] Webhook berulang untuk `midtrans_transaction_id` yang sama tidak menulis
+- [x] Signature diverifikasi dengan `SHA512(order_id + status_code + gross_amount + ServerKey)`
+- [x] `gross_amount` harus sama dengan `amount` baris — tidak cocok berarti menolak
+- [x] Webhook berulang untuk `midtrans_transaction_id` yang sama tidak menulis
       Subscription kedua, dan tetap dijawab **200**
-- [ ] `subscription_id` terisi hanya pada transisi pertama ke `settlement`
-- [ ] Signature salah dan nominal salah sama-sama ditolak, dan tercatat
+- [x] `subscription_id` terisi hanya pada transisi pertama ke `settlement`
+- [x] Signature salah dan nominal salah sama-sama ditolak, dan tercatat
 
 **Verification:**
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_midtrans_webhook.py -q` hijau
-- [ ] Test: webhook identik dikirim lima kali → satu Subscription
-- [ ] Test: `gross_amount` 1000 untuk baris 15000 → ditolak, tidak ada Subscription
-- [ ] Test: signature salah → ditolak, status baris tidak berubah
-- [ ] Manual check: `GET /v1/signals` berhenti membalas 402 setelah webhook
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_payments_gateway.py -q` hijau
+- [x] Test: webhook identik dikirim ulang → satu Subscription (tes replay tersedia)
+- [x] Test: `gross_amount` 1.00 untuk baris 15000 → ditolak 200 + `amount-mismatch`, tidak ada Subscription
+- [x] Test: signature salah → **403** sebelum apa pun dibaca, status baris tidak berubah
+- [x] Manual check: `GET /v1/signals` — digantikan dengan padanan otomatis dalam
+      suite: settlement menulis via `grant()` (penulis yang sama seperti approve
+      admin), dan kaki gerbang entitlement menghitung dari `subscriptions.expires_at`
+      — berarti 402 hilang pada permintaan berikutnya. Baris `payments/me`
+      berubah menjadi `settlement` di layar.
 
 **Dependencies:** Task 9
 
-**Files likely touched:**
-- `backend/api/routers/payments.py`
+**Files touched:**
+- `backend/api/routers/payments_gateway.py`
 - `backend/api/services/midtrans.py`
-- `backend/tests/test_midtrans_webhook.py`
+- `backend/tests/test_payments_gateway.py`
 
 **Estimated scope:** M
 
@@ -401,33 +423,45 @@ salah satu: signature SHA-512, dan nominal yang cocok.
 ## Task 11: Halaman checkout
 
 **Deskripsi:** Halaman yang memanggil snap dan mengarahkan ke status setelahnya.
+Dilaksanakan sebagai **kartu di dalam Tab 2** (handover `redirect_url`): tombol
+membuka halaman Midtrans di tab baru; statusnya tumbuh di daftar milik sendiri.
 
 **Acceptance criteria:**
-- [ ] Checkout adalah **langkah sendiri** setelah pendaftaran, bukan bagian dari
-     nya — `test_signup_path_is_canonical` tetap hijau
-- [ ] Tidak ada tombol yang terlihat hidup tanpa jalan di belakangnya
-- [ ] Kehilangan focus jaringan tidak menghapus apa pun yang sudah dibuat
-- [ ] Setelah `pending`, pengguna diberi tahu di mana pembayarannya berada
+- [x] Checkout adalah **langkah sendiri** setelah pendaftaran, bukan bagian dari
+      nya — `test_signup_path_is_canonical` tetap hijau
+- [x] Tidak ada tombol yang terlihat hidup tanpa jalan di belakangnya — tanpa
+      kunci di server, kartu tetap ada tapi jawabannya statemen 503, bukan
+      jendela kosong (`test_an_install_...aloud`)
+- [x] Kehilangan focus jaringan tidak menghapus apa pun yang sudah dibuat —
+      kegagalan jaringan dinyatakan di kartu; baris `pending` yang server sunting
+      tetap daftar di bawah
+- [x] Setelah `pending`, pengguna diberi tahu di mana pembayarannya berada —
+      kop kartu: statusnya masuk daftar di bawah, dan akses menyala ketika
+      pembayaran diterima
 
 **Verification:**
-- [ ] `npx vitest run` hijau
-- [ ] `cd backend && .venv/bin/python -m pytest tests/test_docs_status.py -q` hijau
+- [x] `npx vitest run` hijau — **329 passed** (3 tes baru
+      `SettingsViewGateway.test.tsx`)
+- [x] `cd backend && .venv/bin/python -m pytest tests/test_docs_status.py -q` hijau
 
 **Dependencies:** Task 9
 
-**Files likely touched:**
-- `src/app/components/CheckoutView.tsx`
-- `src/app/components/CheckoutView.test.tsx`
-- `src/app/App.tsx`
+**Files touched:**
+- `src/app/components/SettingsView.tsx` (kartu "Bayar lewat Midtrans")
+- `src/app/hooks/usePayments.ts` (`checkout`, `checkoutBusy`, `checkoutError`,
+  tipe `CheckoutPage`)
+- `src/app/config/api.ts` (`paymentsCheckout`)
+- `src/app/components/SettingsViewGateway.test.tsx`
 
 **Estimated scope:** M
 
 ### Checkpoint: Fase 4
 
-- [ ] Webhook berulang tidak menghasilkan Subscription kedua
-- [ ] Signature salah ditolak
-- [ ] Nominal tidak cocok ditolak
-- [ ] `cd backend && .venv/bin/python -m pytest -q` dan `npx vitest run` hijau
+- [x] Webhook berulang tidak menghasilkan Subscription kedua
+- [x] Signature salah ditolak
+- [x] Nominal tidak cocok ditolak
+- [x] `cd backend && .venv/bin/python -m pytest -q` dan `npx vitest run` hijau —
+      **878 passed** (coverage 69,21%) dan **329 passed**
 
 ---
 

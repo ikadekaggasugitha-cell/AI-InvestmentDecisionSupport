@@ -750,7 +750,14 @@ describe('SettingsView — the declared manual transfer (Tab 2, pembayaran)', ()
     await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
     await screen.findByText(/Rekening tujuan/)
 
-    await user.click(screen.getByLabelText('Tahunan'))
+    // Both payment cards carry plan radios now; this declaration posts
+    // through the manual form, so the radio is reached by the form's own
+    // name rather than a label two cards share.
+    const manualAnnual = screen
+      .getAllByLabelText('Tahunan')
+      .find((el) => (el as HTMLInputElement).name === 'payment-plan')
+    expect(manualAnnual).toBeDefined()
+    await user.click(manualAnnual as HTMLElement)
     await user.type(screen.getByLabelText(/Catatan untuk admin/), 'BCA 555222333')
     declareState.afterBody = [PENDING]
     await user.click(screen.getByRole('button', { name: /Saya sudah transfer/i }))

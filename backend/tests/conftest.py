@@ -593,26 +593,66 @@ class _IdentityPool:
                     return row
             return None
         if "INSERT INTO transactions" in query:
-            # payments.open_manual: one declared transfer, minting its own
-            # invoice code. $1 user, $2 code, $3 amount, $4 method, $5 note,
-            # $6 plan. Status starts pending; subscriptions is untouched.
+            # One declared attempt to pay, minting its own invoice code.
+            # Status starts pending; subscriptions is untouched. The gateway's
+            # INSERT names its channel as a literal rather than an argument —
+            # that is how the fake tells the two apart.
             now = self._now.now(self._tz.utc)
-            row = {
-                "id": self._uuid.uuid4(),
-                "user_id": args[0],
-                "invoice_code": args[1],
-                "amount": args[2],
-                "plan": args[5],
-                "payment_gateway": "manual",
-                "payment_method": args[3],
-                "admin_notes": args[4],
-                "subscription_id": None,
-                "status": "pending",
-                "created_at": now,
-                "updated_at": now,
-            }
+            if "'midtrans'" in query:
+                # payments.open_gateway: $1 user, $2 code, $3 amount, $4 plan.
+                # The page already existed when this row was written; the
+                # buyer declared nothing, so the notes stay empty.
+                row = {
+                    "id": self._uuid.uuid4(),
+                    "user_id": args[0],
+                    "invoice_code": args[1],
+                    "amount": args[2],
+                    "plan": args[3],
+                    "payment_gateway": "midtrans",
+                    "payment_method": "midtrans",
+                    "admin_notes": None,
+                    "approved_by": None,
+                    "approved_at": None,
+                    "subscription_id": None,
+                    "status": "pending",
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            else:
+                # payments.open_manual: $1 user, $2 code, $3 amount, $4 method,
+                # $5 note, $6 plan.
+                row = {
+                    "id": self._uuid.uuid4(),
+                    "user_id": args[0],
+                    "invoice_code": args[1],
+                    "amount": args[2],
+                    "plan": args[5],
+                    "payment_gateway": "manual",
+                    "payment_method": args[3],
+                    "admin_notes": args[4],
+                    "approved_by": None,
+                    "approved_at": None,
+                    "subscription_id": None,
+                    "status": "pending",
+                    "created_at": now,
+                    "updated_at": now,
+                }
             self.transactions[str(row["id"])] = row
             self.invoice_codes[row["invoice_code"]] = str(row["id"])
+            return row
+        if "SET status = 'settlement'" in query and "approved_by = NULL" in query:
+            # payments.settle_gateway: the webhook's claim has no approver —
+            # the money was the approver. $1 the transaction, $2 the gateway's
+            # own transaction id. Only a pending or expired row settles, so an
+            # already-settled or denied row answers None and the service
+            # re-reads to tell the two apart.
+            row = self.transactions.get(str(args[0]))
+            if row is None or row["status"] not in ("pending", "expire"):
+                return None
+            row["status"] = "settlement"
+            row["midtrans_transaction_id"] = args[1]
+            row["approved_at"] = self._now.now(self._tz.utc)
+            row["updated_at"] = row["approved_at"]
             return row
         if "SET status = 'settlement'" in query:
             # payments.approve: only a pending or expired row settles. $1 the
@@ -624,6 +664,33 @@ class _IdentityPool:
             row["status"] = "settlement"
             row["approved_by"] = args[1]
             row["approved_at"] = self._now.now(self._tz.utc)
+            row["updated_at"] = row["approved_at"]
+            return row
+        if "SET status = 'expire'" in query:
+            # payments.expire_gateway: Midtrans closed its page. $1 the
+            # transaction, $2 the gateway's id. Only a still-pending row
+            # moves — the beat's own expiry lives over in execute(), and a
+            # terminal row does not age backward.
+            row = self.transactions.get(str(args[0]))
+            if row is None or row["status"] != "pending":
+                return None
+            row["status"] = "expire"
+            row["midtrans_transaction_id"] = args[1]
+            row["updated_at"] = self._now.now(self._tz.utc)
+            return row
+        if "SET status = 'deny'" in query and "approved_by = NULL" in query:
+            # payments.deny_gateway: the gateway turned the money down. $1 the
+            # transaction, $2 the gateway's transaction id as evidence, $3 the
+            # sentence recorded on the row. A deny is final; an already
+            # settled or denied row answers None.
+            row = self.transactions.get(str(args[0]))
+            if row is None or row["status"] not in ("pending", "expire"):
+                return None
+            row["status"] = "deny"
+            row["midtrans_transaction_id"] = args[1]
+            row["approved_at"] = self._now.now(self._tz.utc)
+            prior = row.get("admin_notes")
+            row["admin_notes"] = args[2] if not prior else f"{prior} — {args[2]}"
             row["updated_at"] = row["approved_at"]
             return row
         if "SET status = 'deny'" in query:
@@ -652,6 +719,12 @@ class _IdentityPool:
             }
             self.subscriptions.append(row)
             return row
+        if "FROM transactions" in query and "WHERE invoice_code = $1" in query:
+            # transaction_by_invoice_code: the webhook's lookup. The row a
+            # callback's order_id belongs to, keyed the way invoices are.
+            tx_id = self.invoice_codes.get(str(args[0]))
+            row = self.transactions.get(tx_id) if tx_id else None
+            return dict(row) if row else None
         if "FROM transactions" in query:
             # The one row whose id was asked for: grant()'s idempotency re-read,
             # and the approve/deny re-reads that tell a settled row apart from

@@ -126,16 +126,16 @@ menghasilkan keadaan yang terlihat, bukan toast yang lewat.
 - [x] Transaksi expired tidak memblokir apa pun
 - [x] Alur lengkap bisa dicoba tanpa gerbang pihak ketiga
 
-### Fase 4: Gerbang dan QRIS dinamis — **blocked oleh kredensial**
+### Fase 4: Gerbang Midtrans — kredensial masuk 2026-10-19
 
-- [ ] Task 9: Konfigurasi Midtrans + `POST /v1/payments/checkout` → snap token
-- [ ] Task 10: `POST /v1/payments/midtrans/webhook` — signature, nominal, idempotensi
-- [ ] Task 11: Halaman checkout di frontend
+- [x] Task 9: Konfigurasi Midtrans + `POST /v1/payments/checkout` → snap token
+- [x] Task 10: `POST /v1/payments/midtrans/webhook` — signature, nominal, idempotensi
+- [x] Task 11: Halaman checkout di frontend
 
 ### Checkpoint: Fase 4
-- [ ] Webhook berulang untuk satu transaksi tidak menghasilkan Subscription kedua
-- [ ] Signature salah ditolak
-- [ ] Nominal tidak cocok ditolak
+- [x] Webhook berulang untuk satu transaksi tidak menghasilkan Subscription kedua
+- [x] Signature salah ditolak
+- [x] Nominal tidak cocok ditolak
 
 ### Fase 5: Bukti dan dokumen
 
@@ -153,6 +153,42 @@ menghasilkan keadaan yang terlihat, bukan toast yang lewat.
   "Kedaluwarsa". Default di `config.py`, nilai contoh `.env.example`, dan
   baris status.md ikut diperbarui; "expired tetap approvable" tidak berubah.
   Fase 4 Midtrans tetap menunggu kredensial.
+
+### Hasil eksekusi Fase 4 (2026-10-19)
+
+Kredensial masuk di `backend/.env` dan uji asap langsung ke sandbox sukses
+(`HTTP 201`, token + `redirect_url`). Yang dibangun, dengan satu deviasi yang
+**dipilih pemilik** lewat pertanyaan langsung:
+
+- **Handover = `redirect_url`**, bukan Snap popup: frontend membuka URL yang
+  server minta ke Midtrans, jadi **tidak ada Client Key yang diekspos** ke
+  browser dan tanpa `snap.js`. Popup embed ditunda — naik ke Snap popup kelak
+  hanya menyentuh frontend.
+- `MIDTRANS_SERVER_KEY` / `MIDTRANS_IS_PRODUCTION` masuk `config.py` +
+  `.env.example` (template uji `test_env_template`). Key kosong = install tanpa
+  gerbang: checkout menjawab **503** dengan kalimat, bukan tombol mati.
+- `/open_gateway_transaction` di `services/payments.py`: harga server dulu,
+  Midtrans dipanggil kedua (order_id = invoice_code, expiry 24 jam yang sama
+  dengan TTL antrean), baris ditulis **setelah** page minted — checkout yang
+  ditolak gateway tidak meninggalkan baris siasia. Transport di
+  `services/midtrans.py` terpisah dan dimock di tes.
+- Webhook: signature `SHA512(order_id + status_code + gross_amount +
+  serverKey)` dibanding `hmac.compare_digest` **sebelum** apa pun dibaca;
+  403 salah kunci, 404 order tak dikenal (Midtrans menunggu dan mengulang —
+  race baris yang tertinggal menyembuhannya sendiri). Settlement dan deny
+  `approved_by = NULL` dengan `midtrans_transaction_id` kutemukan di kolomnya
+  (UNIQUE milik migrasi 0010 akhirnya yang berpemilik); `refund` hanya dicatat,
+  akses tidak ditarik — Admin yang memutus balikan (ADR-0008/0011).
+- Implementasi terhadap plan: QRIS dinamis tidak dibuat terpisah — memilih
+  QRIS/kartu/e-wallet terjadi **di dalam** halaman Midtrans; baris
+  `payment_method` gateway ditulis `'midtrans'`.
+- Layar: kartu "Bayar lewat Midtrans" di Tab 2 (dibawah formulir manual),
+  radio paket sendiri, tombol membuka tab baru; kegagalan dinyatakan dalam
+  kalimat — 503 "belum aktif", jaringan, dan lainnya — dan tidak ada jendela
+  yang dibuka. 3 tes baru di `SettingsViewGateway.test.tsx`; satu query tes
+  lama yang jadi ambigu (`Tahunan`) dipersempit ke radio formulir manual.
+- Verifikasi: backend 878 passed (coverage 69,21%), ruff bersih; vitest 329,
+  tsc bersih, eslint 10 peringatan pra-ada (0 error).
 
 ## Risiko dan Mitigasi
 

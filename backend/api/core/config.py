@@ -98,6 +98,15 @@ class Settings(BaseSettings):
     # verdict on the money: an expired transaction stays approvable.
     manual_transaction_ttl_seconds: int = 86400
 
+    # Midtrans payment gateway. An empty server key is the honest default: the
+    # checkout endpoint answers 503 with a sentence instead of pretending a
+    # button works. IS_PRODUCTION only chooses which Midtrans site the money
+    # flows toward — sandbox unless this install says otherwise on purpose,
+    # because a payments page that books nothing looks exactly like one that
+    # does.
+    midtrans_server_key: str = ""
+    midtrans_is_production: bool = False
+
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 

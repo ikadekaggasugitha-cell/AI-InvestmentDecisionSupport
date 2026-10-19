@@ -23,8 +23,9 @@ from api.core.auth import get_current_user, require_entitlement
 from api.core.config import get_settings
 from api.core.rate_limit_middleware import rate_limit_middleware
 from api.routers import (
-    admin, advisor, alerts, auth, broksum, market_ws, news, payments, portfolio,
-    pricing, reports, risk, signals, subscription, symbols, technicals,
+    admin, advisor, alerts, auth, broksum, market_ws, news, payments,
+    payments_gateway, portfolio, pricing, reports, risk, signals, subscription,
+    symbols, technicals,
 )
 
 # ── Structured logging ────────────────────────────────────────────────────────
@@ -315,6 +316,12 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     # router is entitlement-gated — the account asking where its payment stands
     # is exactly the one the gate refuses.
     app.include_router(payments.router, dependencies=protected)
+    # The gateway join: checkout carries a session because it belongs to the
+    # account paying; the webhook cannot hold one — arriving with no session
+    # is fine — and its authentication is the callback signature instead.
+    # Including it WITHOUT `protected` is that design visible, not an
+    # oversight.
+    app.include_router(payments_gateway.router)
     # Public, and the only unauthenticated data endpoint here. The price has to be
     # readable before anyone can decide to subscribe; it exposes two numbers and
     # nothing else.
