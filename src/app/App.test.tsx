@@ -45,12 +45,30 @@ describe('the auth gate', () => {
     release(jsonResponse(200, ACCOUNT))
   })
 
-  it('asks for a session when there is none', async () => {
+  it('lands a visitor on the public price sheet first', async () => {
     fetchMock.mockResolvedValue(jsonResponse(401, { detail: 'Not authenticated' }))
     render(
       <App />,
     )
+    expect(await screen.findByRole('heading', { name: 'Harga langganan' })).toBeInTheDocument()
+  })
+
+  it('keeps the forms on their real URLs, carrying the picked plan', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(401, { detail: 'Not authenticated' }))
+
+    // `/masuk` and `/daftar` are the real form addresses; the English aliases
+    // read the same. The plan key rides the server's own vocabulary
+    // (weekly/monthly/annual), and the signup form translates it.
+    window.history.pushState({}, '', '/masuk')
+    const masuk = render(<App />)
     expect(await screen.findByRole('heading', { name: 'Masuk' })).toBeInTheDocument()
+    masuk.unmount()
+
+    window.history.pushState({}, '', '/daftar?plan=monthly')
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Buat akun', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByText('Paket terpilih: Bulanan')).toBeInTheDocument()
+    expect((await screen.findByRole('button', { name: 'Bulanan' })).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('opens the dashboard for a signed-in account', async () => {

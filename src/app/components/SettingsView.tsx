@@ -6,6 +6,7 @@ import { ENDPOINTS, apiFetch } from "../config/api";
 import { usePayments } from "../hooks/usePayments";
 import type { ExchangeRateData } from "../hooks/useExchangeRate";
 import type { DataFreshness } from "../hooks/useLiveMarket";
+import { readPlanIntent, writePlanIntent } from "../planIntent";
 
 /*
  * Settings, per docs/settings-module-spec.md v1.1.0.
@@ -518,13 +519,15 @@ export function TabSubscription({ id }: { id: boolean }) {
   const payments = usePayments();
 
   /* The declaration defaults are mild on purpose: the server still prices the
-     plan, so no default here can cost anyone the wrong amount. */
-  const [plan, setPlan] = useState<"weekly" | "monthly" | "annual">("monthly");
+     plan, so no default here can cost anyone the wrong amount. The only seed
+     allowed to preselect is the plan intent the visitor themselves put in:
+     picked on the price sheet, carried through signup, cleared on use. */
+  const [plan, setPlan] = useState<"weekly" | "monthly" | "annual">(() => readPlanIntent() ?? "monthly");
   const [method, setMethod] = useState("bank_transfer");
   const [note, setNote] = useState("");
   /* The gateway's own plan choice, deliberate and separate: the two cards
      should never flip each other's state from underneath the reader. */
-  const [gatewayPlan, setGatewayPlan] = useState<"weekly" | "monthly" | "annual">("monthly");
+  const [gatewayPlan, setGatewayPlan] = useState<"weekly" | "monthly" | "annual">(() => readPlanIntent() ?? "monthly");
 
   const emptyBody = state.error
     ? (id
@@ -570,7 +573,12 @@ export function TabSubscription({ id }: { id: boolean }) {
       payment_method: method,
       note: note.trim() || null,
     });
-    if (outcome === "ok") setNote("");
+    if (outcome === "ok") {
+      setNote("");
+      // The carried intent served its purpose: the choice here is now the
+      // person's own word, not the price sheet's.
+      writePlanIntent(null);
+    }
   };
 
   /* The gateway's one ask: a page. By the time it opens, the pending row
@@ -581,6 +589,9 @@ export function TabSubscription({ id }: { id: boolean }) {
     const result = await payments.checkout(gatewayPlan);
     if (result?.redirectUrl) {
       window.open(result.redirectUrl, "_blank", "noopener,noreferrer");
+      // Same clearing rule as the manual declaration: the row the server wrote
+      // in this very request becomes the choice of record.
+      writePlanIntent(null);
     }
   };
 
@@ -814,7 +825,7 @@ export function TabSubscription({ id }: { id: boolean }) {
                       type="radio"
                       name="payment-plan"
                       checked={plan === value}
-                      onChange={() => setPlan(value)}
+                      onChange={() => { setPlan(value); writePlanIntent(value); }}
                       style={{ accentColor: "var(--primary)" }}
                     />
                     {label}
@@ -974,7 +985,7 @@ export function TabSubscription({ id }: { id: boolean }) {
                       type="radio"
                       name="gateway-plan"
                       checked={gatewayPlan === value}
-                      onChange={() => setGatewayPlan(value)}
+                      onChange={() => { setGatewayPlan(value); writePlanIntent(value); }}
                       style={{ accentColor: "var(--primary)" }}
                     />
                     {label}

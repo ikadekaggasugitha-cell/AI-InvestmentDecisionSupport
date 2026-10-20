@@ -38,6 +38,7 @@ import { useOverlayScrollbars } from "./hooks/useOverlayScrollbars";
 import { AuthScreen } from "./components/AuthScreen";
 import { PublicPricing } from "./components/PublicPricing";
 import { SuspensionScreen } from "./components/SuspensionScreen";
+import { planFromSearch, writePlanIntent } from "./planIntent";
 import { toast } from "sonner";
 
 function formatDashboardSubtitle(locale: string): string {
@@ -133,24 +134,49 @@ function AppInner() {
   }
 
   if (auth.status === "signed-out") {
-    // `/harga` is the one URL a visitor can open without a session. The price is
-    // the fact they are exercising — the person deciding whether to subscribe
-    // is, by definition, not yet subscribed — so it stays readable with no
-    // account. Signing up from there lands back on the auth screen below.
-    if (location.pathname === "/harga") {
+    // The public price sheet is a visitor's first view: `/` lands on it, and
+    // `/harga` keeps working as its own URL. The price is the fact they are
+    // exercising — the person deciding whether to subscribe is, by
+    // definition, not yet subscribed. The forms are real URLs too, so a
+    // refresh (or a shared link) returns to the same surface. Picking a price
+    // line writes a client-side intent and walks into the signup form with
+    // `?plan=`; the payment itself still starts inside the app (R-26).
+    if (location.pathname === "/masuk" || location.pathname === "/login") {
       return (
         <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
-          <PublicPricing locale={locale} onEnter={() => navigate("/", { replace: true })} />
+          <AuthScreen
+            auth={auth}
+            locale={locale}
+            initialMode="login"
+            onAuthed={() => navigate("/", { replace: true })}
+            onViewPricing={() => navigate("/")}
+          />
+        </div>
+      );
+    }
+    if (location.pathname === "/daftar" || location.pathname === "/signup") {
+      return (
+        <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
+          <AuthScreen
+            auth={auth}
+            locale={locale}
+            initialMode="signup"
+            initialPlan={planFromSearch(location.search)}
+            onAuthed={() => navigate("/", { replace: true })}
+            onViewPricing={() => navigate("/")}
+          />
         </div>
       );
     }
     return (
       <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
-        <AuthScreen
-          auth={auth}
+        <PublicPricing
           locale={locale}
-          onAuthed={() => navigate("/", { replace: true })}
-          onViewPricing={() => navigate("/harga")}
+          onEnter={() => navigate("/masuk")}
+          onPickPlan={(plan) => {
+            writePlanIntent(plan);
+            navigate(`/daftar?plan=${plan}`);
+          }}
         />
       </div>
     );
@@ -319,7 +345,10 @@ function AppInner() {
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/signup" element={<Navigate to="/" replace />} />
       {/* A signed-in person has no public-price question left: their facts live
-          in Settings → Langganan & Tagihan, so /harga folds back into the app. */}
+          in Settings → Langganan & Tagihan, so /harga folds back into the app,
+          and the visitor form URLs join it for the same reason. */}
+      <Route path="/masuk" element={<Navigate to="/" replace />} />
+      <Route path="/daftar" element={<Navigate to="/" replace />} />
       <Route path="/harga" element={<Navigate to="/" replace />} />
       <Route path="/admin" element={adminPage} />
       <Route path="*" element={shell} />

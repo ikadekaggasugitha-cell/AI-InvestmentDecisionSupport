@@ -38,7 +38,7 @@ describe("PublicPricing", () => {
   });
 
   it("shows the three prices the server holds", async () => {
-    render(<PublicPricing locale="id" onEnter={vi.fn()} />);
+    render(<PublicPricing locale="id" onEnter={vi.fn()} onPickPlan={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Rp 15.000")).toBeInTheDocument());
     expect(screen.getByText("Rp 44.000")).toBeInTheDocument();
@@ -46,7 +46,7 @@ describe("PublicPricing", () => {
   });
 
   it("derives the saving line from the server's three prices", async () => {
-    render(<PublicPricing locale="id" onEnter={vi.fn()} />);
+    render(<PublicPricing locale="id" onEnter={vi.fn()} onPickPlan={vi.fn()} />);
     await waitFor(() => expect(screen.getByText("Rp 252.000")).toBeInTheDocument());
 
     // 44.000 × 12 = 528.000 against 252.000 → 52, rounded.
@@ -55,7 +55,7 @@ describe("PublicPricing", () => {
 
   it("hides the saving line when the annual price saves nothing", async () => {
     respond(200, { weekly: 15000, monthly: 44000, annual: 528000, updatedAt: null });
-    render(<PublicPricing locale="id" onEnter={vi.fn()} />);
+    render(<PublicPricing locale="id" onEnter={vi.fn()} onPickPlan={vi.fn()} />);
     await waitFor(() => expect(screen.getByText("Rp 528.000")).toBeInTheDocument());
 
     expect(screen.queryByText(/Hemat/)).not.toBeInTheDocument();
@@ -63,7 +63,7 @@ describe("PublicPricing", () => {
 
   it("says it is loading rather than flashing a number nobody set", () => {
     mocked.mockReturnValue(new Promise(() => {}) as Promise<Response>);
-    render(<PublicPricing locale="id" onEnter={vi.fn()} />);
+    render(<PublicPricing locale="id" onEnter={vi.fn()} onPickPlan={vi.fn()} />);
 
     expect(screen.getByText(/Memuat harga/)).toBeInTheDocument();
     expect(screen.queryByText(/Rp /)).not.toBeInTheDocument();
@@ -71,7 +71,7 @@ describe("PublicPricing", () => {
 
   it("answers a missing price in words, never as zero", async () => {
     respond(503, { detail: "No pricing is configured on this server." });
-    render(<PublicPricing locale="id" onEnter={vi.fn()} />);
+    render(<PublicPricing locale="id" onEnter={vi.fn()} onPickPlan={vi.fn()} />);
 
     await waitFor(() =>
       expect(screen.getByText(/Tidak ditampilkan sebagai nol/)).toBeInTheDocument(),
@@ -81,7 +81,7 @@ describe("PublicPricing", () => {
 
   it("keeps the same promise when the backend is unreachable", async () => {
     mocked.mockRejectedValue(new TypeError("failed to fetch"));
-    render(<PublicPricing locale="id" onEnter={vi.fn()} />);
+    render(<PublicPricing locale="id" onEnter={vi.fn()} onPickPlan={vi.fn()} />);
 
     await waitFor(() =>
       expect(screen.getByText(/Harga tidak dapat dimuat/)).toBeInTheDocument(),
@@ -89,7 +89,7 @@ describe("PublicPricing", () => {
   });
 
   it("names exactly what the gate opens, and sells nothing here", async () => {
-    render(<PublicPricing locale="id" onEnter={vi.fn()} />);
+    render(<PublicPricing locale="id" onEnter={vi.fn()} onPickPlan={vi.fn()} />);
     await waitFor(() => expect(screen.getByText("Rp 15.000")).toBeInTheDocument());
 
     expect(screen.getByText("Sinyal")).toBeInTheDocument();
@@ -99,22 +99,39 @@ describe("PublicPricing", () => {
     expect(screen.queryByRole("button", { name: /Beli|Bayar/i })).not.toBeInTheDocument();
   });
 
-  it("sends the visitor to the auth surface with its one control", async () => {
+  it("sends the visitor to the auth surface with the plain enter control", async () => {
     const onEnter = vi.fn();
     const user = userEvent.setup();
-    render(<PublicPricing locale="id" onEnter={onEnter} />);
+    render(<PublicPricing locale="id" onEnter={onEnter} onPickPlan={vi.fn()} />);
     await waitFor(() => expect(screen.getByText("Rp 15.000")).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: /Masuk atau buat akun/ }));
     expect(onEnter).toHaveBeenCalledOnce();
   });
 
+  it("carries the picked plan into the signup walk-in, per row", async () => {
+    const onPickPlan = vi.fn();
+    const user = userEvent.setup();
+    render(<PublicPricing locale="id" onEnter={vi.fn()} onPickPlan={onPickPlan} />);
+    await waitFor(() => expect(screen.getByText("Rp 15.000")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "Pilih paket Bulanan" }));
+    expect(onPickPlan).toHaveBeenCalledWith("monthly");
+
+    await user.click(screen.getByRole("button", { name: "Pilih paket Mingguan" }));
+    expect(onPickPlan).toHaveBeenLastCalledWith("weekly");
+
+    await user.click(screen.getByRole("button", { name: "Pilih paket Tahunan" }));
+    expect(onPickPlan).toHaveBeenLastCalledWith("annual");
+  });
+
   it("speaks English to an English visitor", async () => {
-    render(<PublicPricing locale="en" onEnter={vi.fn()} />);
+    render(<PublicPricing locale="en" onEnter={vi.fn()} onPickPlan={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Rp 15,000")).toBeInTheDocument());
     expect(screen.getByText("Rp 44,000")).toBeInTheDocument();
     expect(screen.getByText("Rp 252,000")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Sign in or create an account/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose plan Monthly" })).toBeInTheDocument();
   });
 });

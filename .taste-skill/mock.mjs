@@ -6,6 +6,10 @@
  */
 const ADMIN = process.env.MOCK_ADMIN === "1";
 const USER = !ADMIN && process.env.MOCK_USER === "1";
+// Mode akun yang baru mendaftar: masuk tanpa langganan, untuk menangkap tab
+// Langganan & Tagihan saat bentuk deklarasi dan gateway terpasang
+// (preselect intent harga dari lembar harga publik).
+const NEWUSER = !ADMIN && !USER && process.env.MOCK_NEW_USER === "1";
 
 const ACCOUNT = (role) => ({
   id: "3f2a6c11-0d5e-4a1b-9c77-1f0b2d3e4a55",
@@ -49,6 +53,7 @@ const http = createServer((req, res) => {
   if (url.pathname === "/v1/auth/me") {
     if (ADMIN) return json(200, ACCOUNT("admin"));
     if (USER) return json(200, ACCOUNT("user"));
+    if (NEWUSER) return json(200, ACCOUNT("user"));
     return json(401, { detail: "Not authenticated" });
   }
   if (url.pathname === "/v1/subscriptions/pricing") {
@@ -64,6 +69,7 @@ const http = createServer((req, res) => {
     // The subscriber profile owns the in-session run: the shell must read an
     // active subscription or it draws the paywall banner on every screen.
     if (USER) return json(200, { active: true, expiresAt: "2026-11-30T00:00:00Z", daysRemaining: 41 });
+    if (NEWUSER) return json(200, { active: false, expiresAt: null, daysRemaining: null, startDate: null });
     return json(403, { detail: "No active subscription." });
   }
   // Login flow for the aux recorder (:5174, VITE_USE_LIVE_API=true). The real

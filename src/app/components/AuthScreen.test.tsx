@@ -21,10 +21,14 @@ function makeAuth(overrides: Partial<AuthState> = {}): AuthState {
   }
 }
 
-function renderScreen(auth: AuthState, onAuthed = vi.fn()) {
+function renderScreen(
+  auth: AuthState,
+  onAuthed = vi.fn(),
+  extra: { initialMode?: "login" | "signup"; initialPlan?: "weekly" | "monthly" | "annual" | null } = {},
+) {
   return render(
     <MemoryRouter>
-      <AuthScreen auth={auth} locale={locale} onAuthed={onAuthed} />
+      <AuthScreen auth={auth} locale={locale} onAuthed={onAuthed} {...extra} />
     </MemoryRouter>,
   )
 }
@@ -216,5 +220,56 @@ describe('the price a visitor can read', () => {
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Lihat harga' }))
     expect(onViewPricing).toHaveBeenCalledOnce()
+  })
+})
+
+describe('the plan the visitor picked on the price sheet', () => {
+  const pill = (name: string) => screen.getByRole('button', { name })
+
+  it('stays out of the sign-in form and opens choiceless on the sign-up side', async () => {
+    renderScreen(makeAuth())
+    expect(screen.queryByText('Paket')).not.toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Buat akun' }))
+    expect(await screen.findByText('Paket belum dipilih')).toBeInTheDocument()
+    expect(pill('Bulanan').getAttribute('aria-pressed')).toBe('false')
+    expect(localStorage.getItem('aidss-plan-intent')).toBeNull()
+  })
+
+  it('reads the carried plan into the form, and into storage', () => {
+    // A shared link to /daftar?plan=monthly lands without the sheet's click;
+    // the effect persists the same intent the click would have written.
+    renderScreen(makeAuth(), undefined, { initialMode: 'signup', initialPlan: 'monthly' })
+    expect(screen.getByText('Paket terpilih: Bulanan')).toBeInTheDocument()
+    expect(pill('Bulanan').getAttribute('aria-pressed')).toBe('true')
+    expect(localStorage.getItem('aidss-plan-intent')).toBe('monthly')
+  })
+
+  it('surfaces a stored intent on signup without a URL parameter', () => {
+    localStorage.setItem('aidss-plan-intent', 'weekly')
+    renderScreen(makeAuth(), undefined, { initialMode: 'signup' })
+    expect(screen.getByText('Paket terpilih: Mingguan')).toBeInTheDocument()
+  })
+
+  it('rewrites storage when the person changes the plan, and clears it on kosongkan', async () => {
+    renderScreen(makeAuth(), undefined, { initialMode: 'signup', initialPlan: 'monthly' })
+    const user = userEvent.setup()
+
+    await user.click(pill('Tahunan'))
+    expect(screen.getByText('Paket terpilih: Tahunan')).toBeInTheDocument()
+    expect(localStorage.getItem('aidss-plan-intent')).toBe('annual')
+
+    await user.click(screen.getByRole('button', { name: 'kosongkan' }))
+    expect(screen.getByText('Paket belum dipilih')).toBeInTheDocument()
+    expect(localStorage.getItem('aidss-plan-intent')).toBeNull()
+  })
+
+  it('never reads the intent on the sign-in side', () => {
+    localStorage.setItem('aidss-plan-intent', 'weekly')
+    renderScreen(makeAuth())
+    expect(screen.queryByText('Paket terpilih')).not.toBeInTheDocument()
+    // Not consumed either: the intent stays put for the signup that follows.
+    expect(localStorage.getItem('aidss-plan-intent')).toBe('weekly')
   })
 })

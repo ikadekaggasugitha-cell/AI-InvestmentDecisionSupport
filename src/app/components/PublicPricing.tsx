@@ -27,11 +27,14 @@
 import { useEffect, useState } from "react";
 import { apiFetch, ENDPOINTS } from "../config/api";
 import type { Locale } from "../i18n/translations";
+import type { PlanKey } from "../planIntent";
 
 export interface PublicPricingProps {
   locale: Locale;
   /** The sign-in / sign-up surface. Wiring decides where that is. */
   onEnter: () => void;
+  /** A price line was picked: the walk-in to signup carries it along. */
+  onPickPlan: (plan: PlanKey) => void;
 }
 
 type PriceState =
@@ -41,7 +44,7 @@ type PriceState =
 
 const localeTag = (locale: Locale) => (locale === "id" ? "id-ID" : "en-GB");
 
-export function PublicPricing({ locale, onEnter }: PublicPricingProps) {
+export function PublicPricing({ locale, onEnter, onPickPlan }: PublicPricingProps) {
   const isId = locale === "id";
   const [price, setPrice] = useState<PriceState>({ kind: "loading" });
 
@@ -123,6 +126,22 @@ export function PublicPricing({ locale, onEnter }: PublicPricingProps) {
     whiteSpace: "nowrap",
   };
 
+  /* Quiet branded-border button per price line: picking is an intent, not a
+     payment, so it stays hairline-muted rather than primary. */
+  const pickStyle: React.CSSProperties = {
+    minHeight: 36,
+    padding: "8px 14px",
+    fontSize: 12,
+    fontWeight: 500,
+    fontFamily: "var(--font-sans)",
+    color: "var(--foreground)",
+    background: "transparent",
+    border: "1px solid var(--control-border)",
+    borderRadius: "var(--radius)",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  };
+
   const skeletonBar = (
     <span
       aria-hidden="true"
@@ -177,27 +196,32 @@ export function PublicPricing({ locale, onEnter }: PublicPricingProps) {
             >
               {price.kind === "ready" && (
                 <>
-                  <div style={rowStyle}>
-                    <div style={rowLabelStyle}>
-                      <span style={{ fontSize: "15px", fontWeight: 500 }}>{isId ? "Mingguan" : "Weekly"}</span>
-                      <span style={{ fontSize: "12px", color: "var(--muted-foreground)" }}>{isId ? "per minggu" : "per week"}</span>
+                  {([
+                    ["weekly",  isId ? "Mingguan" : "Weekly",  isId ? "per minggu" : "per week",  price.weekly],
+                    ["monthly", isId ? "Bulanan" : "Monthly", isId ? "per bulan" : "per month", price.monthly],
+                    ["annual",  isId ? "Tahunan" : "Annual",  isId ? "per tahun" : "per year",  price.annual],
+                  ] as const).map(([key, label, sub, value], index) => (
+                    <div
+                      key={key}
+                      style={{ ...rowStyle, borderBottom: index === 2 && !showSaving ? "none" : "1px solid var(--border)" }}
+                    >
+                      <div style={rowLabelStyle}>
+                        <span style={{ fontSize: "15px", fontWeight: 500 }}>{label}</span>
+                        <span style={{ fontSize: "12px", color: "var(--muted-foreground)" }}>{sub}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        <div style={rowValueStyle}>{`Rp ${value.toLocaleString(localeTag(locale))}`}</div>
+                        <button
+                          type="button"
+                          onClick={() => onPickPlan(key)}
+                          aria-label={`${isId ? "Pilih paket" : "Choose plan"} ${label}`}
+                          style={pickStyle}
+                        >
+                          {isId ? "Pilih paket" : "Choose plan"}
+                        </button>
+                      </div>
                     </div>
-                    <div style={rowValueStyle}>{`Rp ${price.weekly.toLocaleString(localeTag(locale))}`}</div>
-                  </div>
-                  <div style={rowStyle}>
-                    <div style={rowLabelStyle}>
-                      <span style={{ fontSize: "15px", fontWeight: 500 }}>{isId ? "Bulanan" : "Monthly"}</span>
-                      <span style={{ fontSize: "12px", color: "var(--muted-foreground)" }}>{isId ? "per bulan" : "per month"}</span>
-                    </div>
-                    <div style={rowValueStyle}>{`Rp ${price.monthly.toLocaleString(localeTag(locale))}`}</div>
-                  </div>
-                  <div style={{ ...rowStyle, borderBottom: showSaving ? "1px solid var(--border)" : "none" }}>
-                    <div style={rowLabelStyle}>
-                      <span style={{ fontSize: "15px", fontWeight: 500 }}>{isId ? "Tahunan" : "Annual"}</span>
-                      <span style={{ fontSize: "12px", color: "var(--muted-foreground)" }}>{isId ? "per tahun" : "per year"}</span>
-                    </div>
-                    <div style={rowValueStyle}>{`Rp ${price.annual.toLocaleString(localeTag(locale))}`}</div>
-                  </div>
+                  ))}
                   {/* The saving reads full-width under the annual row, not inside
                       its label column: at phone width that column is too narrow
                       and the sentence wraps onto two lines. */}

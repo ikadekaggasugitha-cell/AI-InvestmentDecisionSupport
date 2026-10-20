@@ -13,12 +13,15 @@
  * is a real control, not a tab bar: there is nothing to browse on either side.
  *
  * DOM order note: everything focusable sits after the form fields, in the
- * order the tests pin down (email, password, submit, mode toggle), so the
- * brand panel deliberately holds no interactive element at all.
+ * order the tests pin down (email, password, submit, mode toggle; the signup
+ * form inserts its plan chooser before the submit), so the brand panel
+ * deliberately holds no interactive element at all.
  */
 
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import type { AuthState } from "../hooks/useAuth";
+import type { PlanKey } from "../planIntent";
+import { readPlanIntent, writePlanIntent } from "../planIntent";
 import { useTranslation, type Locale } from "../i18n/translations";
 import { PricingLink } from "./PublicPricing";
 
@@ -28,6 +31,10 @@ export interface AuthScreenProps {
   onAuthed: () => void;
   /** The read-the-price surface. Absent → no link rendered. */
   onViewPricing?: () => void;
+  /** Which of the two forms opens first. `/daftar` opens signup. */
+  initialMode?: Mode;
+  /** Plan the visitor picked on the price sheet, carried by `?plan=`. */
+  initialPlan?: PlanKey | null;
 }
 
 type Mode = "login" | "signup";
@@ -66,19 +73,79 @@ const hintStyle: React.CSSProperties = {
   margin: "6px 0 0",
 };
 
-export function AuthScreen({ auth, locale, onAuthed, onViewPricing }: AuthScreenProps) {
+/* The plan chooser carries the price sheet's sentence-level affordances over:
+ * quiet borderless pills (active surface + ink), the same anatomy as the
+ * Settings view choice groups, so one rule covers all of them. */
+const planPill = (active: boolean): React.CSSProperties => ({
+  minHeight: "32px",
+  padding: "6px 12px",
+  borderRadius: "var(--radius)",
+  cursor: "pointer",
+  background: active ? "var(--muted)" : "transparent",
+  border: "none",
+  color: active ? "var(--foreground)" : "var(--muted-foreground)",
+  fontSize: "12px",
+  fontWeight: active ? 500 : 400,
+});
+
+const clearPlanStyle: React.CSSProperties = {
+  background: "none",
+  border: "none",
+  padding: 0,
+  font: "inherit",
+  fontSize: "12px",
+  color: "var(--link)",
+  cursor: "pointer",
+  textDecoration: "underline",
+};
+
+export function AuthScreen({ auth, locale, onAuthed, onViewPricing, initialMode, initialPlan }: AuthScreenProps) {
   const { t } = useTranslation(locale);
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<Mode>(initialMode ?? "login");
+  // The chosen price line: from the URL the sheet's click sent, else what this
+  // same visitor stored earlier. Login never reads it.
+  const [plan, setPlan] = useState<PlanKey | null>(
+    initialPlan ?? (initialMode === "signup" ? readPlanIntent() : null),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loginHeading = useId();
   const errorId = useId();
   const isId = locale === "id";
 
+  // A direct link to `/daftar?plan=…` shares the same intent the sheet's
+  // click wrote; keep storage in step so the billing tab sees it after signup.
+  useEffect(() => {
+    if (initialPlan) writePlanIntent(initialPlan);
+  }, [initialPlan]);
+
+  // Changing the plan here rewrites the intent; clearing it throws the old
+  // one away — a carried plan is only ever the person's own latest word.
+  const choosePlan = (next: PlanKey | null) => {
+    setPlan(next);
+    writePlanIntent(next);
+  };
+  const clearPlan = () => choosePlan(null);
+
   const switchMode = (next: Mode) => {
     setMode(next);
     setError(null);
   };
+
+  // Sentence labels for the three server plan names. The amounts stay on the
+  // price sheet and the billing tab: no private copy of any number here.
+  const planLabels: { key: PlanKey; label: string }[] = isId
+    ? [
+        { key: "weekly",  label: "Mingguan" },
+        { key: "monthly", label: "Bulanan" },
+        { key: "annual",  label: "Tahunan" },
+      ]
+    : [
+        { key: "weekly",  label: "Weekly" },
+        { key: "monthly", label: "Monthly" },
+        { key: "annual",  label: "Annual" },
+      ];
+  const chosen = plan ? planLabels.find((p) => p.key === plan) : undefined;
 
   const onLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -290,6 +357,45 @@ export function AuthScreen({ auth, locale, onAuthed, onViewPricing }: AuthScreen
                 />
                 <p id="signup-password-hint" style={hintStyle}>
                   {t("auth_password_hint")}
+                </p>
+              </div>
+              {/* The plan the sheet's click carried in, editable in place.
+                  Pills over a select: three named options, all visible. */}
+              <div role="group" aria-label={isId ? "Paket yang dipilih" : "Selected plan"} style={{ marginBottom: "20px" }}>
+                <div style={labelStyle}>
+                  {isId ? "Paket" : "Plan"}
+                </div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                  {planLabels.map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      aria-pressed={plan === p.key}
+                      onClick={() => choosePlan(plan === p.key ? null : p.key)}
+                      style={planPill(plan === p.key)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  {plan && (
+                    <button type="button" onClick={clearPlan} style={clearPlanStyle}>
+                      {isId ? "kosongkan" : "clear"}
+                    </button>
+                  )}
+                </div>
+                <div style={{ fontSize: "13px", color: "var(--foreground)", marginTop: "8px" }}>
+                  {plan
+                    ? `${isId ? "Paket terpilih" : "Selected plan"}: ${chosen?.label ?? ""}`
+                    : (isId ? "Paket belum dipilih" : "No plan chosen yet")}
+                </div>
+                <p style={hintStyle}>
+                  {plan
+                    ? (isId
+                        ? "Pilihan ini menyertai pendaftaran; harga final tetap dari server saat menentukan pembayaran."
+                        : "The choice follows the registration; the final price still comes from the server at payment time.")
+                    : (isId
+                        ? "Bisa dipilih sekarang atau ditunda sampai di Pengaturan."
+                        : "You can pick now or decide later under Settings.")}
                 </p>
               </div>
               <SubmitButton busy={busy} label={t("auth_signup_action")} busyLabel={t("auth_working")} />
