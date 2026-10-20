@@ -45,6 +45,22 @@ describe("PublicPricing", () => {
     expect(screen.getByText("Rp 252.000")).toBeInTheDocument();
   });
 
+  it("derives the saving line from the server's three prices", async () => {
+    render(<PublicPricing locale="id" onEnter={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Rp 252.000")).toBeInTheDocument());
+
+    // 44.000 × 12 = 528.000 against 252.000 → 52, rounded.
+    expect(screen.getByText(/Hemat 52% terhadap tarif bulanan/)).toBeInTheDocument();
+  });
+
+  it("hides the saving line when the annual price saves nothing", async () => {
+    respond(200, { weekly: 15000, monthly: 44000, annual: 528000, updatedAt: null });
+    render(<PublicPricing locale="id" onEnter={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Rp 528.000")).toBeInTheDocument());
+
+    expect(screen.queryByText(/Hemat/)).not.toBeInTheDocument();
+  });
+
   it("says it is loading rather than flashing a number nobody set", () => {
     mocked.mockReturnValue(new Promise(() => {}) as Promise<Response>);
     render(<PublicPricing locale="id" onEnter={vi.fn()} />);

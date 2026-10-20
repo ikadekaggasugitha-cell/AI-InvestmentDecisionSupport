@@ -60,9 +60,11 @@ const http = createServer((req, res) => {
       : json(403, { detail: "Administrator access required." });
   }
   if (url.pathname === "/v1/subscription/current") {
-    return ADMIN
-      ? json(200, { active: true, expiresAt: "2027-01-01T00:00:00Z", daysRemaining: 72 })
-      : json(403, { detail: "No active subscription." });
+    if (ADMIN) return json(200, { active: true, expiresAt: "2027-01-01T00:00:00Z", daysRemaining: 72 });
+    // The subscriber profile owns the in-session run: the shell must read an
+    // active subscription or it draws the paywall banner on every screen.
+    if (USER) return json(200, { active: true, expiresAt: "2026-11-30T00:00:00Z", daysRemaining: 41 });
+    return json(403, { detail: "No active subscription." });
   }
   return json(200, []);
 });

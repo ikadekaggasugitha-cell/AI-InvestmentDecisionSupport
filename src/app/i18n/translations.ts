@@ -14,8 +14,8 @@ const translations = {
     nav_alerts: "Peringatan",
 
     /* Market status */
-    market_open: "BEI BUKA",
-    market_closed: "BEI TUTUP",
+    market_open: "BEI buka",
+    market_closed: "BEI tutup",
     market_open_hours: "Sesi I: 09:00–12:00 · Sesi II: 13:30–15:50 WIB",
 
     /* Header */
@@ -23,19 +23,23 @@ const translations = {
     header_updated: "Diperbarui",
 
     /* Dashboard */
-    dash_portfolio_value: "Nilai Portofolio",
-    dash_daily_pnl: "P&L Hari Ini",
+    /* Sentence case, not Title Case: label ink is quieter than the figure. */
+    dash_portfolio_value: "Nilai portofolio",
+    dash_daily_pnl: "P&L hari ini",
     dash_ihsg: "IHSG",
-    dash_top_gainer: "Kenaikan Tertinggi",
-    dash_intraday: "Grafik Intraday",
+    dash_top_gainer: "Kenaikan tertinggi",
+    dash_intraday: "Grafik intraday",
     dash_intraday_sub: "Hari ini vs IHSG",
-    dash_top_holdings: "Kepemilikan Utama",
-    dash_recent_tx: "Transaksi Terakhir",
+    dash_top_holdings: "Kepemilikan utama",
+    dash_recent_tx: "Transaksi terakhir",
     dash_ai_alerts: "Sinyal AI",
-    dash_sector_alloc: "Alokasi Sektor",
-    dash_all_time_gain: "Keuntungan Total",
+    dash_sector_alloc: "Alokasi sektor",
+    dash_all_time_gain: "Keuntungan total",
     dash_today: "hari ini",
-    dash_cost_basis: "Harga Pokok",
+    dash_cost_basis: "Harga pokok",
+    dash_no_intraday: "Belum ada titik harga hari ini; kurva menyala begitu feed mengirim data.",
+    dash_empty_position: "Belum ada posisi tercatat.",
+    dash_empty_position_action: "Catat posisi pertama di Portofolio",
 
     /* Markets */
     mkt_title: "Pantau Pasar",
@@ -255,8 +259,8 @@ const translations = {
     nav_alerts: "Alerts",
 
     /* Market status */
-    market_open: "IDX OPEN",
-    market_closed: "IDX CLOSED",
+    market_open: "IDX open",
+    market_closed: "IDX closed",
     market_open_hours: "Session I: 09:00–12:00 · Session II: 13:30–15:50 WIB",
 
     /* Header */
@@ -264,19 +268,23 @@ const translations = {
     header_updated: "Updated",
 
     /* Dashboard */
-    dash_portfolio_value: "Portfolio Value",
+    /* Sentence case, not Title Case: label ink is quieter than the figure. */
+    dash_portfolio_value: "Portfolio value",
     dash_daily_pnl: "Daily P&L",
     dash_ihsg: "IHSG",
-    dash_top_gainer: "Top Gainer",
-    dash_intraday: "Intraday Chart",
+    dash_top_gainer: "Top gainer",
+    dash_intraday: "Intraday chart",
     dash_intraday_sub: "Today vs IHSG",
-    dash_top_holdings: "Top Holdings",
-    dash_recent_tx: "Recent Transactions",
-    dash_ai_alerts: "AI Signals",
-    dash_sector_alloc: "Sector Allocation",
-    dash_all_time_gain: "All-time Gain",
+    dash_top_holdings: "Top holdings",
+    dash_recent_tx: "Recent transactions",
+    dash_ai_alerts: "AI signals",
+    dash_sector_alloc: "Sector allocation",
+    dash_all_time_gain: "All-time gain",
     dash_today: "today",
-    dash_cost_basis: "Cost Basis",
+    dash_no_intraday: "No price points today yet; the curve lights up once the feed sends data.",
+    dash_empty_position: "No positions recorded yet.",
+    dash_empty_position_action: "Record your first position in Portfolio",
+    dash_cost_basis: "Cost basis",
 
     /* Markets */
     mkt_title: "Market Watch",

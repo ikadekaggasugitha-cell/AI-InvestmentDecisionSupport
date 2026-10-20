@@ -124,7 +124,7 @@ function SearchDropdown({ query, market, onClose, isId, onSelectSymbol }: Search
                 </span>
                 <span
                   style={{
-                    fontSize: 9, fontFamily: "var(--font-mono)", fontWeight: 600,
+                    fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600,
                     /* Same ordinal ramp as MarketsView: one hue stepping down
                        toward the surface. Dark-theme hex here sat on var(--card)
                        in light mode, so T1 landed near 2:1 on white. */
@@ -138,7 +138,7 @@ function SearchDropdown({ query, market, onClose, isId, onSelectSymbol }: Search
                   T{stock.tier}
                 </span>
               </div>
-              <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 1 }}>{stock.name}</div>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 1 }}>{stock.name}</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
@@ -231,11 +231,11 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
               background: market.isMarketOpen ? "var(--gain)" : "var(--muted-foreground)",
               display: "inline-block",
               boxShadow: market.isMarketOpen ? "0 0 0 2px var(--gain-bg)" : "none",
-              animation: market.isMarketOpen ? "pulse 2s infinite" : "none",
+              flexShrink: 0,
             }}
           />
-          <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", fontWeight: 600, color: market.isMarketOpen ? "var(--gain)" : "var(--muted-foreground)", letterSpacing: "0.06em" }}>
-            {market.isMarketOpen ? (isId ? "BEI LIVE" : "IDX LIVE") : (isId ? "PASAR TUTUP" : "MARKET CLOSED")}
+          <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: market.isMarketOpen ? "var(--gain)" : "var(--muted-foreground)" }}>
+            {market.isMarketOpen ? (isId ? "BEI Live" : "IDX Live") : (isId ? "Pasar tutup" : "Market closed")}
           </span>
           {/* What the prices actually are. "BEI LIVE" above refers to the
               EXCHANGE being open — not to the data being real time. The feed is
@@ -261,7 +261,7 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
           style={{ paddingRight: 16, marginRight: 16, borderRight: "1px solid var(--border)" }}
           aria-label={`IHSG ${ihsg.value.toFixed(2)} ${ihsg.changePct >= 0 ? "naik" : "turun"} ${Math.abs(ihsg.changePct).toFixed(2)} persen`}
         >
-          <span style={{ fontSize: 10, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", fontWeight: 600, letterSpacing: "0.05em" }}>
+          <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
             IHSG
           </span>
           <span style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
@@ -280,7 +280,7 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
           className="flex items-center gap-2 flex-shrink-0"
           aria-label={`USD IDR ${fx.usdIdr.toLocaleString("id-ID")} ${fx.changePct >= 0 ? "naik" : "turun"} ${Math.abs(fx.changePct).toFixed(3)} persen`}
         >
-          <span style={{ fontSize: 10, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", letterSpacing: "0.05em" }}>
+          <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
             USD/IDR
           </span>
           <span style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
@@ -294,7 +294,7 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
       </div>
 
       {/* ── Main row ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex items-center justify-between px-5 py-3">
         <div className="flex items-center gap-3">
           {isMobile && (
             <button
@@ -321,9 +321,9 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
 
         <div className="flex items-center gap-2">
 
-          {/* Search — hidden on mobile */}
-          {!isMobile && (
-            <div ref={searchRef} style={{ position: "relative" }}>
+          {/* Search — from lg up. Below that the width is spent on the view's
+              own controls; Markets has its own filter. */}
+          <div ref={searchRef} className="relative hidden lg:block" style={{ position: "relative" }}>
               <div
                 className="flex items-center gap-2 rounded px-3"
                 style={{ background: "var(--muted)", border: `1px solid ${searchOpen ? "var(--primary)" : "var(--control-border)"}`, width: 220, height: 34, transition: "border-color 0.1s" }}
@@ -364,8 +364,7 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
                   onSelectSymbol={onSelectSymbol}
                 />
               )}
-            </div>
-          )}
+          </div>
 
           {/* IDR / USD toggle */}
           <button
@@ -386,17 +385,16 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
             <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: !fx.showUsd ? "var(--foreground)" : "var(--muted-foreground)" }}>
               IDR
             </span>
-            <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>/</span>
+            <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>/</span>
             <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: fx.showUsd ? "var(--neutral)" : "var(--muted-foreground)" }}>
               USD
             </span>
           </button>
 
-          {/* ID / EN toggle — hidden on mobile */}
-          {!isMobile && (
-            <button
-              onClick={toggleLocale}
-              className="flex items-center rounded px-3"
+          {/* ID / EN toggle — from lg up, same band as the search. */}
+          <button
+            onClick={toggleLocale}
+            className="hidden lg:flex items-center rounded px-3"
               aria-label={locale === "id" ? "Switch to English" : "Ganti ke Bahasa Indonesia"}
               aria-pressed={locale === "en"}
               style={{
@@ -409,12 +407,11 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
               <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: locale === "id" ? "var(--foreground)" : "var(--muted-foreground)" }}>
                 ID
               </span>
-              <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>/</span>
+              <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>/</span>
               <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: locale === "en" ? "var(--foreground)" : "var(--muted-foreground)" }}>
                 EN
               </span>
-            </button>
-          )}
+          </button>
 
           {/* Theme toggle */}
           <button
@@ -433,36 +430,20 @@ export function Header({ title, subtitle, market, fx, isMobile = false, onMenuTo
             }
           </button>
 
-          {/* Live clock — hidden on mobile */}
-          {!isMobile && (
-            <div
-              className="flex items-center gap-1.5"
-              style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", minWidth: 72 }}
-              aria-label={isId ? `Waktu sekarang ${timeStr}` : `Current time ${timeStr}`}
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              <span
-                style={{
-                  width: 5, height: 5, borderRadius: "50%",
-                  background: market.isMarketOpen ? "var(--gain)" : "var(--muted-foreground)",
-                  display: "inline-block", flexShrink: 0,
-                }}
-                aria-hidden="true"
-              />
-              {timeStr}
-            </div>
-          )}
+          {/* Live clock — from xl up. The market state is marked once,
+              in the ticker row where its label lives; a dot here would mark
+              the same fact a second time. */}
+          <div
+            className="hidden xl:block"
+            style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", minWidth: 72, textAlign: "right" }}
+            aria-label={isId ? `Waktu sekarang ${timeStr}` : `Current time ${timeStr}`}
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {timeStr}
+          </div>
         </div>
       </div>
-
-      {/* Pulse animation keyframe */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; box-shadow: 0 0 0 2px var(--gain-bg); }
-          50% { opacity: 0.6; box-shadow: 0 0 0 4px var(--gain-bg); }
-        }
-      `}</style>
     </header>
   );
 }

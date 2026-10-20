@@ -1,8 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect, memo, forwardRef, type CSSProperties, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
-  Search, ChevronUp, ChevronDown, ChevronsUpDown,
-  TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Star,
+  Search, ChevronUp, ChevronDown, ChevronsUpDown, Star,
 } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { useApp } from "../context/AppContext";
@@ -80,20 +79,25 @@ const thCenter: CSSProperties = { ...thBase, textAlign: "center" as const, curso
 /* ── Memoized sparkline ───────────────────────────────────────────────────── */
 
 const MiniSparkline = memo(
-  function MiniSparkline({ history, positive }: { history: number[]; positive: boolean }) {
+  function MiniSparkline({ history }: { history: number[] }) {
     const data = useMemo(() => history.map((v, i) => ({ v, i })), [history]);
+    /* The colour is derived from the shape of the 7-day series itself, not
+     * from today's changePct: a flat week is not a rising one, so it prints
+     * grey rather than gain. */
+    const first = history[0];
+    const flat  = history.length === 0 || history.every((v) => v === first);
+    const up    = !flat && history[history.length - 1] >= first;
     return (
       <ResponsiveContainer width={64} height={28}>
         <LineChart data={data}>
           <Line type="monotone" dataKey="v"
-            stroke={positive ? "var(--gain)" : "var(--loss)"}
+            stroke={flat ? "var(--muted-foreground)" : up ? "var(--gain)" : "var(--loss)"}
             strokeWidth={1.2} dot={false} />
         </LineChart>
       </ResponsiveContainer>
     );
   },
   (prev, next) =>
-    prev.positive === next.positive &&
     prev.history.length === next.history.length &&
     prev.history[prev.history.length - 1] === next.history[next.history.length - 1]
 );
@@ -104,7 +108,6 @@ interface MarketRowProps {
   stock:     StockTick;
   fx:        ExchangeRateData;
   isId:      boolean;
-  isEven:    boolean;
   isWatched: boolean;
   board?:    string | null;
   onToggle:  (symbol: string) => void;
@@ -117,11 +120,15 @@ interface MarketRowProps {
 
 const MarketRow = memo(
   forwardRef<HTMLTableRowElement, MarketRowProps>(function MarketRow(
-    { stock, fx, isId, isEven, isWatched, board, onToggle, onSelect, accum, accumLoading, virtualIndex },
+    { stock, fx, isId, isWatched, board, onToggle, onSelect, accum, accumLoading, virtualIndex },
     ref,
   ) {
-    const pos        = stock.changePct >= 0;
-    const foreignPos = stock.foreignNet >= 0;
+    const pos        = stock.changePct > 0;
+    /* Zero prints grey across the board: a change of exactly 0.00% is not a
+     * gain, and colouring it as one is the chart lying by colour. */
+    const chColor    = pos ? "var(--gain)" : stock.changePct < 0 ? "var(--loss)" : "var(--muted-foreground)";
+    const foreignPos = stock.foreignNet > 0;
+    const fgnColor   = foreignPos ? "var(--gain)" : stock.foreignNet < 0 ? "var(--loss)" : "var(--muted-foreground)";
     const tierCfg    = TIER_CONFIG[stock.tier] ?? TIER_FALLBACK;
 
     return (
@@ -129,7 +136,7 @@ const MarketRow = memo(
         ref={ref}
         data-index={virtualIndex}
         onClick={() => onSelect(stock.symbol)}
-        style={{ height: ROW_HEIGHT, borderBottom: "1px solid var(--border)", background: isEven ? "transparent" : "var(--muted)", cursor: "pointer" }}
+        style={{ height: ROW_HEIGHT, borderBottom: "1px solid var(--border)", background: "transparent", cursor: "pointer" }}
       >
         <td style={{ padding: "0 4px 0 12px", width: 28, textAlign: "center" }}>
           <button
@@ -156,8 +163,8 @@ const MarketRow = memo(
               <span
                 title={board}
                 style={{
-                  fontSize: 8, fontWeight: 600, color: "var(--muted-foreground)",
-                  background: "var(--muted)", borderRadius: 2, padding: "1px 4px",
+                  fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)",
+                  background: "var(--muted)", borderRadius: 2, padding: "1px 5px",
                   border: "1px solid var(--border)", whiteSpace: "nowrap",
                 }}
               >
@@ -165,7 +172,7 @@ const MarketRow = memo(
               </span>
             )}
           </div>
-          <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 1, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 1, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {stock.name}
           </div>
         </td>
@@ -175,16 +182,16 @@ const MarketRow = memo(
           </span>
         </td>
         <td style={{ padding: "10px 12px", textAlign: "right" }}>
-          <div className="flex items-center justify-end gap-0.5" style={{ color: pos ? "var(--gain)" : "var(--loss)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-            {pos ? <ChevronUp size={11} aria-hidden="true" /> : <ChevronDown size={11} aria-hidden="true" />}
+          <div className="flex items-center justify-end gap-0.5" style={{ color: chColor, fontFamily: "var(--font-mono)", fontSize: 12 }}>
+            {stock.changePct !== 0 && (pos ? <ChevronUp size={11} aria-hidden="true" /> : <ChevronDown size={11} aria-hidden="true" />)}
             {Math.abs(stock.changePct).toFixed(2)}%
           </div>
-          <div style={{ fontSize: 10, color: pos ? "var(--gain)" : "var(--loss)", fontFamily: "var(--font-mono)", textAlign: "right" }}>
-            {stock.change >= 0 ? "+" : ""}{stock.change.toLocaleString("id-ID")}
+          <div style={{ fontSize: 11, color: chColor, fontFamily: "var(--font-mono)", textAlign: "right" }}>
+            {stock.change > 0 ? "+" : ""}{stock.change.toLocaleString("id-ID")}
           </div>
         </td>
         <td style={{ padding: "4px 12px" }}>
-          <MiniSparkline history={stock.history} positive={pos} />
+          <MiniSparkline history={stock.history} />
         </td>
         <td style={{ padding: "10px 12px", textAlign: "right" }}>
           <span style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
@@ -208,9 +215,9 @@ const MarketRow = memo(
           <span
             title={tierCfg.title}
             style={{
-              fontSize: 9, fontFamily: "var(--font-mono)", fontWeight: 700,
+              fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 700,
               color: tierCfg.color, background: tierCfg.bg,
-              borderRadius: 3, padding: "2px 5px", letterSpacing: "0.04em",
+              borderRadius: 3, padding: "1px 5px",
               // --border rather than a tint of the tier colour: a coloured
               // border on every row puts the hue back that the ramp removed.
               border: "1px solid var(--border)", whiteSpace: "nowrap",
@@ -218,25 +225,10 @@ const MarketRow = memo(
           >
             {tierCfg.label}
           </span>
-          {/* The tier sentence must never wrap. It is a caption, and a wrapped
-              caption makes the row taller than ROW_HEIGHT, which is exactly the
-              height the virtualizer budgets for — so the board's scroll extent
-              would drift with the width of the widest market-cap string. It is
-              clipped instead, with the full sentence still on the pill above. */}
-          <div
-            title={tierCfg.title}
-            style={{
-              fontSize: 9, color: "var(--muted-foreground)", marginTop: 2,
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              maxWidth: 150,
-            }}
-          >
-            {tierCfg.title}
-          </div>
         </td>
         <td style={{ padding: "10px 12px", textAlign: "right" }}>
-          <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: foreignPos ? "var(--gain)" : "var(--loss)", fontWeight: 500 }}>
-            {foreignPos ? "+" : ""}{stock.foreignNet.toFixed(1)}B
+          <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: fgnColor, fontWeight: 500 }}>
+            {stock.foreignNet > 0 ? "+" : ""}{stock.foreignNet.toFixed(1)}B
           </span>
         </td>
         <td style={{ padding: "10px 12px" }}>
@@ -265,7 +257,6 @@ const MarketRow = memo(
     prev.fx.showUsd           === next.fx.showUsd           &&
     prev.fx.usdIdr            === next.fx.usdIdr            &&
     prev.isId                 === next.isId                 &&
-    prev.isEven               === next.isEven               &&
     prev.isWatched            === next.isWatched            &&
     prev.board                === next.board                &&
     prev.accumLoading         === next.accumLoading         &&
@@ -293,19 +284,6 @@ function parseMktCap(s: string): number {
    rather than a text glyph. A bare U+2195 sits on the font's baseline while the
    SVGs sit on their own box, so the column header visibly jumps between the
    unsorted and sorted states. */
-/** Quick-view tab label. The direction is an SVG rather than a triangle glyph:
- *  U+25B2/U+25BC carry no token colour, no aria-hidden, and their optical size
- *  changes with the surrounding font. */
-function TabLabel({ icon, text }: { icon: "up" | "down"; text: string }) {
-  const Icon = icon === "up" ? ArrowUpRight : ArrowDownRight;
-  return (
-    <span className="flex items-center gap-1">
-      <Icon size={13} aria-hidden="true" />
-      {text}
-    </span>
-  );
-}
-
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   const tone = active ? "var(--primary)" : "var(--muted-foreground)";
   if (!active) return <ChevronsUpDown size={10} style={{ color: tone }} aria-hidden="true" />;
@@ -483,8 +461,8 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
      assistive tech the way an SVG can. */
   const VIEW_TABS: { key: QuickView; label: ReactNode }[] = [
     { key: "all",       label: isId ? "Semua" : "All" },
-    { key: "gainers",   label: <TabLabel icon="up"   text="Top Gainers" /> },
-    { key: "losers",    label: <TabLabel icon="down" text="Top Losers" /> },
+    { key: "gainers",   label: "Top Gainers" },
+    { key: "losers",    label: "Top Losers" },
     { key: "active",    label: isId ? "Teraktif" : "Most Active" },
     {
       key: "watchlist",
@@ -499,48 +477,40 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
   ];
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5 [&>*]:shrink-0">
 
-      {/* Summary bar */}
+      {/* Summary bar — counters print in ink: the count of risers is a
+          statistic, not a signed change, so it is not painted gain-green.
+          No icon tiles: the numbers are the identity. */}
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
         {[
-          { label: t("mkt_advancing"), value: gainers,       color: "var(--gain)",    icon: TrendingUp   },
-          { label: t("mkt_declining"), value: losers,        color: "var(--loss)",    icon: TrendingDown },
-          { label: t("mkt_tracked"),   value: stocks.length, color: "var(--neutral)", icon: Search       },
-        ].map((card) => {
-          const Icon = card.icon;
-          return (
-            <div key={card.label} className="rounded p-4 flex items-center gap-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-              <div style={{ width: 36, height: 36, borderRadius: 4, background: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Icon size={16} style={{ color: card.color }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: card.color, fontFamily: "var(--font-mono)" }}>{card.value}</div>
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{card.label}</div>
-              </div>
-            </div>
-          );
-        })}
+          { label: t("mkt_advancing"), value: gainers },
+          { label: t("mkt_declining"), value: losers },
+          { label: t("mkt_tracked"),   value: stocks.length },
+        ].map((card) => (
+          <div key={card.label} className="rounded px-4 py-3.5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{card.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)", marginTop: 2 }}>{card.value}</div>
+          </div>
+        ))}
       </div>
 
-      {/* Quick-view tabs (Stockbit-style lenses) */}
-      <div className="flex gap-1.5 flex-wrap">
+      {/* Quick-view tabs (Stockbit-style lenses) — a lens is a selection, not
+          a market state, so the active tab is an ink pill and the gain/loss
+          colour stays inside the data it describes. */}
+      <div className="flex gap-1 flex-wrap">
         {VIEW_TABS.map((tab) => {
           const active = view === tab.key;
-          const isWL = tab.key === "watchlist";
-          const isGain = tab.key === "gainers";
-          const isLose = tab.key === "losers";
-          const activeColor = isWL ? "var(--warning)" : isGain ? "var(--gain)" : isLose ? "var(--loss)" : "var(--primary)";
           return (
             <button
               key={tab.key}
               onClick={() => applyView(tab.key)}
               style={{
-                fontSize: 12, fontWeight: 600,
-                padding: "6px 12px", borderRadius: 6,
-                background: active ? `color-mix(in srgb, ${activeColor} 12%, transparent)` : "var(--card)",
-                color: active ? activeColor : "var(--muted-foreground)",
-                border: `1px solid ${active ? activeColor : "var(--control-border)"}`,
+                fontSize: 12, fontWeight: active ? 600 : 500,
+                padding: "6px 12px", borderRadius: 999,
+                background: active ? "var(--muted)" : "transparent",
+                color: active ? "var(--foreground)" : "var(--muted-foreground)",
+                border: "none",
                 cursor: "pointer", whiteSpace: "nowrap",
               }}
             >
@@ -572,13 +542,14 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
                 key={s}
                 onClick={() => setSector(s)}
                 style={{
-                  fontSize: 11,
-                  fontFamily: "var(--font-mono)",
-                  padding: "5px 10px",
-                  borderRadius: 4,
-                  background: sector === s ? "var(--accent)" : "var(--card)",
-                  color: sector === s ? "var(--primary)" : "var(--muted-foreground)",
-                  border: `1px solid ${sector === s ? "var(--primary)" : "var(--control-border)"}`,
+                  fontSize: 12,
+                  fontFamily: "var(--font-sans)",
+                  padding: "5px 11px",
+                  borderRadius: 999,
+                  background: sector === s ? "var(--muted)" : "transparent",
+                  color: sector === s ? "var(--foreground)" : "var(--muted-foreground)",
+                  fontWeight: sector === s ? 600 : 500,
+                  border: "none",
                   cursor: "pointer",
                   whiteSpace: "nowrap",
                 }}
@@ -666,7 +637,6 @@ export function MarketsView({ market, fx, watchlist, onToggleWatchlist, focusSym
                     stock={stock}
                     fx={fx}
                     isId={isId}
-                    isEven={virtualRow.index % 2 === 0}
                     isWatched={watchlist.has(stock.symbol)}
                     board={universe.bySymbol[stock.symbol]?.board ?? null}
                     onToggle={handleToggle}

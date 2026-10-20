@@ -242,6 +242,7 @@ function AppInner() {
                 onSelectSymbol={selectSymbol}
                 alerts={alertsHook.visibleAlerts}
                 alertsIsLive={alertsHook.isLive}
+                onOpenPortfolio={() => setView("portfolio")}
               />
             </ErrorBoundary>
           )}

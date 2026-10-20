@@ -47,9 +47,9 @@ const TYPE_ICON = {
 const SEVERITY = {
   // --loss, not the dark-theme hex: severity is a semantic, and the token
   // keeps its 4.5:1 on a white card where the fixed value did not.
-  high:   { color: "var(--loss)", bg: "var(--loss-bg)", id: "TINGGI", en: "HIGH" },
-  medium: { color: "var(--warning)", bg: "var(--warning-bg)", id: "SEDANG", en: "MEDIUM" },
-  low:    { color: "var(--muted-foreground)", bg: "var(--muted)", id: "RENDAH", en: "LOW" },
+  high:   { color: "var(--loss)", bg: "var(--loss-bg)", id: "Tinggi", en: "High" },
+  medium: { color: "var(--warning)", bg: "var(--warning-bg)", id: "Sedang", en: "Medium" },
+  low:    { color: "var(--muted-foreground)", bg: "var(--muted)", id: "Rendah", en: "Low" },
 } as const;
 
 const ORDER: Array<AlertItem["severity"]> = ["high", "medium", "low"];
@@ -64,11 +64,11 @@ export function AlertsView({ alerts, onDismiss, onClearAll, locale = "id", isLiv
   const clearAll = onClearAll;
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5 [&>*]:shrink-0">
       {!isLive && alerts.length > 0 && (
         <div
           className="flex items-center gap-2 rounded p-3"
-          style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)", color: "var(--warning)", fontSize: 11 }}
+          style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)", color: "var(--warning)", fontSize: 13 }}
         >
           <FlaskConical size={13} style={{ flexShrink: 0 }} />
           <span>
@@ -111,27 +111,27 @@ export function AlertsView({ alerts, onDismiss, onClearAll, locale = "id", isLiv
           const cfg = SEVERITY[sev];
           return (
             <div key={sev} className="flex flex-col gap-2">
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: cfg.color, textTransform: "uppercase" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: cfg.color }}>
                 {isId ? cfg.id : cfg.en} · {group.length}
               </div>
               {group.map((a) => {
                 const Icon = TYPE_ICON[a.type] ?? Bell;
                 return (
+                  // No left accent bar and no tinted icon square: severity is
+                  // carried by the tag and the icon colour alone. None of the
+                  // twenty-three study screens paints a colour bar down rows.
                   <div key={a.key} className="flex items-start gap-3 rounded px-4 py-3"
-                    style={{ background: "var(--card)", border: "1px solid var(--border)", borderLeft: `3px solid ${cfg.color}` }}>
-                    <div className="flex items-center justify-center rounded flex-shrink-0"
-                      style={{ width: 32, height: 32, background: cfg.bg }}>
-                      <Icon size={16} style={{ color: cfg.color }} />
-                    </div>
+                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+                    <Icon size={15} style={{ color: cfg.color, flexShrink: 0, marginTop: 3 }} />
                     <div className="flex-1 min-w-0">
                       <div style={{ fontSize: 13, color: "var(--foreground)", lineHeight: 1.5 }}>
                         {isId ? a.msgId : a.msgEn}
                       </div>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="px-1.5 py-0.5 rounded" style={{ fontSize: 8.5, fontWeight: 700, fontFamily: "var(--font-mono)", background: cfg.bg, color: cfg.color, letterSpacing: "0.04em" }}>
+                        <span className="px-1.5 py-0.5 rounded" style={{ fontSize: 11, fontWeight: 600, background: cfg.bg, color: cfg.color }}>
                           {(isId ? cfg.id : cfg.en)}
                         </span>
-                        <span style={{ fontSize: 10, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+                        <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
                           {isId ? a.timeId : a.timeEn}
                         </span>
                       </div>

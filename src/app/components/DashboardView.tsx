@@ -1,9 +1,8 @@
 import { useMemo, useCallback, type ElementType } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { TrendingUp, TrendingDown, Activity, DollarSign, ChevronUp, ChevronDown, AlertCircle, Zap, FlaskConical } from "lucide-react";
+import { TrendingUp, Activity, ChevronUp, ChevronDown, AlertCircle, Zap, FlaskConical } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "../i18n/translations";
 import { SECTOR_ALLOCATION, RECENT_TRANSACTIONS } from "../data/idxData";
@@ -28,6 +27,8 @@ interface Props {
    */
   alerts: readonly AlertItem[];
   alertsIsLive: boolean;
+  /** The empty-state action: the only honest way off a "no positions" card. */
+  onOpenPortfolio?: () => void;
 }
 
 const ALERT_ICONS: Record<string, ElementType> = {
@@ -37,7 +38,7 @@ const ALERT_COLORS: Record<string, string> = {
   high: "var(--loss)", medium: "var(--warning)", low: "var(--neutral)",
 };
 
-export function DashboardView({ market, fx, holdings, transactions, onSelectSymbol, alerts, alertsIsLive }: Props) {
+export function DashboardView({ market, fx, holdings, transactions, onSelectSymbol, alerts, alertsIsLive, onOpenPortfolio }: Props) {
   const { locale } = useApp();
   const { t }      = useTranslation(locale);
   const isId       = locale === "id";
@@ -85,16 +86,13 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
     return best;
   }, [stocks]);
 
-  /* Colour is assigned here rather than stored in the data: the seed carried
-     dark-theme hex that sat on var(--card) at roughly 2:1 in light mode. Five
-     categorical tokens cover the five largest sectors; the sixth reads as the
-     remainder via --muted. */
-  const SECTOR_PALETTE = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
+  /* The seed's sector weights describe the market's structure. The list needs
+     no per-slice colour at all: the bar list prints ink on the largest row and
+     grey behind it, so the chart's one hue stays with the intraday curve. */
   const sectorData = useMemo(
-    () => SECTOR_ALLOCATION.map((s, i) => ({
+    () => SECTOR_ALLOCATION.map((s) => ({
       name: isId ? s.name : s.nameEn,
       value: s.value,
-      color: i < SECTOR_PALETTE.length ? SECTOR_PALETTE[i] : "var(--muted)",
     })),
     [isId]
   );
@@ -137,138 +135,164 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
     }));
   }, [transactions, isId, txIsSample]);
 
-  const cards = [
+  const cards: Array<{
+    label: string; value: string; sub: string; color: string; signed?: boolean; lead?: boolean;
+  }> = [
+    /* Nilai portofolio is the screen's answer figure, so it prints ~1.3× its
+       siblings instead of matching them (the icon chips are gone: none of the
+       twenty-three app screens studied paints an icon circle next to a KPI). */
     {
       label: t("dash_portfolio_value"),
       value: fmt(portfolioValue),
       sub:   `${t("dash_cost_basis")}: ${fmt(costBasis)}`,
-      color: "var(--neutral)",
-      icon:  DollarSign,
-      signed: undefined as boolean | undefined,
+      color: "var(--muted-foreground)",
+      lead:  true,
     },
     {
       label: t("dash_daily_pnl"),
       value: `${dailyPnL >= 0 ? "+" : ""}${fmt(Math.abs(dailyPnL))}`,
       sub:   `${dailyPnLPct >= 0 ? "+" : ""}${(dailyPnLPct * 100).toFixed(2)}% ${t("dash_today")}`,
-      color: dailyPnL >= 0 ? "var(--gain)" : "var(--loss)",
-      icon:  dailyPnL >= 0 ? TrendingUp : TrendingDown,
-      signed: dailyPnL >= 0,
+      /* A flat P&L is not a win: zero prints grey and colour is spent only when
+         the number actually moved. */
+      color: dailyPnL > 0 ? "var(--gain)" : dailyPnL < 0 ? "var(--loss)" : "var(--muted-foreground)",
+      signed: dailyPnL === 0 ? undefined : dailyPnL > 0,
     },
     {
       label: t("dash_ihsg"),
       value: market.ihsg.value.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       sub:   `${market.ihsg.change >= 0 ? "+" : ""}${market.ihsg.change.toFixed(2)} (${market.ihsg.changePct >= 0 ? "+" : ""}${market.ihsg.changePct.toFixed(2)}%)`,
-      color: market.ihsg.changePct >= 0 ? "var(--gain)" : "var(--loss)",
-      icon:  Activity,
-      signed: market.ihsg.changePct >= 0,
+      color: market.ihsg.changePct > 0 ? "var(--gain)" : market.ihsg.changePct < 0 ? "var(--loss)" : "var(--muted-foreground)",
+      signed: market.ihsg.changePct === 0 ? undefined : market.ihsg.changePct > 0,
     },
     {
       label: t("dash_top_gainer"),
       value: topGainer?.symbol ?? "—",
       sub:   topGainer ? `+${topGainer.changePct.toFixed(2)}% · ${topGainer.price.toLocaleString("id-ID")}` : "",
-      color: "var(--gain)",
-      icon:  TrendingUp,
-      signed: true,
+      /* Same zero rule: a gainer sitting exactly flat prints grey, and no
+         chevron — flat is neither up nor down. */
+      color: topGainer && topGainer.changePct > 0 ? "var(--gain)" : "var(--muted-foreground)",
+      signed: topGainer && topGainer.changePct > 0 ? true : undefined,
     },
   ];
 
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5">
-
-      {/* KPI cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        {cards.map((card) => {
-          const Icon = card.icon;
+  /* The sector list renders in both feed states — beside the chart with data,
+     full-width under the slim notice without — so it lives as one element.
+     Six parts exceed the ring budget (three to five slices): the bar list
+     ranks them and reads without hue. */
+  const sectorCard = (
+    <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", marginBottom: 2 }}>
+        {t("dash_sector_alloc")}
+      </div>
+      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 12 }}>
+        {isId ? "Berdasarkan bobot" : "By weight"}
+      </div>
+      <div className="flex flex-col gap-2.5">
+        {[...sectorData].sort((a, b) => b.value - a.value).map((s, i, arr) => {
+          const topValue = arr[0].value > 0 ? arr[0].value : 1;
           return (
-            <div key={card.label} className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between mb-3">
-                <span style={{ fontSize: 11, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  {card.label}
+            <div key={s.name}>
+              <div className="flex items-baseline justify-between">
+                <span style={{ fontSize: 13, color: i === 0 ? "var(--foreground)" : "var(--muted-foreground)" }}>
+                  {s.name}
                 </span>
-                <div style={{ width: 28, height: 28, borderRadius: 4, background: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Icon size={13} style={{ color: card.color }} />
-                </div>
+                <span style={{ fontSize: 13, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+                  {s.value.toFixed(1)}%
+                </span>
               </div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)", lineHeight: 1 }}>
-                {card.value}
-              </div>
-              <div className="flex items-center gap-1 mt-1.5" style={{ fontSize: 11, color: card.color, fontFamily: "var(--font-mono)" }}>
-                {card.signed === true  && <ChevronUp size={11} />}
-                {card.signed === false && <ChevronDown size={11} />}
-                {card.sub}
+              {/* Proportional to the largest row and capped at 88%, so the
+                  trail never reads as a full-width rule; a zero share draws
+                  no bar rather than a fake sliver. */}
+              <div style={{ height: 6, borderRadius: 3, background: "var(--muted)", marginTop: 4 }}>
+                <div
+                  style={{
+                    height: "100%",
+                    borderRadius: 3,
+                    background: i === 0 ? "var(--foreground)" : "var(--neutral)",
+                    width: s.value > 0 ? `${Math.max((s.value / topValue) * 88, 1.5)}%` : "0%",
+                  }}
+                />
               </div>
             </div>
           );
         })}
       </div>
+    </div>
+  );
 
-      {/* Chart row */}
-      <div className="grid gap-4 grid-cols-1 xl:grid-cols-[1fr_296px]">
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5 [&>*]:shrink-0">
 
-        {/* Intraday chart */}
-        <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 2 }}>
-            {t("dash_intraday")}
+      {/* KPI row. Icon chips are gone: the KPI's ink is the identity, the
+          value is the key number, and the label stays quiet above them. */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        {cards.map((card) => (
+          <div key={card.label} className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginBottom: 8 }}>
+              {card.label}
+            </div>
+            <div style={{ fontSize: card.lead ? 26 : 20, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)", lineHeight: 1 }}>
+              {card.value}
+            </div>
+            <div className="flex items-center gap-1 mt-1.5" style={{ fontSize: 12, color: card.color, fontFamily: "var(--font-mono)" }}>
+              {card.signed === true  && <ChevronUp size={12} />}
+              {card.signed === false && <ChevronDown size={12} />}
+              <span>{card.sub}</span>
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 16 }}>
-            {t("dash_intraday_sub")}
-          </div>
-          <ResponsiveContainer width="100%" height={196}>
-            <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="time" tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} tickFormatter={fmtIdr} width={76} />
-              <Tooltip
-                contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}
-                formatter={(v: number) => [fmtIdr(v), isId ? "Portofolio" : "Portfolio"]}
-              />
-              <Area type="monotone" dataKey="value" stroke="var(--gain)" strokeWidth={1.5} fill="var(--gain)" fillOpacity={0.08} dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Sector donut */}
-        <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 2 }}>
-            {t("dash_sector_alloc")}
-          </div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8 }}>
-            {isId ? "Berdasarkan bobot" : "By weight"}
-          </div>
-          <ResponsiveContainer width="100%" height={130}>
-            <PieChart>
-              <Pie data={sectorData} cx="50%" cy="50%" innerRadius={40} outerRadius={62} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}>
-                {/* 1px stroke in the surface colour: adjacent chart tokens
-                    differ by as little as 1.00:1, so the slice boundary needs
-                    an explicit edge. */}
-                {sectorData.map((s, i) => (
-                  <Cell key={`sec-${i}`} fill={s.color} stroke="var(--card)" strokeWidth={1} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="flex flex-col gap-1.5 mt-1">
-            {sectorData.map((item) => (
-              <div key={item.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div style={{ width: 7, height: 7, borderRadius: 1, background: item.color }} />
-                  <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{item.name}</span>
-                </div>
-                <span style={{ fontSize: 10, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
-                  {item.value.toFixed(1)}%
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Bottom row */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+      {/* Chart row. An empty feed in the wide chart frame is a void, not a
+          state: the empty feed prints a slim strip and the sector list takes
+          the row; with data both cards sit side by side. */}
+      {chartData.length === 0 ? (
+        <>
+          <div className="rounded p-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+              {t("dash_no_intraday")}
+            </div>
+          </div>
+          {sectorCard}
+        </>
+      ) : (
+        <div className="grid gap-4 grid-cols-1 xl:grid-cols-[1fr_296px] items-start">
+
+          {/* Intraday chart. The main data element owns the one chart hue; the
+              grid and axes stay grey and horizontal only. */}
+          <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", marginBottom: 2 }}>
+              {t("dash_intraday")}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 16 }}>
+              {t("dash_intraday_sub")}
+            </div>
+            <ResponsiveContainer width="100%" height={196}>
+              <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+                <CartesianGrid vertical={false} stroke="var(--border)" />
+                <XAxis dataKey="time" tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} tickFormatter={fmtIdr} width={76} />
+                <Tooltip
+                  contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}
+                  formatter={(v: number) => [fmtIdr(v), isId ? "Portofolio" : "Portfolio"]}
+                />
+                <Area type="monotone" dataKey="value" stroke="var(--gain)" strokeWidth={1.5} fill="var(--gain)" fillOpacity={0.08} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {sectorCard}
+        </div>
+      )}
+
+      {/* Bottom row. items-start keeps each card at its own height instead of
+          stretching a short list into an empty band; three-up starts at lg
+          because three ~150px columns at 768 truncate the figures. */}
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3 items-start">
 
         {/* Top holdings */}
         <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", marginBottom: 12 }}>
             {t("dash_top_holdings")}
           </div>
           {topHoldings.map((h, i) => (
@@ -287,17 +311,17 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
               onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
             >
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{h.symbol}</div>
-                <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 1 }}>{h.lots.toLocaleString()} {isId ? "lot" : "lots"}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{h.symbol}</div>
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 1 }}>{h.lots.toLocaleString()} {isId ? "lot" : "lots"}</div>
               </div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 11, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{fmt(h.value)}</div>
+                <div style={{ fontSize: 13, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{fmt(h.value)}</div>
                 {/* Blank rather than 0.00% when no purchase price is known: a
                     flat percentage reads as "exactly at cost", which is a claim
                     about a purchase this account has not recorded. */}
                 <div
                   style={{
-                    fontSize: 10,
+                    fontSize: 11,
                     fontFamily: "var(--font-mono)",
                     ...(h.pnlPct == null
                       ? { color: "var(--muted-foreground)" }
@@ -310,8 +334,24 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
             </div>
           ))}
           {topHoldings.length === 0 && (
-            <div style={{ fontSize: 12, color: "var(--muted-foreground)", paddingTop: 4 }}>
-              {isId ? "Belum ada posisi" : "No positions yet"}
+            /* Not just a sentence: the next step sits in the frame, so the
+               empty card offers a way forward instead of a period. */
+            <div style={{ paddingTop: 4 }}>
+              <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+                {t("dash_empty_position")}
+              </div>
+              {onOpenPortfolio && (
+                <button
+                  onClick={onOpenPortfolio}
+                  style={{
+                    background: "none", border: "none", padding: 0,
+                    marginTop: 6, cursor: "pointer",
+                    fontSize: 13, fontWeight: 500, color: "var(--link)",
+                  }}
+                >
+                  {t("dash_empty_position_action")}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -323,18 +363,18 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
               chip, rupiah total, a plausible date), so without the label a
               bundled list reads as the user's own trade history. */}
           <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
               {t("dash_recent_tx")}
             </span>
             {txIsSample && (
               <span
                 className="flex items-center gap-1"
-                style={{ fontSize: 10, color: "var(--warning)" }}
+                style={{ fontSize: 11, color: "var(--warning)" }}
                 title={isId
                   ? "Belum ada transaksi tercatat. Daftar di bawah adalah data contoh, bukan transaksi Anda."
                   : "No transactions recorded yet. The list below is sample data, not your trades."}
               >
-                <FlaskConical size={10} />
+                <FlaskConical size={11} />
                 {isId ? "Data contoh" : "Sample data"}
               </span>
             )}
@@ -345,14 +385,14 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
             return (
               <div key={tx.id} className="flex items-center justify-between py-2" style={{ borderBottom: i < recentTx.length - 1 ? "1px solid var(--border)" : "none" }}>
                 <div className="flex items-center gap-2">
-                  <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", fontWeight: 700, color: typeColor, background: "var(--muted)", padding: "1px 5px", borderRadius: 2 }}>
+                  <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 700, color: typeColor, background: "var(--muted)", padding: "1px 5px", borderRadius: 2 }}>
                     {typeLabel}
                   </span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{tx.symbol}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{tx.symbol}</span>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 11, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{fmtIdr(tx.total)}</div>
-                  <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{tx.date.split(" ").slice(0, 3).join(" ")}</div>
+                  <div style={{ fontSize: 13, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{fmtIdr(tx.total)}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{tx.date.split(" ").slice(0, 3).join(" ")}</div>
                 </div>
               </div>
             );
@@ -367,18 +407,18 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
         {/* AI alerts */}
         <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
               {t("dash_ai_alerts")}
             </div>
             {!alertsIsLive && (
               <span
                 className="flex items-center gap-1"
-                style={{ fontSize: 10, color: "var(--warning)" }}
+                style={{ fontSize: 11, color: "var(--warning)" }}
                 title={isId
                   ? "Feed langsung tidak dapat dihubungi; daftar di bawah adalah data contoh."
                   : "Live feed unreachable; the list below is sample data."}
               >
-                <FlaskConical size={10} />
+                <FlaskConical size={11} />
                 {isId ? "Data contoh" : "Sample data"}
               </span>
             )}
@@ -393,10 +433,10 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
                 <div key={alert.key} className="flex gap-2.5 p-2 rounded" style={{ background: "var(--muted)" }}>
                   <Icon size={12} style={{ color, flexShrink: 0, marginTop: 2 }} />
                   <div>
-                    <div style={{ fontSize: 11, color: "var(--foreground)", lineHeight: 1.4 }}>
+                    <div style={{ fontSize: 12, color: "var(--foreground)", lineHeight: 1.45 }}>
                       {isId ? alert.msgId : alert.msgEn}
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
                       {alert.timeId || alert.timeEn}
                     </div>
                   </div>
@@ -404,7 +444,7 @@ export function DashboardView({ market, fx, holdings, transactions, onSelectSymb
               );
             })}
             {alerts.length === 0 && (
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)", padding: "8px 2px" }}>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "8px 2px" }}>
                 {isId ? "Tidak ada peringatan aktif." : "No active alerts."}
               </div>
             )}

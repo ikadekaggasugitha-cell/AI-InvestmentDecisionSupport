@@ -1,9 +1,9 @@
 import { useState, useMemo, useCallback, type ReactNode } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar,
+  ResponsiveContainer, Cell, BarChart, Bar,
 } from "recharts";
-import {  TrendingUp, BarChart2, DollarSign, FlaskConical, Pencil, Plus, Trash2 , TrendingDown } from "lucide-react";
+import { ChevronUp, ChevronDown, FlaskConical, Pencil, Plus, Trash2 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import type { LoadFailure } from "../config/api";
 import { useTranslation } from "../i18n/translations";
@@ -158,11 +158,39 @@ export function PortfolioView({
     ? (isId ? "harga beli belum dicatat" : "no cost basis recorded")
     : `${totalGainPct >= 0 ? "+" : ""}${(totalGainPct * 100).toFixed(1)}% ${t("port_all_time")}`;
 
-  const cards = [
-    { label: t("dash_portfolio_value"), value: fmt(totalValue), sub: totalCost == null ? t("port_col_cost") : `${t("port_col_cost")}: ${fmt(totalCost)}`, color: "var(--neutral)", icon: DollarSign },
-    { label: t("port_unrealized"),      value: gainValue, sub: gainSub, color: totalGain == null ? "var(--muted-foreground)" : totalGain >= 0 ? "var(--gain)" : "var(--loss)", icon: TrendingUp },
-    { label: t("dash_daily_pnl"),       value: `${dailyPnL >= 0 ? "+" : ""}${fmt(Math.abs(dailyPnL))}`, sub: `${dailyPnLPct >= 0 ? "+" : ""}${(dailyPnLPct * 100).toFixed(2)}% ${isId ? "hari ini" : "today"}`, color: dailyPnL >= 0 ? "var(--gain)" : "var(--loss)", icon: dailyPnL >= 0 ? TrendingUp : TrendingDown },
-    { label: t("port_weighted_return"), value: positions.every((p) => p.pnlPct != null) ? `${weightedRet >= 0 ? "+" : ""}${(weightedRet * 100).toFixed(1)}%` : "—", sub: `${positions.length} ${isId ? "posisi aktif" : "active positions"}`, color: "var(--chart-4)", icon: BarChart2 },
+  const cards: { label: string; value: string; sub: string; color: string; signed?: boolean; lead?: boolean }[] = [
+    /* Nilai portofolio is the screen's answer figure: lead size, ink, quiet
+       label above — the same hierarchy the dashboard's KPI row carries. */
+    {
+      label: t("dash_portfolio_value"),
+      value: fmt(totalValue),
+      sub:   totalCost == null ? t("port_col_cost") : `${t("port_col_cost")}: ${fmt(totalCost)}`,
+      color: "var(--muted-foreground)",
+      lead:  true,
+    },
+    {
+      label: t("port_unrealized"),
+      value: gainValue,
+      sub:   gainSub,
+      color: totalGain == null ? "var(--muted-foreground)" : totalGain > 0 ? "var(--gain)" : totalGain < 0 ? "var(--loss)" : "var(--muted-foreground)",
+      signed: totalGain == null || totalGain === 0 ? undefined : totalGain > 0,
+    },
+    {
+      label: t("dash_daily_pnl"),
+      value: `${dailyPnL >= 0 ? "+" : ""}${fmt(Math.abs(dailyPnL))}`,
+      sub:   `${dailyPnLPct >= 0 ? "+" : ""}${(dailyPnLPct * 100).toFixed(2)}% ${isId ? "hari ini" : "today"}`,
+      /* A flat P&L is not a win: zero prints grey and no chevron. */
+      color: dailyPnL > 0 ? "var(--gain)" : dailyPnL < 0 ? "var(--loss)" : "var(--muted-foreground)",
+      signed: dailyPnL === 0 ? undefined : dailyPnL > 0,
+    },
+    {
+      label: t("port_weighted_return"),
+      value: positions.every((p) => p.pnlPct != null) ? `${weightedRet >= 0 ? "+" : ""}${(weightedRet * 100).toFixed(1)}%` : "—",
+      sub:   `${positions.length} ${isId ? "posisi aktif" : "active positions"}`,
+      /* A return percentage is a statistic, not a signed move; it prints ink,
+         not chart color. */
+      color: "var(--muted-foreground)",
+    },
   ];
 
   // Positions with no cost basis are omitted from the return bars rather than
@@ -179,7 +207,7 @@ export function PortfolioView({
   const benchFmt   = (v: number) => [fmt(v), "IHSG"];
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5 [&>*]:shrink-0">
 
       {/* Modal */}
       {modalMode && (
@@ -197,29 +225,29 @@ export function PortfolioView({
         />
       )}
 
-      {/* KPI cards */}
+      {/* KPI cards — icon chips are gone; the value is the identity and the
+          label sits quiet above it, mirroring the dashboard row. */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        {cards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <div key={card.label} className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between mb-3">
-                <span style={{ fontSize: 11, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  {card.label}
-                </span>
-                <div style={{ width: 28, height: 28, borderRadius: 4, background: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Icon size={13} style={{ color: card.color }} />
-                </div>
-              </div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)", lineHeight: 1 }}>{card.value}</div>
-              <div style={{ fontSize: 11, color: card.color, fontFamily: "var(--font-mono)", marginTop: 6 }}>{card.sub}</div>
+        {cards.map((card) => (
+          <div key={card.label} className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginBottom: 8 }}>
+              {card.label}
             </div>
-          );
-        })}
+            <div style={{ fontSize: card.lead ? 26 : 20, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)", lineHeight: 1 }}>
+              {card.value}
+            </div>
+            <div className="flex items-center gap-1 mt-1.5" style={{ fontSize: 12, color: card.color, fontFamily: "var(--font-mono)" }}>
+              {card.signed === true  && <ChevronUp size={12} />}
+              {card.signed === false && <ChevronDown size={12} />}
+              <span>{card.sub}</span>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Equity curve + donut */}
-      <div className="grid gap-4 grid-cols-1 xl:grid-cols-[1fr_296px]">
+      {/* Equity curve + donut — items-start: an honest empty curve must not
+          stretch its card to match the sector card's height. */}
+      <div className="grid gap-4 grid-cols-1 xl:grid-cols-[1fr_296px] items-start">
         <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
           <div className="flex items-center gap-2" style={{ marginBottom: 2 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{t("port_equity_curve")}</div>
@@ -227,12 +255,12 @@ export function PortfolioView({
               // Not a warning. Holding nothing is not a failure of the data
               // pipeline, and colouring it like one would tell someone who has
               // bought no shares that something is broken.
-              <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+              <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
                 {isId ? "belum ada posisi" : "no positions yet"}
               </span>
             ) : equity.isLive ? (
               <span
-                style={{ fontSize: 10, color: "var(--muted-foreground)" }}
+                style={{ fontSize: 11, color: "var(--muted-foreground)" }}
                 title={isId
                   ? "Nilai portofolio dari harga penutupan sesi dikali lot yang dimiliki."
                   : "Portfolio value from real session closes times held lots."}
@@ -241,7 +269,7 @@ export function PortfolioView({
               </span>
             ) : (
               <span
-                style={{ fontSize: 10, color: "var(--warning)", display: "flex", alignItems: "center", gap: 3 }}
+                style={{ fontSize: 11, color: "var(--warning)", display: "flex", alignItems: "center", gap: 3 }}
                 title={isId
                   ? "Riwayat harga belum cukup untuk menghitung kurva. Tidak ada kurva pengganti yang ditampilkan."
                   : "Not enough price history to compute a curve. No substitute curve is drawn."}
@@ -262,8 +290,8 @@ export function PortfolioView({
             <ResponsiveContainer width="100%" height={196}>
               <AreaChart data={equity.points} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="date" tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} tickFormatter={yFmt} width={64} />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} tickFormatter={yFmt} width={64} />
                 <Tooltip
                   contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}
                   formatter={(v: number, name: string) => name === "value" ? tooltipFmt(v) : benchFmt(v)}
@@ -275,11 +303,11 @@ export function PortfolioView({
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div
-              className="flex flex-col items-center justify-center"
-              style={{ height: 196, color: "var(--muted-foreground)", fontSize: 11, textAlign: "center", gap: 6 }}
-            >
-              {equity.loading
+            /* A curve with nothing to draw shrinks to a note instead of a
+               196px void holding one sentence. */
+            <div className="rounded p-4" style={{ background: "var(--muted)", marginTop: 4 }}>
+              <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+                {equity.loading
                 ? (isId ? "Memuat kurva…" : "Loading curve…")
                 : equity.error
                   ? (equity.failure?.kind === "locked"
@@ -292,6 +320,7 @@ export function PortfolioView({
                         ? "Belum ada posisi. Kurva muncul setelah posisi pertama tercatat."
                         : "No positions yet. The curve appears once you hold something.")
                     : (isId ? "Riwayat harga belum cukup untuk menghitung kurva." : "Not enough price history to compute a curve.")}
+              </div>
             </div>
           )}
         </div>
@@ -300,7 +329,7 @@ export function PortfolioView({
           <div className="flex items-center gap-2" style={{ marginBottom: 2 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{t("port_sector_alloc")}</div>
             <span
-              style={{ fontSize: 10, color: "var(--muted-foreground)" }}
+              style={{ fontSize: 11, color: "var(--muted-foreground)" }}
               title={sectorIsLive
                 ? (isId ? "Dihitung dari bobot alokasi langsung." : "Aggregated from the live allocation weights.")
                 : (isId ? "Bobot langsung belum tersedia, memakai sebaran contoh." : "No live weights yet, showing the sample split.")}
@@ -308,29 +337,32 @@ export function PortfolioView({
               {sectorIsLive ? (isId ? "dari alokasi live" : "from live allocation") : (isId ? "data contoh" : "sample data")}
             </span>
           </div>
-          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8 }}>{t("port_alloc_sub")}</div>
-          <ResponsiveContainer width="100%" height={130}>
-            <PieChart>
-              <Pie data={sectorData} cx="50%" cy="50%" innerRadius={40} outerRadius={62} paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}>
-                {/* 1px stroke in the surface colour. Consecutive chart tokens
-                    sit at 1.00:1 to 1.18:1 against each other, so without a
-                    border the boundary between two slices is invisible. */}
-                {sectorData.map((s, i) => (
-                  <Cell key={`port-sec-${i}`} fill={s.color} stroke="var(--card)" strokeWidth={1} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="flex flex-col gap-1.5 mt-1">
-            {sectorData.map((item) => (
-              <div key={item.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div style={{ width: 7, height: 7, borderRadius: 1, background: item.color }} />
-                  <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{item.name}</span>
+          <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 12 }}>{t("port_alloc_sub")}</div>
+          {/* Donut out: an achromatic bar list — ink for the largest weight,
+              gray for the rest, longest bar capped at 88% so the trail never
+              reads as a full-width rule. Same pattern as the dashboard's
+              sector list, so one visual means one thing in both screens. */}
+          <div className="flex flex-col gap-2.5">
+            {[...sectorData].sort((a, b) => b.value - a.value).map((s, i, arr) => {
+              const topValue = arr[0].value > 0 ? arr[0].value : 1;
+              return (
+                <div key={s.name}>
+                  <div className="flex items-baseline justify-between">
+                    <span style={{ fontSize: 12, color: i === 0 ? "var(--foreground)" : "var(--muted-foreground)" }}>{s.name}</span>
+                    <span style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{s.value.toFixed(1)}%</span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 3, background: "var(--muted)", marginTop: 4 }}>
+                    <div
+                      style={{
+                        height: "100%", borderRadius: 3,
+                        background: i === 0 ? "var(--foreground)" : "var(--neutral)",
+                        width: s.value > 0 ? `${Math.max((s.value / topValue) * 88, 1.5)}%` : "0%",
+                      }}
+                    />
+                  </div>
                 </div>
-                <span style={{ fontSize: 10, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{item.value.toFixed(1)}%</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -348,21 +380,31 @@ export function PortfolioView({
         <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 16 }}>
           {isId ? "Imbal hasil per saham vs harga beli rata-rata" : "Return per holding vs average cost"}
         </div>
+        {returnsBar.length > 0 ? (
         <ResponsiveContainer width="100%" height={120}>
           <BarChart data={returnsBar} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-            <XAxis dataKey="symbol" tick={{ fontSize: 10, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} width={36} />
+            <XAxis dataKey="symbol" tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} width={36} />
             <Tooltip
               contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}
               formatter={(v: number) => [`${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, isId ? "Imbal Hasil" : "Return"]}
             />
             <Bar dataKey="ret" radius={[2, 2, 0, 0]}>
               {returnsBar.map((entry, i) => (
-                <Cell key={`bar-${i}`} fill={entry.ret >= 0 ? "var(--gain)" : "var(--loss)"} />
+                <Cell key={`bar-${i}`} fill={entry.ret > 0 ? "var(--gain)" : entry.ret < 0 ? "var(--loss)" : "var(--muted-foreground)"} />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        ) : (
+        /* No priced positions: no chart axes with nothing on them. A slim note
+           says why, and the card shrinks with its content. */
+        <div className="rounded p-4" style={{ background: "var(--muted)" }}>
+          <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
+            {isId ? "Tak ada imbal hasil yang bisa dihitung: belum ada harga beli yang dicatat." : "No returns to compute: no cost basis recorded yet."}
+          </div>
+        </div>
+        )}
       </div>
 
       {/* Positions table */}
@@ -395,18 +437,18 @@ export function PortfolioView({
           <thead>
             <tr style={{ background: "var(--muted)" }}>
               {[t("port_col_symbol"), t("port_col_lots"), t("port_col_avg"), t("port_col_current"), t("port_col_value"), t("port_col_cost"), t("port_col_pnl"), t("port_col_return"), t("port_col_weight"), t("port_col_actions")].map((h) => (
-                <th key={h} style={{ fontSize: 10, color: "var(--muted-foreground)", fontWeight: 500, padding: "7px 12px", textAlign: h === t("port_col_symbol") ? "left" : "right", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>
+                <th key={h} style={{ fontSize: 11, color: "var(--muted-foreground)", fontWeight: 500, padding: "7px 12px", textAlign: h === t("port_col_symbol") ? "left" : "right", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {positions.map((p, i) => (
-              <tr key={p.symbol} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "transparent" : "var(--muted)" }}>
+            {positions.map((p) => (
+              <tr key={p.symbol} style={{ borderBottom: "1px solid var(--border)" }}>
                 <td style={{ padding: "9px 12px" }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{p.symbol}</div>
-                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 1, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 1, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
                 </td>
                 <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{p.lots.toLocaleString("id-ID")}</td>
                 <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{p.avgPrice?.toLocaleString("id-ID") ?? "—"}</td>
@@ -414,8 +456,8 @@ export function PortfolioView({
                 <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{fmt(p.value)}</td>
                 <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>{p.cost == null ? "—" : fmt(p.cost)}</td>
                 <td style={{ padding: "9px 12px", textAlign: "right" }}>
-                  <div style={{ fontSize: 12, color: p.pnl == null ? "var(--muted-foreground)" : p.pnl >= 0 ? "var(--gain)" : "var(--loss)", fontFamily: "var(--font-mono)" }}>
-                    {p.pnl == null ? "—" : `${p.pnl >= 0 ? "+" : ""}${fmt(Math.abs(p.pnl))}`}
+                  <div style={{ fontSize: 12, color: p.pnl == null ? "var(--muted-foreground)" : p.pnl > 0 ? "var(--gain)" : p.pnl < 0 ? "var(--loss)" : "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+                    {p.pnl == null ? "—" : `${p.pnl > 0 ? "+" : ""}${fmt(Math.abs(p.pnl))}`}
                   </div>
                 </td>
                 <td style={{ padding: "9px 12px", textAlign: "right" }}>
@@ -425,8 +467,8 @@ export function PortfolioView({
                   {p.pnlPct == null ? (
                     <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>—</span>
                   ) : (
-                    <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: p.pnlPct >= 0 ? "var(--gain)" : "var(--loss)", background: p.pnlPct >= 0 ? "var(--gain-bg)" : "var(--loss-bg)", padding: "2px 6px", borderRadius: 3 }}>
-                      {p.pnlPct >= 0 ? "+" : ""}{(p.pnlPct * 100).toFixed(1)}%
+                    <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: p.pnlPct > 0 ? "var(--gain)" : p.pnlPct < 0 ? "var(--loss)" : "var(--muted-foreground)", background: p.pnlPct > 0 ? "var(--gain-bg)" : p.pnlPct < 0 ? "var(--loss-bg)" : "var(--muted)", padding: "2px 6px", borderRadius: 3 }}>
+                      {p.pnlPct > 0 ? "+" : ""}{(p.pnlPct * 100).toFixed(1)}%
                     </span>
                   )}
                 </td>
@@ -454,20 +496,36 @@ export function PortfolioView({
         </table>
         </div>
         {positions.length === 0 && (
-          <div style={{ padding: 32, textAlign: "center", color: "var(--muted-foreground)", fontSize: 13 }}>
-            {error
-              ? (positionsFailure?.kind === "locked"
-                  ? (isId
-                      ? "Posisi tidak ditampilkan: langganan belum aktif. Bukan berarti portofolio Anda kosong."
-                      : "Positions not shown: the subscription is not active. That does not mean your portfolio is empty.")
+          <div style={{ padding: "32px 32px 36px", textAlign: "center", color: "var(--muted-foreground)" }}>
+            <div style={{ fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
+              {error
+                ? (positionsFailure?.kind === "locked"
+                    ? (isId
+                        ? "Posisi tidak ditampilkan: langganan belum aktif. Bukan berarti portofolio Anda kosong."
+                        : "Positions not shown: the subscription is not active. That does not mean your portfolio is empty.")
+                    : (isId
+                        ? "Posisi tidak dapat dimuat. Bukan berarti portofolio Anda kosong."
+                        : "Positions could not be loaded. That does not mean your portfolio is empty."))
+                : loading
+                  ? (isId ? "Memuat posisi…" : "Loading positions…")
                   : (isId
-                      ? "Posisi tidak dapat dimuat. Bukan berarti portofolio Anda kosong."
-                      : "Positions could not be loaded. That does not mean your portfolio is empty."))
-              : loading
-                ? (isId ? "Memuat posisi…" : "Loading positions…")
-                : (isId
-                    ? "Belum ada posisi. Klik \"Tambah Posisi\" untuk memulai."
-                    : "No positions yet. Click \"Add Position\" to get started.")}
+                      ? "Belum ada posisi."
+                      : "No positions yet.")}
+            </div>
+            {!error && !loading && (
+              /* The empty state carries the action itself, not a sentence
+                 pointing at a button elsewhere on screen. */
+              <button
+                onClick={() => openModal("add")}
+                style={{
+                  background: "var(--primary)", border: "none", borderRadius: 5,
+                  padding: "7px 14px", cursor: "pointer",
+                  fontSize: 12, fontWeight: 600, color: "var(--primary-foreground)",
+                }}
+              >
+                {t("port_add_position")}
+              </button>
+            )}
           </div>
         )}
       </div>

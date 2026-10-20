@@ -1,0 +1,1540 @@
+{
+ "url": "http://localhost:5173/",
+ "at": "2026-10-20T14:22:48.285Z",
+ "allow": [],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.9
+   ],
+   "motion": {
+    "elements": 24,
+    "css": 24,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 900,
+     "screens": 1,
+     "words": 226,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 22,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Dashboard",
+     "words": 1,
+     "chars": 9,
+     "lines": 1,
+     "size": 18,
+     "vw": 1.3,
+     "font": "Manrope",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.2,
+     "top": 47,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Dashboard",
+     "words": 1,
+     "lines": 1,
+     "size": 18,
+     "font": "Manrope"
+    },
+    "headings": [],
+    "headingSummary": {
+     "count": 0,
+     "maxLines": 0,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Inter",
+       "share": 0.77,
+       "mono": false
+      },
+      {
+       "family": "IBM Plex Mono",
+       "share": 0.21,
+       "mono": true
+      },
+      {
+       "family": "Manrope",
+       "share": 0.01,
+       "mono": false
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      18,
+      20,
+      26
+     ],
+     "sizeCount": 7,
+     "notLoaded": [],
+     "body": {
+      "font": "Inter",
+      "size": 12,
+      "leading": 1.45,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 14.3
+     },
+     "measureChars": 52,
+     "max": {
+      "size": 26,
+      "vw": 1.8,
+      "font": "IBM Plex Mono",
+      "text": "Rp 0"
+     },
+     "monoShare": 0.21,
+     "monoProseShare": 0.21,
+     "monoFamilies": [
+      "IBM Plex Mono"
+     ],
+     "monoSamples": [
+      "BEI tutup",
+      "5",
+      "Pasar tutup",
+      "TERPUTUS",
+      "IHSG",
+      "7.448,00"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.09,
+     "centerShare": 0.04,
+     "smallText": 14
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f7fa",
+     "bodyBgHsl": {
+      "h": 216,
+      "s": 0.33,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#f5f7fa",
+       "top": 0,
+       "hsl": {
+        "h": 216,
+        "s": 0.33,
+        "l": 0.97
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#17212f",
+       "share": 0.41
+      },
+      {
+       "color": "#5e6c7e",
+       "share": 0.38
+      },
+      {
+       "color": "#a9bcd0",
+       "share": 0.09
+      },
+      {
+       "color": "#e4f4ee",
+       "share": 0.03
+      },
+      {
+       "color": "#14764a",
+       "share": 0.03
+      }
+     ],
+     "button": {
+      "bg": "#344a64",
+      "hsl": {
+       "h": 213,
+       "s": 0.32,
+       "l": 0.3
+      },
+      "fg": "#17212f"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 2,
+     "inHero": 2,
+     "radius": 4,
+     "height": 34,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Dashboard",
+      "IDR / USD"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 7,
+     "hairlineSamples": [
+      "aside.flex.flex-col 220px",
+      "header 1220px",
+      "div.flex.items-center 1220px",
+      "div.flex.items-center 346px",
+      "div.flex.items-center 346px"
+     ],
+     "outlinedBoxes": 8,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 0,
+     "boxRadius": 0,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": false,
+       "top": 121
+      },
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": false,
+       "top": 647
+      }
+     ]
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": false,
+     "height": 657,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "ibm plex mono",
+     "inter",
+     "manrope"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 900,
+    "margins": {
+     "left": 11,
+     "right": 40
+    },
+    "sections": [
+     {
+      "sel": "div.rounded.p-5",
+      "tag": "div",
+      "top": 319,
+      "height": 311,
+      "words": 16,
+      "media": 0,
+      "middle": 994,
+      "heading": null,
+      "left": 260,
+      "right": 47,
+      "textLeft": 260,
+      "textRight": 47,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.grid.gap-4",
+      "tag": "div",
+      "top": 647,
+      "height": 434,
+      "words": 119,
+      "media": 0,
+      "middle": 190,
+      "heading": null,
+      "left": 260,
+      "right": 40,
+      "textLeft": 260,
+      "textRight": 40,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Dashboard",
+      "size": 18,
+      "top": 47,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 238,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 1,
+    "bodySize": 12,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0.25,
+    "voidBox": {
+     "x": 420,
+     "y": 300,
+     "w": 900,
+     "h": 360
+    }
+   },
+   "app": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "dark": false,
+    "ground": "#f5f7fa",
+    "sidebar": {
+     "w": 220,
+     "tag": "aside",
+     "links": 9,
+     "share": 0.15
+    },
+    "topbar": {
+     "h": 36
+    },
+    "canvas": {
+     "left": 18,
+     "right": 23
+    },
+    "hero": {
+     "text": "Dashboard",
+     "words": 1,
+     "chars": 9,
+     "lines": 1,
+     "size": 18,
+     "vw": 1.3,
+     "font": "Manrope",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.2,
+     "top": 47,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 10,
+     "firstScreen": 10,
+     "ragged": [
+      {
+       "diff": 205,
+       "top": 647
+      },
+      {
+       "diff": 316,
+       "top": 647
+      },
+      {
+       "diff": 111,
+       "top": 647
+      }
+     ],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 10,
+     "radii": [
+      [
+       4,
+       8
+      ],
+      [
+       0,
+       2
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 1,
+     "hues": 1,
+     "samples": [
+      {
+       "hue": 210,
+       "size": 34,
+       "radius": "3.5px"
+      }
+     ]
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 9,
+     "tabularShare": 1,
+     "kpiMax": 20
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.6,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      18,
+      20,
+      26
+     ]
+    },
+    "title": {
+     "text": "Dashboard",
+     "size": 18,
+     "top": 47
+    },
+    "colourShare": 0.003
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.83
+   ],
+   "motion": {
+    "elements": 24,
+    "css": 24,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 1024,
+     "screens": 1,
+     "words": 221,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 22,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Dashboard",
+     "words": 1,
+     "chars": 9,
+     "lines": 1,
+     "size": 18,
+     "vw": 2.3,
+     "font": "Manrope",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.2,
+     "top": 47,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Dashboard",
+     "words": 1,
+     "lines": 1,
+     "size": 18,
+     "font": "Manrope"
+    },
+    "headings": [
+     {
+      "text": "Rp 0",
+      "words": 2,
+      "chars": 4,
+      "lines": 1,
+      "size": 26,
+      "vw": 3.4,
+      "font": "IBM Plex Mono",
+      "weight": 700,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": true,
+      "align": "left",
+      "position": "center",
+      "widthRatio": 0.27,
+      "top": 167,
+      "tag": "div",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Inter",
+       "share": 0.78,
+       "mono": false
+      },
+      {
+       "family": "IBM Plex Mono",
+       "share": 0.21,
+       "mono": true
+      },
+      {
+       "family": "Manrope",
+       "share": 0.01,
+       "mono": false
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      18,
+      20,
+      26
+     ],
+     "sizeCount": 7,
+     "notLoaded": [],
+     "body": {
+      "font": "Inter",
+      "size": 12,
+      "leading": 1.45,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 14.3
+     },
+     "measureChars": 72,
+     "max": {
+      "size": 26,
+      "vw": 3.4,
+      "font": "IBM Plex Mono",
+      "text": "Rp 0"
+     },
+     "monoShare": 0.21,
+     "monoProseShare": 0.21,
+     "monoFamilies": [
+      "IBM Plex Mono"
+     ],
+     "monoSamples": [
+      "BEI tutup",
+      "5",
+      "Pasar tutup",
+      "TERPUTUS",
+      "IHSG",
+      "7.448,00"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.09,
+     "centerShare": 0.03,
+     "smallText": 14
+    },
+    "eyebrows": [
+     {
+      "text": "Nilai portofolio",
+      "above": "Rp 0",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 13,
+      "top": 139
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f7fa",
+     "bodyBgHsl": {
+      "h": 216,
+      "s": 0.33,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#f5f7fa",
+       "top": 0,
+       "hsl": {
+        "h": 216,
+        "s": 0.33,
+        "l": 0.97
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#17212f",
+       "share": 0.42
+      },
+      {
+       "color": "#5e6c7e",
+       "share": 0.37
+      },
+      {
+       "color": "#a9bcd0",
+       "share": 0.09
+      },
+      {
+       "color": "#e4f4ee",
+       "share": 0.03
+      },
+      {
+       "color": "#14764a",
+       "share": 0.03
+      }
+     ],
+     "button": {
+      "bg": "#344a64",
+      "hsl": {
+       "h": 213,
+       "s": 0.32,
+       "l": 0.3
+      },
+      "fg": "#17212f"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 2,
+     "inHero": 2,
+     "radius": 4,
+     "height": 34,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Dashboard",
+      "IDR / USD"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 7,
+     "hairlineSamples": [
+      "aside.flex.flex-col 220px",
+      "header 548px",
+      "div.flex.items-center 548px",
+      "div.flex.items-center 469px",
+      "div.flex.items-center 469px"
+     ],
+     "outlinedBoxes": 8,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 0,
+     "boxRadius": 0,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": false,
+       "top": 121
+      },
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": false,
+       "top": 769
+      }
+     ]
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": false,
+     "height": 781,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "ibm plex mono",
+     "inter",
+     "manrope"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 1024,
+    "margins": {
+     "left": 11,
+     "right": 40
+    },
+    "sections": [
+     {
+      "sel": "div.grid.gap-4",
+      "tag": "div",
+      "top": 121,
+      "height": 236,
+      "words": 26,
+      "media": 0,
+      "middle": 137,
+      "heading": {
+       "text": "Rp 0",
+       "size": 26,
+       "tag": "div"
+      },
+      "left": 260,
+      "right": 138,
+      "textLeft": 260,
+      "textRight": 138,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.rounded.p-5",
+      "tag": "div",
+      "top": 441,
+      "height": 311,
+      "words": 16,
+      "media": 0,
+      "middle": 322,
+      "heading": null,
+      "left": 260,
+      "right": 47,
+      "textLeft": 260,
+      "textRight": 47,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.grid.gap-4",
+      "tag": "div",
+      "top": 769,
+      "height": 818,
+      "words": 119,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 260,
+      "right": 40,
+      "textLeft": 260,
+      "textRight": 40,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Dashboard",
+      "size": 18,
+      "top": 47,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 238,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 1,
+    "bodySize": 12,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "dark": false,
+    "ground": "#f5f7fa",
+    "sidebar": {
+     "w": 220,
+     "tag": "aside",
+     "links": 9,
+     "share": 0.29
+    },
+    "topbar": {
+     "h": 36
+    },
+    "canvas": {
+     "left": 18,
+     "right": -90
+    },
+    "hero": {
+     "text": "Dashboard",
+     "words": 1,
+     "chars": 9,
+     "lines": 1,
+     "size": 18,
+     "vw": 2.3,
+     "font": "Manrope",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.2,
+     "top": 47,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 10,
+     "firstScreen": 9,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 10,
+     "radii": [
+      [
+       4,
+       8
+      ],
+      [
+       0,
+       2
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 1,
+     "hues": 1,
+     "samples": [
+      {
+       "hue": 210,
+       "size": 34,
+       "radius": "3.5px"
+      }
+     ]
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 9,
+     "tabularShare": 1,
+     "kpiMax": 20
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.6,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      18,
+      20,
+      26
+     ]
+    },
+    "title": {
+     "text": "Dashboard",
+     "size": 18,
+     "top": 47
+    },
+    "colourShare": 0.004
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.93
+   ],
+   "motion": {
+    "elements": 24,
+    "css": 24,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "page": {
+     "height": 844,
+     "screens": 1,
+     "words": 209,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 24,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Dashboard",
+     "words": 1,
+     "chars": 9,
+     "lines": 1,
+     "size": 15,
+     "vw": 3.8,
+     "font": "Manrope",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.2,
+     "top": 55,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Dashboard",
+     "words": 1,
+     "lines": 1,
+     "size": 15,
+     "font": "Manrope"
+    },
+    "headings": [
+     {
+      "text": "Rp 0",
+      "words": 2,
+      "chars": 4,
+      "lines": 1,
+      "size": 26,
+      "vw": 6.7,
+      "font": "IBM Plex Mono",
+      "weight": 700,
+      "tracking": 0,
+      "leading": 1,
+      "upper": false,
+      "italic": false,
+      "mono": true,
+      "align": "left",
+      "position": "left",
+      "widthRatio": 0.33,
+      "top": 159,
+      "tag": "div",
+      "kind": "heading"
+     }
+    ],
+    "headingSummary": {
+     "count": 1,
+     "maxLines": 1,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Inter",
+       "share": 0.77,
+       "mono": false
+      },
+      {
+       "family": "IBM Plex Mono",
+       "share": 0.22,
+       "mono": true
+      },
+      {
+       "family": "Manrope",
+       "share": 0.01,
+       "mono": false
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      20,
+      26
+     ],
+     "sizeCount": 7,
+     "notLoaded": [],
+     "body": {
+      "font": "Inter",
+      "size": 12,
+      "leading": 1.45,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 14.3
+     },
+     "measureChars": 46,
+     "max": {
+      "size": 26,
+      "vw": 6.7,
+      "font": "IBM Plex Mono",
+      "text": "Rp 0"
+     },
+     "monoShare": 0.22,
+     "monoProseShare": 0.22,
+     "monoFamilies": [
+      "IBM Plex Mono"
+     ],
+     "monoSamples": [
+      "BEI tutup",
+      "5",
+      "Pasar tutup",
+      "TERPUTUS",
+      "IHSG",
+      "7.448,00"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.09,
+     "centerShare": 0.03,
+     "smallText": 12
+    },
+    "eyebrows": [
+     {
+      "text": "Nilai portofolio",
+      "above": "Rp 0",
+      "upper": false,
+      "tracked": false,
+      "mono": false,
+      "pill": false,
+      "size": 13,
+      "top": 132
+     }
+    ],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f7fa",
+     "bodyBgHsl": {
+      "h": 216,
+      "s": 0.33,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#f5f7fa",
+       "top": 0,
+       "hsl": {
+        "h": 216,
+        "s": 0.33,
+        "l": 0.97
+       }
+      },
+      {
+       "color": "#14243a",
+       "top": 0,
+       "hsl": {
+        "h": 215,
+        "s": 0.49,
+        "l": 0.15
+       }
+      },
+      {
+       "color": "#ffffff",
+       "top": 453,
+       "hsl": {
+        "h": 0,
+        "s": 0,
+        "l": 1
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#17212f",
+       "share": 0.44
+      },
+      {
+       "color": "#5e6c7e",
+       "share": 0.33
+      },
+      {
+       "color": "#a9bcd0",
+       "share": 0.1
+      },
+      {
+       "color": "#e4f4ee",
+       "share": 0.03
+      },
+      {
+       "color": "#14764a",
+       "share": 0.03
+      }
+     ],
+     "button": {
+      "bg": "#344a64",
+      "hsl": {
+       "h": 213,
+       "s": 0.32,
+       "l": 0.3
+      },
+      "fg": "#17212f"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 2,
+     "inHero": 2,
+     "radius": 4,
+     "height": 34,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Dashboard",
+      "IDR / USD"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 7,
+     "hairlineSamples": [
+      "aside.flex.flex-col 220px",
+      "header 390px",
+      "div.flex.items-center 390px",
+      "div.flex.items-center 311px",
+      "div.flex.items-center 311px"
+     ],
+     "outlinedBoxes": 8,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 0,
+     "boxRadius": 0,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": [
+      {
+       "count": 4,
+       "iconTopped": false,
+       "rounded": false,
+       "top": 113
+      },
+      {
+       "count": 3,
+       "iconTopped": false,
+       "rounded": false,
+       "top": 781
+      }
+     ]
+    },
+    "heroMedia": [],
+    "nav": {
+     "links": 0,
+     "fixed": true,
+     "height": 844,
+     "floatingPill": false,
+     "blur": false
+    },
+    "fontsLoaded": [
+     "ibm plex mono",
+     "inter",
+     "manrope"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "pageH": 844,
+    "margins": {
+     "left": 27,
+     "right": 40
+    },
+    "sections": [
+     {
+      "sel": "div.grid.gap-4",
+      "tag": "div",
+      "top": 113,
+      "height": 236,
+      "words": 26,
+      "media": 0,
+      "middle": 58,
+      "heading": {
+       "text": "Rp 0",
+       "size": 26,
+       "tag": "div"
+      },
+      "left": 40,
+      "right": 59,
+      "textLeft": 40,
+      "textRight": 59,
+      "fullBleed": false,
+      "footer": false,
+      "hero": true,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.rounded.p-5",
+      "tag": "div",
+      "top": 453,
+      "height": 311,
+      "words": 16,
+      "media": 0,
+      "middle": 164,
+      "heading": null,
+      "left": 40,
+      "right": 47,
+      "textLeft": 40,
+      "textRight": 47,
+      "fullBleed": false,
+      "footer": false,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     },
+     {
+      "sel": "div.grid.gap-4",
+      "tag": "div",
+      "top": 781,
+      "height": 905,
+      "words": 119,
+      "media": 0,
+      "middle": 0,
+      "heading": null,
+      "left": 40,
+      "right": 40,
+      "textLeft": 40,
+      "textRight": 40,
+      "fullBleed": false,
+      "footer": true,
+      "hero": false,
+      "continues": false,
+      "pinned": false
+     }
+    ],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Dashboard",
+      "size": 15,
+      "top": 55,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 56,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 1,
+    "bodySize": 12,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "dark": false,
+    "ground": "#f5f7fa",
+    "sidebar": null,
+    "topbar": {
+     "h": 92
+    },
+    "canvas": {
+     "left": 22,
+     "right": -112
+    },
+    "hero": {
+     "text": "Dashboard",
+     "words": 1,
+     "chars": 9,
+     "lines": 1,
+     "size": 15,
+     "vw": 3.8,
+     "font": "Manrope",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.2,
+     "top": 55,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 9,
+     "firstScreen": 7,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 9,
+     "radii": [
+      [
+       4,
+       8
+      ],
+      [
+       0,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 1,
+     "hues": 1,
+     "samples": [
+      {
+       "hue": 210,
+       "size": 34,
+       "radius": "3.5px"
+      }
+     ]
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 9,
+     "tabularShare": 1,
+     "kpiMax": 20
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.57,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      12,
+      13,
+      14,
+      15,
+      20,
+      26
+     ]
+    },
+    "title": {
+     "text": "Dashboard",
+     "size": 15,
+     "top": 55
+    },
+    "colourShare": 0
+   },
+   "consoleErrors": []
+  }
+ ],
+ "findings": [
+  {
+   "level": "WARN",
+   "id": "tiny-text",
+   "width": 1440,
+   "message": "60% of the text is under 13px.",
+   "fix": "Data and labels read at 13–14px; keep 11–12px for sublines and axis ticks.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "ragged-row",
+   "width": 1440,
+   "message": "3 pair(s) of cards in one row end at different heights (by 205px, 316px, 111px).",
+   "fix": "Cards that share a row share a bottom edge: balance them by their content (the same number of rows, a block of similar height beside it), or stack them. In testing, ragged rows were marked down every time."
+  }
+ ],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/session-inspect-after/desktop-fold.jpg",
+   "pages": [
+    "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/session-inspect-after/desktop-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/session-inspect-after/tablet-fold.jpg",
+   "pages": [
+    "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/session-inspect-after/tablet-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/session-inspect-after/mobile-fold.jpg",
+   "pages": [
+    "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/session-inspect-after/mobile-page-01.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

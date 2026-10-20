@@ -129,7 +129,7 @@ export function Sidebar({
             <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 13, color: "var(--sidebar-accent-foreground)", letterSpacing: "0.04em" }}>
               AIDSS
             </div>
-            <div style={{ fontSize: 10, color: "var(--sidebar-foreground)", letterSpacing: "0.02em" }}>
+            <div style={{ fontSize: 11, color: "var(--sidebar-foreground)", letterSpacing: "0.02em" }}>
               AI Decision Support
             </div>
           </div>
@@ -160,10 +160,10 @@ export function Sidebar({
             }}
           />
           <div>
-            <div style={{ fontSize: 10, color: isMarketOpen ? "var(--sidebar-primary)" : "var(--sidebar-foreground)", fontFamily: "var(--font-mono)", letterSpacing: "0.05em", fontWeight: 600 }}>
+            <div style={{ fontSize: 11, color: isMarketOpen ? "var(--sidebar-primary)" : "var(--sidebar-foreground)", fontFamily: "var(--font-mono)", fontWeight: 600 }}>
               {t(isMarketOpen ? "market_open" : "market_closed")}
             </div>
-            <div style={{ fontSize: 9, color: "var(--sidebar-foreground)", opacity: 0.75, marginTop: 1, lineHeight: 1.4 }}>
+            <div style={{ fontSize: 11, color: "var(--sidebar-foreground)", opacity: 0.75, marginTop: 1, lineHeight: 1.4 }}>
               09:00–12:00 · 13:30–15:50 WIB
             </div>
           </div>
@@ -180,20 +180,21 @@ export function Sidebar({
                 onClick={() => handleNavClick(item.id)}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded text-left"
                 style={{
-                  background: active ? "var(--sidebar-accent)" : "transparent",
-                  borderLeft: `2px solid ${active ? "var(--sidebar-primary)" : "transparent"}`,
+                  /* Owner mapping: Slate Blue carries "selected states", so the
+                     selection reads without spending the one teal moment. */
+                  background: active ? "var(--sidebar-selected)" : "transparent",
                   cursor: "pointer",
                 }}
               >
                 <Icon
                   size={15}
-                  style={{ color: active ? "var(--sidebar-primary)" : "var(--sidebar-foreground)", flexShrink: 0 }}
+                  style={{ color: active ? "var(--sidebar-accent-foreground)" : "var(--sidebar-foreground)", flexShrink: 0 }}
                 />
                 <span
                   style={{
                     fontSize: 13,
                     color: active ? "var(--sidebar-accent-foreground)" : "var(--sidebar-foreground)",
-                    fontWeight: active ? 500 : 400,
+                    fontWeight: active ? 600 : 400,
                     flex: 1,
                   }}
                 >
@@ -202,11 +203,11 @@ export function Sidebar({
                 {item.badge && (
                   <span
                     style={{
-                      fontSize: 10,
+                      fontSize: 11,
                       fontFamily: "var(--font-mono)",
                       fontWeight: 600,
-                      color: "var(--sidebar-primary)",
-                      background: "var(--sidebar-accent)",
+                      color: "var(--sidebar-accent-foreground)",
+                      background: "var(--sidebar-badge)",
                       borderRadius: 3,
                       padding: "1px 5px",
                     }}
@@ -225,13 +226,12 @@ export function Sidebar({
             onClick={() => handleNavClick("settings")}
             className="w-full flex items-center gap-3 px-3 py-2 rounded text-left"
             style={{
-              background: currentView === "settings" ? "var(--sidebar-accent)" : "transparent",
-              borderLeft: `2px solid ${currentView === "settings" ? "var(--sidebar-primary)" : "transparent"}`,
+              background: currentView === "settings" ? "var(--sidebar-selected)" : "transparent",
               cursor: "pointer",
             }}
           >
-            <Settings size={15} style={{ color: currentView === "settings" ? "var(--sidebar-primary)" : "var(--sidebar-foreground)" }} />
-            <span style={{ fontSize: 13, color: currentView === "settings" ? "var(--sidebar-accent-foreground)" : "var(--sidebar-foreground)" }}>
+            <Settings size={15} style={{ color: currentView === "settings" ? "var(--sidebar-accent-foreground)" : "var(--sidebar-foreground)" }} />
+            <span style={{ fontSize: 13, fontWeight: currentView === "settings" ? 600 : 400, color: currentView === "settings" ? "var(--sidebar-accent-foreground)" : "var(--sidebar-foreground)" }}>
               {t("nav_settings")}
             </span>
           </button>
@@ -240,24 +240,20 @@ export function Sidebar({
             onClick={() => handleNavClick("alerts")}
             className="w-full flex items-center gap-3 px-3 py-2 rounded text-left"
             style={{
-              background:
-                currentView === "alerts"
-                  ? "rgba(255, 107, 120, 0.16)"
-                  : alertCount > 0
-                  ? "rgba(255, 107, 120, 0.07)"
-                  : "transparent",
-              borderLeft: `2px solid ${currentView === "alerts" ? "var(--sidebar-danger)" : "transparent"}`,
+              /* The count is the signal, not the row: the crimson badge marks a
+                 queue that needs action, and the row itself stays quiet. */
+              background: currentView === "alerts" ? "var(--sidebar-selected)" : "transparent",
               cursor: "pointer",
             }}
           >
             <Bell size={15} style={{ color: alertCount > 0 || currentView === "alerts" ? "var(--sidebar-danger)" : "var(--sidebar-foreground)" }} />
-            <span style={{ fontSize: 13, color: alertCount > 0 ? "var(--sidebar-accent-foreground)" : "var(--sidebar-foreground)", flex: 1 }}>
+            <span style={{ fontSize: 13, fontWeight: currentView === "alerts" ? 600 : 400, color: currentView === "alerts" ? "var(--sidebar-accent-foreground)" : alertCount > 0 ? "var(--sidebar-accent-foreground)" : "var(--sidebar-foreground)", flex: 1 }}>
               {t("nav_alerts")}
             </span>
             {alertCount > 0 && (
               <span
                 style={{
-                  fontSize: 10,
+                  fontSize: 11,
                   fontFamily: "var(--font-mono)",
                   fontWeight: 700,
                   color: "var(--sidebar-danger-foreground)",
@@ -282,10 +278,10 @@ export function Sidebar({
             for an actual administrator, because "Subscription" would be a claim
             about payment that this endpoint deliberately does not make. */}
         <div
-          className="px-4 py-3"
+          className="px-5 py-3"
           style={{ borderTop: "1px solid var(--sidebar-border)" }}
         >
-          <div style={{ fontSize: 10, color: "var(--sidebar-foreground)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          <div style={{ fontSize: 11, color: "var(--sidebar-foreground)" }}>
             {account
               ? account.role === "admin"
                 ? locale === "id" ? "Administrator" : "Administrator"
@@ -293,7 +289,7 @@ export function Sidebar({
               : locale === "id" ? "Akun" : "Account"}
           </div>
           <div
-            style={{ fontSize: 11, color: "var(--sidebar-accent-foreground)", marginTop: 2 }}
+            style={{ fontSize: 13, color: "var(--sidebar-accent-foreground)", marginTop: 2 }}
             title={account?.email}
           >
             {account?.full_name ?? (locale === "id" ? "Belum ada akun terhubung" : "No account connected")}

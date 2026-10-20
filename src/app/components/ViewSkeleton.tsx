@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 export function ViewSkeleton({ rows = 4, label }: { rows?: number; label?: string }) {
   const cols = Math.min(rows, 4);
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5 [&>*]:shrink-0">
       {/* Metric strip */}
       <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
         {Array.from({ length: cols }).map((_, i) => (

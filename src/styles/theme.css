@@ -72,6 +72,11 @@
   --sidebar-ring: #0f9d78;
   --sidebar-danger: #ff6b78;
   --sidebar-danger-foreground: #1b1114;
+  /* Owner mapping: "Slate Blue … selected states". The nav selection is a slate
+     pill, so the screen's one teal moment stays with the data, not the chrome. */
+  --sidebar-selected: #344a64;
+  /* A count badge on the navy surface is neutral ink, not a second accent. */
+  --sidebar-badge: rgba(255, 255, 255, 0.09);
 }
 
 /* ─── Dark Mode ──────────────────────────────────────────────────────────── */
@@ -130,6 +135,11 @@
   --sidebar-ring: #0f9d78;
   --sidebar-danger: #ff6b78;
   --sidebar-danger-foreground: #1b1114;
+  /* Owner mapping: "Slate Blue … selected states". The nav selection is a slate
+     pill, so the screen's one teal moment stays with the data, not the chrome. */
+  --sidebar-selected: #344a64;
+  /* A count badge on the navy surface is neutral ink, not a second accent. */
+  --sidebar-badge: rgba(255, 255, 255, 0.09);
 }
 
 @theme inline {
@@ -180,6 +190,8 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-selected: var(--sidebar-selected);
+  --color-sidebar-badge: var(--sidebar-badge);
 }
 
 @layer base {

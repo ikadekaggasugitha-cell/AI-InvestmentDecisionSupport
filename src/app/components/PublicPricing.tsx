@@ -100,6 +100,7 @@ export function PublicPricing({ locale, onEnter }: PublicPricingProps) {
   const annualSaving = price.kind === "ready" && price.monthly > 0
     ? Math.round(((price.monthly * 12 - price.annual) / (price.monthly * 12)) * 100)
     : null;
+  const showSaving = annualSaving !== null && annualSaving > 0;
 
   const rowStyle: React.CSSProperties = {
     display: "flex",
@@ -190,20 +191,23 @@ export function PublicPricing({ locale, onEnter }: PublicPricingProps) {
                     </div>
                     <div style={rowValueStyle}>{`Rp ${price.monthly.toLocaleString(localeTag(locale))}`}</div>
                   </div>
-                  <div style={{ ...rowStyle, borderBottom: "none" }}>
+                  <div style={{ ...rowStyle, borderBottom: showSaving ? "1px solid var(--border)" : "none" }}>
                     <div style={rowLabelStyle}>
                       <span style={{ fontSize: "15px", fontWeight: 500 }}>{isId ? "Tahunan" : "Annual"}</span>
                       <span style={{ fontSize: "12px", color: "var(--muted-foreground)" }}>{isId ? "per tahun" : "per year"}</span>
-                      {annualSaving !== null && annualSaving > 0 && (
-                        <span style={{ fontSize: "12px", color: "var(--accent-foreground)" }}>
-                          {isId
-                            ? `Hemat ${annualSaving}% terhadap tarif bulanan.`
-                            : `About ${annualSaving}% below the monthly rate.`}
-                        </span>
-                      )}
                     </div>
                     <div style={rowValueStyle}>{`Rp ${price.annual.toLocaleString(localeTag(locale))}`}</div>
                   </div>
+                  {/* The saving reads full-width under the annual row, not inside
+                      its label column: at phone width that column is too narrow
+                      and the sentence wraps onto two lines. */}
+                  {showSaving && (
+                    <div style={{ padding: "12px 20px", fontSize: "12px", color: "var(--accent-foreground)" }}>
+                      {isId
+                        ? `Hemat ${annualSaving}% terhadap tarif bulanan.`
+                        : `About ${annualSaving}% below the monthly rate.`}
+                    </div>
+                  )}
                 </>
               )}
 

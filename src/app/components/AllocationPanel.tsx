@@ -53,7 +53,7 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
             {isId ? "Alokasi Optimal" : "Optimal Allocation"}
           </span>
         </div>
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
           {/* Never the raw status string. "Unavailable: HTTP 403" tells the reader
               nothing about whether to fix their network or their subscription. */}
           {failure?.kind === "locked"
@@ -77,23 +77,23 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Scale size={14} style={{ color: "var(--primary)" }} />
+          <Scale size={14} style={{ color: "var(--muted-foreground)" }} />
           <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
             {isId ? "Alokasi Optimal" : "Optimal Allocation"}
           </span>
           {metrics && (
             <span
               className="rounded px-2 py-0.5"
-              style={{ background: "var(--muted)", border: "1px solid var(--border)", fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.05em" }}
+              style={{ background: "var(--muted)", border: "1px solid var(--border)", fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}
             >
               {metrics.method}
             </span>
           )}
           {source === "mock" && (
             <span className="flex items-center gap-1 rounded px-2 py-0.5" style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)" }}>
-              <FlaskConical size={9} style={{ color: "var(--warning)" }} />
-              <span style={{ fontSize: 9, fontWeight: 600, color: "var(--warning)", fontFamily: "var(--font-mono)" }}>
-                {isId ? "SIMULASI" : "SIMULATED"}
+              <FlaskConical size={10} style={{ color: "var(--warning)" }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--warning)" }}>
+                {isId ? "Simulasi" : "Simulated"}
               </span>
             </span>
           )}
@@ -120,13 +120,15 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
       {metrics && (
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))" }}>
           {[
-            { l: isId ? "Return Ekspektasi" : "Expected Return", v: `${metrics.expectedReturn.toFixed(1)}%`, c: metrics.expectedReturn >= 0 ? "var(--gain)" : "var(--loss)" },
-            { l: isId ? "Volatilitas" : "Volatility", v: `${metrics.expectedVolatility.toFixed(1)}%`, c: "var(--warning)" },
+            { l: isId ? "Return Ekspektasi" : "Expected Return", v: `${metrics.expectedReturn.toFixed(1)}%`, c: metrics.expectedReturn > 0 ? "var(--gain)" : metrics.expectedReturn < 0 ? "var(--loss)" : "var(--muted-foreground)" },
+            /* Volatility and the ratios are statistics, not states: they print
+               ink, and colour is spent only where a number actually signed. */
+            { l: isId ? "Volatilitas" : "Volatility", v: `${metrics.expectedVolatility.toFixed(1)}%`, c: "var(--foreground)" },
             { l: "Sharpe", v: metrics.sharpeRatio.toFixed(2), c: "var(--foreground)" },
-            { l: isId ? "Diversifikasi" : "Diversification", v: metrics.diversificationRatio.toFixed(2), c: "var(--neutral)" },
+            { l: isId ? "Diversifikasi" : "Diversification", v: metrics.diversificationRatio.toFixed(2), c: "var(--foreground)" },
           ].map((m) => (
             <div key={m.l}>
-              <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{m.l}</div>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{m.l}</div>
               <div style={{ fontSize: 15, fontWeight: 600, color: m.c, fontFamily: "var(--font-mono)" }}>{m.v}</div>
             </div>
           ))}
@@ -137,7 +139,7 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
       <div className="flex flex-col gap-2">
         <div
           className="grid gap-2"
-          style={{ gridTemplateColumns: "64px 1fr 58px 16px 58px 62px", fontSize: 9, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "var(--font-mono)" }}
+          style={{ gridTemplateColumns: "64px 1fr 58px 16px 58px 62px", fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-sans)" }}
         >
           <span>{isId ? "Kode" : "Symbol"}</span>
           <span />
@@ -162,7 +164,7 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
               </span>
               {/* Target weight bar */}
               <div style={{ height: 5, background: "var(--border)", borderRadius: 3, overflow: "hidden" }}>
-                <div style={{ width: `${Math.min(100, w.weightPct)}%`, height: "100%", background: "var(--primary)", borderRadius: 3 }} />
+                <div style={{ width: `${Math.min(100, w.weightPct)}%`, height: "100%", background: "var(--neutral)", borderRadius: 3 }} />
               </div>
               <span style={{ fontSize: 11, textAlign: "right", color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
                 {now.toFixed(1)}%
@@ -194,7 +196,7 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
                 <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
                   {isId ? "Saran Rebalance" : "Rebalance Suggestions"}
                 </div>
-                <div style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
                   {isId ? "Perkiraan transaksi untuk menutup selisih, bukan eksekusi order." : "Estimated trades to close the gap, not order execution."}
                 </div>
               </div>
@@ -232,8 +234,8 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
                     <div key={s.symbol} className="flex items-center justify-between rounded px-3 py-2"
                       style={{ background: "var(--muted)", border: "1px solid var(--border)" }}>
                       <div className="flex items-center gap-2">
-                        <span style={{ fontSize: 9, fontWeight: 700, fontFamily: "var(--font-mono)", color, background: "var(--card)", border: `1px solid ${color}`, borderRadius: 3, padding: "1px 6px" }}>
-                          {buy ? (isId ? "BELI" : "BUY") : (isId ? "JUAL" : "SELL")}
+                        <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "var(--font-mono)", color, background: "var(--card)", border: `1px solid ${color}`, borderRadius: 3, padding: "1px 6px" }}>
+                          {buy ? (isId ? "Beli" : "Buy") : (isId ? "Jual" : "Sell")}
                         </span>
                         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{s.symbol}</span>
                       </div>
@@ -241,7 +243,7 @@ export function AllocationPanel({ holdings, prices, locale = "id" }: AllocationP
                         <div style={{ fontSize: 12, fontWeight: 600, color, fontFamily: "var(--font-mono)" }}>
                           {Math.abs(s.lots).toLocaleString("id-ID")} {isId ? "lot" : "lots"}
                         </div>
-                        <div style={{ fontSize: 10, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+                        <div style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
                           {s.gap >= 0 ? "+" : ""}{s.gap.toFixed(1)}%
                         </div>
                       </div>

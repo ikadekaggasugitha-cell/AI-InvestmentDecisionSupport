@@ -50,7 +50,91 @@ Skor: design 7 · usability 8.5 · creativity 7 · content 8.5 → overall 7.6
 ## Masalah sisa terbuka (bila ada ronde berikutnya)
 1. Tabel admin di HP tetap scroll horizontal (overflow-x) — memecah kolom email
    akan memakan identitas baris; dipilih scroll.
-2. Caption "Hemat 52%..." di 390 terbungkus dua baris di kolom label tangga —
-   kandidat perbaikan: menjadi satu baris terpisah di bawah baris tahunan.
+2. [DIPERBAIKI 2026-10-20] Caption "Hemat 52%..." di 390 terbungkus dua baris di kolom label tangga —
+   kini satu baris terpisah di bawah baris tahunan (strip penuh, hairline di atasnya;
+   terverifikasi satu baris di 390px dan 320px, tes 331 hijau).
 3. Panel brand auth: klaim satu kalimat saja. Data hidup yang boleh tampil belum ada —
    dibiarkan sunyi daripada mengarang angka pasar.
+
+## Kerangka dalam-sesi + Dashboard (after-session-shell-dash, fase A)
+Tampak dalam 1 detik: ringkasan portofolio; angka memimpin, warna tinggal di data.
+Ide (satu kalimat): ledger yang menyebut pergerakan dengan satu warna dan menyisakan sisanya untuk tinta.
+Skor: design 8 · usability 8.5 · creativity 7 · content 8.5 → overall 8
+
+- Chip ikon di kartu KPI dihapus (0 dari 23 layar studi yang memakai bentuk itu); nilai portofolio
+  dicetak 26px memimpin di atas tiga saudara 20px (angka jawaban ≥1,3×).
+- Cincin sektor 6 bagian melebihi anggaran donat (3-5 bagian) → daftar bar achromatic: tinta di
+  baris terbesar, abu untuk sisanya, bat terpanjang ≤88%, nama sentence case di atas batnya.
+- Aturan nol: P&L/IHSG/gainer yang menepat di nol kini abu-abu; chevron hanya untuk gerakan nyata
+  (BBCA +0.00% di harness tak lagi digambar dengan panah hijau ke atas).
+- Pemilihan navigasi jadi pil Slate Blue sesuai pemetaan pemilik ("selected states") — teal
+  ditarik keluar dari chrome dan tinggal menyala di data; count badge jadi netral, badge ungu kemerahan
+  Peringatan dipertahankan karena antrian itu memang tindakan.
+- Ticker: sentence case tanpa tracking (Pasar tutup, BEI buka/tutup), dot pasar statis tanpa loop
+  pulse (MOTION: tidak ada gelombang tanpa henti), jam tanpa dot kedua (satu fakta, satu penanda).
+- Feed intraday kosong: strip jujur satu kalimat, bukan grid dashed kosong; daftar sektor mengambil
+  seluruh baris pada keadaan itu.
+- Kosong kepemilikan membawa aksi nyata ("Catat posisi pertama di Portofolio" → view portfolio,
+  R-26), bukan kalimat penuh periode.
+- Cascade header per lebar: pencarian dan ID/EN ≥lg, jam ≥xl — subjudul tetap satu baris pada 768
+  dan baris bawah tidak lagi memotong nominal lebar 150px.
+
+## Pembelaan warn meter fase A
+- tiny-text 60% <13px: yang tersisa di 11-12px adalah subtimbar, stempel waktu, tick sumbu,
+  label mono status, dan tengah piramida tabel — subline, sesuai rentang bab layar aplikasi.
+- ragged-row baris bawah (120/324/434px): tinggi mengikuti konten yang jujur per kartu —
+  kartu kosong dengan aksi, lima baris transaksi, lima baris peringatan dua kalimat. Menyamakan batas
+  bawah berarti memasang pita kosong, yang diukur panel-void dengan keparahan setara. Pada akun dengan
+  data penuh, selisihnya menyusut ~110px (kartu peringatan memang dua baris per pesan).
+- edge-text "21.19 WIB": baris utama header naik ke px-5; lolos ukur.
+
+## Profil mock diperluas (harness perekaman)
+- `.taste-skill/mock.mjs`: `/v1/subscription/current` kini menjawab langganan aktif untuk profil
+  pengguna juga — kerangka dalam-sesi harus membaca pelanggan aktif, bila tidak banner paywall
+  duduk di atas setiap layar. Alat perekaman, bukan bagian aplikasi.
+
+
+## Fase B: Pasar, Portofolio, Peringatan (2026-10-20)
+- Sebelum segar direkam ulang dengan kerangka fase A aktif, supaya selisih ronde ini
+  murni dari suntingan fase B (`.taste-skill/session-before/*-b-*`).
+- Pasar (720 baris): tiga tile statistik kehilangan chip ikon; hitungan dicetak tinta —
+  jumlah saham naik bukan pergerakan bertanda, warna hijau pada hitungan nol adalah
+  kebohongan warna kedua setelah sigap. Zebra tabel dihapus: garis rambut cukup; kolom
+  Perubahan dan Foreign Net memakai aturan tiga warna yang sama dengan Dasbor.
+- "Tren 7H": warna dulu ikut changePct hari ini, sehingga deret datar tujuh hari
+  digambar garis hijau. Kini warna dihitung dari deret itu sendiri: datar abu, naik
+  hijau, turun merah; perioda memo menyusut ikut properti yang hilang.
+- Chip tier 9px menjadi 11px dan kalimat tier yang tertulis berulang di 15 baris
+  ("Tier 1 · 45 saham...") dihapus dari baris — makna tetap ada di tooltip chip.
+  Kerugian layar sentuh (title tak muncul) diterima: T1/T2 sudah mapan di dropdown
+  header dan tier bukan informasi keputusan.
+- Tab lensa (Semua/Top Gainers/...) dan chip sektor: pil tenang tanpa bingkai,
+  aktif = `--muted` + tinta. Panah pada nama lensa dihapus — arah hidup di angka.
+- Portofolio (498 baris): KPI mengikuti pola fase A (label di atas, nilai portofolio
+  memimpin 26px, sub nol abu-abu tanpa chevron; "harga beli belum dicatat" berhenti
+  tampil hijau). Donat 6 bagian → daftar bar achromatic yang sama dengan Dasbor
+  (satu pola, dua layar, satu makna). Kurva ekuitas kosong: void 196px → catatan
+  ramping di `--muted`; "Imbal hasil" kosong → catatan alih-alih sumbu tanpa batang;
+  keduanya dengan `items-start` agar kartu tidak diregangkan.
+- State kosong posisi: kalimat "Klik \"Tambah Posisi\"..." diganti tombol nyata
+  di dalam state kosong (pola R-26 fase A) — pesan tidak lagi menunjuk tombol
+  di tempat lain.
+- Alokasi: chip metode/SIMULASI 9px uppercase tracked → 11px sentence; statistik
+  (volatilitas, diversifikasi, sharpe) berhenti mewakili keadaan dan mencetak tinta;
+  bar target berhenti memakai aksen; selisih <1pp sudah abu dari sebelumnya ✓.
+- Peringatan (156 baris): bar warna kiri dihapus (0 dari 23 layar studi memberi
+  warna pada tepi baris), kotak ikon tinted dihapus — tingkat tetap terbaca dari
+  tag pil dan satu ikon berwarna; label grup dan tag TINGGI/SEDANG/RENDAH →
+  "Tinggi/Sedang/Rendah" sentence 11-12px; pita peringatan contoh naik 11 → 13px.
+- Cacat struktural (ditemukan lewat perekaman, di luar daftar mulaknya): akar
+  tampilan `flex flex-col` mengecilkan kartu anak ketika konten lebih tinggi dari
+  tengah — kartu terakhir (tabel posisi) terpotong `overflow-hidden` TANPA
+  scrollbar, sama kena di Dasbor. Diperbaiki `[&>*]:shrink-0` pada 8 akar
+  tampilan bertanda; News dan Settings masih memakai inline style dan akan
+  mengundang pola yang sama pada fase C/D (dicatat, bukan dibiarkan).
+- Inspekteur skill: skrip inspektor tidak tersedia di sesi ini; audit DOM
+  penggantinya (pengukuran langsung via evaluate_script): 0 teks <11px pada
+  ketiga tampilan; sel perubahan bernilai nol: tanpa SVG chevron, warna
+  `--muted-foreground` di kedua baris; baris tabel transparan (zebra mati).
+- Tema gelap dicek lewat token (pasar, portofolio, peringatan): ink dan bar
+  terbesar membalik dengan `--foreground`, abu tetap abu — tanpa aturan khusus.

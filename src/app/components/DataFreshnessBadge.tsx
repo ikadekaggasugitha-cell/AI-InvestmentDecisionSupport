@@ -160,11 +160,10 @@ export function DataFreshnessBadge({
       <Icon size={11} style={{ color, flexShrink: 0 }} />
       <span
         style={{
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: 700,
           color,
           fontFamily: "var(--font-mono)",
-          letterSpacing: "0.04em",
           whiteSpace: "nowrap",
         }}
       >
@@ -173,7 +172,7 @@ export function DataFreshnessBadge({
       {!compact && detail && (
         <span
           style={{
-            fontSize: 10,
+            fontSize: 11,
             color: "var(--muted-foreground)",
             whiteSpace: "nowrap",
           }}
