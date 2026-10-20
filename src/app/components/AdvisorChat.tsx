@@ -62,11 +62,11 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
         className="flex items-center gap-2 px-5 py-3"
         style={{ borderBottom: "1px solid var(--border)" }}
       >
-        <MessageSquare size={14} style={{ color: "var(--primary)" }} />
+        <MessageSquare size={14} style={{ color: "var(--muted-foreground)", flexShrink: 0 }} />
         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
           {isId ? "Tanya AI Advisor" : "Ask the AI Advisor"}
         </span>
-        <span style={{ fontSize: 10, color: "var(--muted-foreground)", marginLeft: "auto" }}>
+        <span style={{ fontSize: 11, color: "var(--muted-foreground)", marginLeft: "auto" }}>
           {isId ? "Jawaban bersifat probabilistik" : "Answers are probabilistic"}
         </span>
         {hasConversation && (
@@ -98,15 +98,17 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
               <button
                 key={s}
                 onClick={() => submit(s)}
-                className="rounded px-3 py-2"
+                className="px-0 py-1 text-left"
                 style={{
-                  background: "var(--muted)",
-                  border: "1px solid var(--control-border)",
+                  background: "transparent",
+                  border: "none",
                   color: "var(--foreground)",
-                  fontSize: 12,
-                  textAlign: "left",
+                  fontSize: 13,
                   cursor: "pointer",
                   fontFamily: "var(--font-sans)",
+                  textDecoration: "underline",
+                  textDecorationColor: "var(--border)",
+                  textUnderlineOffset: 4,
                 }}
               >
                 {s}
@@ -128,12 +130,10 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
           >
             <div
               style={{
-                fontSize: 9,
-                textTransform: "uppercase",
-                letterSpacing: "0.07em",
+                fontSize: 11,
+                fontWeight: 600,
                 color: "var(--muted-foreground)",
                 marginBottom: 3,
-                fontFamily: "var(--font-mono)",
               }}
             >
               {m.role === "user" ? (isId ? "Anda" : "You") : "AIDSS"}
@@ -159,9 +159,8 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
           <div style={{ maxWidth: "88%" }}>
             <div
               style={{
-                fontSize: 9, textTransform: "uppercase", letterSpacing: "0.07em",
+                fontSize: 11, fontWeight: 600,
                 color: "var(--muted-foreground)", marginBottom: 3,
-                fontFamily: "var(--font-mono)",
               }}
             >
               AIDSS
@@ -182,7 +181,7 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
             style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)" }}
           >
             <AlertTriangle size={12} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 2 }} />
-            <span style={{ fontSize: 11.5, color: "var(--foreground)", lineHeight: 1.5 }}>
+            <span style={{ fontSize: 13, color: "var(--foreground)", lineHeight: 1.5 }}>
               {error}
             </span>
           </div>

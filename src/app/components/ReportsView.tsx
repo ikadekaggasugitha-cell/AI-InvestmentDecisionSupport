@@ -1,6 +1,6 @@
-import {  FileBarChart2, Calendar, Download, FlaskConical, Loader2 , TrendingUp } from "lucide-react";
+import { Download, Loader2, Plus } from "lucide-react";
 import { useApp } from "../context/AppContext";
-import { useReports, type ReportType } from "../hooks/useReports";
+import { useReports } from "../hooks/useReports";
 
 /**
  * Reports module.
@@ -12,14 +12,6 @@ import { useReports, type ReportType } from "../hooks/useReports";
  * controls.
  */
 
-const typeColors: Record<ReportType, string> = {
-  performance: "var(--neutral)",
-  quarterly: "var(--chart-4)",
-  risk: "var(--loss)",
-  tax_loss: "var(--warning)",
-  signal_audit: "var(--gain)",
-};
-
 export function ReportsView() {
   const { locale } = useApp();
   const isId = locale === "id";
@@ -27,40 +19,15 @@ export function ReportsView() {
     reports, loading, error, failure, isLive, generating, downloading, generate, download,
   } = useReports();
 
-  const stats = [
-    { label: isId ? "Jenis Laporan" : "Report Types", value: String(reports.length || 5), icon: FileBarChart2, color: "var(--neutral)" },
-    { label: isId ? "Format" : "Format", value: "PDF", icon: Calendar, color: "var(--chart-4)" },
-    // Driven by whether the catalogue actually came from the backend. This used
-    // to be a hardcoded "Live", which stayed "Live" in precisely the case where
-    // the backend was unreachable and OFFLINE was rendered instead.
-    {
-      label: isId ? "Sumber Data" : "Data Source",
-      value: isLive ? (isId ? "Langsung" : "Live") : (isId ? "Data contoh" : "Sample"),
-      icon: isLive ? TrendingUp : FlaskConical,
-      color: isLive ? "var(--gain)" : "var(--warning)",
-    },
-  ];
+  /*
+   * The three stat tiles are gone: "5 report types" counted the list printed
+   * right below it, "PDF" repeated the format every row already states, and
+   * the data-source tile was the only tile carrying real information — that
+   * one fact now lives in the list header as a quiet line.
+   */
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5 [&>*]:shrink-0">
-      {/* Stats */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-        {stats.map((card) => (
-          <div key={card.label} className="rounded p-5 flex items-center gap-4"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-            <div className="flex items-center justify-center rounded flex-shrink-0"
-              style={{ width: 44, height: 44, background: "var(--muted)", border: "1px solid var(--border)" }}>
-              <card.icon size={20} style={{ color: card.color }} />
-            </div>
-            <div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
-                {card.value}
-              </div>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{card.label}</div>
-            </div>
-          </div>
-        ))}
-      </div>
 
       {/* Never the raw status. "Gagal memproses laporan: reports HTTP 402" tells
           the reader nothing about whether to retry or to subscribe. */}
@@ -72,7 +39,7 @@ export function ReportsView() {
             background: failure?.kind === "locked" ? "var(--warning-bg)" : "var(--loss-bg)",
             border: `1px solid ${failure?.kind === "locked" ? "var(--warning)" : "var(--loss)"}`,
             color: failure?.kind === "locked" ? "var(--warning)" : "var(--loss)",
-            fontSize: 12,
+            fontSize: 13,
           }}
         >
           {failure?.kind === "locked"
@@ -88,22 +55,29 @@ export function ReportsView() {
       {/* Reports list */}
       <div className="rounded overflow-hidden" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
-            {isId ? "Laporan Tersedia" : "Available Reports"}
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
+              {isId ? "Laporan Tersedia" : "Available Reports"}
+            </div>
+            {/* Provenance, not a tile: whether the catalogue came from the
+                backend or is the shipped sample, stated where it belongs. */}
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+              {isLive ? (isId ? "Langsung dari API" : "Live from the API") : (isId ? "Data contoh" : "Sample data")} · PDF
+            </div>
           </div>
           <button
             onClick={() => generate("performance")}
             disabled={generating !== null}
             className="flex items-center gap-2 px-3 py-1.5 rounded"
             style={{
-              background: "var(--gain-bg)", border: "1px solid var(--gain)", color: "var(--gain)",
+              background: "var(--foreground)", border: "1px solid var(--foreground)", color: "var(--card)",
               fontSize: 12, cursor: generating !== null ? "not-allowed" : "pointer",
               opacity: generating !== null ? 0.6 : 1,
             }}
           >
             {generating === "performance"
               ? <Loader2 size={13} className="animate-spin" />
-              : <FileBarChart2 size={13} />}
+              : <Plus size={13} />}
             {isId ? "Buat Laporan" : "Generate Report"}
           </button>
         </div>
@@ -115,30 +89,26 @@ export function ReportsView() {
             </div>
           )}
           {reports.map((report, i) => {
-            const color = typeColors[report.type] ?? "var(--neutral)";
             const isDownloading = downloading === report.type;
             const isGenerating = generating === report.type;
             const busy = isDownloading || isGenerating;
             return (
               <div key={report.type} className="flex items-center gap-4 px-5 py-4"
                 style={{ borderBottom: i < reports.length - 1 ? "1px solid var(--border)" : "none" }}>
-                <div className="flex items-center justify-center rounded flex-shrink-0"
-                  style={{ width: 40, height: 40, background: "var(--muted)", border: "1px solid var(--border)" }}>
-                  <FileBarChart2 size={18} style={{ color }} />
-                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
                       {isId ? report.titleId : report.titleEn}
                     </span>
+                    {/* Classification, quiet: a taxonomy label is not a state, so
+                        it loses its per-type colour and prints as a neutral pill. */}
                     <span className="px-2 py-0.5 rounded" style={{
-                      fontSize: 9, fontWeight: 700, fontFamily: "var(--font-mono)", background: "var(--muted)",
-                      color, border: `1px solid ${color}40`, letterSpacing: "0.04em",
+                      fontSize: 11, fontWeight: 500, background: "var(--muted)", color: "var(--muted-foreground)",
                     }}>
-                      {(isId ? report.labelId : report.labelEn).toUpperCase()}
+                      {isId ? report.labelId : report.labelEn}
                     </span>
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
+                  <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 2 }}>
                     {isId ? report.descId : report.descEn}
                   </div>
                 </div>
@@ -156,7 +126,7 @@ export function ReportsView() {
                     disabled={busy}
                     className="flex items-center gap-2 px-3 py-1.5 rounded"
                     style={{
-                      background: "var(--neutral-bg)", border: "1px solid var(--neutral)", color: "var(--neutral)",
+                      background: "var(--card)", border: "1px solid var(--control-border)", color: "var(--foreground)",
                       fontSize: 12, cursor: busy ? "not-allowed" : "pointer", whiteSpace: "nowrap",
                       opacity: busy ? 0.6 : 1,
                     }}

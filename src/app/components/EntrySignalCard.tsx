@@ -39,41 +39,30 @@ export function EntrySignalCard({ entry, plan, locale = "id" }: EntrySignalCardP
   return (
     <div
       className="flex flex-col gap-3 rounded"
-      style={{ background: cfg.bg, border: `1px solid ${cfg.color}33`, padding: 12 }}
+      style={{ background: "var(--card)", border: "1px solid var(--border)", padding: 12 }}
     >
-      {/* Signal badge + reason */}
+      {/* Signal badge + reason. The tint lives on the pill alone; the panel
+          itself stays on card chrome like every other nested surface. */}
       <div className="flex items-start gap-2.5">
         <span
-          className="flex items-center justify-center rounded"
-          style={{ background: `${cfg.color}1f`, width: 28, height: 28, flexShrink: 0 }}
-          aria-hidden="true"
+          className="flex items-center gap-1 rounded px-2 py-0.5"
+          style={{ background: cfg.bg }}
         >
-          <Icon size={15} style={{ color: cfg.color }} />
-        </span>
-        <div className="flex flex-col gap-0.5" style={{ minWidth: 0 }}>
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 700,
-              color: cfg.color,
-              fontFamily: "var(--font-mono)",
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-            }}
-          >
+          <Icon size={11} style={{ color: cfg.color }} aria-hidden="true" />
+          <span style={{ fontSize: 11, fontWeight: 600, color: cfg.color, fontFamily: "var(--font-sans)" }}>
             {isId ? entry.signalId : entry.signal.replace("_", " ")}
           </span>
-          <span style={{ fontSize: 11, color: "var(--foreground)", lineHeight: 1.5 }}>
-            {isId ? entry.reason : entry.reasonEn}
-          </span>
-        </div>
+        </span>
       </div>
+      <span style={{ fontSize: 13, color: "var(--foreground)", lineHeight: 1.5 }}>
+        {isId ? entry.reason : entry.reasonEn}
+      </span>
 
       {/* Trade plan: entry / stop / R:R */}
       {hasPlan && (
         <div
           className="grid gap-2"
-          style={{ gridTemplateColumns: "1fr 1fr 1fr", borderTop: `1px solid ${cfg.color}22`, paddingTop: 10 }}
+          style={{ gridTemplateColumns: "1fr 1fr 1fr", borderTop: "1px solid var(--border)", paddingTop: 10 }}
         >
           <PlanCell
             icon={Target}
@@ -124,14 +113,14 @@ function PlanCell({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="flex items-center gap-1" style={{ fontSize: 9.5, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-        <Icon size={10} style={{ color: iconColor }} aria-hidden="true" />
+      <span className="flex items-center gap-1" style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+        <Icon size={11} style={{ color: iconColor }} aria-hidden="true" />
         {label}
       </span>
       <span style={{ fontSize: 12, fontWeight: 600, color: valueColor, fontFamily: "var(--font-mono)" }}>
         {value}
         {sub && (
-          <span style={{ fontSize: 10, color: valueColor, marginLeft: 4, fontWeight: 400 }}>{sub}</span>
+          <span style={{ fontSize: 11, color: valueColor, marginLeft: 4, fontWeight: 400 }}>{sub}</span>
         )}
       </span>
     </div>

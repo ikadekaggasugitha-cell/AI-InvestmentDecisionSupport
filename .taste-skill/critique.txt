@@ -138,3 +138,127 @@ Skor: design 8 · usability 8.5 · creativity 7 · content 8.5 → overall 8
   `--muted-foreground` di kedua baris; baris tabel transparan (zebra mati).
 - Tema gelap dicek lewat token (pasar, portofolio, peringatan): ink dan bar
   terbesar membalik dengan `--foreground`, abu tetap abu — tanpa aturan khusus.
+
+
+## Fase C: Risiko, AI Advisor, Berita, Laporan (2026-10-21)
+- Risiko: enam KPI kehilangan chip ikon dan sub berwarna → label di atas,
+  nilai tinta 18px, sub abu 11px; hanya angka bertanda yang menyimpan warna
+  (drawdown merah, alpha berganda warna, dan abu saat nol); VaR cetak tinta
+  karena nilainya magnitudo kerugian, arah sudah di label.
+- Radar enam sumbu dihapus dari layar Risiko: ia menggambar persis enam angka
+  yang tercetak di daftar bar di sebelahnya — presentasi kedua dari angka
+  yang sama, alasan yang sama saat dua donat keluar di fase A. Daftar skor
+  jadi baris penuh, semuanya bar `--neutral` + nilai tinta: enam bar pisau
+  ramp berwarna (amber tengah, hijau rendah) adalah warna kategori di data.
+- Bar stress test: enam skenario semuanya kerugian, jadi warna merah di
+  semua bar tidak menandingi apa pun — satu warna `--neutral` untuk semua;
+  angka bertanda hidup di tabel probabilitas (dampak % merah;
+  dampak Rp tinta karena magnitudo, tandanya sudah di kolom % atasnya).
+- Zebra tabel probabilitas mati; th 10 → 11px; teks/legend tabel → 11px;
+  banner peringatan 13px; em dash in-context dihapus ("Ini bukan masalah
+  koneksi, server berjalan baik.").
+- AI Advisor: empat KPI tanpa chip ikon, label di atas; AUC mencetak tinta
+  (metrik lengkap tetap di tooltip); warna level AUC dihapus — statistik
+  bukan keadaan. Cincin probabilitas 56px per baris diganti angka tinta
+  18px + judul "Prob. naik/turun" — cincin satu nilai adalah donat satu
+  irisan. Chip tier/tren/situasi: mono tracked 10px + bingkai `${var}25`
+  (CSS tidak sah — var() tak menerima hex alpha) → pil sentence 11px tanpa
+  bingkai, ikon tetap ada (warna tidak pernah sendirian).
+- TradePlanBadge 10 → 11px; kolom "Skor Model" menyempit sampai label
+  menempel pada angka ("Skor Model91,4") → min-width 96px + gap; bug hilang.
+- SHAP: header sentence 13px, tick sumbu 9/10 → 11px, tooltip 10 → 11px.
+- Enam judul bagian expand 11px uppercase tracked → sentence 13px.
+- AdvisorChat: tiga contoh pertanyaan berhenti tampak seperti input mati
+  (latar muted + bingkai) → kalimat bergaris bawah tipis pada warna
+  bingkai; label peran 9px uppercase mono → 11px kalimat; ikon header
+  berhenti memakai aksen; banner OJK 11 → 13px.
+- EntrySignalCard (dirender dalam kartu Advisor yang terbuka): panel penuh
+  tinted + bingkai var()+alpha tidak sah → permukaan kartu biasa, tint
+  tinggal di pil sinyal; kotak ikon tinted dihapus; badge UPPERCASE mono
+  → sentence; PlanCell 9.5 → 11px. Tes `EntrySignalCard` 5/5 tetap hijau
+  (asersi teks tidak berubah).
+- Berita: akar inline-style mendapat `[&>*]:shrink-0` (cacat fase B).
+  Tiga chip per kartu dibongkar: chip kategori KORPORASI/PASAR/MAKRO
+  9px uppercase tracked berwarna (warna taksonomi di setiap kartu) →
+  baris tenang "IDX · Korporasi" di footer; chip simbol latar netral →
+  simbol mono abu-abu; chip sumber berkotak → teks. "Terbaru" tetap pil
+  tinted tapi sentence 11px (lencana keadaan, bukan taksonomi). Tab
+  kategori aktif berhenti hijau tinted → pil tenang `--muted` + tinta
+  (satu pola dengan tab lensa Pasar fase B). Judul kartu 13 → 14px; grid
+  `repeat(auto-fit, minmax(min(100%, 430px), 1fr))` → satu kolom di ponsel.
+- State kosong/error berita: void terpusat + ikon + tombol primary gelap →
+  strip ramping satu kalimat + tombol tenang berbingkai (pola R-26: aksi
+  nyata di dalam state; kalimat jujur menyebut daftar diambil sekali).
+- Laporan: tiga tile statistik duplikat informasi daftar ("5 Jenis Laporan"
+  menghitung daftar di bawahnya, "PDF" mengulang format setiap baris)
+  → dihapus; satu-satunya fakta nyata di tile (Sumber Data: "Data contoh"
+  atau "Langsung") pindah ke header daftar sebagai baris abu-abu; ikon
+  kotak dokumen per baris dihapus; chip jenis 9px uppercase berwarna
+  per-tipe → pil netral sentence 11px; "Buat Laporan" tinted hijau dua
+  nada → tombol tinta (satu momen aksen per layar; "Unduh" per baris jadi
+  tombol tenang berbingkai); banner error 12 → 13px.
+- Rezim data: harness utama tetap `VITE_USE_LIVE_API=false`; useNews,
+  useAISignals, useAlerts berhenti mengambil pada bendera itu, jadi daftar
+  berita hanya tampil lewat perekam sekunder `:5174`
+  (`VITE_USE_LIVE_API=true`, proksi yang sama). Mock diberi `/v1/auth/login`
+  (cookie palsu, bendera sama) dan `/v1/news` berjudul gaya keterbukaan IDX
+  atas ticker yang sudah hidup di aplikasi — tanpa nama media, tanpa
+  peristiwa dunia nyata; alat perekaman saja. Layar fase C lain tetap
+  direkam dari harness utama.
+- Cacat struktur baru (ditemukan di tangkapan 390px): header kartu sinyal
+  advisor memaksa blok metrik kanan `flex-shrink-0` menimpa nama emiten
+  di ponsel → header `flex-wrap` + `rowGap`, metrik `w-full md:w-auto`;
+  kisi empat KPI advisor `repeat(4, 1fr)` tetap → `repeat(auto-fit,
+  minmax(min(100%, 150px), 1fr))`.
+- Inspekteur skill tetap tak tersedia; audit DOM pengganti mencakup daftar
+  berita di perekam sekunder: 0 teks <11px dan 0 label uppercase ter-track
+  di keempat tampilan plus 12 kartu berita.
+- Tangkapan fullPage Chrome terbukti kehilangan SVG recharts yang baru
+  selesai animasi (bar stress test "hilang" di JPEG padahal ada di DOM
+  dengan computed fill benar, viewport capture menunjukkannya); rekaman
+  viewport disimpan sebagai bukti chart: risk-c-desktop-viewport.jpeg.
+
+## Fase D: Pengaturan dan panel detail saham (2026-10-21)
+- Pengaturan — pil pilihan Tema/Bahasa/Mata uang: pil aktif tinted hijau
+  dua nada (tepi `--primary` + latar `--accent`) → pil tenang tanpa bingkai,
+  aktif latar `--muted` + tinta bobot 500, pasif teks abu; satu pola dengan
+  tab lensa Pasar (fase B) dan tab kategori Berita (fase C).
+- Label Metric (Komponen bersama tab Profil dan kartu Kurs) 10px uppercase
+  tracked → sentence 11px: "Nomor WhatsApp", "Peran", "Kurs saat ini", "%".
+  Keempat tile Tentang idem (Sumber data, Bursa, Zona waktu, Status feed).
+- Tangga harga tab Langganan: tiga angka Rupiah tanpa nama paket — pembaca
+  tidak tahu mana mingguan/bulanan/tahunan → tiga baris berlabel
+  (label sans abu 11px di kiri nilai), ketiganya tinta: tiga harga
+  sejajar, bukan peringkat (hierarki atenuasi lama menyiratkan mutu).
+- Akar inline-style Settings menirukan resep fase B: `min-h-0 flex-1
+  overflow-y-auto flex flex-col [&>*]:shrink-0` + `maxWidth: 720` tetap.
+  `catch (err)` tak-terpakai → `catch` (eslint 0 pada file disentuh).
+- StockDetailPanel: aturan nol fase A menyentuh header drawer —
+  "0.00% (+0)" dan Net Asing "0.0B" mencetak abu tanpa chevron; warna
+  hanya pada angka bertanda nonzero. Label stat 10 → 11px; chip papan
+  9px ("UTAMA") → 11px tanpa bingkai.
+- Kartu sinyal AI (hanya muncul lewat feed live): label "Sinyal AI"
+  11px uppercase tracked → sentence 12px; chip tier `color-mix(in srgb,
+  var() + 12%)` + bingkai → tint token `var(--gain|loss|warning-bg)`
+  tanpa bingkai 11px, satu pola `TIER_CFG` advisor fase C; angka uprob
+  26px berwarna tier → tinta 18px + caption (statistik, bukan keadaan —
+  Cass lingu tier terbaca di pilnya); tiga caption 10 → 11px.
+- "Rentang Hari": label 10 → 11px; baris itu sendiri menghilang bila
+  high = low (penjelasan jujur dari tick, bukan baris kosong dipaksa).
+- Heading "Tren" 11px uppercase tracked → sentence 12px; note teknikal
+  dan banner tetap 12px kartu tenang.
+- CandlestickChart (komponen shared panel dan kartu Advisor): kotak
+  "Resisten / Entry / Support / Stop Loss / EMA9 / 9,76M" pada tangkapan
+  adalah label sumbu native lightweight-charts di canvas — warnanya
+  warna garis data masing-masing, bukan pil chrome yang bisa dibongkar.
+  Yg dikawal: teks sumbu `layout.fontSize` 10 → 11px (lantai berlaku
+  untuk teks canvas juga). Perubahan akan terbaca juga di kartu Advisor.
+- Rezim data: harness utama (`VITE_USE_LIVE_API=false`); panel memakai
+  teknikal seed lokal, dan fetch sinyal per-simbol berhenti pada bendera
+  itu — kartu sinyal hanya di lantai live, sehingga tidak merekam pelanggaran lantai.
+- Verifikasi: `tsc` bersih; vitest 331/331; eslint 0 pada tiga file
+  disentuh; audit DOM pengganti inspekteur: 0 teks <11px dan 0 label
+  uppercase ter-track di drawer dan kelima tab; panel gelap direkam
+  (canvas membaca ulang token). Tangkapan after: lima tab Pengaturan
+  desktop, Pengaturan mobile (Tampilan + Langganan), panel desktop +
+  mobile + gelap.

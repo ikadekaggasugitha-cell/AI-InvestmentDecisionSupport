@@ -1,7 +1,7 @@
 import { Suspense, lazy, useState, type ElementType } from "react";
 import {
-  Brain, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp,
-  Clock, AlertTriangle, BarChart2, ShieldCheck, X, MoveRight,
+  TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp,
+  Clock, AlertTriangle, ShieldCheck, X, MoveRight,
   ArrowUpToLine, ArrowUpFromLine, Minimize2, MoveHorizontal, Zap,
 } from "lucide-react";
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -49,35 +49,20 @@ function tierLabel(tier: Tier, isId: boolean): string {
   return isId ? map[tier][0] : map[tier][1];
 }
 
-/* OJK-compliant probability gauge */
+/* OJK-compliant probability gauge. The ring is gone: one solid ring per row
+   is a donut with one slice, only much quieter. The figure prints ink and the
+   tier chip beside the name carries the level colour. */
 function ProbabilityGauge({ uprob, tier }: { uprob: number; tier: Tier }) {
   const isDown = tier === "LOW";
   const displayProb = isDown ? (100 - uprob) : uprob;
-  const color = isDown ? "var(--loss)" : uprob >= 70 ? "var(--gain)" : uprob >= 55 ? "var(--warning)" : "var(--muted-foreground)";
-  const bgColor = isDown ? "var(--loss-bg)" : uprob >= 70 ? "var(--gain-bg)" : "var(--warning-bg)";
 
   return (
-    <div style={{ textAlign: "center", minWidth: 72 }}>
-      <div
-        style={{
-          width: 56,
-          height: 56,
-          borderRadius: "50%",
-          border: `3px solid ${color}`,
-          background: bgColor,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          margin: "0 auto 4px",
-        }}
-      >
-        <div style={{ fontSize: 15, fontWeight: 700, color, fontFamily: "var(--font-mono)", lineHeight: 1 }}>
-          {displayProb}%
-        </div>
+    <div style={{ minWidth: 64 }}>
+      <div style={{ fontSize: 18, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)", lineHeight: 1.1 }}>
+        {displayProb}%
       </div>
-      <div style={{ fontSize: 9, color: "var(--muted-foreground)", textAlign: "center", lineHeight: 1.3 }}>
-        {isDown ? "Prob. Turun" : "Prob. Naik"}
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+        {isDown ? "Prob. turun" : "Prob. naik"}
       </div>
     </div>
   );
@@ -99,11 +84,11 @@ function TrendBadge({ trend, isId }: { trend: AISignal["trend"]; isId: boolean }
   return (
     <span
       className="flex items-center gap-1 rounded px-2 py-0.5"
-      style={{ background: cfg.bg, border: `1px solid ${cfg.color}25` }}
+      style={{ background: cfg.bg }}
       title={isId ? `Kekuatan tren: ${trend.strength}/100` : `Trend strength: ${trend.strength}/100`}
     >
-      <Icon size={10} style={{ color: cfg.color }} />
-      <span style={{ fontSize: 10, fontWeight: 600, color: cfg.color, fontFamily: "var(--font-mono)" }}>
+      <Icon size={11} style={{ color: cfg.color, flexShrink: 0 }} />
+      <span style={{ fontSize: 11, fontWeight: 600, color: cfg.color, fontFamily: "var(--font-sans)" }}>
         {isId ? cfg.id : cfg.en}
       </span>
     </span>
@@ -149,11 +134,11 @@ function SituationBadge({ situation, isId }: { situation: SituationInfo | null; 
   return (
     <span
       className="flex items-center gap-1 rounded px-2 py-0.5"
-      style={{ background: tone.bg, border: `1px solid ${tone.color}25` }}
+      style={{ background: tone.bg }}
       title={isId ? situation.note : situation.noteEn}
     >
       <Icon size={11} style={{ color: tone.color }} />
-      <span style={{ fontSize: 10, fontWeight: 600, color: tone.color, fontFamily: "var(--font-mono)" }}>
+      <span style={{ fontSize: 11, fontWeight: 600, color: tone.color }}>
         {isId ? cfg.id : cfg.en}
       </span>
     </span>
@@ -171,7 +156,7 @@ function SituationFacts({ situation, isId }: { situation: SituationInfo | null; 
   return (
     <div
       className="flex items-center flex-wrap gap-x-3 gap-y-1"
-      style={{ fontSize: 10, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", margin: "6px 0 10px" }}
+      style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", margin: "6px 0 10px" }}
     >
       {situation.nearestSupport != null && (
         <span>
@@ -224,23 +209,23 @@ function TradePlanBadge({ plan, isId }: { plan: AISignal["tradePlan"]; isId: boo
       className="flex items-center gap-1.5 rounded px-2 py-0.5"
       style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
     >
-      <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+      <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
         {isId ? "Entry" : "Entry"}
       </span>
-      <span style={{ fontSize: 10, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
         {plan.entryPrice.toLocaleString("id-ID")}
       </span>
-      <span style={{ fontSize: 10, color: "var(--border)" }}>|</span>
-      <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>SL</span>
-      <span style={{ fontSize: 10, fontWeight: 600, color: "var(--loss)", fontFamily: "var(--font-mono)" }}>
+      <span style={{ fontSize: 11, color: "var(--border)" }}>|</span>
+      <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>SL</span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--loss)", fontFamily: "var(--font-mono)" }}>
         {plan.stopLoss.toLocaleString("id-ID")}
         {plan.stopLossPct != null && ` (${plan.stopLossPct.toFixed(1)}%)`}
       </span>
       {plan.riskRewardRatio != null && (
         <>
-          <span style={{ fontSize: 10, color: "var(--border)" }}>|</span>
-          <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>R/R</span>
-          <span style={{ fontSize: 10, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+          <span style={{ fontSize: 11, color: "var(--border)" }}>|</span>
+          <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>R/R</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
             {plan.riskRewardRatio.toFixed(1)}
           </span>
         </>
@@ -260,17 +245,17 @@ function ShapChart({ shap, isId }: { shap: AISignal["shap"]; isId: boolean }) {
 
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 4, fontFamily: "var(--font-sans)" }}>
         {isId ? "Faktor Penentu (SHAP)" : "SHAP Factor Analysis"}
       </div>
-      <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
         {isId ? "Kontribusi fitur terhadap probabilitas" : "Feature contributions to probability"}
       </div>
       <ResponsiveContainer width="100%" height={140}>
         <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 24, bottom: 0, left: 0 }}>
           <XAxis
             type="number"
-            tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
@@ -279,12 +264,12 @@ function ShapChart({ shap, isId }: { shap: AISignal["shap"]; isId: boolean }) {
             type="category"
             dataKey="name"
             width={78}
-            tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
             axisLine={false}
             tickLine={false}
           />
           <Tooltip
-            contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}
+            contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}
             formatter={(v: number) => [`${v > 0 ? "+" : ""}${v}`, isId ? "Kontribusi" : "Contribution"]}
           />
           <Bar dataKey="value" radius={[0, 2, 2, 0]}>
@@ -368,11 +353,13 @@ function SignalCard({
       className="rounded overflow-hidden"
       style={{ background: "var(--card)", border: "1px solid var(--border)" }}
     >
-      {/* Card header */}
+      {/* Card header. The gauge, the name column and the right metrics wrap on
+          narrow screens instead of squeezing the name against the figures —
+          flex-shrink-0 alone turned the mobile row into an overlap. */}
       <div
         className="flex items-start gap-4 p-5 cursor-pointer"
         onClick={onToggle}
-        style={{ userSelect: "none" }}
+        style={{ userSelect: "none", flexWrap: "wrap", rowGap: 12 }}
       >
         {/* Probability gauge — OJK compliant (replaces absolute buy/sell badge) */}
         <ProbabilityGauge uprob={rec.uprob} tier={rec.probabilityTier as Tier} />
@@ -384,13 +371,16 @@ function SignalCard({
               {rec.symbol}
             </span>
             <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{rec.name}</span>
-            {/* Signal label — for display context only, not trading instruction */}
+            {/* Signal label — for display context only, not trading instruction.
+                Tinted surface + coloured text + icon: the colour never carries
+                the level alone, and a var() token can't take an alpha hex, so
+                the border that used `${tone}25` it is not drawn. */}
             <span
               className="flex items-center gap-1 rounded px-2 py-0.5"
-              style={{ background: cfg.bg, border: `1px solid ${cfg.color}25` }}
+              style={{ background: cfg.bg }}
             >
-              <Icon size={10} style={{ color: cfg.color }} />
-              <span style={{ fontSize: 10, fontWeight: 600, color: cfg.color, fontFamily: "var(--font-mono)", letterSpacing: "0.04em" }}>
+              <Icon size={11} style={{ color: cfg.color }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: cfg.color, fontFamily: "var(--font-sans)" }}>
                 {tierLabel(rec.probabilityTier as Tier, isId)}
               </span>
             </span>
@@ -409,10 +399,11 @@ function SignalCard({
           </div>
         </div>
 
-        {/* Right metrics */}
-        <div className="flex items-start gap-6 flex-shrink-0">
+        {/* Right metrics — below md they drop to their own row (the name column
+            keeps its width); md and up they sit flush to the card edge. */}
+        <div className="flex items-start gap-6 flex-shrink-0 w-full md:w-auto md:ml-auto">
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginBottom: 2 }}>{t("ai_target")}</div>
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 2 }}>{t("ai_target")}</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
               {rec.targetPrice.toLocaleString("id-ID")}
             </div>
@@ -420,16 +411,16 @@ function SignalCard({
               {upPos ? "+" : ""}{rec.upside.toFixed(1)}%
             </div>
           </div>
-          <div style={{ minWidth: 80 }}>
-            <div className="flex items-center justify-between mb-1">
-              <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{t("ai_model_score")}</span>
+          <div style={{ minWidth: 96 }}>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{t("ai_model_score")}</span>
               <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: cfg.color }}>{rec.modelScore}</span>
             </div>
             {/* Confidence bar */}
             <div style={{ width: "100%", height: 3, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
               <div style={{ width: `${rec.confidence}%`, height: "100%", background: cfg.color, borderRadius: 2 }} />
             </div>
-            <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 3 }}>{t("ai_confidence")}: {rec.confidence}%</div>
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>{t("ai_confidence")}: {rec.confidence}%</div>
           </div>
           <div style={{ color: "var(--muted-foreground)", marginTop: 4 }}>
             {isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
@@ -446,7 +437,7 @@ function SignalCard({
           {/* Interactive candlestick chart with S/R, entry and stop lines */}
           <div>
             <div className="flex items-center justify-between gap-2" style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", }}>
                 {t("ai_price_action")}
               </div>
               <div className="flex items-center gap-2">
@@ -494,7 +485,7 @@ function SignalCard({
             <div className="flex flex-col gap-4">
               {/* Full thesis — the hand-written narrative, never replaced by a template */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
                   {t("ai_thesis")}
                 </div>
                 <p style={{ fontSize: 12, color: "var(--foreground)", lineHeight: 1.6 }}>
@@ -505,7 +496,7 @@ function SignalCard({
               {/* Generated technical commentary — additive to the thesis above */}
               {note && (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
                     {t("ai_technical_note")}
                   </div>
                   <p
@@ -522,7 +513,7 @@ function SignalCard({
               {/* Stop loss rationale */}
               {plan?.stopLoss != null && (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
                     {t("ai_stop_loss")}
                   </div>
                   <div className="flex items-baseline gap-2">
@@ -544,7 +535,7 @@ function SignalCard({
               {/* Candlestick patterns */}
               {patterns.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
                     {t("ai_patterns")}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -552,7 +543,7 @@ function SignalCard({
                       <span
                         key={`${p}-${i}`}
                         className="rounded px-2 py-0.5"
-                        style={{ background: "var(--muted)", border: "1px solid var(--border)", fontSize: 10, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}
+                        style={{ background: "var(--muted)", border: "1px solid var(--border)", fontSize: 11, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}
                       >
                         {p}
                       </span>
@@ -564,7 +555,7 @@ function SignalCard({
               {/* Open gaps */}
               {unfilledGaps.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
                     {t("ai_open_gaps")}
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -575,7 +566,7 @@ function SignalCard({
                           {" "}
                           <span style={{ fontFamily: "var(--font-mono)" }}>{g.gapPct.toFixed(1)}%</span>
                         </span>
-                        <span style={{ fontSize: 10, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+                        <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
                           {isId ? "prob. tutup" : "fill prob."} {Math.round(g.fillProbability * 100)}%
                         </span>
                       </div>
@@ -586,7 +577,7 @@ function SignalCard({
 
               {/* Catalysts */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
                   {t("ai_catalysts")}
                 </div>
                 <ul className="flex flex-col gap-1.5">
@@ -602,7 +593,7 @@ function SignalCard({
               {/* Meta row */}
               <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
                 <div>
-                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginBottom: 2 }}>{t("ai_horizon")}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 2 }}>{t("ai_horizon")}</div>
                   <div className="flex items-center gap-1">
                     <Clock size={11} style={{ color: "var(--muted-foreground)" }} />
                     <span style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
@@ -611,7 +602,7 @@ function SignalCard({
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginBottom: 2 }}>{t("ai_risk_level")}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 2 }}>{t("ai_risk_level")}</div>
                   <div className="flex items-center gap-1">
                     <AlertTriangle size={11} style={{ color: "var(--warning)" }} />
                     <span style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
@@ -620,7 +611,7 @@ function SignalCard({
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginBottom: 2 }}>{t("ai_upside")}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 2 }}>{t("ai_upside")}</div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: upPos ? "var(--gain)" : "var(--loss)", fontFamily: "var(--font-mono)" }}>
                     {upPos ? "+" : ""}{rec.upside.toFixed(1)}%
                   </div>
@@ -629,7 +620,7 @@ function SignalCard({
 
               {/* Analyst consensus */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
                   {t("ai_analyst_consensus")}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)", lineHeight: 1.8 }}>
@@ -654,7 +645,7 @@ function SignalCard({
                       `modelVersion` artefact id; it names no algorithm anywhere,
                       so a fixed "LightGBM + SHAP" was a claim the contract could
                       never confirm, and wrong on the seed path where no model ran. */}
-                  <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
                     {servingSource === "live"
                       ? (isId ? "Sumber: model aktif" : "Source: live model")
                       : servingSource === "mock"
@@ -678,7 +669,7 @@ function SignalCard({
               )}
 
               <div style={{ background: "var(--muted)", borderRadius: 4, padding: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 10, }}>
                   {t("ai_broker_summary")}
                 </div>
                 <BrokerSummaryPanel
@@ -743,16 +734,6 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
   const meanAuc = modelMetrics?.meanAuc ?? null;
   const decileLift = modelMetrics?.decileLift ?? null;
   const aucLabel = meanAuc === null ? "—" : `${(meanAuc * 100).toFixed(1)}%`;
-  // 0.5 is chance on a binary label. Above that the model discriminates; below,
-  // colouring it as a gain would misread it.
-  const aucColor =
-    meanAuc === null
-      ? "var(--muted-foreground)"
-      : meanAuc >= 0.55
-        ? "var(--gain)"
-        : meanAuc > 0.5
-          ? "var(--warning)"
-          : "var(--loss)";
   const trainedAtLabel = modelMetrics?.trainedAt
     ? new Date(modelMetrics.trainedAt).toLocaleDateString(isId ? "id-ID" : "en-GB", {
         day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Jakarta",
@@ -826,15 +807,15 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
               size={14}
               style={{ color: failure?.kind === "locked" ? "var(--warning)" : "var(--loss)", flexShrink: 0 }}
             />
-            <div style={{ fontSize: 11, color: "var(--foreground)", flex: 1 }}>
+            <div style={{ fontSize: 13, color: "var(--foreground)", flex: 1 }}>
               {failure?.kind === "locked" ? (
                 <>
                   <span style={{ fontWeight: 600, color: "var(--warning)" }}>
                     {isId ? "Sinyal tidak dikirim:" : "Signals not served:"}
                   </span>{" "}
                   {isId
-                    ? "langganan belum aktif. Ini bukan masalah koneksi — server berjalan baik."
-                    : "the subscription is not active. This is not a connection problem — the server is healthy."}
+                    ? "langganan belum aktif. Ini bukan masalah koneksi, server berjalan baik."
+                    : "the subscription is not active. This is not a connection problem, the server is healthy."}
                 </>
               ) : (
                 <>
@@ -856,7 +837,7 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
           style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)" }}
         >
           <ShieldCheck size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />
-          <div style={{ fontSize: 11, color: "var(--foreground)", flex: 1 }}>
+          <div style={{ fontSize: 13, color: "var(--foreground)", flex: 1 }}>
             <span style={{ fontWeight: 600, color: "var(--warning)" }}>
               {isId ? "Kepatuhan OJK:" : "OJK Compliance:"}
             </span>
@@ -884,26 +865,21 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
             calibration against the imbalance, which is why the training gate
             measures AUC and decile lift. A dash means no model produced this
             data. */}
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))" }}>
+          {/* Icon tiles out (0 of 23 study screens): the number is the identity,
+              the label sits quiet above it, and the AUC tooltip stays attached
+              to the tile. */}
           {[
-            { label: t("ai_model_auc"),         value: aucLabel,        color: aucColor,               icon: Brain,     title: aucTitle },
-            { label: t("ai_active_signals"),  value: String(activeSignals), color: "var(--neutral)",      icon: TrendingUp, title: undefined },
-            { label: t("ai_avg_confidence"),  value: `${avgUprob}%`,    color: "var(--warning)",          icon: BarChart2,  title: undefined },
-            { label: t("ai_last_updated"),    value: lastUpdatedLabel,  color: "var(--muted-foreground)", icon: Clock,      title: undefined },
-          ].map((m) => {
-            const Icon = m.icon;
-            return (
-              <div key={m.label} className="rounded p-4 flex items-center gap-3" style={{ background: "var(--card)", border: "1px solid var(--border)" }} title={m.title}>
-                <div style={{ width: 32, height: 32, borderRadius: 4, background: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Icon size={15} style={{ color: m.color }} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{m.value}</div>
-                  <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 1 }}>{m.label}</div>
-                </div>
-              </div>
-            );
-          })}
+            { label: t("ai_model_auc"),        value: aucLabel,             title: aucTitle },
+            { label: t("ai_active_signals"),   value: String(activeSignals), title: undefined },
+            { label: t("ai_avg_confidence"),   value: `${avgUprob}%`,       title: undefined },
+            { label: t("ai_last_updated"),     value: lastUpdatedLabel,     title: undefined },
+          ].map((m) => (
+            <div key={m.label} className="rounded p-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }} title={m.title}>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 6, lineHeight: 1.4 }}>{m.label}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)", lineHeight: 1 }}>{m.value}</div>
+            </div>
+          ))}
         </div>
 
         {/* Portfolio Q&A — streams from /v1/advisor/chat */}

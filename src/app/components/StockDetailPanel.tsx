@@ -13,11 +13,11 @@ const CandlestickChart = lazy(() =>
 );
 
 /** Probability-tier presentation: colour + bilingual label. */
-const TIER_UI: Record<AISignal["probabilityTier"], { color: string; id: string; en: string }> = {
-  VERY_HIGH: { color: "var(--gain)",    id: "Probabilitas Sangat Tinggi", en: "Very High Probability" },
-  HIGH:      { color: "var(--gain)",    id: "Probabilitas Tinggi",        en: "High Probability" },
-  NEUTRAL:   { color: "var(--neutral)", id: "Probabilitas Netral",        en: "Neutral Probability" },
-  LOW:       { color: "var(--loss)",    id: "Probabilitas Rendah",        en: "Low Probability" },
+const TIER_UI: Record<AISignal["probabilityTier"], { color: string; bg: string; id: string; en: string }> = {
+  VERY_HIGH: { color: "var(--gain)",    bg: "var(--gain-bg)",    id: "Probabilitas Sangat Tinggi", en: "Very High Probability" },
+  HIGH:      { color: "var(--gain)",    bg: "var(--gain-bg)",    id: "Probabilitas Tinggi",        en: "High Probability" },
+  NEUTRAL:   { color: "var(--warning)", bg: "var(--warning-bg)", id: "Probabilitas Netral",        en: "Neutral Probability" },
+  LOW:       { color: "var(--loss)",    bg: "var(--loss-bg)",    id: "Probabilitas Rendah",        en: "Low Probability" },
 };
 
 interface Props {
@@ -40,7 +40,7 @@ interface Props {
 export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchlist, onClose }: Props) {
   const tech = useTechnicals(stock.symbol, 120, true);
   const pos = stock.changePct >= 0;
-  const foreignPos = stock.foreignNet >= 0;
+  const moved = stock.change !== 0;
 
   // AI signal for this one symbol — fetched lazily so opening the panel does not
   // pull the whole ~960-entry signals list.
@@ -71,7 +71,7 @@ export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchli
 
   const stat = (label: string, value: string, color?: string) => (
     <div>
-      <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-mono)", color: color ?? "var(--foreground)" }}>
         {value}
       </div>
@@ -110,9 +110,8 @@ export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchli
               </span>
               {meta?.board && (
                 <span style={{
-                  fontSize: 9, fontWeight: 600, color: "var(--muted-foreground)",
-                  background: "var(--muted)", borderRadius: 3, padding: "2px 6px",
-                  border: "1px solid var(--border)",
+                  fontSize: 11, fontWeight: 500, color: "var(--muted-foreground)",
+                  background: "var(--muted)", borderRadius: 4, padding: "2px 8px",
                 }}>
                   {meta.board}
                 </span>
@@ -127,8 +126,8 @@ export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchli
               <div style={{ fontSize: 17, fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
                 {stock.price.toLocaleString("id-ID")}
               </div>
-              <div className="flex items-center justify-end gap-0.5" style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: pos ? "var(--gain)" : "var(--loss)" }}>
-                {pos ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              <div className="flex items-center justify-end gap-0.5" style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: stock.change === 0 ? "var(--neutral)" : pos ? "var(--gain)" : "var(--loss)" }}>
+                {moved && (pos ? <ChevronUp size={11} /> : <ChevronDown size={11} />)}
                 {Math.abs(stock.changePct).toFixed(2)}% ({stock.change >= 0 ? "+" : ""}{stock.change.toLocaleString("id-ID")})
               </div>
             </div>
@@ -185,15 +184,14 @@ export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchli
             {signal && (
               <div style={{ background: "var(--muted)", borderRadius: 6, padding: 12, border: "1px solid var(--border)" }}>
                 <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
                     {isId ? "Sinyal AI" : "AI Signal"}
                   </span>
                   <span
                     style={{
-                      fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
+                      fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
                       color: TIER_UI[signal.probabilityTier].color,
-                      background: `color-mix(in srgb, ${TIER_UI[signal.probabilityTier].color} 12%, transparent)`,
-                      border: `1px solid ${TIER_UI[signal.probabilityTier].color}`,
+                      background: TIER_UI[signal.probabilityTier].bg,
                     }}
                   >
                     {isId ? TIER_UI[signal.probabilityTier].id : TIER_UI[signal.probabilityTier].en}
@@ -201,23 +199,23 @@ export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchli
                 </div>
                 <div className="flex items-end gap-5">
                   <div>
-                    <div style={{ fontSize: 26, fontWeight: 700, fontFamily: "var(--font-mono)", color: TIER_UI[signal.probabilityTier].color, lineHeight: 1 }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--foreground)", lineHeight: 1 }}>
                       {signal.uprob}%
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
                       {isId ? "Probabilitas Naik" : "Upward Prob."}
                     </div>
                   </div>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>{signal.confidence}%</div>
-                    <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{isId ? "Keyakinan" : "Confidence"}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>{isId ? "Keyakinan" : "Confidence"}</div>
                   </div>
                   {signal.upside !== 0 && (
                     <div>
                       <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--font-mono)", color: signal.upside >= 0 ? "var(--gain)" : "var(--loss)" }}>
                         {signal.upside >= 0 ? "+" : ""}{signal.upside.toFixed(1)}%
                       </div>
-                      <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 2 }}>{isId ? "Potensi" : "Upside"}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>{isId ? "Potensi" : "Upside"}</div>
                     </div>
                   )}
                 </div>
@@ -228,7 +226,7 @@ export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchli
           {/* Day range: low ──●── high */}
           {range > 0 && (
             <div>
-              <div className="flex items-center justify-between" style={{ fontSize: 10, color: "var(--muted-foreground)", marginBottom: 4 }}>
+              <div className="flex items-center justify-between" style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>
                 <span>{isId ? "Rentang Hari" : "Day Range"}</span>
               </div>
               <div style={{ position: "relative", height: 6, background: "var(--muted)", borderRadius: 3 }}>
@@ -251,8 +249,8 @@ export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchli
             {stat(isId ? "Buka" : "Open", stock.open.toLocaleString("id-ID"))}
             {stat(
               isId ? "Net Asing" : "Foreign Net",
-              `${foreignPos ? "+" : ""}${stock.foreignNet.toFixed(1)}B`,
-              foreignPos ? "var(--gain)" : "var(--loss)",
+              `${stock.foreignNet > 0 ? "+" : ""}${stock.foreignNet.toFixed(1)}B`,
+              stock.foreignNet > 0 ? "var(--gain)" : stock.foreignNet < 0 ? "var(--loss)" : "var(--neutral)",
             )}
             {stat(isId ? "Prev Close" : "Prev Close", stock.prevClose.toLocaleString("id-ID"))}
             {meta?.board && stat(isId ? "Papan" : "Board", meta.board)}
@@ -264,7 +262,7 @@ export function StockDetailPanel({ stock, meta, isId, isWatched, onToggleWatchli
           {/* Trend + generated note */}
           {tech.trend && (
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 6 }}>
                 {isId ? "Tren" : "Trend"}
               </div>
               <div style={{ fontSize: 12, color: "var(--foreground)" }}>

@@ -66,8 +66,50 @@ const http = createServer((req, res) => {
     if (USER) return json(200, { active: true, expiresAt: "2026-11-30T00:00:00Z", daysRemaining: 41 });
     return json(403, { detail: "No active subscription." });
   }
-  return json(200, []);
-});
+  // Login flow for the aux recorder (:5174, VITE_USE_LIVE_API=true). The real
+  // backend issues an HttpOnly session cookie; a fake one with the same name
+  // and flags keeps /auth/me consistent afterwards.
+  if (url.pathname === "/v1/auth/login" && req.method === "POST") {
+    res.setHeader("Set-Cookie", "aidss_session=mock-recording; HttpOnly; SameSite=Lax; Path=/");
+    return json(200, { account: ACCOUNT(USER ? "user" : ADMIN ? "admin" : "user") });
+  }
+  // IDX keterbukaan informasi for the news list recording. Filing-style titles
+  // against the app's own ticker universe: no publication names, no real-world
+  // events — the same class of simulated data every other endpoint here serves.
+  if (url.pathname === "/v1/news") {
+    const daysBack = Number(url.searchParams.get("daysBack") ?? 7);
+    const limit = Number(url.searchParams.get("limit") ?? 20);
+    const now = Date.now();
+    const min = 60_000;
+    const RAW_FILINGS = [
+      { symbol: "BBCA", jenis: "Keterbukaan Informasi", title: "Perubahan Komposisi Pengurus dan Dewan Pengawas", mins: 24 },
+      { symbol: "",     jenis: "Perdagangan",          title: "Ringkasan Saham Aktif dalam Perdagangan Reguler", mins: 42 },
+      { symbol: "TLKM", jenis: "Keterbukaan Informasi", title: "Rencana Penggunaan Dana Hasil Penawaran Umum Berkelanjutan", mins: 88 },
+      { symbol: "BBRI", jenis: "Keterbukaan Informasi", title: "Distribusi Deviden Akhir Tahun Buku 2025", mins: 150 },
+      { symbol: "",     jenis: "Obligasi",             title: "Pembayaran Bunga Obligasi Berkelanjutan Tahap VII", mins: 260 },
+      { symbol: "ASII", jenis: "Keterbukaan Informasi", title: "Persetujuan RUPS atas Perubahan Anggaran Dasar", mins: 410 },
+      { symbol: "",     jenis: "Perdagangan",          title: "Pencatatan Perdagangan Saham dalam Kondisi Suspen", mins: 640 },
+      { symbol: "ICBP", jenis: "Keterbukaan Informasi", title: "Program Buyback yang Berasal dari Dana Cadangan", mins: 1_180 },
+      { symbol: "BMRI", jenis: "Keterbukaan Informasi", title: "Kepemilikan Saham oleh Direksi dan Komisaris", mins: 1_700 },
+      { symbol: "",     jenis: "Sukuk",                title: "Penawaran Umum Sukuk Berkelanjutan Fase IV", mins: 2_400 },
+      { symbol: "ADRO", jenis: "Keterbukaan Informasi", title: "Keterlambatan Penyampaian Laporan Keuangan Periode Q2", mins: 3_900 },
+      { symbol: "UNVR", jenis: "Keterbukaan Informasi", title: "Rencana Pemecahan Saham (Stock Split)", mins: 5_500 },
+    ];
+    const FILINGS = RAW_FILINGS.slice(0, Math.max(1, limit));
+    return json(200, {
+      source: "idx",
+      items: FILINGS.filter(() => daysBack > 0).map((f, i) => ({
+        id: `mock-${i}-${f.mins}`,
+        title: f.title,
+        category: f.jenis,
+        symbol: f.symbol,
+        publishedAt: new Date(now - f.mins * min).toISOString(),
+        url: "",
+        source: "IDX",
+      })),
+    });
+  }
+  return json(200, []);});
 
 http.listen(8010, () => {
   console.log(`mock api on :8010 (ADMIN=${ADMIN})`);

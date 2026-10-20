@@ -97,15 +97,8 @@ export function SettingsView({ fx, freshness, auth, onSignedOut }: Props) {
 
   return (
     <div
-      style={{
-        flex: 1,
-        overflowY: "auto",
-        padding: 24,
-        display: "flex",
-        flexDirection: "column",
-        gap: 20,
-        maxWidth: 720,
-      }}
+      className="min-h-0 flex-1 overflow-y-auto flex flex-col [&>*]:shrink-0"
+      style={{ padding: 24, gap: 20, maxWidth: 720 }}
     >
       {/* No page heading here on purpose: App.tsx renders the view title and
           subtitle in Header, so an h2 in this view printed the same two lines
@@ -455,7 +448,7 @@ export function TabSubscription({ id }: { id: boolean }) {
         const res = await apiFetch(ENDPOINTS.subscription, { signal: controller.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         setState({ loading: false, error: null, subscription: await res.json() });
-      } catch (err) {
+      } catch {
         if (controller.signal.aborted) return;
         setState({ loading: false, error: "unknown", subscription: null });
       }
@@ -622,14 +615,21 @@ export function TabSubscription({ id }: { id: boolean }) {
                 : "Weekly, monthly, and annual, from the server."}
             </div>
           </div>
-          <div style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-            <div>{`Rp ${price.weekly?.toLocaleString(id ? "id-ID" : "en-GB")}`}</div>
-            <div style={{ color: "var(--muted-foreground)", marginTop: 2 }}>
-              {`Rp ${price.monthly?.toLocaleString(id ? "id-ID" : "en-GB")}`}
-            </div>
-            <div style={{ color: "var(--muted-foreground)", marginTop: 2 }}>
-              {`Rp ${price.annual?.toLocaleString(id ? "id-ID" : "en-GB")}`}
-            </div>
+          {/* Three parallel prices, each carrying its plan name: a stack of
+              bare numbers would make the reader guess which is which. */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, textAlign: "right" }}>
+            {([
+              ["weekly", id ? "Mingguan" : "Weekly"],
+              ["monthly", id ? "Bulanan" : "Monthly"],
+              ["annual", id ? "Tahunan" : "Annual"],
+            ] as const).map(([key, label]) => (
+              <div key={key} style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <span style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 1 }}>{label}</span>
+                <span style={{ fontSize: 13, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+                  {`Rp ${price[key]?.toLocaleString(id ? "id-ID" : "en-GB")}`}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -1327,7 +1327,7 @@ function TabAbout({ id, fx, freshness }: { id: boolean; fx: ExchangeRateData; fr
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {rows.map(([label, value]) => (
           <div key={label} style={{ background: "var(--muted)", borderRadius: "var(--radius)", padding: "10px 14px" }}>
-            <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>
               {label}
             </div>
             <div style={{ fontSize: 12, fontWeight: 500, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
@@ -1409,12 +1409,11 @@ function ChoiceGroup({
             padding: "6px 12px",
             borderRadius: "var(--radius)",
             cursor: o.onClick ? "pointer" : "default",
-            background: o.active ? "var(--accent)" : "var(--muted)",
-            border: `1px solid ${o.active ? "var(--primary)" : "var(--control-border)"}`,
-            color: o.active ? "var(--accent-foreground)" : "var(--muted-foreground)",
+            background: o.active ? "var(--muted)" : "transparent",
+            border: "none",
+            color: o.active ? "var(--foreground)" : "var(--muted-foreground)",
             fontSize: 12,
             fontWeight: o.active ? 500 : 400,
-            opacity: o.active ? 1 : 0.75,
           }}
         >
           {o.label}
@@ -1504,7 +1503,7 @@ function ToggleRow({
 function Metric({ label, value, tone }: { label: string; value: string; tone?: "gain" | "loss" }) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>
         {label}
       </div>
       <div

@@ -197,7 +197,7 @@ export function CandlestickChart({
           background: { type: lib.ColorType.Solid, color: theme.background },
           textColor: theme.text,
           fontFamily: cssVar("--font-mono", "monospace"),
-          fontSize: 10,
+          fontSize: 11,
         },
         grid: {
           vertLines: { color: theme.grid },

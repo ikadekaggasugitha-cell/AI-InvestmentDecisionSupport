@@ -1,10 +1,11 @@
 import { memo } from "react";
 import { ViewSkeleton } from "./ViewSkeleton";
 import {
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Shield, Activity, TrendingDown, BarChart2, DollarSign, AlertTriangle } from "lucide-react";
+import {
+  Activity, AlertTriangle,
+} from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "../i18n/translations";
 import { useRiskMetrics, type RiskMetrics, type StressTest, type SectorExposureItem } from "../hooks/useRiskMetrics";
@@ -13,15 +14,19 @@ import type { LiveMarketData } from "../hooks/useLiveMarket";
 
 interface Props { market: LiveMarketData; }
 
-function RiskGauge({ value, label, color }: { value: number; label: string; color: string }) {
+function RiskGauge({ value, label }: { value: number; label: string }) {
+  /* Achromatic like every bar list on this sheet: the number is the identity
+     and the caption carries the scale. Level was painted per bar before (amber
+     mid, green low) — a six-bar colour ramp is category colour on data, and the
+     overall figure still gets full attention in the tile. */
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
-        <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{label}</span>
-        <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", fontWeight: 600, color }}>{value}</span>
+        <span style={{ fontSize: 13, color: "var(--foreground)" }}>{label}</span>
+        <span style={{ fontSize: 13, fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--foreground)" }}>{value}</span>
       </div>
-      <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
-        <div style={{ width: `${value}%`, height: "100%", background: color, borderRadius: 2, transition: "width 400ms ease" }} />
+      <div style={{ height: 6, background: "var(--muted)", borderRadius: 3, overflow: "hidden" }}>
+        <div style={{ width: `${value}%`, height: "100%", background: "var(--neutral)", borderRadius: 3, transition: "width 400ms ease" }} />
       </div>
     </div>
   );
@@ -32,57 +37,34 @@ function RiskGauge({ value, label, color }: { value: number; label: string; colo
 interface RadarPanelProps { isId: boolean; t: ReturnType<typeof useTranslation>["t"]; rd: RiskMetrics; }
 
 const RiskRadarPanel = memo(function RiskRadarPanel({ isId, t, rd }: RadarPanelProps) {
-  const radarData = [
-    { subject: isId ? "Pasar" : "Market",              value: rd.marketRisk,        fullMark: 100 },
-    { subject: isId ? "Konsentrasi" : "Concentration", value: rd.concentrationRisk, fullMark: 100 },
-    { subject: isId ? "Likuiditas" : "Liquidity",      value: rd.liquidityRisk,     fullMark: 100 },
-    { subject: isId ? "Mata Uang" : "Currency",        value: rd.currencyRisk,      fullMark: 100 },
-    { subject: isId ? "Kredit" : "Credit",             value: rd.creditRisk,        fullMark: 100 },
-    { subject: isId ? "Keseluruhan" : "Overall",       value: rd.overallRisk,       fullMark: 100 },
-  ];
-
   return (
-    <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+    <div className="grid gap-4">
       {/* Risk gauges */}
       <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 2 }}>{isId ? "Skor Risiko" : "Risk Scores"}</div>
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 16 }}>{isId ? "0 = rendah, 100 = sangat tinggi" : "0 = low, 100 = very high"}</div>
-        <div className="flex flex-col gap-3">
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 12 }}>{isId ? "0 = rendah, 100 = sangat tinggi" : "0 = low, 100 = very high"}</div>
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {[
-            { label: t("risk_overall"),        value: rd.overallRisk,       color: rd.overallRisk > 60 ? "var(--loss)" : rd.overallRisk > 35 ? "var(--warning)" : "var(--gain)" },
-            { label: t("risk_market"),          value: rd.marketRisk,        color: "var(--warning)" },
-            { label: t("risk_concentration"),  value: rd.concentrationRisk, color: "var(--warning)" },
-            { label: t("risk_liquidity"),       value: rd.liquidityRisk,     color: "var(--gain)"    },
-            { label: t("risk_currency"),        value: rd.currencyRisk,      color: "var(--gain)"    },
-            { label: t("risk_credit"),          value: rd.creditRisk,        color: "var(--gain)"    },
+            { label: t("risk_overall"),        value: rd.overallRisk },
+            { label: t("risk_market"),         value: rd.marketRisk },
+            { label: t("risk_concentration"),  value: rd.concentrationRisk },
+            { label: t("risk_liquidity"),      value: rd.liquidityRisk },
+            { label: t("risk_currency"),       value: rd.currencyRisk },
+            { label: t("risk_credit"),         value: rd.creditRisk },
           ].map((g) => (
-            <RiskGauge key={g.label} value={g.value} label={g.label} color={g.color} />
+            <RiskGauge key={g.label} value={g.value} label={g.label} />
           ))}
         </div>
-      </div>
-
-      {/* Radar */}
-      <div className="rounded p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 2 }}>{t("risk_radar")}</div>
-        <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 8 }}>{t("risk_radar_sub")}</div>
-        <ResponsiveContainer width="100%" height={220}>
-          <RadarChart data={radarData}>
-            <PolarGrid stroke="var(--border)" />
-            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: "var(--muted-foreground)", fontFamily: "var(--font-sans)" }} />
-            <Radar
-              name={isId ? "Risiko" : "Risk"}
-              dataKey="value"
-              stroke="var(--loss)"
-              fill="var(--loss)"
-              fillOpacity={0.12}
-              strokeWidth={1.5}
-            />
-          </RadarChart>
-        </ResponsiveContainer>
       </div>
     </div>
   );
 });
+
+/*
+ * The six-axis radar is gone: it plotted exactly the six numbers the bar list
+ * beside it printed, a second presentation of the same figures with less legible
+ * values. Same reasoning the six-slice donut went out with in phase A.
+ */
 
 interface StressPanelProps { isId: boolean; t: ReturnType<typeof useTranslation>["t"]; stressTests: StressTest[]; sectorExposure: SectorExposureItem[]; }
 
@@ -108,15 +90,16 @@ const StressTestsPanel = memo(function StressTestsPanel({ isId, t, stressTests, 
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={stressData} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
-            <YAxis type="category" dataKey="scenario" tick={{ fontSize: 9, fill: "var(--muted-foreground)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} width={140} />
+            <XAxis type="number" tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+            <YAxis type="category" dataKey="scenario" tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "var(--font-sans)" }} axisLine={false} tickLine={false} width={140} />
             <Tooltip
               contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}
               formatter={(v: number) => [`${v.toFixed(1)}%`, isId ? "Dampak" : "Impact"]}
             />
-            <Bar dataKey="impact" radius={[0, 2, 2, 0]}>
-              {stressData.map((_, i) => <Cell key={`stress-${i}`} fill="var(--loss)" />)}
-            </Bar>
+            {/* Every scenario is a drawdown, so the colour-reversed decision has
+                no contrast to make: one neutral shade for all six bars, signed
+                figures live in the probability table below. */}
+            <Bar dataKey="impact" fill="var(--neutral)" radius={[0, 2, 2, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -129,7 +112,7 @@ const StressTestsPanel = memo(function StressTestsPanel({ isId, t, stressTests, 
           <thead>
             <tr>
               {[t("risk_col_portfolio"), t("risk_col_benchmark"), t("risk_col_over_under")].map((h, i) => (
-                <th key={h} style={{ fontSize: 10, color: "var(--muted-foreground)", fontWeight: 500, padding: "4px 8px", textAlign: i === 0 ? "left" : "right", borderBottom: "1px solid var(--border)" }}>
+                <th key={h} style={{ fontSize: 11, color: "var(--muted-foreground)", fontWeight: 500, padding: "4px 8px", textAlign: i === 0 ? "left" : "right", borderBottom: "1px solid var(--border)" }}>
                   {i === 0 ? t("risk_col_portfolio") : h}
                 </th>
               ))}
@@ -142,7 +125,7 @@ const StressTestsPanel = memo(function StressTestsPanel({ isId, t, stressTests, 
                   <div style={{ fontSize: 11, fontWeight: 500, color: "var(--foreground)" }}>{row.sector}</div>
                   <div className="flex items-center gap-1 mt-1">
                     <div style={{ height: 3, width: `${row.portfolio * 2}px`, background: "var(--neutral)", borderRadius: 2 }} />
-                    <span style={{ fontSize: 10, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{row.portfolio.toFixed(1)}%</span>
+                    <span style={{ fontSize: 11, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>{row.portfolio.toFixed(1)}%</span>
                   </div>
                 </td>
                 <td style={{ padding: "7px 8px", textAlign: "right", fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
@@ -164,7 +147,7 @@ const StressTestsPanel = memo(function StressTestsPanel({ isId, t, stressTests, 
           ].map((item) => (
             <div key={item.label} className="flex items-center gap-1.5">
               <div style={{ width: 24, height: 3, background: item.color, borderRadius: 2 }} />
-              <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>{item.label}</span>
+              <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{item.label}</span>
             </div>
           ))}
         </div>
@@ -199,13 +182,14 @@ export function RiskView({ market }: Props) {
   const kpis = [
     // VaR is stored negative (losses are negative throughout the API, so they
     // compose with P&L). A risk tile reads as a magnitude, so take abs here —
-    // the label and the loss colour already carry the direction.
-    { label: t("risk_var95"),        value: fmtIdr(Math.abs(rd.var95)), sub: isId ? "dengan keyakinan 95%" : "at 95% confidence",   icon: Shield,       color: "var(--loss)"    },
-    { label: t("risk_volatility"),   value: `${rd.volatility}%`,        sub: isId ? "volatilitas tahunan" : "annualized volatility", icon: Activity,     color: "var(--warning)" },
-    { label: t("risk_max_drawdown"), value: `${rd.maxDrawdown}%`,       sub: isId ? "dari puncak ke lembah" : "peak to trough",      icon: TrendingDown, color: "var(--loss)"    },
-    { label: t("risk_beta"),         value: rd.beta.toFixed(2),         sub: "vs IHSG",                                              icon: BarChart2,    color: "var(--neutral)" },
-    { label: t("risk_sharpe"),       value: rd.sharpe.toFixed(2),       sub: isId ? "rasio Sharpe" : "Sharpe ratio",                 icon: Shield,       color: "var(--gain)"    },
-    { label: t("risk_alpha"),        value: `+${rd.alpha.toFixed(1)}%`, sub: "vs IHSG benchmark",                                    icon: DollarSign,   color: "var(--gain)"    },
+    // the label carries the direction. Only numbers that actually signed keep
+    // a colour: volatility and the ratios are statistics, so they print ink.
+    { label: t("risk_var95"),        value: fmtIdr(Math.abs(rd.var95)), sub: isId ? "dengan keyakinan 95%" : "at 95% confidence", valueColor: "var(--foreground)" },
+    { label: t("risk_volatility"),   value: `${rd.volatility}%`,        sub: isId ? "volatilitas tahunan" : "annualized volatility", valueColor: "var(--foreground)" },
+    { label: t("risk_max_drawdown"), value: `${rd.maxDrawdown}%`,       sub: isId ? "dari puncak ke lembah" : "peak to trough", valueColor: rd.maxDrawdown < 0 ? "var(--loss)" : "var(--muted-foreground)" },
+    { label: t("risk_beta"),         value: rd.beta.toFixed(2),         sub: "vs IHSG", valueColor: "var(--foreground)" },
+    { label: t("risk_sharpe"),       value: rd.sharpe.toFixed(2),       sub: isId ? "rasio Sharpe" : "Sharpe ratio", valueColor: "var(--foreground)" },
+    { label: t("risk_alpha"),        value: `${rd.alpha > 0 ? "+" : ""}${rd.alpha.toFixed(1)}%`, sub: "vs IHSG benchmark", valueColor: rd.alpha > 0 ? "var(--gain)" : rd.alpha < 0 ? "var(--loss)" : "var(--muted-foreground)" },
   ];
 
   return (
@@ -243,15 +227,15 @@ export function RiskView({ market }: Props) {
             size={14}
             style={{ color: failure.kind === "locked" ? "var(--warning)" : "var(--loss)", flexShrink: 0 }}
           />
-          <div style={{ fontSize: 11, color: "var(--foreground)", flex: 1 }}>
+          <div style={{ fontSize: 13, color: "var(--foreground)", flex: 1, lineHeight: 1.5 }}>
             {failure.kind === "locked" ? (
               <>
                 <span style={{ fontWeight: 600, color: "var(--warning)" }}>
                   {isId ? "Data tidak ditampilkan:" : "Data not shown:"}
                 </span>{" "}
                 {isId
-                  ? "langganan belum aktif, jadi analisis risiko tidak dikirim. Ini bukan masalah koneksi — server berjalan baik. Angka di bawah tetap data simulasi."
-                  : "the subscription is not active, so risk analysis is not served. This is not a connection problem — the server is healthy. The figures below remain simulated data."}
+                  ? "langganan belum aktif, jadi analisis risiko tidak dikirim. Ini bukan masalah koneksi, server berjalan baik. Angka di bawah tetap data simulasi."
+                  : "the subscription is not active, so risk analysis is not served. This is not a connection problem, the server is healthy. The figures below remain simulated data."}
               </>
             ) : (
               <>
@@ -267,21 +251,17 @@ export function RiskView({ market }: Props) {
         </div>
       )}
 
-      {/* KPI row */}
+      {/* KPI row — same anatomy the dashboard and portfolio carry: quiet label
+          above, ink value, grey sub. Icon is gone; none of the study screens
+          paint a glyph over a KPI. */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-        {kpis.map((k) => {
-          const Icon = k.icon;
-          return (
-            <div key={k.label} className="rounded p-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between mb-2">
-                <Icon size={13} style={{ color: k.color }} />
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)", lineHeight: 1 }}>{k.value}</div>
-              <div style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.4 }}>{k.label}</div>
-              <div style={{ fontSize: 9, color: k.color, marginTop: 2 }}>{k.sub}</div>
-            </div>
-          );
-        })}
+        {kpis.map((k) => (
+          <div key={k.label} className="rounded p-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.4, marginBottom: 6 }}>{k.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: k.valueColor, fontFamily: "var(--font-mono)", lineHeight: 1 }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.4 }}>{k.sub}</div>
+          </div>
+        ))}
       </div>
 
       {/* Risk gauges + radar — memoized, do not re-render on market ticks */}
@@ -301,17 +281,17 @@ export function RiskView({ market }: Props) {
           <thead>
             <tr style={{ background: "var(--muted)" }}>
               {[t("risk_col_scenario"), t("risk_col_impact"), t("risk_col_probability"), isId ? "Dampak IDR" : "IDR Impact"].map((h) => (
-                <th key={h} style={{ fontSize: 10, color: "var(--muted-foreground)", fontWeight: 500, padding: "7px 16px", textAlign: h === t("risk_col_scenario") ? "left" : "right", borderBottom: "1px solid var(--border)" }}>
+                <th key={h} style={{ fontSize: 11, color: "var(--muted-foreground)", fontWeight: 500, padding: "7px 16px", textAlign: h === t("risk_col_scenario") ? "left" : "right", borderBottom: "1px solid var(--border)" }}>
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {stressData.map((row, i) => {
+            {stressData.map((row) => {
               const impactIdr = market.portfolioValue * (row.impact / 100);
               return (
-                <tr key={row.scenario} style={{ borderBottom: "1px solid var(--border)", background: i % 2 === 0 ? "transparent" : "var(--muted)" }}>
+                <tr key={row.scenario} style={{ borderBottom: "1px solid var(--border)" }}>
                   <td style={{ padding: "9px 16px", fontSize: 12, color: "var(--foreground)" }}>{row.scenario}</td>
                   <td style={{ padding: "9px 16px", textAlign: "right" }}>
                     <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--loss)" }}>
@@ -321,7 +301,7 @@ export function RiskView({ market }: Props) {
                   <td style={{ padding: "9px 16px", textAlign: "right", fontSize: 12, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
                     {row.probability.toFixed(1)}%
                   </td>
-                  <td style={{ padding: "9px 16px", textAlign: "right", fontSize: 12, color: "var(--loss)", fontFamily: "var(--font-mono)" }}>
+                  <td style={{ padding: "9px 16px", textAlign: "right", fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
                     {fmtIdr(Math.abs(impactIdr))}
                   </td>
                 </tr>
