@@ -1,0 +1,56 @@
+# Kritik final (ronde 3) — restyle tiga layar 20-10-2026
+Run: design-taste-frontend --app, lembar achromatic-ledger (seed 1203113956), --keep palette,type.
+Semua FAIL meter telah nol; warn tersista dibela di bagian akhir.
+
+## AuthScreen (after-auth)
+Tampak dalam 1 detik: panel navy dengan nama, lalu kolom form; jawabannya satu kata: "Masuk".
+Ide (satu kalimat): pintu rumah sendiri — rel Midnight Navy yang sama dengan sidebar aplikasi,
+dan form yang tinggal sendiri di kanvasnya.
+Live thing: form yang benar-benar masuk; tautan harga dan konsol operator.
+Layout words: brand panel = statement / form = split-jernih / catatan bayar = fact-line di dasar.
+Skor: design 7.5 · usability 8.5 · creativity 7 · content 8 → overall 7.8
+Caps: cap "empat foto" milik run halaman tidak berlaku (layar data, arah aplikasi).
+
+## PublicPricing (after-harga)
+Tampak dalam 1 detik: tiga angka Rupiah pada tangga harga.
+Ide (satu kalimat): lembar harga ala register — tiga baris, angka IBM Plex Mono tabular,
+dan satu momen teal "Hemat 52%" yang dihitung dari tiga harga sesi ini.
+Live thing: tiga harga dan caption hemat yang dihitung ulang setiap muat.
+Layout words: judul = full-width statement / tangga = ledger card / buka-pakai = index /
+footer = penutup dengan provensi harga.
+Skor: design 7.5 · usability 9 · creativity 8 · content 8.5 → overall 8.1
+
+## AdminView siap (after-admin-ready)
+Tampak dalam 1 detik: "Konsol operator" + tag mono, lalu tabel akun.
+Ide (satu kalimat): konsol kunjungan — satu tabel yang tingginya adalah ketinggian datanya.
+Live thing: daftar akun nyata + blokir/buka blokir; tag muncul hanya setelah daftar menjawab 200.
+Skor: design 7 · usability 8.5 · creativity 6.5 · content 9 → overall 7.6
+Masalah nomor satu: fixture dua baris menutup layar awal sekitar y 500 — install nyata dengan
+25 baris per halaman mengisi kanvasnya sendiri; tidak menaruh volume karangan untuk meter.
+
+## AdminView gerbang (after-admin-gate)
+Tampak dalam 1 detik: sebuah kartu pintu "Hanya untuk operator".
+Ide (satu kalimat): pintu yang menyebut siapa boleh masuk, apa isinya, dan satu jalan pulang.
+Skor: design 7 · usability 8.5 · creativity 7 · content 8.5 → overall 7.6
+
+## Pembelaan warn meter (tercatat)
+- font-count (4 layar): Inter + Manrope + IBM Plex Mono. Mandat `docs/DESIGN.md`
+  (tipografi identitas) plus keputusan gaya "every figure in mono". Dibawa dengan
+  `--keep type`; bukan tumpukan kebetulan.
+- micro-label OPERATOR ACCESS: satu-satunya label berkapital berlacak di layarnya
+  (aturan papan: paling banyak satu per layar); label sistem, di mono.
+- hero-void auth 33% / admin 47%: void auth adalah zona brand panel yang sunyi,
+  tertutup nama di atas dan catatan pembayaran di bawah (istirahat yang ditempatkan);
+  admin tingginya = tinggi data, bawah tertutup footer penutup.
+- unused-canvas auth: pengukuran menghitung batas konten dari teks panel (kiri 32px);
+  kolom form bertengah di zonanya dengan margin setara (338/338) — komposisi split-gate.
+- tiny-text admin 68%: sel tabel kini 13px; 11-12px sengaja untuk subbaris
+  (blocked_at, pagination, tag, footer) sesuai rentang bab layar aplikasi.
+
+## Masalah sisa terbuka (bila ada ronde berikutnya)
+1. Tabel admin di HP tetap scroll horizontal (overflow-x) — memecah kolom email
+   akan memakan identitas baris; dipilih scroll.
+2. Caption "Hemat 52%..." di 390 terbungkus dua baris di kolom label tangga —
+   kandidat perbaikan: menjadi satu baris terpisah di bawah baris tahunan.
+3. Panel brand auth: klaim satu kalimat saja. Data hidup yang boleh tampil belum ada —
+   dibiarkan sunyi daripada mengarang angka pasar.

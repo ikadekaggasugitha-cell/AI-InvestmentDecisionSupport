@@ -40,6 +40,7 @@ const PAGE_SIZE = 25;
 type LoadState =
   | { kind: "loading" }
   | { kind: "ready"; page: AccountsPage; offset: number }
+  | { kind: "denied" }
   | { kind: "error"; message: string };
 
 type AdminTab = "accounts" | "pricing" | "payments";
@@ -63,14 +64,10 @@ export function AdminView() {
           signal ? { signal } : undefined,
         );
         if (res.status === 403) {
-          // Neither an empty list nor a generic failure. The endpoint answered, and
-          // the answer is that this person may not see it.
-          setState({
-            kind: "error",
-            message: isId
-              ? "Hanya administrator yang bisa melihat daftar akun."
-              : "Only an administrator can see the account list.",
-          });
+          // Neither an empty list nor a generic failure. The endpoint answered,
+          // and the answer is that this person may not see it, so the page
+          // becomes the gate screen rather than a table with a note inside it.
+          setState({ kind: "denied" });
           return;
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -124,16 +121,16 @@ export function AdminView() {
   );
 
   const th = {
-    padding: "9px 12px",
+    padding: "10px 12px",
     textAlign: "left" as const,
-    fontSize: 11,
+    fontSize: 12,
     color: "var(--muted-foreground)",
     borderBottom: "1px solid var(--border)",
     whiteSpace: "nowrap",
   };
   const td = {
-    padding: "9px 12px",
-    fontSize: 12,
+    padding: "14px 12px",
+    fontSize: 13,
     color: "var(--foreground)",
     borderBottom: "1px solid var(--border)",
   };
@@ -141,8 +138,54 @@ export function AdminView() {
   const accounts = state.kind === "ready" ? state.page.accounts : [];
 
   return (
-    <div className="min-h-0 flex-1 h-full overflow-y-auto" style={{ padding: 24 }}>
-      <div style={{ maxWidth: 900, display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="min-h-0 flex-1" style={{ overflowY: "auto", padding: 24 }}>
+      <div
+        style={{
+          maxWidth: 1080,
+          width: "100%",
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+        }}
+      >
+        {/* The page names itself once, and the operator's provenance sits on the
+            same row, not above the name like a label. Never worn by a visitor:
+            the tag appears only after the admin endpoint has answered 200 to
+            this person's key. */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <h1 style={{ fontSize: 20, fontWeight: 600, margin: 0, fontFamily: "var(--font-display)" }}>
+            {isId ? "Konsol operator" : "Operator console"}
+          </h1>
+          {state.kind === "ready" && (
+            <span
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                letterSpacing: "0.08em",
+                color: "var(--muted-foreground)",
+                border: "1px solid var(--control-border)",
+                borderRadius: 3,
+                padding: "3px 8px",
+              }}
+            >
+              OPERATOR ACCESS
+            </span>
+          )}
+        </div>
+
+        {state.kind === "denied" ? (
+          <GateSection isId={isId} />
+        ) : (
+        <>
         {/* Three tabs, not three routes. /admin is already an operational tool at its
             own URL with no sidebar entry, so a second URL would add routing and a
             nav element to solve a problem the page does not have. */}
@@ -273,6 +316,27 @@ export function AdminView() {
                       : isId
                         ? "Aktif"
                         : "Active"}
+                    {/* The timestamp is real and the server owns it; print it
+                        where the status it explains sits, not as a column of
+                        invented "last seen". */}
+                    {account.blocked && account.blocked_at && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontFamily: "var(--font-mono)",
+                          fontVariantNumeric: "tabular-nums",
+                          color: "var(--muted-foreground)",
+                          marginTop: 3,
+                        }}
+                      >
+                        {isId ? "sejak " : "since "}
+                        {new Date(account.blocked_at).toLocaleDateString(isId ? "id-ID" : "en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </div>
+                    )}
                   </td>
                   <td style={{ ...td, textAlign: "right" }}>
                     <button
@@ -367,7 +431,104 @@ export function AdminView() {
         )}
         </div>
         )}
+        </>
+        )}
+
+        {/* The page's height is its data's height: a short fixture (this one has
+            an account and a blocked admin) ends where it ends, and a full
+            25-row page fills this ground. No spacer and no invented volume to
+            make the canvas look busy. The footer closes the grid at the edge
+            the content reaches. */}
+        <div style={{ height: "32px" }} />
+        <footer
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            gap: "16px",
+            borderTop: "1px solid var(--border)",
+            paddingTop: "12px",
+          }}
+        >
+          <span style={{ fontFamily: "var(--font-display)", fontSize: "13px", fontWeight: 700, letterSpacing: "0.02em" }}>
+            AIDSS
+          </span>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--muted-foreground)" }}>
+            {isId ? "Konsol operator" : "Operator console"}
+          </span>
+        </footer>
       </div>
     </div>
+  );
+}
+
+/**
+ * The 403 gate. A non-admin who reaches /admin gets a doorway that says who
+ * may pass, what is behind it, and one way back, not a table pretending to be
+ * empty and not a control for a page that never opens.
+ */
+function GateSection({ isId }: { isId: boolean }) {
+  // The three things the console actually does, named for the visitor the
+  // server just refused: the same surface an operator would open, described.
+  const topics = isId
+    ? ["Kontrol akun pengguna", "Tetapan harga tiga paket", "Verifikasi pembayaran transfer"]
+    : ["User account controls", "The three plan prices", "Manual transfer verification"];
+  return (
+    <section
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius)",
+        padding: 20,
+        maxWidth: 560,
+        margin: "12px auto 0",
+        width: "100%",
+      }}
+    >
+      <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
+        {isId ? "Hanya untuk operator" : "For operators"}
+      </h2>
+      {/* The server's verdict, kept in its own words. */}
+      <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--foreground)", margin: "10px 0 0" }}>
+        {isId
+          ? "Hanya administrator yang bisa melihat daftar akun."
+          : "Only an administrator can see the account list."}
+      </p>
+      <ul
+        style={{
+          margin: "14px 0 0",
+          padding: 0,
+          listStyle: "none",
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          fontSize: 14,
+          color: "var(--foreground)",
+        }}
+      >
+        {topics.map((topic) => (
+          <li key={topic} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+            {topic}
+          </li>
+        ))}
+      </ul>
+      <a
+        href="/"
+        className="auth-control"
+        style={{
+          display: "inline-block",
+          marginTop: 16,
+          padding: "8px 14px",
+          fontSize: 14,
+          color: "var(--foreground)",
+          border: "1px solid var(--control-border)",
+          borderRadius: "var(--radius)",
+          textDecoration: "none",
+          background: "var(--background)",
+        }}
+      >
+        {isId ? "Kembali ke aplikasi" : "Back to the app"}
+      </a>
+    </section>
   );
 }

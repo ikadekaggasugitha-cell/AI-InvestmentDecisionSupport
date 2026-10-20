@@ -167,7 +167,10 @@ describe('what the screen refuses to claim', () => {
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
 
-  it('names the product nowhere, because the name is still undecided', () => {
+  it('never leaks the repo name: the product is AIDSS, named in DESIGN.md', () => {
+    // The owner named the product (DESIGN.md, transcribed 2026-10-10), so the
+    // gate now carries the wordmark. What must still never appear is the raw
+    // repository name.
     renderScreen(makeAuth())
     expect(document.body.textContent).not.toMatch(/AI-InvestmentDecisionSupport/i)
   })

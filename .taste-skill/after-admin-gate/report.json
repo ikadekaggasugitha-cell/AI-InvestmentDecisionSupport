@@ -1,0 +1,1090 @@
+{
+ "url": "http://localhost:5173/admin",
+ "at": "2026-10-20T10:38:34.893Z",
+ "allow": [],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.11
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 900,
+     "screens": 1,
+     "words": 28,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 0,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Konsol operator",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 1.4,
+     "font": "Manrope",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 24,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Konsol operator",
+     "words": 2,
+     "lines": 1,
+     "size": 20,
+     "font": "Manrope"
+    },
+    "headings": [],
+    "headingSummary": {
+     "count": 0,
+     "maxLines": 0,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Inter",
+       "share": 0.72,
+       "mono": false
+      },
+      {
+       "family": "Manrope",
+       "share": 0.2,
+       "mono": false
+      },
+      {
+       "family": "IBM Plex Mono",
+       "share": 0.08,
+       "mono": true
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      11,
+      13,
+      14,
+      15,
+      20
+     ],
+     "sizeCount": 5,
+     "notLoaded": [],
+     "body": null,
+     "measureChars": null,
+     "max": {
+      "size": 20,
+      "vw": 1.4,
+      "font": "Manrope",
+      "text": "Konsol operator"
+     },
+     "monoShare": 0.08,
+     "monoProseShare": 0.08,
+     "monoFamilies": [
+      "IBM Plex Mono"
+     ],
+     "monoSamples": [
+      "Konsol operator"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.03,
+     "centerShare": 0,
+     "smallText": 1
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f7fa",
+     "bodyBgHsl": {
+      "h": 216,
+      "s": 0.33,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#f5f7fa",
+       "top": 0,
+       "hsl": {
+        "h": 216,
+        "s": 0.33,
+        "l": 0.97
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#17212f",
+       "share": 0.92
+      },
+      {
+       "color": "#5e6c7e",
+       "share": 0.08
+      }
+     ],
+     "button": {
+      "bg": "#f5f7fa",
+      "hsl": {
+       "h": 216,
+       "s": 0.33,
+       "l": 0.97
+      },
+      "fg": "#17212f"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 1,
+     "inHero": 1,
+     "radius": 5,
+     "height": 39,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Kembali ke aplikasi"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 1,
+     "hairlineSamples": [
+      "footer 1080px"
+     ],
+     "outlinedBoxes": 1,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 0,
+     "boxRadius": 0,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": null,
+    "fontsLoaded": [
+     "ibm plex mono",
+     "inter",
+     "manrope"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 900,
+    "margins": {
+     "left": 180,
+     "right": 180
+    },
+    "sections": [],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Konsol operator",
+      "size": 20,
+      "top": 24,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 180,
+      "n": 1
+     },
+     {
+      "x": 461,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 2,
+    "bodySize": 14,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0.47,
+    "voidBox": {
+     "x": 0,
+     "y": 480,
+     "w": 1440,
+     "h": 420
+    }
+   },
+   "app": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "dark": false,
+    "ground": "#f5f7fa",
+    "sidebar": null,
+    "topbar": null,
+    "canvas": {
+     "left": 180,
+     "right": 180
+    },
+    "hero": {
+     "text": "Konsol operator",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 1.4,
+     "font": "Manrope",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 24,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 1,
+     "firstScreen": 1,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 1,
+     "radii": [
+      [
+       5,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.08,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      13,
+      14,
+      15,
+      20
+     ]
+    },
+    "title": {
+     "text": "Konsol operator",
+     "size": 20,
+     "top": 24
+    },
+    "colourShare": 0
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.21
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 1024,
+     "screens": 1,
+     "words": 28,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 0,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Konsol operator",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 2.6,
+     "font": "Manrope",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 24,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Konsol operator",
+     "words": 2,
+     "lines": 1,
+     "size": 20,
+     "font": "Manrope"
+    },
+    "headings": [],
+    "headingSummary": {
+     "count": 0,
+     "maxLines": 0,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Inter",
+       "share": 0.72,
+       "mono": false
+      },
+      {
+       "family": "Manrope",
+       "share": 0.2,
+       "mono": false
+      },
+      {
+       "family": "IBM Plex Mono",
+       "share": 0.08,
+       "mono": true
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      11,
+      13,
+      14,
+      15,
+      20
+     ],
+     "sizeCount": 5,
+     "notLoaded": [],
+     "body": null,
+     "measureChars": null,
+     "max": {
+      "size": 20,
+      "vw": 2.6,
+      "font": "Manrope",
+      "text": "Konsol operator"
+     },
+     "monoShare": 0.08,
+     "monoProseShare": 0.08,
+     "monoFamilies": [
+      "IBM Plex Mono"
+     ],
+     "monoSamples": [
+      "Konsol operator"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.03,
+     "centerShare": 0,
+     "smallText": 1
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f7fa",
+     "bodyBgHsl": {
+      "h": 216,
+      "s": 0.33,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#f5f7fa",
+       "top": 0,
+       "hsl": {
+        "h": 216,
+        "s": 0.33,
+        "l": 0.97
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#17212f",
+       "share": 0.92
+      },
+      {
+       "color": "#5e6c7e",
+       "share": 0.08
+      }
+     ],
+     "button": {
+      "bg": "#f5f7fa",
+      "hsl": {
+       "h": 216,
+       "s": 0.33,
+       "l": 0.97
+      },
+      "fg": "#17212f"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 1,
+     "inHero": 1,
+     "radius": 5,
+     "height": 39,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Kembali ke aplikasi"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 1,
+     "hairlineSamples": [
+      "footer 720px"
+     ],
+     "outlinedBoxes": 1,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 0,
+     "boxRadius": 0,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": null,
+    "fontsLoaded": [
+     "ibm plex mono",
+     "inter",
+     "manrope"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 1024,
+    "margins": {
+     "left": 24,
+     "right": 24
+    },
+    "sections": [],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Konsol operator",
+      "size": 20,
+      "top": 24,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 24,
+      "n": 1
+     },
+     {
+      "x": 125,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 2,
+    "bodySize": 14,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "dark": false,
+    "ground": "#f5f7fa",
+    "sidebar": null,
+    "topbar": null,
+    "canvas": {
+     "left": 24,
+     "right": 24
+    },
+    "hero": {
+     "text": "Konsol operator",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 2.6,
+     "font": "Manrope",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 24,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 1,
+     "firstScreen": 1,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 1,
+     "radii": [
+      [
+       5,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.08,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      13,
+      14,
+      15,
+      20
+     ]
+    },
+    "title": {
+     "text": "Konsol operator",
+     "size": 20,
+     "top": 24
+    },
+    "colourShare": 0
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.33
+   ],
+   "motion": {
+    "elements": 24,
+    "css": 24,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "page": {
+     "height": 844,
+     "screens": 1,
+     "words": 28,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 0,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Konsol operator",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 5.1,
+     "font": "Manrope",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 24,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Konsol operator",
+     "words": 2,
+     "lines": 1,
+     "size": 20,
+     "font": "Manrope"
+    },
+    "headings": [],
+    "headingSummary": {
+     "count": 0,
+     "maxLines": 0,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Inter",
+       "share": 0.72,
+       "mono": false
+      },
+      {
+       "family": "Manrope",
+       "share": 0.2,
+       "mono": false
+      },
+      {
+       "family": "IBM Plex Mono",
+       "share": 0.08,
+       "mono": true
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      11,
+      13,
+      14,
+      15,
+      20
+     ],
+     "sizeCount": 5,
+     "notLoaded": [],
+     "body": null,
+     "measureChars": null,
+     "max": {
+      "size": 20,
+      "vw": 5.1,
+      "font": "Manrope",
+      "text": "Konsol operator"
+     },
+     "monoShare": 0.08,
+     "monoProseShare": 0.08,
+     "monoFamilies": [
+      "IBM Plex Mono"
+     ],
+     "monoSamples": [
+      "Konsol operator"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0.03,
+     "centerShare": 0,
+     "smallText": 1
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f7fa",
+     "bodyBgHsl": {
+      "h": 216,
+      "s": 0.33,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#f5f7fa",
+       "top": 0,
+       "hsl": {
+        "h": 216,
+        "s": 0.33,
+        "l": 0.97
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#17212f",
+       "share": 0.92
+      },
+      {
+       "color": "#5e6c7e",
+       "share": 0.08
+      }
+     ],
+     "button": {
+      "bg": "#f5f7fa",
+      "hsl": {
+       "h": 216,
+       "s": 0.33,
+       "l": 0.97
+      },
+      "fg": "#17212f"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 1,
+     "inHero": 1,
+     "radius": 5,
+     "height": 39,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Kembali ke aplikasi"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 1,
+     "hairlineSamples": [
+      "footer 342px"
+     ],
+     "outlinedBoxes": 1,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 0,
+     "boxRadius": 0,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": null,
+    "fontsLoaded": [
+     "ibm plex mono",
+     "inter",
+     "manrope"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "pageH": 844,
+    "margins": {
+     "left": 24,
+     "right": 24
+    },
+    "sections": [],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Konsol operator",
+      "size": 20,
+      "top": 24,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 24,
+      "n": 1
+     },
+     {
+      "x": 45,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 2,
+    "bodySize": 14,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "dark": false,
+    "ground": "#f5f7fa",
+    "sidebar": null,
+    "topbar": null,
+    "canvas": {
+     "left": 24,
+     "right": 24
+    },
+    "hero": {
+     "text": "Konsol operator",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 5.1,
+     "font": "Manrope",
+     "weight": 600,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 24,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 1,
+     "firstScreen": 1,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 1,
+     "radii": [
+      [
+       5,
+       1
+      ]
+     ],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.08,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      11,
+      13,
+      14,
+      15,
+      20
+     ]
+    },
+    "title": {
+     "text": "Konsol operator",
+     "size": 20,
+     "top": 24
+    },
+    "colourShare": 0
+   },
+   "consoleErrors": []
+  }
+ ],
+ "findings": [
+  {
+   "level": "WARN",
+   "id": "font-count",
+   "width": 1440,
+   "message": "3 typefaces in use (Inter, Manrope, IBM Plex Mono).",
+   "fix": "Two at most.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "hero-void",
+   "width": 1440,
+   "message": "47% of the first screen is one empty block (1440×420px at 0,480).",
+   "fix": "Place the void on purpose or fill it: move the picture, the film or one fact into it, grow the headline to meet it, or shrink the screen to its content. A void reads as placed only when something closes it on the far side and it is the screen's one rest."
+  }
+ ],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/after-admin-gate/desktop-fold.jpg",
+   "pages": [
+    "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/after-admin-gate/desktop-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/after-admin-gate/tablet-fold.jpg",
+   "pages": [
+    "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/after-admin-gate/tablet-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/after-admin-gate/mobile-fold.jpg",
+   "pages": [
+    "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/after-admin-gate/mobile-page-01.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

@@ -1,0 +1,1108 @@
+{
+ "url": "http://localhost:5173/harga",
+ "at": "2026-10-20T09:23:23.238Z",
+ "allow": [],
+ "viewports": [
+  {
+   "width": 1440,
+   "height": 900,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.08
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "page": {
+     "height": 900,
+     "screens": 1,
+     "words": 52,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 0,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Harga langganan",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 1.4,
+     "font": "Manrope",
+     "weight": 500,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 174,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Harga langganan",
+     "words": 2,
+     "lines": 1,
+     "size": 20,
+     "font": "Manrope"
+    },
+    "headings": [],
+    "headingSummary": {
+     "count": 0,
+     "maxLines": 0,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Inter",
+       "share": 0.82,
+       "mono": false
+      },
+      {
+       "family": "Manrope",
+       "share": 0.1,
+       "mono": false
+      },
+      {
+       "family": "IBM Plex Mono",
+       "share": 0.08,
+       "mono": true
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      12,
+      13,
+      14,
+      16,
+      20
+     ],
+     "sizeCount": 5,
+     "notLoaded": [],
+     "body": {
+      "font": "Inter",
+      "size": 12,
+      "leading": 1.5,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 5
+     },
+     "measureChars": 70,
+     "max": {
+      "size": 20,
+      "vw": 1.4,
+      "font": "Manrope",
+      "text": "Harga langganan"
+     },
+     "monoShare": 0.08,
+     "monoProseShare": 0.08,
+     "monoFamilies": [
+      "IBM Plex Mono"
+     ],
+     "monoSamples": [
+      "Rp 15.000",
+      "Rp 44.000",
+      "Rp 252.000"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.06,
+     "smallText": 4
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f7fa",
+     "bodyBgHsl": {
+      "h": 216,
+      "s": 0.33,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#f5f7fa",
+       "top": 0,
+       "hsl": {
+        "h": 216,
+        "s": 0.33,
+        "l": 0.97
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#5e6c7e",
+       "share": 0.69
+      },
+      {
+       "color": "#17212f",
+       "share": 0.25
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.06
+      }
+     ],
+     "button": {
+      "bg": "#14243a",
+      "hsl": {
+       "h": 215,
+       "s": 0.49,
+       "l": 0.15
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 1,
+     "inHero": 1,
+     "radius": 5,
+     "height": 44,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Masuk atau buat akun"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 3,
+     "hairlineSamples": [
+      "div 420px",
+      "div 420px",
+      "div 420px"
+     ],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 0,
+     "boxRadius": 0,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": null,
+    "fontsLoaded": [
+     "ibm plex mono",
+     "inter",
+     "manrope"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "pageH": 900,
+    "margins": {
+     "left": 510,
+     "right": 510
+    },
+    "sections": [],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Harga langganan",
+      "size": 20,
+      "top": 174,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 510,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 1,
+    "bodySize": 12,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0.29,
+    "voidBox": {
+     "x": 0,
+     "y": 120,
+     "w": 480,
+     "h": 780
+    }
+   },
+   "app": {
+    "viewport": {
+     "w": 1440,
+     "h": 900
+    },
+    "dark": false,
+    "ground": "#f5f7fa",
+    "sidebar": null,
+    "topbar": null,
+    "canvas": {
+     "left": 510,
+     "right": 510
+    },
+    "hero": {
+     "text": "Harga langganan",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 1.4,
+     "font": "Manrope",
+     "weight": 500,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 174,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 0,
+     "firstScreen": 0,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 0,
+     "radii": [],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.4,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      12,
+      13,
+      14,
+      16,
+      20
+     ]
+    },
+    "title": {
+     "text": "Harga langganan",
+     "size": 20,
+     "top": 174
+    },
+    "colourShare": 0
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 768,
+   "height": 1024,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.09
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "page": {
+     "height": 1024,
+     "screens": 1,
+     "words": 52,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 0,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Harga langganan",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 2.6,
+     "font": "Manrope",
+     "weight": 500,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 236,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Harga langganan",
+     "words": 2,
+     "lines": 1,
+     "size": 20,
+     "font": "Manrope"
+    },
+    "headings": [],
+    "headingSummary": {
+     "count": 0,
+     "maxLines": 0,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Inter",
+       "share": 0.82,
+       "mono": false
+      },
+      {
+       "family": "Manrope",
+       "share": 0.1,
+       "mono": false
+      },
+      {
+       "family": "IBM Plex Mono",
+       "share": 0.08,
+       "mono": true
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      12,
+      13,
+      14,
+      16,
+      20
+     ],
+     "sizeCount": 5,
+     "notLoaded": [],
+     "body": {
+      "font": "Inter",
+      "size": 12,
+      "leading": 1.5,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 5
+     },
+     "measureChars": 70,
+     "max": {
+      "size": 20,
+      "vw": 2.6,
+      "font": "Manrope",
+      "text": "Harga langganan"
+     },
+     "monoShare": 0.08,
+     "monoProseShare": 0.08,
+     "monoFamilies": [
+      "IBM Plex Mono"
+     ],
+     "monoSamples": [
+      "Rp 15.000",
+      "Rp 44.000",
+      "Rp 252.000"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.06,
+     "smallText": 4
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f7fa",
+     "bodyBgHsl": {
+      "h": 216,
+      "s": 0.33,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#f5f7fa",
+       "top": 0,
+       "hsl": {
+        "h": 216,
+        "s": 0.33,
+        "l": 0.97
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#5e6c7e",
+       "share": 0.69
+      },
+      {
+       "color": "#17212f",
+       "share": 0.25
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.06
+      }
+     ],
+     "button": {
+      "bg": "#14243a",
+      "hsl": {
+       "h": 215,
+       "s": 0.49,
+       "l": 0.15
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 1,
+     "inHero": 1,
+     "radius": 5,
+     "height": 44,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Masuk atau buat akun"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 3,
+     "hairlineSamples": [
+      "div 420px",
+      "div 420px",
+      "div 420px"
+     ],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 0,
+     "boxRadius": 0,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": null,
+    "fontsLoaded": [
+     "ibm plex mono",
+     "inter",
+     "manrope"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "pageH": 1024,
+    "margins": {
+     "left": 174,
+     "right": 174
+    },
+    "sections": [],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Harga langganan",
+      "size": 20,
+      "top": 236,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 174,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 1,
+    "bodySize": 12,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 768,
+     "h": 1024
+    },
+    "dark": false,
+    "ground": "#f5f7fa",
+    "sidebar": null,
+    "topbar": null,
+    "canvas": {
+     "left": 174,
+     "right": 174
+    },
+    "hero": {
+     "text": "Harga langganan",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 2.6,
+     "font": "Manrope",
+     "weight": 500,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 236,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 0,
+     "firstScreen": 0,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 0,
+     "radii": [],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.4,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      12,
+      13,
+      14,
+      16,
+      20
+     ]
+    },
+    "title": {
+     "text": "Harga langganan",
+     "size": 20,
+     "top": 236
+    },
+    "colourShare": 0
+   },
+   "consoleErrors": []
+  },
+  {
+   "width": 390,
+   "height": 844,
+   "load": "load",
+   "screens": 1,
+   "filled": [
+    0.13
+   ],
+   "motion": {
+    "elements": 0,
+    "css": 0,
+    "transitions": 0,
+    "scripted": 0,
+    "videos": 0,
+    "playingVideos": 0
+   },
+   "metrics": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "page": {
+     "height": 844,
+     "screens": 1,
+     "words": 52,
+     "img": 0,
+     "video": 0,
+     "canvas": 0,
+     "svg": 0,
+     "sections": 1,
+     "horizontalOverflow": 0,
+     "overflowCulprits": [],
+     "uiFragments": 0,
+     "uiAbuse": false,
+     "realPictures": 0,
+     "videoCount": 0,
+     "uiPictures": 0,
+     "pictureSamples": [],
+     "blendText": 0,
+     "sideScrollers": 0,
+     "brokenImages": [],
+     "emoji": [],
+     "videosNoPoster": 0
+    },
+    "hero": {
+     "text": "Harga langganan",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 5.1,
+     "font": "Manrope",
+     "weight": 500,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 146,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "h1": {
+     "text": "Harga langganan",
+     "words": 2,
+     "lines": 1,
+     "size": 20,
+     "font": "Manrope"
+    },
+    "headings": [],
+    "headingSummary": {
+     "count": 0,
+     "maxLines": 0,
+     "over2Lines": 0,
+     "statements": 0,
+     "centered": 0,
+     "medianWords": null,
+     "mixedFontHeadings": 0
+    },
+    "type": {
+     "families": [
+      {
+       "family": "Inter",
+       "share": 0.82,
+       "mono": false
+      },
+      {
+       "family": "Manrope",
+       "share": 0.1,
+       "mono": false
+      },
+      {
+       "family": "IBM Plex Mono",
+       "share": 0.08,
+       "mono": true
+      }
+     ],
+     "familyCount": 3,
+     "sizes": [
+      12,
+      13,
+      14,
+      16,
+      20
+     ],
+     "sizeCount": 5,
+     "notLoaded": [],
+     "body": {
+      "font": "Inter",
+      "size": 12,
+      "leading": 1.5,
+      "weight": 400,
+      "tracking": 0,
+      "contrast": 5
+     },
+     "measureChars": 60,
+     "max": {
+      "size": 20,
+      "vw": 5.1,
+      "font": "Manrope",
+      "text": "Harga langganan"
+     },
+     "monoShare": 0.08,
+     "monoProseShare": 0.08,
+     "monoFamilies": [
+      "IBM Plex Mono"
+     ],
+     "monoSamples": [
+      "Rp 15.000",
+      "Rp 44.000",
+      "Rp 252.000"
+     ],
+     "microLabels": 0,
+     "microLabelShare": 0,
+     "microSamples": [],
+     "upperShare": 0,
+     "centerShare": 0.06,
+     "smallText": 4
+    },
+    "eyebrows": [],
+    "numbered": [],
+    "color": {
+     "bodyBg": "#f5f7fa",
+     "bodyBgHsl": {
+      "h": 216,
+      "s": 0.33,
+      "l": 0.97
+     },
+     "dark": false,
+     "sectionBgs": [
+      {
+       "color": "#f5f7fa",
+       "top": 0,
+       "hsl": {
+        "h": 216,
+        "s": 0.33,
+        "l": 0.97
+       }
+      }
+     ],
+     "textColors": [
+      {
+       "color": "#5e6c7e",
+       "share": 0.69
+      },
+      {
+       "color": "#17212f",
+       "share": 0.25
+      },
+      {
+       "color": "#ffffff",
+       "share": 0.06
+      }
+     ],
+     "button": {
+      "bg": "#14243a",
+      "hsl": {
+       "h": 215,
+       "s": 0.49,
+       "l": 0.15
+      },
+      "fg": "#ffffff"
+     },
+     "lowContrast": []
+    },
+    "buttons": {
+     "count": 1,
+     "inHero": 1,
+     "radius": 5,
+     "height": 44,
+     "withShadow": 0,
+     "withGradient": 0,
+     "mono": 0,
+     "upper": 0,
+     "heroLabels": [
+      "Masuk atau buat akun"
+     ]
+    },
+    "surfaces": {
+     "shadowStatic": 0,
+     "shadowOverlay": 0,
+     "shadowSamples": [],
+     "gradients": 0,
+     "scrims": 0,
+     "gradientSamples": [],
+     "gradientText": 0,
+     "hairlines": 3,
+     "hairlineSamples": [
+      "div 358px",
+      "div 358px",
+      "div 358px"
+     ],
+     "outlinedBoxes": 0,
+     "dashed": 0,
+     "blurred": 0,
+     "roundedBoxes": 0,
+     "boxRadius": 0,
+     "squareMedia": 0,
+     "roundedMedia": 0,
+     "mediaRadius": 0,
+     "textShadow": 0,
+     "cardRows": []
+    },
+    "heroMedia": [],
+    "nav": null,
+    "fontsLoaded": [
+     "ibm plex mono",
+     "inter",
+     "manrope"
+    ]
+   },
+   "layout": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "pageH": 844,
+    "margins": {
+     "left": 16,
+     "right": 16
+    },
+    "sections": [],
+    "gaps": [],
+    "h1s": [
+     {
+      "text": "Harga langganan",
+      "size": 20,
+      "top": 146,
+      "firstScreen": true
+     }
+    ],
+    "edgeText": [],
+    "edges": [
+     {
+      "x": 16,
+      "n": 1
+     }
+    ],
+    "leftBlocks": 1,
+    "bodySize": 12,
+    "stage": false,
+    "explains": false,
+    "slivers": [],
+    "voidShare": 0,
+    "voidBox": null
+   },
+   "app": {
+    "viewport": {
+     "w": 390,
+     "h": 844
+    },
+    "dark": false,
+    "ground": "#f5f7fa",
+    "sidebar": null,
+    "topbar": null,
+    "canvas": {
+     "left": 16,
+     "right": 16
+    },
+    "hero": {
+     "text": "Harga langganan",
+     "words": 2,
+     "chars": 15,
+     "lines": 1,
+     "size": 20,
+     "vw": 5.1,
+     "font": "Manrope",
+     "weight": 500,
+     "tracking": 0,
+     "leading": 1.5,
+     "top": 146,
+     "tag": "h1",
+     "kind": "heading",
+     "align": "left",
+     "position": "left"
+    },
+    "charts": 0,
+    "layout": {
+     "panels": 0,
+     "firstScreen": 0,
+     "ragged": [],
+     "voids": []
+    },
+    "tiles": 0,
+    "panels": {
+     "count": 0,
+     "radii": [],
+     "heavyBorders": 0,
+     "borderSamples": [],
+     "heavyShadows": 0,
+     "softShadows": 0,
+     "shadowSamples": [],
+     "glass": 0
+    },
+    "chips": {
+     "count": 0,
+     "hues": 0,
+     "samples": []
+    },
+    "numbers": {
+     "cells": 0,
+     "leftAligned": 0,
+     "figures": 0,
+     "tabularShare": null,
+     "kpiMax": null
+    },
+    "rows": null,
+    "chartHues": 0,
+    "placeholders": [],
+    "type": {
+     "under13": 0.4,
+     "tiny": 0,
+     "tinySamples": [],
+     "sizes": [
+      12,
+      13,
+      14,
+      16,
+      20
+     ]
+    },
+    "title": {
+     "text": "Harga langganan",
+     "size": 20,
+     "top": 146
+    },
+    "colourShare": 0
+   },
+   "consoleErrors": []
+  }
+ ],
+ "findings": [
+  {
+   "level": "WARN",
+   "id": "font-count",
+   "width": 1440,
+   "message": "3 typefaces in use (Inter, Manrope, IBM Plex Mono).",
+   "fix": "Two at most.",
+   "alsoAt": [
+    768,
+    390
+   ]
+  },
+  {
+   "level": "WARN",
+   "id": "hero-void",
+   "width": 1440,
+   "message": "29% of the first screen is one empty block (480×780px at 0,120).",
+   "fix": "Place the void on purpose or fill it: move the picture, the film or one fact into it, grow the headline to meet it, or shrink the screen to its content. A void reads as placed only when something closes it on the far side and it is the screen's one rest."
+  }
+ ],
+ "images": [
+  {
+   "viewport": "desktop",
+   "width": 1440,
+   "fold": "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/before-harga/desktop-fold.jpg",
+   "pages": [
+    "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/before-harga/desktop-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "tablet",
+   "width": 768,
+   "fold": "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/before-harga/tablet-fold.jpg",
+   "pages": [
+    "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/before-harga/tablet-page-01.jpg"
+   ],
+   "film": []
+  },
+  {
+   "viewport": "mobile",
+   "width": 390,
+   "fold": "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/before-harga/mobile-fold.jpg",
+   "pages": [
+    "/Users/aggasugitha/Documents/AI-InvestmentDecisionSupport-main/.taste-skill/before-harga/mobile-page-01.jpg"
+   ],
+   "film": []
+  }
+ ]
+}

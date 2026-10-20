@@ -1,10 +1,154 @@
 /*
- * Auth-form state feedback.
+ * The signed-out surfaces.
  *
- * State lives in a stylesheet because React's style object cannot express a
- * pseudo-class. The focus ring is not here: focus.css owns it app-wide, so no
- * component can ship without one.
+ * This file keeps two services beside each other:
+ *
+ *  - `.pub-*`: the public price sheet. One framed canvas at 1080px holding the
+ *    three-price scale and the facts beside it; under 880px it stacks.
+ *  - `.auth-*`: the signed-in gate's split, restyled 2026-10-20 (restyle run,
+ *    achromatic-ledger sheet). Layout lives here, not in inline styles,
+ *    because the splits break into stacked bands under 880px and inline
+ *    styles cannot hold a media query.
+ *
+ * The auth zones: a Midnight Navy brand panel (the same surface value the app
+ * sidebar uses, so a person who signs out recognises the house) beside a plain
+ * form column. The panel carries the name and one factual sentence, nothing
+ * decorative: no gradient, no glow, no market data, because none is real here.
+ *
+ * STATE FEEDBACK (the original rule, unchanged): state classes live here
+ * because React's style object cannot express a pseudo-class. The focus ring
+ * is not here: focus.css owns it app-wide, so no component can ship without
+ * one.
  */
+.pub-shell {
+  min-height: 100dvh;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.pub-frame {
+  max-width: 1080px;
+  margin: 0 auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.pub-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 620px) minmax(240px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 880px) {
+  .pub-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/*
+ * The auth zones below: a Midnight Navy brand panel (the same surface value the
+ * app sidebar uses, so a person who signs out recognises the house) beside a
+ * plain form column. The panel holds the name and one factual sentence,
+ * nothing decorative: no gradient, no glow, no market data, none of it real.
+ */
+.auth-shell {
+  min-height: 100dvh;
+  display: flex;
+  align-items: stretch;
+  background: var(--background);
+}
+
+.auth-brand {
+  flex: 0 0 384px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 48px;
+  padding: 36px 32px;
+  background: var(--sidebar);
+  color: var(--sidebar-foreground);
+}
+
+/* The name is text set in the display face, not a logo: the owner named the
+   product in DESIGN.md and an invented mark would be a claim with no author. */
+.auth-brand-name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  margin: 0;
+}
+
+.auth-brand-sub {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin: 6px 0 0;
+  color: var(--sidebar-accent-foreground);
+}
+
+.auth-brand-claim {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--sidebar-foreground);
+  margin: 0;
+}
+
+.auth-foot {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--sidebar-foreground);
+  margin: 0;
+}
+
+.auth-form-col {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 48px 24px;
+}
+
+.auth-form-col > main {
+  width: 100%;
+  max-width: 380px;
+}
+
+/* Table-stake breakpoint: the panel becomes a header band, the form takes the
+   rest. At 390 the band shortens to name plus the one-line sub. */
+/* Table-stake breakpoint: the panel becomes a header band, the form takes the
+   rest. At 390 the band shortens to name plus the one-line sub. On the phone
+   the form anchors to the top: a centred form on a tall page reads as pushed
+   down, and the thumb expects fields to start where the eye arrives. */
+@media (max-width: 880px) {
+  .auth-form-col {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 880px) {
+  .auth-shell {
+    flex-direction: column;
+  }
+
+  .auth-brand {
+    flex: none;
+    gap: 16px;
+    padding: 24px;
+  }
+
+  .auth-brand-claim,
+  .auth-foot {
+    display: none;
+  }
+
+  .auth-form-col {
+    padding: 32px 24px 48px;
+  }
+}
 
 /* MOTION is 1 in DESIGN.md: state feedback only, nothing that loops. */
 .auth-control:not(:disabled):hover {
