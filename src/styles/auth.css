@@ -4,7 +4,8 @@
  * This file keeps two services beside each other:
  *
  *  - `.pub-*`: the public price sheet. One framed canvas at 1080px holding the
- *    three-price scale and the facts beside it; under 880px it stacks.
+ *    three plan cards and the facts below them (2026-10-21 reference
+ *    redesign); under 880px everything stacks.
  *  - `.auth-*`: the signed-in gate's split, restyled 2026-10-20 (restyle run,
  *    achromatic-ledger sheet). Layout lives here, not in inline styles,
  *    because the splits break into stacked bands under 880px and inline
@@ -35,6 +36,23 @@
   flex-direction: column;
 }
 
+/* The three plan cards of the 2026-10-21 reference redesign. Three-up on a
+   desktop, stacked under 880px. The .pub-frame width (1080px) decides the
+   card width; the gap here is the only spacing this class owns. */
+.pub-plans {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+/* The opens panel's two icon columns. One column under 640px, when the two
+   descriptions would squeeze each other into broken wraps. */
+.pub-opens {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 24px;
+}
+
 .pub-grid {
   display: grid;
   grid-template-columns: minmax(0, 620px) minmax(240px, 1fr);
@@ -46,6 +64,28 @@
   .pub-grid {
     grid-template-columns: 1fr;
   }
+
+  .pub-plans {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .pub-opens {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+/* Motion is state feedback only (DESIGN.md). The filled control brightens;
+   the ghost one dims, matching the auth sheet's convention. */
+.pub-pick:not(:disabled):hover {
+  filter: brightness(0.94);
+}
+
+.pub-pick-solid:not(:disabled):hover {
+  filter: brightness(1.06);
 }
 
 /*

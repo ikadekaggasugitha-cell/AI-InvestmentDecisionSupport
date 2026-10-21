@@ -194,6 +194,32 @@
   --color-sidebar-badge: var(--sidebar-badge);
 }
 
+/* ─── Public price sheet (always dark) ───────────────────────────────────
+ * Palet dari referensi pemilik (referensi/design-harga.png, 2026-10-21),
+ * dibaca lewat sensus warna piksel. Lembar harga publik hanya dirender untuk
+ * pengunjung tanpa sesi dan selalu gelap, sehingga token ini tidak mengikuti
+ * varian terang/gelap aplikasi.
+ * Catatan penyimpangan disengaja: --public-border-strong dinaikkan dari
+ * nilai referensi (≈#2a3a58 → #5a6a85) karena WCAG 1.4.11 menuntut batas
+ * kontrol interaktif ≥3:1 terhadap permukaan kartu di sekitarnya; bentuk
+ * desain tidak berubah, hanya kecerahan garisnya.
+ */
+:root {
+  --public-bg: #0a0e1a;
+  --public-card: #121a2b;
+  --public-card-raised: #141e33;
+  --public-foreground: #ffffff;
+  --public-muted: #8ca3c7;
+  --public-border: #1e2a44;
+  --public-border-strong: #5a6a85;
+  --public-accent: #7dd3fc;
+  --public-accent-deep: #40c4f8;
+  --public-green: #38e1a2;
+  --public-green-bg: rgba(56, 225, 162, 0.09);
+  --public-green-border: rgba(56, 225, 162, 0.3);
+  --public-tile-bg: #0f1524;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { PublicPricing } from "./PublicPricing";
@@ -133,5 +133,55 @@ describe("PublicPricing", () => {
     expect(screen.getByText("Rp 252,000")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Sign in or create an account/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Choose plan Monthly" })).toBeInTheDocument();
+    expect(screen.getByText("FLEXIBLE")).toBeInTheDocument();
+    expect(screen.getByText("Best value")).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Choose plan" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Choose plan Annual" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("shows the reference's badges on the cards, per language", async () => {
+    render(<PublicPricing locale="id" onEnter={vi.fn()} onPickPlan={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Rp 15.000")).toBeInTheDocument());
+
+    expect(screen.getByText("FLEKSIBEL")).toBeInTheDocument();
+    expect(screen.getByText("POPULER")).toBeInTheDocument();
+    expect(screen.getByText("Nilai Terbaik")).toBeInTheDocument();
+  });
+
+  it("pre-checks the annual radio as the reference's recommended pick", async () => {
+    render(<PublicPricing locale="id" onEnter={vi.fn()} onPickPlan={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Rp 15.000")).toBeInTheDocument());
+
+    expect(screen.getByRole("radiogroup", { name: "Pilih paket" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Pilih paket Tahunan" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Pilih paket Bulanan" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("radio", { name: "Pilih paket Mingguan" })).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("lets the radio pick the plan the same way its card's button does", async () => {
+    const onPickPlan = vi.fn();
+    const user = userEvent.setup();
+    render(<PublicPricing locale="id" onEnter={vi.fn()} onPickPlan={onPickPlan} />);
+    await waitFor(() => expect(screen.getByText("Rp 15.000")).toBeInTheDocument());
+
+    await user.click(screen.getByRole("radio", { name: "Pilih paket Bulanan" }));
+    expect(onPickPlan).toHaveBeenCalledWith("monthly");
+    expect(screen.getByRole("radio", { name: "Pilih paket Bulanan" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("moves only the focus with arrow keys, never a choice", async () => {
+    const onPickPlan = vi.fn();
+    render(<PublicPricing locale="id" onEnter={vi.fn()} onPickPlan={onPickPlan} />);
+    await waitFor(() => expect(screen.getByText("Rp 15.000")).toBeInTheDocument());
+
+    const [mingguan, bulanan, tahunan] = screen.getAllByRole("radio");
+    mingguan.focus();
+    fireEvent.keyDown(mingguan, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(bulanan);
+    fireEvent.keyDown(bulanan, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(tahunan);
+    fireEvent.keyDown(tahunan, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(bulanan);
+    expect(onPickPlan).not.toHaveBeenCalled();
   });
 });

@@ -128,3 +128,24 @@ two portals share one ground.
 - Ensure accessible contrast; never rely on color alone to convey financial outcomes.
 - Avoid excessive rounded cards, ornamental gradients, glowing effects, and
   unnecessary animation.
+
+## Pengecualian terdokumentasi: lembar harga publik (2026-10-21)
+
+Sheet harga pengunjung (`PublicPricing.tsx`) dirancang ulang dari referensi
+milik pemilik (`referensi/design-harga.png`). Itu disengaja, sehingga
+aturan berikut terkandung pada lembar itu saja:
+
+- **Tema selalu gelap** dengan token halaman sendiri (`--public-*` di
+  `src/styles/theme.css`, digali lewat sensus warna piksel referensi; latar
+  `#0a0e1a`, kartu `#121a2b`, aksen `#7dd3fc`, hijau `#38e1a2`). Token ini
+  tidak mengikuti varian terang/gelap karena lembar hanya dirender untuk
+  pengunjung tanpa sesi.
+- **Badge uppercase ter-track** (`FLEKSIBEL`, `POPULER`, label panel) dan
+  **lebih dari satu momen aksen** (rerereng gradien sky-hijau kartu Tahunan,
+  CTA gradien) diperbolehkan di lembar ini karena itu komposisi pemilik.
+- **Batas tombol ghost** dinaikkan dari nilai referensi satu nada
+  (`≈#2a3a58` menjadi `#5a6a85`) demi WCAG 1.4.11, batas kontrol interaktif
+  3:1 terhadap kartu di sekitarnya; bentuk desain tidak berubah.
+- Logo di bar atas adalah aset pemilik yang dilacak menjadi vektor; latar
+  putihnya dihapus (satu jalur `#FEFEFE`) dan kotoran sisa pelacakan
+  dicleaning agar tampil di atas latar gelap.
