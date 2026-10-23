@@ -82,6 +82,17 @@ const http = createServer((req, res) => {
   // IDX keterbukaan informasi for the news list recording. Filing-style titles
   // against the app's own ticker universe: no publication names, no real-world
   // events — the same class of simulated data every other endpoint here serves.
+  if (url.pathname === "/v1/portfolio") {
+    return json(200, {
+      portfolioId: "mock-portfolio-123",
+      value: 150000000,
+      positions: [
+        { symbol: "BBCA", shares: 1000, value: 100000000 },
+        { symbol: "BBRI", shares: 500, value: 50000000 }
+      ],
+      updatedAt: new Date().toISOString()
+    });
+  }
   if (url.pathname === "/v1/news") {
     const daysBack = Number(url.searchParams.get("daysBack") ?? 7);
     const limit = Number(url.searchParams.get("limit") ?? 20);
