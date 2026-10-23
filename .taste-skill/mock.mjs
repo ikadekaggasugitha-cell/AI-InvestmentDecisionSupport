@@ -93,6 +93,20 @@ const http = createServer((req, res) => {
       updatedAt: new Date().toISOString()
     });
   }
+  if (url.pathname === "/v1/skill") {
+    return json(200, {
+      skillId: "global-skill-001",
+      name: "Global Investment Skill",
+      description: "Provides global investment analysis capabilities",
+      features: [
+        "Portfolio Optimization",
+        "Risk Assessment", 
+        "Market Analysis"
+      ],
+      active: true,
+      updatedAt: new Date().toISOString()
+    });
+  }
   if (url.pathname === "/v1/news") {
     const daysBack = Number(url.searchParams.get("daysBack") ?? 7);
     const limit = Number(url.searchParams.get("limit") ?? 20);
