@@ -484,3 +484,18 @@ publik (kedua layar: lembar harga dan screen fitur):
   Kegagalan `contrast.test.ts` pada `PositionModal.tsx:163`
   (`outline: "none"`) berasal dari pekerjaan lain yang belum di-commit,
   di luar cakupan sesi ini.
+- **Video hero direkam ulang dengan langganan aktif** (keputusan pemilik
+  2026-10-26): rekaman lama menangkap banner "Analisis berbayar tidak aktif"
+  karena akun demo memang belum berlangganan. `public/fitur-demo.mp4` dan
+  poster (frame 3,0 dtk Pasar tanpa banner, kartu statistik dan tabel) kini
+  dibuat dari kunjungan sungguhan: Pasar tanpa banner, Dashboard, Risiko dan
+  Portofolio dengan panel berbayar terbuka, AI Advisor dengan persetujuan
+  OJK beserta daftar sinyal, lalu Pengaturan tab Langganan & Tagihan yang
+  menampilkan "Masa aktif" (potongan penutup). H.264 1280x698, 29,7 dtk,
+  964KB. Bonus perbaikan dari perekaman: setelah Masuk dari layar publik,
+  status langganan tidak pernah ditanya ulang (menggantung `unknown` dari
+  hasil pra-login, memakai jalur yang baru terbuka karena sedia dev
+  AUTH_BYPASS dimatikan), jadi `App.tsx` kini memanggil
+  `refreshSubscription()` saat `onAuthed` pada kedua mode AuthScreen.
+  Perekam puppeteer-core menyeret Chrome lokal via CDP screencast;
+  semua frame asli, tanpa aset buatan (R-23).

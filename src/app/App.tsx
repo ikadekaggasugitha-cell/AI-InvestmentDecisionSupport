@@ -60,7 +60,7 @@ function formatDashboardSubtitle(locale: string): string {
 
 function AppInner() {
   const [view, setView] = useState<ViewType>("dashboard");
-  const { isDark, locale, locked, subscription } = useApp();
+  const { isDark, locale, locked, subscription, refreshSubscription } = useApp();
   const { t } = useTranslation(locale);
   const auth = useAuth();
   useOverlayScrollbars();
@@ -197,7 +197,7 @@ function AppInner() {
             auth={auth}
             locale={locale}
             initialMode="login"
-            onAuthed={() => navigate("/", { replace: true })}
+            onAuthed={() => { refreshSubscription(); navigate("/", { replace: true }); }}
             onViewPricing={() => navigate("/")}
           />
         </div>
@@ -211,7 +211,7 @@ function AppInner() {
             locale={locale}
             initialMode="signup"
             initialPlan={planFromSearch(location.search)}
-            onAuthed={() => navigate("/", { replace: true })}
+            onAuthed={() => { refreshSubscription(); navigate("/", { replace: true }); }}
             onViewPricing={() => navigate("/")}
           />
         </div>
