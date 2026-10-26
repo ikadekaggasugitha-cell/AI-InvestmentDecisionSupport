@@ -1,4 +1,4 @@
-import { useState, useEffect, type CSSProperties, type ReactNode } from "react";
+import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { X, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
 import type { PortfolioHolding } from "../hooks/usePortfolio";
 import { useUniverse } from "../hooks/useUniverse";
@@ -7,13 +7,13 @@ import { LOT_MAX, PRICE_MAX } from "../constants";
 export type ModalMode = "add" | "edit" | "delete";
 
 interface Props {
-  mode:          ModalMode;
-  initialData?:  PortfolioHolding;
+  mode: ModalMode;
+  initialData?: PortfolioHolding;
   currentPrice?: number;
-  isId:          boolean;
-  onSave:        (h: PortfolioHolding) => void;
-  onRemove:      (symbol: string, price: number) => void;
-  onClose:       () => void;
+  isId: boolean;
+  onSave: (h: PortfolioHolding) => void;
+  onRemove: (symbol: string, price: number) => void;
+  onClose: () => void;
 }
 
 function fieldStyle(hasError: boolean): CSSProperties {
@@ -32,10 +32,32 @@ function fieldStyle(hasError: boolean): CSSProperties {
 
 export function PositionModal({ mode, initialData, currentPrice, isId, onSave, onRemove, onClose }: Props) {
   const universe = useUniverse();
-  const [symbol,   setSymbol]   = useState(initialData?.symbol  ?? "");
-  const [lots,     setLots]     = useState(initialData?.lots?.toString()     ?? "");
+  const [symbol, setSymbol] = useState(initialData?.symbol ?? "");
+  const [lots, setLots] = useState(initialData?.lots?.toString() ?? "");
   const [avgPrice, setAvgPrice] = useState(initialData?.avgPrice?.toString() ?? "");
-  const [errors,   setErrors]   = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
+
+  // Focus management and Escape key handling
+  useEffect(() => {
+    previousActiveElement.current = document.activeElement as HTMLElement;
+    modalRef.current?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      // Return focus to the element that opened the modal
+      previousActiveElement.current?.focus();
+    };
+  }, [onClose]);
 
   /* Sync symbol → default price hint when in add mode and no price is entered yet.
      The default price is the instrument's last close from the universe. */
@@ -88,13 +110,13 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
     if (!validate()) return;
     const sym = symbol.toUpperCase().trim();
     const meta = universe.bySymbol[sym];
-    const safeLots  = Math.min(Math.max(1, Math.floor(Number(lots))),  LOT_MAX);
+    const safeLots = Math.min(Math.max(1, Math.floor(Number(lots))), LOT_MAX);
     const safePrice = Math.min(Math.max(1, Number(avgPrice)), PRICE_MAX);
     onSave({
-      symbol:   sym,
-      lots:     safeLots,
+      symbol: sym,
+      lots: safeLots,
       avgPrice: safePrice,
-      sector:   meta?.sector ?? "—",
+      sector: meta?.sector ?? "—",
     });
     onClose();
   }
@@ -106,9 +128,9 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
   }
 
   const titleMap = {
-    add:    isId ? "Tambah Posisi Baru"  : "Add New Position",
-    edit:   isId ? "Edit Posisi"          : "Edit Position",
-    delete: isId ? "Konfirmasi Hapus"     : "Confirm Remove",
+    add: isId ? "Tambah Posisi Baru" : "Add New Position",
+    edit: isId ? "Edit Posisi" : "Edit Position",
+    delete: isId ? "Konfirmasi Hapus" : "Confirm Remove",
   };
   const TitleIcon = mode === "add" ? Plus : mode === "edit" ? Pencil : Trash2;
   const iconColor = mode === "delete" ? "var(--loss)" : "var(--primary)";
@@ -125,6 +147,11 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
     >
       {/* Modal box */}
       <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        tabIndex={-1}
         style={{
           background: "var(--card)",
           border: "1px solid var(--border)",
@@ -145,12 +172,13 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
         >
           <div className="flex items-center gap-2">
             <TitleIcon size={15} style={{ color: iconColor }} />
-            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
+            <span id="modal-title" style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)" }}>
               {titleMap[mode]}
             </span>
           </div>
           <button
             onClick={onClose}
+            aria-label={isId ? "Tutup modal" : "Close modal"}
             style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted-foreground)", padding: 4 }}
           >
             <X size={16} />
@@ -188,18 +216,21 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
             <div className="flex flex-col gap-4">
               {/* Symbol */}
               <div>
-                <label style={{ fontSize: 11, color: "var(--muted-foreground)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <label htmlFor="modal-symbol" style={{ fontSize: 11, color: "var(--muted-foreground)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   {isId ? "Kode Saham" : "Stock Symbol"}
                 </label>
                 {mode === "add" ? (
                   <>
                     <input
+                      id="modal-symbol"
                       list="idx-symbol-list"
                       value={symbol}
                       onChange={(e) => setSymbol(e.target.value.toUpperCase())}
                       placeholder={isId ? "Ketik kode / nama, mis. BBCA" : "Type code / name, e.g. BBCA"}
                       autoComplete="off"
                       style={{ ...fieldStyle(!!errors.symbol), textTransform: "uppercase" }}
+                      aria-invalid={!!errors.symbol}
+                      aria-describedby={errors.symbol ? "symbol-error" : undefined}
                     />
                     {/* Native datalist gives search-as-you-type over the whole
                         ~960-stock board with no extra dependency. */}
@@ -211,7 +242,7 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
                       ))}
                     </datalist>
                     {errors.symbol && (
-                      <div style={{ fontSize: 11, color: "var(--loss)", marginTop: 4 }}>{errors.symbol}</div>
+                      <div id="symbol-error" style={{ fontSize: 11, color: "var(--loss)", marginTop: 4 }}>{errors.symbol}</div>
                     )}
                     {!errors.symbol && universe.bySymbol[symbol.toUpperCase()]?.name && (
                       <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
@@ -228,10 +259,11 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
 
               {/* Lots */}
               <div>
-                <label style={{ fontSize: 11, color: "var(--muted-foreground)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <label htmlFor="modal-lots" style={{ fontSize: 11, color: "var(--muted-foreground)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   {isId ? "Jumlah Lot" : "Number of Lots"}
                 </label>
                 <input
+                  id="modal-lots"
                   type="number"
                   min="1"
                   step="1"
@@ -239,9 +271,11 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
                   onChange={(e) => setLots(e.target.value)}
                   placeholder={isId ? "mis. 100" : "e.g. 100"}
                   style={fieldStyle(!!errors.lots)}
+                  aria-invalid={!!errors.lots}
+                  aria-describedby={errors.lots ? "lots-error" : undefined}
                 />
                 {errors.lots && (
-                  <div style={{ fontSize: 11, color: "var(--loss)", marginTop: 4 }}>{errors.lots}</div>
+                  <div id="lots-error" style={{ fontSize: 11, color: "var(--loss)", marginTop: 4 }}>{errors.lots}</div>
                 )}
                 {lots && !errors.lots && Number.isFinite(Number(lots)) && (
                   <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
@@ -252,10 +286,11 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
 
               {/* Avg price */}
               <div>
-                <label style={{ fontSize: 11, color: "var(--muted-foreground)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <label htmlFor="modal-avg-price" style={{ fontSize: 11, color: "var(--muted-foreground)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   {isId ? "Harga Rata-rata Beli (IDR)" : "Avg Buy Price (IDR)"}
                 </label>
                 <input
+                  id="modal-avg-price"
                   type="number"
                   min="1"
                   step="1"
@@ -263,9 +298,11 @@ export function PositionModal({ mode, initialData, currentPrice, isId, onSave, o
                   onChange={(e) => setAvgPrice(e.target.value)}
                   placeholder={isId ? "mis. 9850" : "e.g. 9850"}
                   style={fieldStyle(!!errors.avgPrice)}
+                  aria-invalid={!!errors.avgPrice}
+                  aria-describedby={errors.avgPrice ? "avg-price-error" : undefined}
                 />
                 {errors.avgPrice && (
-                  <div style={{ fontSize: 11, color: "var(--loss)", marginTop: 4 }}>{errors.avgPrice}</div>
+                  <div id="avg-price-error" style={{ fontSize: 11, color: "var(--loss)", marginTop: 4 }}>{errors.avgPrice}</div>
                 )}
               </div>
 

@@ -37,6 +37,7 @@ import { useAuth } from "./hooks/useAuth";
 import { useOverlayScrollbars } from "./hooks/useOverlayScrollbars";
 import { AuthScreen } from "./components/AuthScreen";
 import { PublicPricing } from "./components/PublicPricing";
+import { PublicFeatures } from "./components/PublicFeatures";
 import { SuspensionScreen } from "./components/SuspensionScreen";
 import { planFromSearch, writePlanIntent } from "./planIntent";
 import { toast } from "sonner";
@@ -102,15 +103,48 @@ function AppInner() {
     });
   }, [t]);
 
-  const alertsHook = useAlerts();
-  const alertCount = alertsHook.unreadCount;
+  /* Destructured once so the effect below can depend on the callback itself:
+     the exhaustive-deps rule wants the exact function, not a property of the
+     per-render hook object. markAllRead is useCallback-stable (it changes
+     only with the alert list) and idempotent, so the dep stays small and
+     honest. */
+  const {
+    visibleAlerts: alertList,
+    isLive: alertsIsLive,
+    unreadCount: alertCount,
+    markAllRead,
+    dismiss: alertDismiss,
+    clearAll: alertClearAll,
+  } = useAlerts();
 
   // Opening the Peringatan view marks everything read, so the badge clears the
   // moment the user looks at their alerts (and stays cleared — the read state is
   // persisted). This is what the badge count is supposed to track.
   useEffect(() => {
-    if (view === "alerts") alertsHook.markAllRead();
-  }, [view, alertsHook.markAllRead]);
+    if (view === "alerts") markAllRead();
+  }, [view, markAllRead]);
+
+  // Public screens cross-link with hashes (the features screen's Catatan
+  // lands on the sheet's disclaimer). A client-side navigation never scrolls
+  // to a fragment on its own (and a fresh load can race the render), so the
+  // effect does it once the target element exists. Smooth scrolling honours
+  // the visitor's reduced-motion request.
+  useEffect(() => {
+    if (!location.hash) return;
+    const timer = window.setTimeout(() => {
+      document
+        .getElementById(location.hash.slice(1))
+        ?.scrollIntoView({
+          behavior:
+            typeof window.matchMedia === "function" &&
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? "auto"
+              : "smooth",
+          block: "start",
+        });
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [location.hash, location.pathname]);
 
   const dashSubtitle = useMemo(() => formatDashboardSubtitle(locale), [locale]);
 
@@ -141,6 +175,21 @@ function AppInner() {
     // refresh (or a shared link) returns to the same surface. Picking a price
     // line writes a client-side intent and walks into the signup form with
     // `?plan=`; the payment itself still starts inside the app (R-26).
+    // `/fitur` is the second public surface: the features the sheet's pillar
+    // band compresses, expanded in full.
+    if (location.pathname === "/fitur") {
+      return (
+        <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
+          <PublicFeatures
+            locale={locale}
+            onEnter={() => navigate("/masuk")}
+            onSignUp={() => navigate("/daftar")}
+            onViewPricing={() => navigate("/")}
+            onViewNotes={() => navigate("/#catatan")}
+          />
+        </div>
+      );
+    }
     if (location.pathname === "/masuk" || location.pathname === "/login") {
       return (
         <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
@@ -173,6 +222,8 @@ function AppInner() {
         <PublicPricing
           locale={locale}
           onEnter={() => navigate("/masuk")}
+          onSignUp={() => navigate("/daftar")}
+          onViewFeatures={() => navigate("/fitur")}
           onPickPlan={(plan) => {
             writePlanIntent(plan);
             navigate(`/daftar?plan=${plan}`);
@@ -266,8 +317,8 @@ function AppInner() {
                 holdings={portfolio.holdings}
                 transactions={portfolio.transactions}
                 onSelectSymbol={selectSymbol}
-                alerts={alertsHook.visibleAlerts}
-                alertsIsLive={alertsHook.isLive}
+                alerts={alertList}
+                alertsIsLive={alertsIsLive}
                 onOpenPortfolio={() => setView("portfolio")}
               />
             </ErrorBoundary>
@@ -302,7 +353,7 @@ function AppInner() {
           {view === "news"       && <ErrorBoundary key="news"     locale={locale}><NewsView news={news} loading={newsLoading} isLive={newsIsLive} error={newsError} retry={newsRetry} /></ErrorBoundary>}
           {view === "reports"    && <ErrorBoundary key="reports"  locale={locale}><ReportsView /></ErrorBoundary>}
           {view === "settings"   && <ErrorBoundary key="settings" locale={locale}><SettingsView fx={fx} freshness={market.freshness} auth={auth} onSignedOut={() => navigate("/", { replace: true })} /></ErrorBoundary>}
-          {view === "alerts"     && <ErrorBoundary key="alerts"   locale={locale}><AlertsView alerts={alertsHook.visibleAlerts} onDismiss={alertsHook.dismiss} onClearAll={alertsHook.clearAll} locale={locale} isLive={alertsHook.isLive} /></ErrorBoundary>}
+          {view === "alerts"     && <ErrorBoundary key="alerts"   locale={locale}><AlertsView alerts={alertList} onDismiss={alertDismiss} onClearAll={alertClearAll} locale={locale} isLive={alertsIsLive} /></ErrorBoundary>}
           </Suspense>
       </div>
       <Toaster theme={isDark ? "dark" : "light"} position="top-right" richColors />

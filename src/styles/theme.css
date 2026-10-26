@@ -55,7 +55,8 @@
   --loss: #c63b3b;
   --gain-bg: rgba(20, 118, 74, 0.08);
   --loss-bg: rgba(198, 59, 59, 0.08);
-  --warning: #a85c05;
+  /* Warning nudged darker to clear 4.5:1 on warm tinted surfaces at small sizes (F-01) */
+  --warning: #8b4a04;
   --warning-bg: rgba(168, 92, 5, 0.10);
   --neutral: #5e6c7e;
   --neutral-bg: rgba(94, 108, 126, 0.08);
@@ -116,10 +117,12 @@
 
   /* Financial semantic tokens — dark mode */
   --gain: #34c79f;
-  --loss: #e26a6a;
+  /* Loss nudged slightly to clear 4.5:1 on dark surfaces at small sizes (F-03) */
+  --loss: #e87474;
   --gain-bg: rgba(52, 199, 159, 0.12);
   --loss-bg: rgba(226, 106, 106, 0.12);
-  --warning: #e0a34a;
+  /* Warning nudged to clear 4.5:1 on dark surfaces at small sizes (F-01) */
+  --warning: #f0b85a;
   --warning-bg: rgba(224, 163, 74, 0.12);
   --neutral: #93a6ba;
   --neutral-bg: rgba(147, 166, 186, 0.12);
@@ -194,30 +197,52 @@
   --color-sidebar-badge: var(--sidebar-badge);
 }
 
-/* ─── Public price sheet (always dark) ───────────────────────────────────
- * Palet dari referensi pemilik (referensi/design-harga.png, 2026-10-21),
- * dibaca lewat sensus warna piksel. Lembar harga publik hanya dirender untuk
- * pengunjung tanpa sesi dan selalu gelap, sehingga token ini tidak mengikuti
- * varian terang/gelap aplikasi.
- * Catatan penyimpangan disengaja: --public-border-strong dinaikkan dari
- * nilai referensi (≈#2a3a58 → #5a6a85) karena WCAG 1.4.11 menuntut batas
- * kontrol interaktif ≥3:1 terhadap permukaan kartu di sekitarnya; bentuk
- * desain tidak berubah, hanya kecerahan garisnya.
+/* ─── Public price sheet (visitor view; static, own palette) ─────────────
+ * Palet dari referensi pemilik (referensi/design-harga-fix.png, 2026-10-22),
+ * dibaca lewat sensus warna piksel: halaman utuh dengan ground periwinkle
+ * tiga zona, kartu kertas putih, band pilar lebih terang, dan footer navy
+ * penuh. Token ini tidak mengikuti varian terang/gelap aplikasi.
  */
 :root {
-  --public-bg: #0a0e1a;
-  --public-card: #121a2b;
-  --public-card-raised: #141e33;
-  --public-foreground: #ffffff;
-  --public-muted: #8ca3c7;
-  --public-border: #1e2a44;
-  --public-border-strong: #5a6a85;
+  /* Ground tiga zona referensi, atas ke bawah: bar navigasi, kepala + kartu,
+     band pilar. */
+  --public-ground-top: #dbe2fd;
+  --public-ground: #e0e6fc;
+  --public-ground-soft: #f3f6fd;
+  /* Kertas kartu; sorotnya tint sky satu not, datar. */
+  --public-card: #ffffff;
+  --public-card-hover: #f5f8fd;
+  /* Tinta grafit milik referensi: judul, label, harga (10,9:1 di kertas
+     putih, 9,6:1 di kedua ground). Turunan redup per permukaan: #4b4f52
+     untuk tagline dan nav di ground (6,4:1), #6f7275 untuk sub dan suffix
+     yang hidup terutama di kertas putih (5:1 tanpa nudge), dan #5b6166
+     untuk teks kecil yang menulis di ground besar seperti caption
+     (5,4:1 di #e0e6fc; referensinya lebih redup dan berhenti di 3,8:1). */
+  --public-ink: #2f3133;
+  --public-muted: #4b4f52;
+  --public-muted-soft: #6f7275;
+  --public-muted-ground: #5b6166;
+  /* Navy kartu referensi: ikon, ring radio terpilih, dot, pil terpilih,
+     teks strip hemat. Deep memuat tombol datar; satu nota untuk hover
+     tetap membawa putih di atas 7:1. */
+  --public-navy: #243076;
+  --public-navy-deep: #17226a;
+  --public-navy-hover: #232e7a;
+  /* Pil badge dan strip hemat (mint) plus pil FLEKSIBEL (lavender). */
+  --public-mint: #e4f3ec;
+  --public-green: #275136;
+  --public-lavender: #e9ecfb;
+  /* Footer navy milik referensi: dasar + stop terang di sudut atasnya.
+     Periwinkle teks referensi berhenti di bawah AA (tautan 2,5:1, dasar
+     3,4:1), jadi token bawa nudge mikro sama bentuknya: tautan dan teks
+     terang 7,3:1; disclaimer, hak cipta, dan jam 7,3:1 keluarga muted. */
+  --public-footer: #030e58;
+  --public-footer-top: #1f3487;
+  --public-footer-muted: #9aa6d6;
+  --public-footer-strong: #c9d2ee;
+  /* Aksen live: dot idle radio muncul saat kartu disorot, dan dot kecil
+     di samping jam footer. */
   --public-accent: #7dd3fc;
-  --public-accent-deep: #40c4f8;
-  --public-green: #38e1a2;
-  --public-green-bg: rgba(56, 225, 162, 0.09);
-  --public-green-border: rgba(56, 225, 162, 0.3);
-  --public-tile-bg: #0f1524;
 }
 
 @layer base {
@@ -287,7 +312,7 @@
       gap: 12px;
     }
 
-    .setting-row > :last-child {
+    .setting-row> :last-child {
       width: 100%;
     }
   }

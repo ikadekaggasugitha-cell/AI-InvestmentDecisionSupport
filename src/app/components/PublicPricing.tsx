@@ -7,51 +7,71 @@
  * opens, and what it costs, read from the one public data endpoint the app has
  * (`GET /v1/subscriptions/pricing`).
  *
- * Redesigned 2026-10-21 from the owner's reference artwork
- * (`referensi/design-harga.png`): an always-dark sheet, a row of three plan
- * cards with badges and an interactive radio group, a saving strip on the
- * annual card, a gradient entry control, and the opens panel with icon tiles.
- * The sheet's colors are page-scoped tokens (`--public-*` in theme.css), read
- * from the reference; the logo is the owner's traced mark with the background
- * path removed (`src/assets/aidss-logo.svg`).
+ * Rebuilt 2026-10-22 into a full page from the owner's fixed reference
+ * (`referensi/design-harga-fix.png`, ronde 9): a topbar with page navigation
+ * and the sign-in gate, a heading block, three plan cards, a caption, a
+ * four-pillar feature band, and a navy footer with a live Jakarta clock. The
+ * colours are page-scoped tokens (`--public-*` in theme.css), read from the
+ * reference; the content sits in one ~1160px column. The logo is the owner's
+ * traced mark used as-is — the one intentional departure from the artwork,
+ * which carries its own illustrative mark that is not an asset we own.
  *
  * What it deliberately does not have:
  *
  * - No "Beli" button and no payment form. Deciding that a visitor starts a
  *   purchase from here would be a purchase path with no session behind it; the
  *   plan that built billing put the declaration inside the app, after signup.
- * - No market-data promises. The panel names exactly what the gate refuses
- *   (`/v1/signals`, `/v1/alerts`, the risk panel, optimisation) and claims
- *   nothing else.
+ *   "Masuk" opens the sign-in form and "Buat akun" the signup form directly
+ *   (owner, 2026-10-23); the card's own picks walk into signup carrying a
+ *   plan intent, and nothing on this page is a purchase control.
+ * - No market-data promises. The pillar band names exactly what the gate
+ *   refuses (`/v1/signals`, `/v1/alerts`, the risk panel, optimisation) and
+ *   claims nothing else; its four descriptions are the card lists' tails.
  * - No zero on failure. 503 means the install has no configured price, and
  *   printing "Rp 0" would quote a real customer for free — same rule the
- *   settings tab lives by. The card's price slot stays empty and the refusal
- *   sentence below the cards does the explaining.
- * - No private copy of a number. The comparison inside the annual card is
- *   computed from the three values the server just sent, so a price the admin
- *   changes tonight updates this fact tonight.
+ *   settings tab lives by. The price slots stay empty and the refusal
+ *   sentence under the cards does the explaining.
+ * - No private copy of a number. The annual card's "Setara … per bulan" is
+ *   computed from the values the server just sent, so a price the admin
+ *   changes tonight updates that fact tonight. The caption's tax sentence is
+ *   not a computation: it is the owner's own word (confirmed 2026-10-22 that
+ *   prices include tax).
+ * - No image assets. The 2026-10-21 sheet leaned on two PNGs for its ground
+ *   and its button; this page is flat colour and CSS only, so the assets
+ *   directory keeps nothing but the logo.
  *
- * The radio is a control, on the owner's instruction. The reference shows the
- * annual card pre-checked as the recommended pick, and the owner chose "the
- * radio picks the plan like its card's button does", so:
+ * The radio is a control, on the owner's instruction:
  *
  * - clicking a radio or its card's button does the same thing: onPickPlan;
- * - the group starts with annual checked (the reference's recommended look);
+ * - the group starts with monthly checked — the fixed reference's pick
+ *   (owner's answer, 2026-10-22), replacing annual from ronde enam;
  * - arrow keys move focus only — no keyboard press can throw the visitor into
- *   signup without them pressing Enter or Space first.
+ *   signup without them pressing Enter or Space first;
+ * - the ronde 9 answer on the ronde 8 objection (a coloured dot marking the
+ *   selection at rest): the picked radio IS visibly marked, in a monochrome
+ *   navy dot that the artwork shows; the accent dot stays a hover garnish,
+ *   never a state marker.
  */
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Bell, PieChart, Play, ShieldCheck, Zap } from "lucide-react";
+import { Activity, ArrowRight, ArrowUpRight, Bell, PieChart, ShieldCheck } from "lucide-react";
 import { apiFetch, ENDPOINTS } from "../config/api";
 import type { Locale } from "../i18n/translations";
 import type { PlanKey } from "../planIntent";
+import { PublicFooter, type NavColumn } from "./PublicFooter";
+import { PublicNavMenu } from "./PublicNavMenu";
 import logoUrl from "../../assets/aidss-logo.svg";
 
 export interface PublicPricingProps {
   locale: Locale;
-  /** The sign-in / sign-up surface. Wiring decides where that is. */
+  /** The sign-in surface. Wiring decides where that is. */
   onEnter: () => void;
+  /** The signup form itself: the topbar's Buat akun opens it directly
+   *  (owner, 2026-10-23) instead of riding the same gate as Masuk. */
+  onSignUp: () => void;
+  /** The features screen: the topbar's Fitur walks there (owner, 2026-10-23).
+   *  The sheet keeps #pilar for the footer's products column and deep links. */
+  onViewFeatures: () => void;
   /** A price line was picked: the walk-in to signup carries it along. */
   onPickPlan: (plan: PlanKey) => void;
 }
@@ -67,12 +87,15 @@ interface PlanCopy {
   key: PlanKey;
   id: string;
   en: string;
-  subId: string;
-  subEn: string;
+  /** The period after the price, as the reference prints it ("/ minggu"). */
+  suffixId: string;
+  suffixEn: string;
   badgeId: string;
   badgeEn: string;
-  /** The reference's raised card: gradient top edge, green pill, filled button. */
-  raised: boolean;
+  /** The static commitment note under the price; the annual one is computed
+   *  from the server's values instead, so this stays empty there. */
+  noteId: string;
+  noteEn: string;
 }
 
 const PLANS: PlanCopy[] = [
@@ -80,43 +103,84 @@ const PLANS: PlanCopy[] = [
     key: "weekly",
     id: "Mingguan",
     en: "Weekly",
-    subId: "per minggu",
-    subEn: "per week",
+    suffixId: "/ minggu",
+    suffixEn: "/ week",
     badgeId: "FLEKSIBEL",
     badgeEn: "FLEXIBLE",
-    raised: false,
+    noteId: "Tanpa komitmen jangka panjang",
+    noteEn: "No long-term commitment",
   },
   {
     key: "monthly",
     id: "Bulanan",
     en: "Monthly",
-    subId: "per bulan",
-    subEn: "per month",
+    suffixId: "/ bulan",
+    suffixEn: "/ month",
     badgeId: "POPULER",
     badgeEn: "POPULAR",
-    raised: false,
+    noteId: "Perpanjangan otomatis, batalkan kapan saja",
+    noteEn: "Auto-renews, cancel anytime",
   },
   {
     key: "annual",
     id: "Tahunan",
     en: "Annual",
-    subId: "per tahun",
-    subEn: "per year",
+    suffixId: "/ tahun",
+    suffixEn: "/ year",
     badgeId: "Nilai Terbaik",
     badgeEn: "Best value",
-    raised: true,
+    noteId: "",
+    noteEn: "",
   },
 ];
 
-/* The panel tiles, in the same order as the opens list below. lucide is the
-   app's existing icon source; no new assets are invented here. */
-const ICONS = [Zap, Bell, ShieldCheck, PieChart];
+/* The four pillars, in the reference's order. The descriptions are the
+   card lists' tails — the same facts, said once each. lucide is the app's
+   existing icon source; no new assets are invented here. */
+const PILLARS = [
+  { nameId: "Sinyal", nameEn: "Signals", descId: "Sinyal masuk dan keluar untuk saham yang Anda pantau, lengkap dengan alasannya.", descEn: "Entry and exit calls for the stocks you track, with the reasons attached." },
+  { nameId: "Peringatan otomatis", nameEn: "Automatic alerts", descId: "Terbit saat kondisi pasar memenuhi aturan yang Anda tetapkan.", descEn: "Issued when market conditions meet the rules you set." },
+  { nameId: "Panel risiko", nameEn: "Risk panel", descId: "Ringkasan risiko portofolio Anda dalam satu tampilan.", descEn: "A summary of your portfolio's risk in one view." },
+  { nameId: "Optimasi portofolio", nameEn: "Portfolio optimisation", descId: "Alokasi ulang yang disarankan untuk portofolio Anda.", descEn: "Suggested reallocation for your portfolio." },
+];
 
-export function PublicPricing({ locale, onEnter, onPickPlan }: PublicPricingProps) {
+const ICONS = [Activity, Bell, ShieldCheck, PieChart];
+
+/* The footer's link columns: everything anchors either to the pillar band,
+   the cards, or the disclaimer inside this page — pointing at a page that
+   does not exist yet would be a lie in the layout. "Hubungi kami" is held
+   back until the owner names its channel ([OWNER TO NAME] is still open);
+   an anchor without href renders like the rest but goes nowhere. */
+const NAV_COLUMNS: NavColumn[] = [
+  {
+    headId: "PRODUK",
+    headEn: "PRODUCT",
+    items: PILLARS.map((pillar) => ({ id: pillar.nameId, en: pillar.nameEn, anchor: "#pilar" })),
+  },
+  {
+    headId: "LANGGANAN",
+    headEn: "PLANS",
+    items: [
+      ...PLANS.map((plan) => ({ id: plan.id, en: plan.en, anchor: "#harga" })),
+      { id: "Bandingkan paket", en: "Compare plans", anchor: "#harga" },
+    ],
+  },
+  {
+    headId: "BANTUAN",
+    headEn: "SUPPORT",
+    items: [
+      { id: "Hubungi kami", en: "Contact us", anchor: "", held: true },
+      { id: "Catatan risiko", en: "Risk notes", anchor: "#catatan" },
+      { id: "Pembaruan harga", en: "Price updates", anchor: "#harga" },
+    ],
+  },
+];
+
+export function PublicPricing({ locale, onEnter, onSignUp, onViewFeatures, onPickPlan }: PublicPricingProps) {
   const isId = locale === "id";
   const [price, setPrice] = useState<PriceState>({ kind: "loading" });
-  /** The reference's pre-checked recommendation. The user's choice moves it. */
-  const [picked, setPicked] = useState<PlanKey>("annual");
+  /** The fixed reference's pre-checked pick. The user's choice moves it. */
+  const [picked, setPicked] = useState<PlanKey>("monthly");
   const radioRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
@@ -154,20 +218,6 @@ export function PublicPricing({ locale, onEnter, onPickPlan }: PublicPricingProp
     return () => controller.abort();
   }, []);
 
-  const opens: { name: string; desc: string }[] = isId
-    ? [
-        { name: "Sinyal", desc: "Rekomendasi per saham dengan skor dan alasannya." },
-        { name: "Peringatan otomatis", desc: "Terbit saat kondisi pasar memenuhinya." },
-        { name: "Panel risiko", desc: "Ringkasan risiko portofolio Anda." },
-        { name: "Optimasi portofolio", desc: "Alokasi ulang yang disarankan untuk portofolio Anda." },
-      ]
-    : [
-        { name: "Signals", desc: "Scored calls per stock, with the reasons." },
-        { name: "Automatic alerts", desc: "Issued when market conditions meet them." },
-        { name: "Risk panel", desc: "A summary of your portfolio's risk." },
-        { name: "Portfolio optimisation", desc: "Suggested reallocation for your portfolio." },
-      ];
-
   // The one derived figure, keyed to its baseline and recomputed from what the
   // server just said. Hidden rather than printed when there is nothing real to
   // say: a saving of zero or a division by zero both mean "no fact".
@@ -175,6 +225,17 @@ export function PublicPricing({ locale, onEnter, onPickPlan }: PublicPricingProp
     ? Math.round(((price.monthly * 12 - price.annual) / (price.monthly * 12)) * 100)
     : null;
   const showSaving = annualSaving !== null && annualSaving > 0;
+
+  const annualEquivalent = price.kind === "ready" && price.annual > 0
+    ? Math.round(price.annual / 12)
+    : null;
+
+  const formatNumber = (value: number) => value.toLocaleString(localeTag(locale));
+
+  const pillarRows = PILLARS.map((pillar) => ({
+    name: isId ? pillar.nameId : pillar.nameEn,
+    desc: isId ? pillar.descId : pillar.descEn,
+  }));
 
   const pick = (key: PlanKey) => {
     setPicked(key);
@@ -206,401 +267,313 @@ export function PublicPricing({ locale, onEnter, onPickPlan }: PublicPricingProp
     }
   };
 
-  /* Card surfaces use the page tokens, not the app theme, because this sheet
-     is always dark no matter which theme mode the app is in. */
-  const cardStyle = (raised: boolean): React.CSSProperties => ({
-    position: "relative",
-    overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-    minHeight: "318px",
-    padding: "22px 22px 22px",
-    background: raised ? "var(--public-card-raised)" : "var(--public-card)",
-    border: "1px solid var(--public-border)",
-    borderRadius: "16px",
-    boxShadow:
-      "0 18px 40px rgba(5, 8, 16, 0.35)",
-  });
+  const pickPlanLabel = isId ? "Pilih paket" : "Choose plan";
 
-  const radioStyle = (checked: boolean): React.CSSProperties => ({
-    width: "22px",
-    height: "22px",
-    flex: "none",
-    display: "grid",
-    placeItems: "center",
-    padding: 0,
-    background: "transparent",
-    border: `2px solid ${checked ? "var(--public-accent)" : "var(--public-border-strong)"}`,
-    borderRadius: "50%",
-    cursor: "pointer",
-  });
-
-  const ghostPickStyle: React.CSSProperties = {
-    width: "100%",
-    minHeight: "42px",
-    padding: "9px 14px",
-    fontSize: "14px",
-    fontWeight: 600,
-    fontFamily: "var(--font-sans)",
-    color: "var(--public-foreground)",
-    background: "transparent",
-    border: "1px solid var(--public-border-strong)",
-    borderRadius: "10px",
-    cursor: "pointer",
-  };
-
-  const solidPickStyle: React.CSSProperties = {
-    ...ghostPickStyle,
-    minHeight: "44px",
-    color: "var(--public-bg)",
-    background: "var(--public-accent)",
-    border: "1px solid var(--public-accent)",
-    borderRadius: "999px",
-    boxShadow: "0 10px 30px rgba(125, 211, 252, 0.22)",
-  };
-
-  const priceStyle: React.CSSProperties = {
-    fontFamily: "var(--font-sans)",
-    fontVariantNumeric: "tabular-nums",
-    fontSize: "26px",
-    fontWeight: 700,
-    letterSpacing: "-0.01em",
-    lineHeight: 1.2,
-  };
-
-  const priceSlot = (value: number) =>
-    price.kind === "ready" ? (
-      <span style={priceStyle}>{`Rp ${value.toLocaleString(localeTag(locale))}`}</span>
+  const priceSlot = (value: number | null) =>
+    price.kind === "ready" && value !== null ? (
+      <span
+        style={{
+          fontFamily: "var(--font-sans)",
+          fontVariantNumeric: "tabular-nums",
+          fontSize: "34px",
+          fontWeight: 700,
+          letterSpacing: "-0.01em",
+          lineHeight: 1.1,
+          color: "var(--public-ink)",
+        }}
+      >
+        {`Rp ${formatNumber(value)}`}
+      </span>
     ) : price.kind === "loading" ? (
       <span
         aria-hidden="true"
         style={{
           display: "inline-block",
-          width: "120px",
-          height: "22px",
-          borderRadius: 4,
-          background: "rgba(140, 163, 199, 0.18)",
+          width: "140px",
+          height: "26px",
+          borderRadius: 6,
+          background: "rgba(47, 49, 51, 0.14)",
         }}
       />
     ) : null;
 
   return (
-    <div className="pub-shell" style={{ background: "var(--public-bg)", color: "var(--public-foreground)", fontFamily: "var(--font-sans)" }}>
-      <div className="pub-frame">
-        {/* The bar: the owner's mark (background removed) on the left, the one
-            reference line on the right. Text next to it stays out; the mark
-            already says the name. */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "16px",
-            borderBottom: "1px solid var(--public-border)",
-            paddingBottom: "16px",
-            marginBottom: "36px",
-          }}
-        >
-          <img src={logoUrl} alt="AIDSS" style={{ height: "26px", width: "auto", display: "block" }} />
-          <span style={{ fontSize: "13px", color: "var(--public-muted)" }}>
-            Trading Intelligence Platform
-          </span>
-        </div>
-
-        <div style={{ marginBottom: "28px" }}>
-          <h1
-            style={{
-              fontSize: "38px",
-              fontWeight: 700,
-              letterSpacing: "-0.01em",
-              lineHeight: 1.15,
-              margin: 0,
-              fontFamily: "var(--font-display)",
-            }}
-          >
-            {isId ? "Harga langganan" : "Subscription price"}
-          </h1>
-          <p style={{ fontSize: "15px", color: "var(--public-muted)", margin: "10px 0 0", maxWidth: "620px", lineHeight: 1.6 }}>
-            {isId
-              ? "Apa yang dibuka langganan, dan berapa harganya."
-              : "What a subscription opens, and what it costs."}
-          </p>
-        </div>
-
-        <div
-          role="radiogroup"
-          aria-label={isId ? "Pilih paket" : "Choose plan"}
-          className="pub-plans"
-          onKeyDown={onGroupKeyDown}
-          style={{ marginBottom: "28px" }}
-        >
-          {PLANS.map((plan, index) => {
-            const label = isId ? plan.id : plan.en;
-            const checked = picked === plan.key;
-            const value = price.kind === "ready" ? price[plan.key] : null;
-            return (
-              <div key={plan.key} style={cardStyle(plan.raised)}>
-                {plan.raised && (
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: "3px",
-                      background: "linear-gradient(90deg, var(--public-accent), var(--public-green))",
-                    }}
-                  />
-                )}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-                  {/* The control the owner chose: same action as the card's
-                      button, radiogroup semantics for the announcement. */}
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={checked}
-                    aria-label={`${isId ? "Pilih paket" : "Choose plan"} ${label}`}
-                    ref={(el) => { radioRefs.current[index] = el; }}
-                    onClick={() => pick(plan.key)}
-                    style={radioStyle(checked)}
-                  >
-                    {checked && (
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          width: "8px",
-                          height: "8px",
-                          borderRadius: "50%",
-                          background: "var(--public-accent)",
-                        }}
-                      />
-                    )}
-                  </button>
-                  {plan.raised ? (
-                    <span
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        lineHeight: 1,
-                        color: "var(--public-green)",
-                        background: "var(--public-green-bg)",
-                        border: "1px solid var(--public-green-border)",
-                        borderRadius: "999px",
-                        padding: "6px 12px",
-                      }}
-                    >
-                      {isId ? plan.badgeId : plan.badgeEn}
-                    </span>
-                  ) : (
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        letterSpacing: "0.12em",
-                        color: "var(--public-muted)",
-                      }}
-                    >
-                      {isId ? plan.badgeId : plan.badgeEn}
-                    </span>
-                  )}
-                </div>
-                <div style={{ margin: "20px 0 0" }}>
-                  <div style={{ fontSize: "20px", fontWeight: 700, margin: 0 }}>{label}</div>
-                  <div style={{ fontSize: "12px", color: "var(--public-muted)", margin: "4px 0 0" }}>
-                    {isId ? plan.subId : plan.subEn}
-                  </div>
-                </div>
-                <span aria-hidden="true" style={{ display: "block", height: "1px", background: "var(--public-border)", margin: "16px 0 18px" }} />
-                <div style={{ minHeight: "32px" }}>{value !== null && priceSlot(value)}</div>
-                {plan.key === "annual" && showSaving && (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      marginTop: "16px",
-                      padding: "10px 12px",
-                      background: "var(--public-green-bg)",
-                      border: "1px solid var(--public-green-border)",
-                      borderRadius: "10px",
-                      fontSize: "12px",
-                      lineHeight: 1.4,
-                      color: "var(--public-green)",
-                    }}
-                  >
-                    <Play size={12} color="var(--public-green)" fill="var(--public-green)" aria-hidden="true" />
-                    <span>
-                      {isId
-                        ? `Hemat ${annualSaving}% terhadap tarif bulanan.`
-                        : `About ${annualSaving}% below the monthly rate.`}
-                    </span>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className={plan.raised ? "pub-pick-solid" : "pub-pick"}
-                  aria-label={`${isId ? "Pilih paket" : "Choose plan"} ${label}`}
-                  onClick={() => pick(plan.key)}
-                  style={{ ...ghostPickStyle, ...plan.raised ? solidPickStyle : {}, marginTop: "auto" }}
-                >
-                  {isId ? "Pilih paket" : "Choose plan"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        {price.kind === "loading" && (
-          <p role="status" style={{ fontSize: "13px", color: "var(--public-muted)", margin: "0 0 8px" }}>
-            {isId ? "Memuat harga…" : "Loading price…"}
-          </p>
-        )}
-
-        {price.kind === "unavailable" && (
-          <p
-            role="status"
-            style={{
-              fontSize: "13px",
-              lineHeight: 1.6,
-              color: "var(--public-muted)",
-              background: "var(--public-card)",
-              border: "1px solid var(--public-border)",
-              borderRadius: "16px",
-              padding: "12px 16px",
-              margin: "0 0 8px",
-            }}
-          >
-            {isId
-              ? "Harga tidak dapat dimuat. Tidak ditampilkan sebagai nol: nol bukan harga yang ditetapkan."
-              : "The price could not be loaded. Not shown as zero: zero is not a price anyone set."}
-          </p>
-        )}
-
-        <div className="pub-grid" style={{ flex: 1 }}>
-          {/* The step that follows the three prices, and the payment facts:
-              read the prices, then act, then read how the payment reaches
-              this install. All directly under the answer they belong to. */}
-          <section>
-            <button
-              type="button"
-              className="pub-pick-solid"
-              onClick={onEnter}
-              style={{
-                width: "100%",
-                minHeight: "52px",
-                padding: "12px 20px",
-                fontSize: "17px",
-                fontWeight: 700,
-                fontFamily: "var(--font-sans)",
-                color: "var(--public-bg)",
-                background: "linear-gradient(90deg, var(--public-accent), var(--public-accent-deep))",
-                border: "none",
-                borderRadius: "12px",
-                cursor: "pointer",
-                boxShadow: "0 12px 32px rgba(64, 196, 248, 0.22)",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "10px",
-              }}
-            >
-              <span>{isId ? "Masuk atau buat akun" : "Sign in or create an account"}</span>
-              <ArrowRight size={18} aria-hidden="true" strokeWidth={2.2} />
+    <div className="pub-shell" style={{ fontFamily: "var(--font-sans)" }}>
+      {/* The visitor's gate, rebuilt as the reference's topbar: the
+          platform label, both enter controls, and the hamburger carrying
+          the page links (owner, 2026-10-24). "Masuk" opens the sign-in
+          form, "Buat akun" the signup form directly (owner, 2026-10-23) —
+          the sheet itself stays a page that carries no purchase path, and
+          neither gate ever hides behind the menu. */}
+      <header className="pub-topbar">
+        <div className="pub-container">
+          <img src={logoUrl} alt="AIDSS" className="pub-logo" />
+          <div className="pub-topbar-right">
+            <span aria-hidden="true" className="pub-topbar-dot" />
+            <span className="pub-topbar-label">Trading Intelligence Platform</span>
+            <span aria-hidden="true" className="pub-topbar-sep" />
+            <button type="button" className="pub-topbar-link" onClick={onEnter}>
+              {isId ? "Masuk" : "Sign in"}
             </button>
-            <p style={{ fontSize: "13px", color: "var(--public-muted)", marginTop: "16px", lineHeight: 1.6, maxWidth: "54ch" }}>
-              {isId
-                ? "Pembayaran lewat transfer manual yang diperiksa admin, atau Midtrans, keduanya dari dalam aplikasi."
-                : "Pay by manual transfer reviewed by an admin, or Midtrans, both from inside the app."}
-            </p>
-          </section>
+            <button type="button" className="pub-enter" onClick={onSignUp}>
+              {isId ? "Buat akun" : "Create account"}
+              <ArrowUpRight size={14} aria-hidden="true" strokeWidth={2.2} />
+            </button>
+          </div>
+          {/* Far right of the bar (owner, 2026-10-24): the page links in a
+              small popup, the gates left standing beside it. The sheet has
+              no Harga entry on purpose: the reader already sits on it. */}
+          <PublicNavMenu
+            locale={locale}
+            ariaLabel={isId ? "Navigasi lembar harga" : "Pricing sheet navigation"}
+            targets={[
+              {
+                href: "/fitur",
+                label: isId ? "Fitur" : "Features",
+                onNavigate: onViewFeatures,
+              },
+              { href: "#catatan", label: isId ? "Catatan" : "Notes" },
+            ]}
+          />
+        </div>
+      </header>
 
-          <section
-            style={{
-              background: "var(--public-card)",
-              border: "1px solid var(--public-border)",
-              borderRadius: "16px",
-              padding: "22px 24px",
-            }}
-          >
-            <h2
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                margin: 0,
-                fontSize: "13px",
-                fontWeight: 700,
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-              }}
+      <main>
+        {/* The heading block and the cards: read the price, act on it. */}
+        <section id="harga" className="pub-hero">
+          <div className="pub-container">
+            <p className="pub-eyebrow">{isId ? "LANGGANAN" : "SUBSCRIPTION"}</p>
+            {/* The owner's headline (2026-10-23): one sentence in the display
+                face for both locales, with the house name as its navy tail —
+                sizing and the two-tone treatment live in auth.css. */}
+            <h1>
+              Subscription AI Investment Decision Support{" "}
+              <span className="pub-hero-brand">by Meta Cash Asset.</span>
+            </h1>
+            <p className="pub-tagline">
+              {isId
+                ? "Sinyal berskala, peringatan otomatis, panel risiko, dan optimasi portofolio untuk keputusan yang lebih tenang."
+                : "Scaled signals, automatic alerts, a risk panel, and portfolio optimisation for calmer decisions."}
+            </p>
+
+            <div
+              role="radiogroup"
+              aria-label={isId ? "Pilih paket" : "Choose plan"}
+              className="pub-plans"
+              onKeyDown={onGroupKeyDown}
             >
-              <span
-                aria-hidden="true"
-                style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--public-accent)", flex: "none" }}
-              />
-              {isId ? "Yang dibuka langganan" : "What a subscription opens"}
-            </h2>
-            <ul className="pub-opens" style={{ listStyle: "none", padding: 0, margin: "20px 0 0" }}>
-              {opens.map((item, i) => {
-                const Icon = ICONS[i];
+              {PLANS.map((plan, index) => {
+                const label = isId ? plan.id : plan.en;
+                const checked = picked === plan.key;
+                const value = price.kind === "ready" ? price[plan.key] : null;
+                const note = isId ? plan.noteId : plan.noteEn;
+                const equivalentNote = plan.key === "annual" && annualEquivalent !== null
+                  ? isId
+                    ? `Setara Rp ${formatNumber(annualEquivalent)} per bulan`
+                    : `Equivalent to Rp ${formatNumber(annualEquivalent)} per month`
+                  : null;
+                const cardNote = plan.key === "annual" ? equivalentNote : note || null;
                 return (
-                  <li key={item.name} style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                  <div key={plan.key} className="pub-card" data-checked={checked ? "true" : undefined}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                      {/* The control the owner chose: same action as the card's
+                          button, radiogroup semantics for the announcement;
+                          the marking dot is CSS state, the meaning is
+                          aria-checked. */}
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={checked}
+                        aria-label={`${pickPlanLabel} ${label}`}
+                        ref={(el) => { radioRefs.current[index] = el; }}
+                        onClick={() => pick(plan.key)}
+                        className="pub-radio"
+                      >
+                        <span aria-hidden="true" className="pub-radio-dot" />
+                      </button>
+                      {/* Tone pills: solid navy marks the checked card (the
+                          artwork's POPULER pill); data keeps its own casing. */}
+                      <span
+                        className="pub-badge"
+                        data-tone={checked ? "solid" : plan.key === "annual" ? "mint" : "lavender"}
+                      >
+                        {isId ? plan.badgeId : plan.badgeEn}
+                      </span>
+                    </div>
+                    <div style={{ margin: "18px 0 0" }}>
+                      <div style={{ fontSize: "18px", fontWeight: 700 }}>{label}</div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: "6px", marginTop: "10px" }}>
+                        {priceSlot(value)}
+                        {/* The period is a constant truth, so it stays beside
+                            the skeleton too; on failure the price row empties
+                            entirely — a period with no number would still be
+                            honest, but an empty slot reads cleaner than a
+                            decimal point of a sentence. */}
+                        {price.kind !== "unavailable" && (
+                          <span style={{ fontSize: "15px", color: "var(--public-muted-soft)" }}>
+                            {isId ? plan.suffixId : plan.suffixEn}
+                          </span>
+                        )}
+                      </div>
+                      {cardNote && (
+                        <div style={{ fontSize: "14px", color: "var(--public-muted-soft)", marginTop: "6px" }}>
+                          {cardNote}
+                        </div>
+                      )}
+                    </div>
+                    {/* The saving strip: visible at rest now (data, not
+                        decoration), only on the card whose server price
+                        supports the claim — computed, never copied, and
+                        seated between the commitment note and the rule, as
+                        the fixed reference prints it. */}
+                    {plan.key === "annual" && showSaving && annualSaving !== null && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          marginTop: "16px",
+                          padding: "10px 12px",
+                          background: "var(--public-mint)",
+                          borderRadius: "10px",
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          lineHeight: 1.4,
+                          color: "var(--public-green)",
+                        }}
+                      >
+                        <Activity size={16} color="var(--public-green)" aria-hidden="true" strokeWidth={2.2} />
+                        <span>
+                          {isId
+                            ? `Hemat ${annualSaving}% terhadap tarif bulanan.`
+                            : `About ${annualSaving}% below the monthly rate.`}
+                        </span>
+                      </div>
+                    )}
                     <span
                       aria-hidden="true"
-                      style={{
-                        flex: "none",
-                        width: "40px",
-                        height: "40px",
-                        display: "grid",
-                        placeItems: "center",
-                        background: "var(--public-tile-bg)",
-                        border: "1px solid var(--public-border)",
-                        borderRadius: "10px",
-                      }}
+                      style={{ display: "block", height: 1, background: "rgba(47, 49, 51, 0.12)", margin: "18px 0" }}
+                    />
+                    {/* The card's benefits: name-only rows — the pillar band
+                        below carries each one's sentence, so the card stays a
+                        price card. The label heading and its dot are gone
+                        (ronde tujuh's rule, unchanged by the rebuild). */}
+                    <ul
+                      className="pub-opens"
+                      aria-label={isId ? "Yang dibuka langganan" : "What a subscription opens"}
+                      style={{ listStyle: "none", padding: 0, margin: 0 }}
                     >
-                      <Icon size={18} color="var(--public-accent)" strokeWidth={2} />
-                    </span>
-                    <span style={{ display: "flex", flexDirection: "column", gap: "3px", minWidth: 0 }}>
-                      <span style={{ fontSize: "14px", fontWeight: 600 }}>{item.name}</span>
-                      <span style={{ fontSize: "12px", lineHeight: 1.5, color: "var(--public-muted)" }}>{item.desc}</span>
-                    </span>
+                      {pillarRows.map((item, i) => {
+                        const Icon = ICONS[i];
+                        return (
+                          <li key={item.name} style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                            <Icon
+                              aria-hidden="true"
+                              size={20}
+                              color="var(--public-navy)"
+                              strokeWidth={2}
+                              style={{ flex: "none" }}
+                            />
+                            <span style={{ fontSize: "15px", fontWeight: 600, color: "var(--public-ink)" }}>
+                              {item.name}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {/* One class, one shape for all three plans (owner, ronde
+                        keempat): the flat navy fill and its hover live in
+                        auth.css now, and no annual-specific rule remains. */}
+                    <button
+                      type="button"
+                      className="pub-pick"
+                      aria-label={`${pickPlanLabel} ${label}`}
+                      onClick={() => pick(plan.key)}
+                    >
+                      {pickPlanLabel}
+                      <ArrowRight size={16} aria-hidden="true" strokeWidth={2.2} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {price.kind === "loading" && (
+              <p role="status" style={{ fontSize: "13px", color: "var(--public-muted-ground)", margin: "20px 0 0" }}>
+                {isId ? "Memuat harga…" : "Loading price…"}
+              </p>
+            )}
+
+            {price.kind === "unavailable" && (
+              <p
+                role="status"
+                style={{
+                  fontSize: "13px",
+                  lineHeight: 1.6,
+                  /* White status chip on the wide ground: the sentence reads
+                     in the muted ink and keeps the paper's edge. */
+                  color: "var(--public-muted)",
+                  background: "var(--public-card)",
+                  border: "1px solid rgba(47, 49, 51, 0.18)",
+                  borderRadius: "16px",
+                  padding: "12px 16px",
+                  margin: "20px 0 0",
+                  maxWidth: "560px",
+                }}
+              >
+                {isId
+                  ? "Harga tidak dapat dimuat. Tidak ditampilkan sebagai nol: nol bukan harga yang ditetapkan."
+                  : "The price could not be loaded. Not shown as zero: zero is not a price anyone set."}
+              </p>
+            )}
+
+            {/* The owner's confirmed facts, one line under the cards. The tax
+                sentence is the owner's own word, not a computed claim. */}
+            <p className="pub-caption">
+              {isId
+                ? "Semua paket mencakup sinyal, peringatan otomatis, panel risiko, dan optimasi portofolio. Harga dalam Rupiah dan sudah termasuk pajak."
+                : "Every plan includes signals, automatic alerts, the risk panel, and portfolio optimisation. Prices are in Rupiah and already include tax."}
+            </p>
+          </div>
+        </section>
+
+        {/* The pillar band: what the gate opens, each pillar with its one
+            sentence. It names exactly what the backend refuses and claims
+            nothing else. */}
+        <section id="pilar" className="pub-pillars">
+          <div className="pub-container">
+            <div className="pub-pillars-head">
+              <h2>{isId ? "Yang Anda dapatkan" : "What you get"}</h2>
+              <p className="pub-eyebrow">{isId ? "EMPAT PILAR AIDSS" : "THE FOUR PILLARS OF AIDSS"}</p>
+            </div>
+            <ul className="pub-pillar-grid">
+              {pillarRows.map((item, i) => {
+                const Icon = ICONS[i];
+                return (
+                  <li key={item.name} className="pub-pillar">
+                    <Icon aria-hidden="true" size={22} color="var(--public-navy)" strokeWidth={2} />
+                    <div style={{ fontSize: "16px", fontWeight: 700, marginTop: "14px", color: "var(--public-ink)" }}>
+                      {item.name}
+                    </div>
+                    <p style={{ fontSize: "14px", lineHeight: 1.6, color: "var(--public-muted-soft)", margin: "6px 0 0" }}>
+                      {item.desc}
+                    </p>
                   </li>
                 );
               })}
             </ul>
-          </section>
-        </div>
+          </div>
+        </section>
+      </main>
 
-        {/* The rest that closes the canvas: the name returns at full width, and
-            beside it the only provenance fact the price has, when the server
-            timestamps one. */}
-        <footer
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            gap: "16px",
-            borderTop: "1px solid var(--public-border)",
-            paddingTop: "14px",
-            marginTop: "24px",
-          }}
-        >
-          <span style={{ fontFamily: "var(--font-display)", fontSize: "13px", fontWeight: 700, letterSpacing: "0.02em" }}>
-            AIDSS
-          </span>
-          {price.kind === "ready" && price.updatedAt && (
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--public-muted)" }}>
-              {isId ? "Harga diperbarui " : "Prices updated "}
-              {new Date(price.updatedAt).toLocaleDateString(localeTag(locale), {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
-            </span>
-          )}
-        </footer>
-      </div>
+      {/* The navy footer: brand, three link columns, the risk notes, and the
+          bottom line with the live Jakarta clock. Shared with the features
+          screen so the two pages cannot drift apart. */}
+      <PublicFooter
+        locale={locale}
+        columns={NAV_COLUMNS}
+        updatedAt={price.kind === "ready" ? price.updatedAt : null}
+      />
     </div>
   );
 }

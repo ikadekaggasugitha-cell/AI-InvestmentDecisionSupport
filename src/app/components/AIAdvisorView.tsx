@@ -19,7 +19,7 @@ import { VolumeAccumulationPanel } from "./VolumeAccumulationPanel";
 import { ViewSkeleton } from "./ViewSkeleton";
 import { ViewError } from "./ViewError";
 import { ConsentModal } from "./ConsentGate";
-import { clearConsent, hasAcceptedConsent, writeConsent } from "./consent";
+import { clearConsent, hasAcceptedConsent, writeConsent, reportConsent } from "./consent";
 import { useAuth } from "../hooks/useAuth";
 
 // Lightweight Charts is ~45KB and only an expanded card ever renders one, so
@@ -31,10 +31,10 @@ const CandlestickChart = lazy(() =>
 type Tier = "VERY_HIGH" | "HIGH" | "NEUTRAL" | "LOW";
 
 const TIER_CFG: Record<Tier, { color: string; bg: string; icon: ElementType }> = {
-  "VERY_HIGH": { color: "var(--gain)",    bg: "var(--gain-bg)",           icon: TrendingUp   },
-  "HIGH":      { color: "var(--gain)",    bg: "var(--gain-bg)",           icon: TrendingUp   },
-  "NEUTRAL":   { color: "var(--warning)", bg: "var(--warning-bg)",   icon: Minus        },
-  "LOW":       { color: "var(--loss)",    bg: "var(--loss-bg)",           icon: TrendingDown },
+  "VERY_HIGH": { color: "var(--gain)", bg: "var(--gain-bg)", icon: TrendingUp },
+  "HIGH": { color: "var(--gain)", bg: "var(--gain-bg)", icon: TrendingUp },
+  "NEUTRAL": { color: "var(--warning)", bg: "var(--warning-bg)", icon: Minus },
+  "LOW": { color: "var(--loss)", bg: "var(--loss-bg)", icon: TrendingDown },
 };
 
 // Probability-band wording (REC-01). Replaces the former BELI/JUAL labels,
@@ -42,9 +42,9 @@ const TIER_CFG: Record<Tier, { color: string; bg: string; icon: ElementType }> =
 function tierLabel(tier: Tier, isId: boolean): string {
   const map: Record<Tier, [string, string]> = {
     "VERY_HIGH": ["Probabilitas Sangat Tinggi", "Very High Probability"],
-    "HIGH":      ["Probabilitas Tinggi",        "High Probability"     ],
-    "NEUTRAL":   ["Probabilitas Netral",        "Neutral Probability"  ],
-    "LOW":       ["Probabilitas Rendah",        "Low Probability"      ],
+    "HIGH": ["Probabilitas Tinggi", "High Probability"],
+    "NEUTRAL": ["Probabilitas Netral", "Neutral Probability"],
+    "LOW": ["Probabilitas Rendah", "Low Probability"],
   };
   return isId ? map[tier][0] : map[tier][1];
 }
@@ -73,9 +73,9 @@ function TrendBadge({ trend, isId }: { trend: AISignal["trend"]; isId: boolean }
   if (!trend) return null;
 
   const cfg = {
-    uptrend:   { color: "var(--gain)", bg: "var(--gain-bg)", icon: TrendingUp,   id: "Uptrend",  en: "Uptrend"  },
+    uptrend: { color: "var(--gain)", bg: "var(--gain-bg)", icon: TrendingUp, id: "Uptrend", en: "Uptrend" },
     downtrend: { color: "var(--loss)", bg: "var(--loss-bg)", icon: TrendingDown, id: "Downtrend", en: "Downtrend" },
-    sideways:  { color: "var(--muted-foreground)", bg: "var(--muted)", icon: MoveRight, id: "Sideways", en: "Sideways" },
+    sideways: { color: "var(--muted-foreground)", bg: "var(--muted)", icon: MoveRight, id: "Sideways", en: "Sideways" },
   }[trend.trend] ?? null;
 
   if (!cfg) return null;
@@ -106,19 +106,19 @@ const SITUATION_CFG: Record<
   SituationInfo["situation"],
   { tone: "gain" | "loss" | "warning" | "neutral"; icon: ElementType; id: string; en: string }
 > = {
-  tembus_resistance:  { tone: "gain",    icon: TrendingUp,      id: "Tembus Resistance",   en: "Breakout" },
-  mantul_support:     { tone: "gain",    icon: ArrowUpFromLine, id: "Mantul Support",      en: "Support Bounce" },
-  gagal_breakdown:    { tone: "gain",    icon: Zap,             id: "Spring (Bear Trap)",  en: "Spring (Bear Trap)" },
-  uji_resistance:     { tone: "warning", icon: ArrowUpToLine,   id: "Uji Resistance",      en: "Testing Resistance" },
-  volatility_squeeze: { tone: "warning", icon: Minimize2,       id: "Squeeze Volatilitas", en: "Volatility Squeeze" },
-  gagal_breakout:     { tone: "loss",    icon: AlertTriangle,   id: "Gagal Breakout",      en: "False Breakout" },
-  tembus_support:     { tone: "loss",    icon: TrendingDown,    id: "Tembus Support",      en: "Breakdown" },
-  konsolidasi_lebar:  { tone: "neutral", icon: MoveHorizontal,  id: "Konsolidasi Lebar",   en: "Wide Consolidation" },
+  tembus_resistance: { tone: "gain", icon: TrendingUp, id: "Tembus Resistance", en: "Breakout" },
+  mantul_support: { tone: "gain", icon: ArrowUpFromLine, id: "Mantul Support", en: "Support Bounce" },
+  gagal_breakdown: { tone: "gain", icon: Zap, id: "Spring (Bear Trap)", en: "Spring (Bear Trap)" },
+  uji_resistance: { tone: "warning", icon: ArrowUpToLine, id: "Uji Resistance", en: "Testing Resistance" },
+  volatility_squeeze: { tone: "warning", icon: Minimize2, id: "Squeeze Volatilitas", en: "Volatility Squeeze" },
+  gagal_breakout: { tone: "loss", icon: AlertTriangle, id: "Gagal Breakout", en: "False Breakout" },
+  tembus_support: { tone: "loss", icon: TrendingDown, id: "Tembus Support", en: "Breakdown" },
+  konsolidasi_lebar: { tone: "neutral", icon: MoveHorizontal, id: "Konsolidasi Lebar", en: "Wide Consolidation" },
 };
 
 const SITUATION_TONE: Record<string, { color: string; bg: string }> = {
-  gain:    { color: "var(--gain)", bg: "var(--gain-bg)" },
-  loss:    { color: "var(--loss)", bg: "var(--loss-bg)" },
+  gain: { color: "var(--gain)", bg: "var(--gain-bg)" },
+  loss: { color: "var(--loss)", bg: "var(--loss-bg)" },
   warning: { color: "var(--warning)", bg: "var(--muted)" },
   neutral: { color: "var(--muted-foreground)", bg: "var(--muted)" },
 };
@@ -721,10 +721,10 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
   // than a number that changes on every reload.
   const lastUpdatedLabel = generatedAt && !Number.isNaN(Date.parse(generatedAt))
     ? new Date(generatedAt).toLocaleTimeString(isId ? "id-ID" : "en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "Asia/Jakarta",
-      }) + " WIB"
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Jakarta",
+    }) + " WIB"
     : "—";
 
   // Walk-forward AUC from the model's training report. Null on the seed path and
@@ -736,8 +736,8 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
   const aucLabel = meanAuc === null ? "—" : `${(meanAuc * 100).toFixed(1)}%`;
   const trainedAtLabel = modelMetrics?.trainedAt
     ? new Date(modelMetrics.trainedAt).toLocaleDateString(isId ? "id-ID" : "en-GB", {
-        day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Jakarta",
-      }) + " WIB"
+      day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Jakarta",
+    }) + " WIB"
     : null;
   const aucTitle =
     meanAuc === null
@@ -745,22 +745,22 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
         ? "Tidak ada model ter-train untuk data ini"
         : "No trained model produced this data"
       : [
-          `${isId ? "AUC walk-forward" : "Walk-forward AUC"}: ${aucLabel}`,
-          decileLift === null
-            ? null
-            : `${isId ? "lift desil teratas" : "top-decile lift"}: ${(decileLift * 100).toFixed(1)} pp`,
-          trainedAtLabel
-            ? `${isId ? "dilatih" : "trained"}: ${trainedAtLabel}`
-            : null,
-          modelVersion && modelVersion !== "seed-v1.0"
-            ? `artefak: ${modelVersion}`
-            : null,
-          modelMetrics?.symbols
-            ? `${isId ? "simbol" : "symbols"}: ${modelMetrics.symbols.toLocaleString(isId ? "id-ID" : "en-US")}`
-            : null,
-        ]
-          .filter(Boolean)
-          .join("\n");
+        `${isId ? "AUC walk-forward" : "Walk-forward AUC"}: ${aucLabel}`,
+        decileLift === null
+          ? null
+          : `${isId ? "lift desil teratas" : "top-decile lift"}: ${(decileLift * 100).toFixed(1)} pp`,
+        trainedAtLabel
+          ? `${isId ? "dilatih" : "trained"}: ${trainedAtLabel}`
+          : null,
+        modelVersion && modelVersion !== "seed-v1.0"
+          ? `artefak: ${modelVersion}`
+          : null,
+        modelMetrics?.symbols
+          ? `${isId ? "simbol" : "symbols"}: ${modelMetrics.symbols.toLocaleString(isId ? "id-ID" : "en-US")}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
 
   if (loading) {
     return <ViewSkeleton rows={5} label={isId ? "Memuat sinyal AI…" : "Loading AI signals…"} />;
@@ -779,8 +779,10 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
         <ConsentModal
           locale={isId ? "id" : "en"}
           onAccept={() => {
+            // Local first, then the server — same pattern as ConsentGate
             writeConsent(accountId);
             setDisclaimerAccepted(true);
+            void reportConsent(accountId);
           }}
         />
       )}
@@ -851,6 +853,7 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
               clearConsent(accountId);
               setDisclaimerAccepted(false);
             }}
+            aria-label={isId ? "Batalkan persetujuan OJK" : "Revoke OJK consent"}
             style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted-foreground)", padding: 0 }}
           >
             <X size={12} />
@@ -870,10 +873,10 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
               the label sits quiet above it, and the AUC tooltip stays attached
               to the tile. */}
           {[
-            { label: t("ai_model_auc"),        value: aucLabel,             title: aucTitle },
-            { label: t("ai_active_signals"),   value: String(activeSignals), title: undefined },
-            { label: t("ai_avg_confidence"),   value: `${avgUprob}%`,       title: undefined },
-            { label: t("ai_last_updated"),     value: lastUpdatedLabel,     title: undefined },
+            { label: t("ai_model_auc"), value: aucLabel, title: aucTitle },
+            { label: t("ai_active_signals"), value: String(activeSignals), title: undefined },
+            { label: t("ai_avg_confidence"), value: `${avgUprob}%`, title: undefined },
+            { label: t("ai_last_updated"), value: lastUpdatedLabel, title: undefined },
           ].map((m) => (
             <div key={m.label} className="rounded p-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }} title={m.title}>
               <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 6, lineHeight: 1.4 }}>{m.label}</div>

@@ -50,7 +50,37 @@ describe('the auth gate', () => {
     render(
       <App />,
     )
-    expect(await screen.findByRole('heading', { name: 'Harga langganan' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Subscription AI Investment Decision Support by Meta Cash Asset.' })).toBeInTheDocument()
+  })
+
+  it('walks a visitor to the features screen at /fitur', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(401, { detail: 'Not authenticated' }))
+    // /fitur is the second public surface (owner, 2026-10-23): the features
+    // the sheet's pillar band compresses, expanded in full.
+    window.history.pushState({}, '', '/fitur')
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Setiap alat bantu datang dengan alasannya.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Lihat aplikasi berjalan' })).toBeInTheDocument()
+  })
+
+  it('lands a cross-page hash on the sheet once the target exists', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(401, { detail: 'Not authenticated' }))
+    // Client-side navigation never scrolls to a fragment on its own, and a
+    // fresh load can race the render, so App scrolls once the element is
+    // there (this is what /#catatan from the features screen relies on).
+    const originalScrollIntoView = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = vi.fn()
+    try {
+      window.history.pushState({}, '', '/#catatan')
+      render(<App />)
+      expect(await screen.findByText(/alat bantu keputusan, bukan penasihat investasi/)).toBeInTheDocument()
+      await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith(
+        expect.objectContaining({ block: 'start' }),
+      ))
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView
+      window.history.pushState({}, '', '/')
+    }
   })
 
   it('keeps the forms on their real URLs, carrying the picked plan', async () => {

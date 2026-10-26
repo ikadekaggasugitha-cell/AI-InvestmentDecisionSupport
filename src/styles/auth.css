@@ -3,9 +3,13 @@
  *
  * This file keeps two services beside each other:
  *
- *  - `.pub-*`: the public price sheet. One framed canvas at 1080px holding the
- *    three plan cards and the facts below them (2026-10-21 reference
- *    redesign); under 880px everything stacks.
+ *  - `.pub-*`: the public price sheet, rebuilt 2026-10-22 from the owner's
+ *    reference (referensi/design-harga-fix.png): a full page instead of one
+ *    centred canvas — a topbar with navigation, a heading block, three plan
+ *    cards, a caption, a four-pillar band, and a navy footer. Content sits
+ *    in one ~1160px column (owner's answer, 2026-10-22); the ground is
+ *    three flat zones of the reference's periwinkle and no image asset
+ *    backs the sheet anymore.
  *  - `.auth-*`: the signed-in gate's split, restyled 2026-10-20 (restyle run,
  *    achromatic-ledger sheet). Layout lives here, not in inline styles,
  *    because the splits break into stacked bands under 880px and inline
@@ -21,71 +25,1328 @@
  * is not here: focus.css owns it app-wide, so no component can ship without
  * one.
  */
+/* The sheet's ground zones are three flat colours from the reference
+   (tokens in theme.css); the one ~1160px column is the owner's re-choice
+   over ronde enam's full-bleed canvas. */
 .pub-shell {
   min-height: 100dvh;
-  padding: 20px;
   display: flex;
   flex-direction: column;
+  background: var(--public-ground);
+  color: var(--public-ink);
 }
 
-.pub-frame {
-  max-width: 1080px;
-  margin: 0 auto;
-  flex: 1;
+/* The footer owns the bottom edge even on the rare short render (failed
+   price fetch + nothing else): the page areas above it stretch instead of
+   leaving bare ground under it. */
+.pub-shell > main {
+  flex: 1 0 auto;
+}
+
+.pub-container {
+  width: min(100% - 40px, 1160px);
+  margin-inline: auto;
+}
+
+/* Bar navigasi: logo kiri, anchor nav tengah, gate kanan — the top
+   zone of the reference's three grounds. The logo is class-held rather
+   than inline-sized so the narrow-screen rule below can shrink it
+   (owner session 2026-10-24: at 360px the 38px mark left the CTA pill
+   and the hamburger no room to share one line). */
+.pub-topbar {
+  background: var(--public-ground-top);
+  border-bottom: 1px solid rgba(47, 49, 51, 0.12);
+}
+
+.pub-logo {
+  display: block;
+  height: 38px;
+  width: auto;
+}
+
+.pub-topbar .pub-container {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 64px;
+}
+
+/* The bar's right group floats to the right end: with the text links gone
+   behind the hamburger (owner, 2026-10-24) nothing sits between logo and
+   gate, so margin auto is what keeps the pair off the logo. */
+.pub-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+/* The hamburger at the bar's far right (owner, 2026-10-24): every page
+   link on both public screens lives behind it, on every width, while the
+   enter gates stay standing beside it. The button is a 44px square so it
+   clears the phone's tap minimum; the popup is a small paper card in the
+   bar's own frame language (whisper border, soft radius), right-aligned
+   under the button so it can never collide with the page edge. */
+.pub-menu {
+  position: relative;
+  flex: none;
+}
+
+.pub-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1.5px solid rgba(36, 48, 118, 0.3);
+  border-radius: 12px;
+  background: var(--public-card);
+  color: var(--public-navy);
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.pub-menu-btn:hover {
+  background: var(--public-ground-soft);
+  border-color: var(--public-navy);
+}
+
+/* The popup is hidden with visibility (out of the tab order and the
+   accessibility tree when closed), not display, so its small rise-and-fade
+   can finish in either direction. The delay on the base rule waits for the
+   fade-out; .is-open drops it so the popup appears the moment it opens. */
+.pub-menu-pop {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 30;
+  min-width: 208px;
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--public-card);
+  border: 2px solid rgba(16, 24, 43, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 14px 34px rgba(16, 24, 43, 0.16);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease, visibility 0s linear 160ms;
 }
 
-/* The three plan cards of the 2026-10-21 reference redesign. Three-up on a
-   desktop, stacked under 880px. The .pub-frame width (1080px) decides the
-   card width; the gap here is the only spacing this class owns. */
+.pub-menu-pop.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  pointer-events: auto;
+  transition: opacity 160ms ease, transform 160ms ease, visibility 0s linear 0s;
+}
+
+/* The popup's links keep the bar's non-word marks voice (uppercase, the
+   platform label's tracking) and each row is a full 44px line: the menu a
+   thumb opens should be a thumb's menu. */
+.pub-menu-pop a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--public-muted);
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.pub-menu-pop a:hover,
+.pub-menu-pop a:focus-visible {
+  background: var(--public-ground-soft);
+  color: var(--public-navy);
+}
+
+.pub-topbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--public-navy);
+}
+
+.pub-topbar-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--public-muted);
+}
+
+.pub-topbar-sep {
+  width: 1px;
+  height: 16px;
+  background: rgba(47, 49, 51, 0.18);
+}
+
+.pub-topbar-link {
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--public-ink);
+  cursor: pointer;
+}
+
+.pub-topbar-link:hover {
+  text-decoration: underline;
+}
+
+/* The gate pill in the topbar: the reference's navy button, flat. */
+.pub-enter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--public-navy-deep);
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pub-enter:hover {
+  background: var(--public-navy-hover);
+}
+
+/* Heading block and caption live on the middle ground zone. */
+.pub-hero {
+  padding: 52px 0 64px;
+}
+
+.pub-eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.26em;
+  color: var(--public-muted-ground);
+}
+
+/* A long brand sentence instead of the short one it replaces, so the size
+   is a viewport clamp; per the owner (2026-10-23) the sentence runs the
+   full content column — the 24ch cap it first had crowded it against the
+   left edge — and the house name rides beneath it as its own navy line. */
+.pub-hero h1 {
+  margin: 14px 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(27px, 1.8vw + 10px, 40px);
+  font-weight: 700;
+  line-height: 1.16;
+  letter-spacing: -0.014em;
+  color: var(--public-ink);
+  text-wrap: balance;
+}
+
+.pub-hero-brand {
+  display: block;
+  margin-top: 6px;
+  color: var(--public-navy);
+  white-space: nowrap;
+}
+
+.pub-tagline {
+  margin: 14px 0 0;
+  max-width: 34rem;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--public-muted);
+}
+
+/* Three-up from the reference; stacked under 880px. */
 .pub-plans {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 36px;
+}
+
+/* The card is NOT a control — its radio and its button are — so the cursor
+   stays default here. The idle frame is a 2px whisper so all three cards
+   share the reference's geometry; the checked card's frame carries the
+   reference's navy (data-checked, because state lives in CSS). */
+.pub-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--public-card);
+  border: 2px solid rgba(16, 24, 43, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 12px 32px rgba(16, 24, 43, 0.14);
+  padding: 24px 24px 22px;
+}
+
+.pub-card[data-checked="true"] {
+  border-color: var(--public-navy-deep);
+}
+
+.pub-card:hover,
+.pub-card:focus-within {
+  background: var(--public-card-hover);
+}
+
+/* The radio: a ring on paper. The reference's idle ring lands under the
+   3:1 control boundary, so the tone is nudged (#8a8a8a); shape untouched. */
+.pub-radio {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid #8a8a8a;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pub-radio[aria-checked="true"] {
+  border-color: var(--public-navy);
+}
+
+/* The idle dot is a hover garnish only (accent); the checked dot is
+   monochrome navy and visible at rest — ronde 9's owner answer on the ronde
+   8 objection (a coloured dot at rest), kept the same shape. */
+.pub-radio-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--public-accent);
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.pub-card:hover .pub-radio-dot,
+.pub-card:focus-within .pub-radio-dot {
+  opacity: 1;
+}
+
+.pub-radio[aria-checked="true"] .pub-radio-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--public-navy);
+  opacity: 1;
+}
+
+/* Tone pills: lavender (FLEKSIBEL), mint (NILAI TERBAIK), solid navy on
+   whichever card is checked — the reference shows POPULER solid because
+   monthly starts checked. Data keeps its own casing; CSS uppercases. */
+.pub-badge {
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pub-badge[data-tone="lavender"] {
+  background: var(--public-lavender);
+  color: var(--public-navy);
+}
+
+.pub-badge[data-tone="mint"] {
+  background: var(--public-mint);
+  color: var(--public-green);
+}
+
+.pub-badge[data-tone="solid"] {
+  background: var(--public-navy);
+  color: #ffffff;
+}
+
+/* The benefits inside each card: name-only rows now — their descriptions
+   moved to the pillar band (ronde 9). */
+.pub-opens {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
-/* The opens panel's two icon columns. One column under 640px, when the two
-   descriptions would squeeze each other into broken wraps. */
-.pub-opens {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px 24px;
+/* Ronde 9 (owner): the button gradient retires with the image assets — the
+   CTA is flat navy, and the enclosing card's hover lifts it one notch. The
+   saving strip is visible at rest (data, not decoration), so it only
+   renders on the card whose server price supports the claim. */
+.pub-pick {
+  width: 100%;
+  min-height: 44px;
+  margin-top: auto;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--public-navy-deep);
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.pub-grid {
+.pub-card:hover .pub-pick:not(:disabled),
+.pub-card:focus-within .pub-pick:not(:disabled) {
+  background: var(--public-navy-hover);
+}
+
+/* The caption under the cards: the tax sentence is the owner's own word
+   (confirmed 2026-10-22 that prices include tax), so it reads as facts,
+   muted on the wide ground. */
+.pub-caption {
+  margin: 24px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--public-muted-ground);
+}
+
+/* The four-pillar band: the reference's lighter zone, holding what the
+   gate opens, each pillar with its one-sentence description. */
+.pub-pillars {
+  background: var(--public-ground-soft);
+  border-top: 1px solid rgba(47, 49, 51, 0.08);
+  padding: 64px 0 72px;
+}
+
+.pub-pillars-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pub-pillars h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--public-ink);
+}
+
+.pub-pillar-grid {
   display: grid;
-  grid-template-columns: minmax(0, 620px) minmax(240px, 1fr);
-  gap: 24px;
-  align-items: start;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+  background: var(--public-card);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(16, 24, 43, 0.08);
+  overflow: hidden;
+}
+
+.pub-pillar {
+  padding: 32px 28px;
+}
+
+.pub-pillar + .pub-pillar {
+  border-left: 1px solid rgba(47, 49, 51, 0.1);
+}
+
+/* The navy footer: gradient from the reference's lit corner; the ring
+   decorations are pure CSS (no content, above nothing). */
+.pub-footer {
+  position: relative;
+  overflow: hidden;
+  padding: 56px 0 32px;
+  background: linear-gradient(160deg, var(--public-footer-top) 0%, var(--public-footer) 55%);
+  color: var(--public-footer-strong);
+}
+
+.pub-footer::before,
+.pub-footer::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(201, 210, 238, 0.16);
+  pointer-events: none;
+}
+
+.pub-footer::before {
+  width: 420px;
+  height: 420px;
+  right: -140px;
+  bottom: -180px;
+}
+
+.pub-footer::after {
+  width: 280px;
+  height: 280px;
+  right: -60px;
+  bottom: -100px;
+}
+
+.pub-footer-top,
+.pub-footer-rule,
+.pub-disclaimer,
+.pub-footer-bottom {
+  position: relative;
+}
+
+.pub-footer-top {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 40px;
+}
+
+.pub-footer-head {
+  margin: 0 0 18px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--public-footer-muted);
+}
+
+.pub-footer-col ul {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pub-footer-col a,
+.pub-footer-link {
+  font-size: 15px;
+  color: var(--public-footer-strong);
+  text-decoration: none;
+}
+
+.pub-footer-col a:hover {
+  text-decoration: underline;
+}
+
+/* The contact entry waits for the owner's channel ([OWNER TO NAME] is
+   still open): an anchor without href renders like the rest but is not
+   focusable and not clickable — an honest placeholder, not a dead
+   control. */
+.pub-footer-link[aria-disabled="true"] {
+  color: var(--public-footer-muted);
+  cursor: default;
+}
+
+.pub-footer-brand .pub-footer-eyebrow {
+  margin: 20px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--public-footer-muted);
+}
+
+.pub-footer-tagline {
+  margin: 18px 0 0;
+  max-width: 360px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--public-footer-strong);
+}
+
+.pub-footer-rule {
+  height: 1px;
+  margin: 40px 0 24px;
+  background: rgba(201, 210, 238, 0.16);
+}
+
+.pub-disclaimer {
+  margin: 0;
+  max-width: 760px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--public-footer-muted);
+}
+
+.pub-footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-top: 28px;
+}
+
+.pub-footer-copy {
+  font-size: 13px;
+  color: var(--public-footer-muted);
+}
+
+/* The live clock and the update date share the mono voice of the reference
+   footer's bottom line. */
+.pub-footer-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--public-footer-muted);
+}
+
+.pub-footer-meta-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--public-accent);
+}
+
+@media (max-width: 960px) {
+  .pub-pillar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pub-pillar + .pub-pillar {
+    border-left: none;
+  }
+
+  .pub-footer-top {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 880px) {
-  .pub-grid {
-    grid-template-columns: 1fr;
-  }
-
   .pub-plans {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-}
-
-@media (max-width: 640px) {
-  .pub-opens {
     grid-template-columns: 1fr;
     gap: 16px;
   }
 }
 
-/* Motion is state feedback only (DESIGN.md). The filled control brightens;
-   the ghost one dims, matching the auth sheet's convention. */
-.pub-pick:not(:disabled):hover {
-  filter: brightness(0.94);
+/* The platform label and its furniture drop out before anything can crowd
+   the gates: on the phone the bar is logo, Masuk, Buat akun, hamburger. */
+@media (max-width: 840px) {
+  .pub-topbar-dot,
+  .pub-topbar-label,
+  .pub-topbar-sep {
+    display: none;
+  }
 }
 
-.pub-pick-solid:not(:disabled):hover {
-  filter: brightness(1.06);
+/* The narrowest phones: logo, both gates, and the 44px hamburger share one
+   line down to 360px without overflow. The 38px mark shrinks to 30px, the
+   gaps tighten, the pill holds its label on one line, and its arrow (pure
+   decoration, aria-hidden) steps out until the screen is wide again. */
+@media (max-width: 460px) {
+  .pub-topbar .pub-container {
+    gap: 10px;
+  }
+
+  .pub-topbar-right {
+    gap: 6px;
+  }
+
+  .pub-logo {
+    height: 30px;
+  }
+
+  .pub-enter {
+    white-space: nowrap;
+    padding: 9px 12px;
+  }
+
+  .pub-enter svg {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .pub-pillar-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pub-footer-top {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── The public features screen (/fitur) ──────────────────────────────────
+   The second public surface. Everything rides the tokens and classes above;
+   the lines below only hold what the features page adds on top. Motion runs
+   on the screen's declared dial (MOTION 2, one-time reveal), and it never
+   arms for reduced-motion visitors, whose page stays fully static. */
+
+/* The hero reuses .pub-hero; only its height differs: one short sentence
+   needs less air than the sheet's brand sprawl. */
+.pubf .pub-hero {
+  padding: 46px 0 34px;
+}
+
+/* The demo band, folded into the hero itself (owner, 2026-10-24): the
+   recording now opens the page instead of waiting a scroll deeper, so the
+   player sits right under the tagline. The wrapper keeps the card's own
+   frame language (2px whisper border, 18px radius) so the video reads as
+   the app's craft, not a floating player, and its width is capped against
+   the viewport height so the first screen still shows the captions below. */
+.pubf-hero-demo {
+  margin-top: 34px;
+  display: grid;
+  gap: 20px;
+  justify-items: start;
+}
+
+.pubf-video-wrap {
+  width: 100%;
+  max-width: calc(62vh * 16 / 9);
+  border: 2px solid rgba(16, 24, 43, 0.08);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--public-navy-deep);
+  box-shadow: 0 14px 34px rgba(16, 24, 43, 0.14);
+}
+
+.pubf-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--public-navy-deep);
+}
+
+/* Captions under the player: the scene names in a row of three, the
+   honest note beneath them, all inside the hero's column. */
+.pubf-demo-copy {
+  width: 100%;
+  max-width: calc(62vh * 16 / 9);
+  display: grid;
+  gap: 12px;
+}
+
+.pubf-demo-copy h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: var(--public-ink);
+}
+
+.pubf-demo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 20px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--public-muted);
+}
+
+.pubf-demo-list strong {
+  color: var(--public-ink);
+  font-weight: 700;
+}
+
+.pubf-demo-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--public-muted-ground);
+}
+
+/* The four pillars, one full block each: the copy side speaks, the example
+   side shows. Alternating ground keeps the page's rhythm (dial RHYTHM 3);
+   the icon repeats the sheet's four, one motif carried between screens. */
+.pubf-feature {
+  padding: 62px 0;
+}
+
+.pubf-feature-alt {
+  background: var(--public-ground-soft);
+}
+
+.pubf-feature-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 48px;
+  align-items: center;
+}
+
+.pubf-copy h2 {
+  margin: 14px 0 10px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: var(--public-ink);
+}
+
+.pubf-copy p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.66;
+  color: var(--public-muted);
+}
+
+/* The example card: paper like the price cards, with the navy dot motif
+   from the topbar as its list marker. */
+.pubf-example {
+  background: var(--public-card);
+  border: 2px solid rgba(16, 24, 43, 0.08);
+  border-radius: 18px;
+  padding: 22px 22px 18px;
+  box-shadow: 0 10px 26px rgba(16, 24, 43, 0.1);
+}
+
+.pubf-example-head {
+  margin: 0 0 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--public-muted-ground);
+}
+
+.pubf-example-list,
+.pubf-example-alerts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.pubf-example-list li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--public-ink);
+}
+
+.pubf-example-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--public-navy);
+}
+
+.pubf-example-alerts li {
+  display: flex;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--public-ink);
+}
+
+.pubf-example-alerts li svg {
+  flex: none;
+  margin-top: 3px;
+}
+
+.pubf-example-note {
+  margin: 16px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--public-muted-ground);
+}
+
+/* The supporting devices: plain text blocks, deliberately not cards (the
+   example column above carries the card language). */
+.pubf-tools {
+  padding: 62px 0 58px;
+}
+
+.pubf-tools-head h2 {
+  margin: 0 0 30px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: var(--public-ink);
+}
+
+.pubf-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 26px 30px;
+}
+
+.pubf-tool h3 {
+  margin: 12px 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--public-ink);
+}
+
+.pubf-tool p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--public-muted-soft);
+}
+
+.pubf-tools-note {
+  margin: 34px 0 0;
+  padding-top: 22px;
+  border-top: 1px solid rgba(47, 49, 51, 0.12);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--public-muted-ground);
+}
+
+/* The CTA: the footer's navy arriving early, flat, no gradient (the sheet's
+   buttons are flat; this band follows the same rule). The link inverts the
+   card: white paper on navy. */
+.pubf-cta {
+  background: var(--public-navy-deep);
+  padding: 58px 0;
+}
+
+.pubf-cta h2 {
+  margin: 0 0 22px;
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: #ffffff;
+}
+
+.pubf-cta-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--public-card);
+  color: var(--public-navy-deep);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: 999px;
+  padding: 13px 24px;
+  transition: background 140ms ease;
+}
+
+.pubf-cta-link:hover {
+  background: var(--public-card-hover);
+}
+
+.pubf-cta-note {
+  margin: 16px 0 0;
+  font-size: 13.5px;
+  color: var(--public-footer-muted);
+}
+
+/* The per-pillar usage steps: an ordered list, because the content is a
+   real order, with the navy numbered chip as the identity motif this
+   screen repeats (the flow band below uses the same chip). */
+.pubf-steps-head {
+  margin: 20px 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--public-muted-ground);
+}
+
+.pubf-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  counter-reset: pubf-step;
+}
+
+.pubf-steps li {
+  position: relative;
+  padding-left: 34px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--public-ink);
+  counter-increment: pubf-step;
+}
+
+.pubf-steps li::before {
+  content: counter(pubf-step);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--public-navy);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* The flow band: one scenario across the four pillars. Four cards, four
+   numbers, because the product has four pillars (not because a template
+   asks for three), each carrying the same navy chip the steps above use. */
+.pubf-flow {
+  padding: 62px 0;
+}
+
+.pubf-flow-head h2,
+.pubf-compare-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: var(--public-ink);
+}
+
+.pubf-flow-head p,
+.pubf-compare-head p {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--public-muted);
+}
+
+.pubf-flow-steps {
+  margin: 30px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.pubf-flow-step {
+  padding: 20px 20px 22px;
+  background: var(--public-card);
+  border: 2px solid rgba(16, 24, 43, 0.08);
+  border-radius: 16px;
+}
+
+.pubf-flow-num {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-bottom: 12px;
+  border-radius: 7px;
+  background: var(--public-navy);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pubf-flow-step h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--public-ink);
+}
+
+.pubf-flow-step p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--public-muted-soft);
+}
+
+.pubf-flow-note {
+  margin: 26px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid rgba(47, 49, 51, 0.12);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--public-muted-ground);
+}
+
+/* The before/after band: two cards on the soft ground. The left card stays
+   quiet (muted text, whisper border), the AIDSS card takes the navy edge
+   and the stronger lift: the contrast is the section's whole point, so the
+   hierarchy is carried by weight and colour, never by a decorative stripe. */
+.pubf-compare {
+  background: var(--public-ground-soft);
+  padding: 62px 0;
+}
+
+.pubf-compare-grid {
+  margin-top: 30px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 26px;
+}
+
+.pubf-compare-card {
+  padding: 24px;
+  background: var(--public-card);
+  border: 2px solid rgba(16, 24, 43, 0.08);
+  border-radius: 18px;
+}
+
+.pubf-compare-card-lead {
+  border-color: rgba(36, 48, 118, 0.42);
+  box-shadow: 0 12px 30px rgba(16, 24, 43, 0.12);
+}
+
+.pubf-compare-card h3 {
+  margin: 0 0 16px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--public-ink);
+}
+
+.pubf-compare-card-lead h3 {
+  color: var(--public-navy);
+}
+
+.pubf-compare-card ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.pubf-compare-card li {
+  display: grid;
+  gap: 3px;
+}
+
+.pubf-compare-card strong {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--public-muted-ground);
+}
+
+.pubf-compare-card-lead strong {
+  color: var(--public-navy);
+}
+
+.pubf-compare-card span {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--public-muted);
+}
+
+.pubf-compare-card-lead span {
+  color: var(--public-ink);
+}
+
+.pubf-compare-note {
+  margin: 24px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--public-muted-ground);
+}
+
+/* Each tool card's example, behind a native disclosure: keyboard and
+   screen readers get the open/close behaviour without a line of JS, and
+   the card keeps its one paragraph above the fold of the details. */
+.pubf-tool-more {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(47, 49, 51, 0.12);
+}
+
+.pubf-tool-more summary {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--public-navy);
+}
+
+.pubf-tool-more p {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--public-muted-soft);
+}
+
+/* The FAQ: intro column beside the disclosure list, native details/summary
+   again. Only questions this product's readers actually ask; each answer
+   repeats behaviour the screens above document. */
+.pubf-faq {
+  padding: 62px 0 58px;
+}
+
+.pubf-faq-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr);
+  gap: 48px;
+  align-items: start;
+}
+
+.pubf-faq-intro h2 {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: var(--public-ink);
+}
+
+.pubf-faq-intro p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--public-muted);
+}
+
+.pubf-faq-list {
+  display: grid;
+  gap: 12px;
+}
+
+.pubf-faq-item {
+  padding: 0 18px;
+  background: var(--public-card);
+  border: 2px solid rgba(16, 24, 43, 0.08);
+  border-radius: 14px;
+}
+
+.pubf-faq-item summary {
+  padding: 16px 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--public-ink);
+}
+
+.pubf-faq-item summary:hover {
+  color: var(--public-navy);
+}
+
+.pubf-faq-item p {
+  margin: 0 0 16px;
+  padding-right: 8px;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--public-muted);
+}
+
+/* One-time reveal, armed only by the hook (it refuses under reduced motion).
+   The hidden state exists only under the armed flag, so a no-JS render stays
+   fully visible; the transition lives on the base rule and completes once
+   when .is-in lands. The lift is small (12px) with an ease-out curve, and
+   grid children enter on a light stagger (MOTION 2's polish, owner
+   2026-10-24): a row arrives as a wave, not as eight simultaneous blocks. */
+[data-motion="armed"] [data-reveal] {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.42s ease, transform 0.42s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+[data-motion="armed"] [data-reveal].is-in {
+  opacity: 1;
+  transform: none;
+}
+
+[data-motion="armed"] .pubf-tools-grid [data-reveal]:nth-child(4n + 2) {
+  transition-delay: 70ms;
+}
+
+[data-motion="armed"] .pubf-tools-grid [data-reveal]:nth-child(4n + 3) {
+  transition-delay: 140ms;
+}
+
+[data-motion="armed"] .pubf-tools-grid [data-reveal]:nth-child(4n) {
+  transition-delay: 210ms;
+}
+
+[data-motion="armed"] .pubf-flow-steps [data-reveal]:nth-child(2) {
+  transition-delay: 90ms;
+}
+
+[data-motion="armed"] .pubf-flow-steps [data-reveal]:nth-child(3) {
+  transition-delay: 180ms;
+}
+
+[data-motion="armed"] .pubf-flow-steps [data-reveal]:nth-child(4) {
+  transition-delay: 270ms;
+}
+
+/* Belt and braces: if the media query flips after arming, the page must
+   never hold invisible content, and the hamburger popup must open without
+   its rise-and-fade for a visitor who asked for stillness. */
+@media (prefers-reduced-motion: reduce) {
+  .pubf [data-motion="armed"] [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .pub-menu-pop,
+  .pub-menu-pop.is-open {
+    transition: none;
+  }
+}
+
+@media (max-width: 1024px) {
+  .pubf-tools-grid,
+  .pubf-flow-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .pubf-feature-grid,
+  .pubf-faq-grid {
+    grid-template-columns: 1fr;
+    gap: 26px;
+  }
+
+  .pubf-compare-grid {
+    gap: 18px;
+  }
+}
+
+@media (max-width: 720px) {
+  .pubf-demo-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .pubf .pub-hero {
+    padding: 36px 0 28px;
+  }
+
+  .pubf-feature {
+    padding: 46px 0;
+  }
+
+  .pubf-flow,
+  .pubf-compare,
+  .pubf-faq {
+    padding: 46px 0;
+  }
+
+  .pubf-flow-steps,
+  .pubf-compare-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pubf-tools {
+    padding: 46px 0 42px;
+  }
+
+  .pubf-tools-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pubf-cta {
+    padding: 44px 0;
+  }
 }
 
 /*
