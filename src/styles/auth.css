@@ -58,9 +58,23 @@
   border-bottom: 1px solid rgba(47, 49, 51, 0.12);
 }
 
+/* Logo resmi (keputusan pemilik 2026-10-26): file asli dipakai apa adanya,
+   warna glyph putih asli tidak pernah diubah; ukurannya saja yang diatur.
+   Di latar terang glyph dicangkung dalam chip navy publik supaya putihnya
+   tetap kontras, tanpa tint apa pun. */
+.pub-brand-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--public-navy-deep);
+}
+
 .pub-logo {
   display: block;
-  height: 38px;
+  height: 24px;
   width: auto;
 }
 
@@ -651,8 +665,13 @@
     gap: 6px;
   }
 
+  .pub-brand-chip {
+    height: 32px;
+    padding: 0 9px;
+  }
+
   .pub-logo {
-    height: 30px;
+    height: 19px;
   }
 
   .pub-enter {
@@ -1373,15 +1392,24 @@
   color: var(--sidebar-foreground);
 }
 
-/* The name is text set in the display face, not a logo: the owner named the
-   product in DESIGN.md and an invented mark would be a claim with no author. */
-.auth-brand-name {
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: #ffffff;
+/* Logo resmi di sisi brand (latar navy sidebar): glyph putih asli file,
+   tinggi 34 menggantikan brand-name yang dulu berupa teks 22px. */
+.auth-brand-logo {
+  display: block;
+  height: 34px;
+  width: auto;
   margin: 0;
+}
+
+/* Logo di konsol operator: glyph putih asli dicangkung dalam chip navy app
+   (var(--primary) ikut tema), jadi kontras di tema terang maupun gelap. */
+.brand-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: var(--radius-sm, 8px);
+  background: var(--primary);
 }
 
 .auth-brand-sub {

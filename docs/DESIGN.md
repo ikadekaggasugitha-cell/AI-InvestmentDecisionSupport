@@ -499,3 +499,26 @@ publik (kedua layar: lembar harga dan screen fitur):
   `refreshSubscription()` saat `onAuthed` pada kedua mode AuthScreen.
   Perekam puppeteer-core menyeret Chrome lokal via CDP screencast;
   semua frame asli, tanpa aset buatan (R-23).
+- **Logo resmi (keputusan pemilik 2026-10-26)**: pemilik menamai logo via
+  `LOGO - AIDSS.svg` di folder referensi — versi ganda AIDSS + MCASS dengan
+  pemisah garis, glyph putih; kini tersimpan byte-identik sebagai
+  `src/assets/aidss-logo.svg`. Menindaklanjuti penegasan pemilik: file asli
+  dipakai apa adanya, warna asli tidak diubah, yang disesuaikan hanya
+  ukuran lebar-tinggi — pengeditan satu-satunya pada file adalah atribut
+  ukuran root (viewBox dipangkas ke bbox konten presisi alpha, kanvas
+  1500×1500 → rasio 3,34:1; width/height intrinsik ikut rasio). Semua
+  permukaan memakai mark ini:
+  sidebar app (26px + keterangan "AI Decision Support"), layar Masuk
+  (34px di panel navy), topbar lembar harga dan fitur (glyph 24px; 19px di
+  ≤460px, dicangkung dalam chip navy publik `.pub-brand-chip` agar warna
+  putih asli tetap kontras di latar terang — tanpa tint apa pun), footer
+  harga (38px, putih asli di atas navy), footer konsol operator (glyph
+  14px dalam chip navy app `.brand-chip` yang mengikuti tema), dan
+  favicon (`public/favicon.png`: perenderan file asli pada kotak brand
+  navy warna publik, warna glyph asli dipertahankan; pengganti rencana
+  invert yang justru mengubah warna dan oleh sebab itu dicabut).
+  Komentar-komentar era "logo belum dinamai, jangan mengarang" di
+  Sidebar, auth.css, dan index.html dicabut karena keputusan itu kini
+  sah. Front install tidak menyentuh teks salinan lain: disclaimers,
+  copyright "© 2026 AIDSS · MCASS", label pengirim chat "AIDSS", dan
+  data pemilik rekening tetap teks/data aslinya.

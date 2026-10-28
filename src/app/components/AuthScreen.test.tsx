@@ -164,11 +164,15 @@ describe('what the screen refuses to claim', () => {
     expect(screen.getByText(/Pembayaran dibuka setelah masuk/)).toBeInTheDocument()
   })
 
-  it('renders no emoji and no icon-only control', () => {
+  it('renders no emoji, and every image carries an accessible name', () => {
     renderScreen(makeAuth())
     const text = document.body.textContent ?? ''
     expect(text).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u)
-    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    // Dulu larangannya total karena layar tidak punya img sama sekali; kini
+    // logo resmi (dipilih pemilik 2026-10-26) hadir sebagai img dan tetap
+    // wajib punya nama. Yang ditegakkan itu unlabeled-media, bukan larangan img.
+    const imgs = screen.getAllByRole('img')
+    for (const img of imgs) expect(img).toHaveAccessibleName()
   })
 
   it('never leaks the repo name: the product is AIDSS, named in DESIGN.md', () => {

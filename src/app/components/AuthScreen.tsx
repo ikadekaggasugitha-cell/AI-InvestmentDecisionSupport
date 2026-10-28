@@ -24,6 +24,7 @@ import type { PlanKey } from "../planIntent";
 import { readPlanIntent, writePlanIntent } from "../planIntent";
 import { useTranslation, type Locale } from "../i18n/translations";
 import { PricingLink } from "./PublicPricing";
+import logoUrl from "../../assets/aidss-logo.svg";
 
 export interface AuthScreenProps {
   auth: AuthState;
@@ -186,7 +187,7 @@ export function AuthScreen({ auth, locale, onAuthed, onViewPricing, initialMode,
     <div className="auth-shell">
       <aside className="auth-brand">
         <div>
-          <p className="auth-brand-name">AIDSS</p>
+          <img className="auth-brand-logo" src={logoUrl} alt="AIDSS" />
           <p className="auth-brand-sub">AI Investment Decision Support System</p>
           <p className="auth-brand-claim" style={{ marginTop: "20px" }}>
             {isId

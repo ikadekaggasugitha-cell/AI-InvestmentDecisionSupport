@@ -13,7 +13,8 @@ import { readPlanIntent, writePlanIntent } from "../planIntent";
  *
  * Implements the tab architecture the spec defines, using only tokens that
  * already exist in src/styles/theme.css. No new colour, typeface, radius or
- * icon was introduced, because DESIGN.md has not named any.
+ * icon was introduced; the logo itself was named by the owner on 2026-10-26
+ * (see docs/DESIGN.md) after this screen shipped without one.
  *
  * Tab 2 (Subscription) reads the price, the account's own payment attempts and
  * the public bank-account list. Declaring a manual transfer needs the

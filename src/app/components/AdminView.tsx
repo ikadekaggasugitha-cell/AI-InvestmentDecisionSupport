@@ -4,6 +4,7 @@ import { ENDPOINTS, apiFetch } from "../config/api";
 import { useApp } from "../context/AppContext";
 import { AdminBankAccountsView } from "./AdminBankAccountsView";
 import { AdminPricingView } from "./AdminPricingView";
+import logoUrl from "../../assets/aidss-logo.svg";
 
 /**
  * Account administration: the list, and blocking or unblocking.
@@ -450,8 +451,12 @@ export function AdminView() {
             paddingTop: "12px",
           }}
         >
-          <span style={{ fontFamily: "var(--font-display)", fontSize: "13px", fontWeight: 700, letterSpacing: "0.02em" }}>
-            AIDSS
+          <span className="brand-chip">
+            <img
+              src={logoUrl}
+              alt="AIDSS"
+              style={{ height: 14, width: "auto", display: "block" }}
+            />
           </span>
           <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px", color: "var(--muted-foreground)" }}>
             {isId ? "Konsol operator" : "Operator console"}

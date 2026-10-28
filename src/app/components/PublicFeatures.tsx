@@ -160,7 +160,9 @@ export function PublicFeatures({
       <header className="pub-topbar">
         <div className="pub-container">
           <a href="/" onClick={link(onViewPricing)} className="pubf-logo" aria-label={isId ? "Ke lembar harga" : "To the price sheet"}>
-            <img src={logoUrl} alt="AIDSS" className="pub-logo" />
+            <span className="pub-brand-chip">
+              <img src={logoUrl} alt="AIDSS" className="pub-logo" />
+            </span>
           </a>
           <div className="pub-topbar-right">
             <span aria-hidden="true" className="pub-topbar-dot" />

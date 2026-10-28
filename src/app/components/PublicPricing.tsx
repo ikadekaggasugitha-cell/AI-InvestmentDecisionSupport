@@ -307,7 +307,9 @@ export function PublicPricing({ locale, onEnter, onSignUp, onViewFeatures, onPic
           neither gate ever hides behind the menu. */}
       <header className="pub-topbar">
         <div className="pub-container">
-          <img src={logoUrl} alt="AIDSS" className="pub-logo" />
+          <span className="pub-brand-chip">
+            <img src={logoUrl} alt="AIDSS" className="pub-logo" />
+          </span>
           <div className="pub-topbar-right">
             <span aria-hidden="true" className="pub-topbar-dot" />
             <span className="pub-topbar-label">Trading Intelligence Platform</span>

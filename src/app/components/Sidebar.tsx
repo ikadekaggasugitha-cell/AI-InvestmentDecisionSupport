@@ -14,6 +14,7 @@ import {
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "../i18n/translations";
 import type { Account } from "../hooks/useAuth";
+import logoUrl from "../../assets/aidss-logo.svg";
 
 export type ViewType =
   | "dashboard"
@@ -99,8 +100,9 @@ export function Sidebar({
       )}
 
       <aside className="flex flex-col h-full" style={sidebarStyle}>
-        {/* Wordmark. DESIGN.md names no logo, so the mark is the product name's
-            own initial, not an invented glyph (R-23). */}
+        {/* Logo resmi: keputusan pemilik 2026-10-26 (LOGO-AIDSS.svg yang kini
+            hidup di assets). Glyphnya putih di atas latar navy sidebar;
+            keterangan produk tetap ditampilkan di sampingnya. */}
         <div
           className="flex items-center gap-2.5 px-5"
           style={{
@@ -109,27 +111,13 @@ export function Sidebar({
             flexShrink: 0,
           }}
         >
-          <div
-            className="flex items-center justify-center"
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: "var(--radius-sm)",
-              background: "var(--sidebar-primary)",
-              color: "var(--sidebar-primary-foreground)",
-              fontFamily: "var(--font-display)",
-              fontWeight: 700,
-              fontSize: 13,
-              lineHeight: 1,
-            }}
-          >
-            A
-          </div>
+          <img
+            src={logoUrl}
+            alt="AIDSS"
+            style={{ height: 26, width: "auto", display: "block", flexShrink: 0 }}
+          />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 13, color: "var(--sidebar-accent-foreground)", letterSpacing: "0.04em" }}>
-              AIDSS
-            </div>
-            <div style={{ fontSize: 11, color: "var(--sidebar-foreground)", letterSpacing: "0.02em" }}>
+            <div style={{ fontSize: 11, color: "var(--sidebar-foreground)", letterSpacing: "0.02em", lineHeight: 1.3 }}>
               AI Decision Support
             </div>
           </div>
@@ -137,7 +125,7 @@ export function Sidebar({
             <button
               onClick={onClose}
               aria-label="Tutup menu"
-              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--sidebar-foreground)", display: "flex", padding: 4 }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--sidebar-foreground)", display: "flex", padding: 4, flexShrink: 0 }}
             >
               <X size={16} />
             </button>
