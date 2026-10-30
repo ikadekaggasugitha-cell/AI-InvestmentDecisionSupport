@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Radio, Clock, FlaskConical, Lock, WifiOff } from "lucide-react";
-import type { DataFreshness } from "@/app/hooks/useLiveMarket";
+import type { DataFreshness } from "@/app/features/market/useLiveMarket";
 
 /**
  * States what the prices on screen actually are.

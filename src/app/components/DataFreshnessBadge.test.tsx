@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { DataFreshnessBadge } from '@/app/components/DataFreshnessBadge'
-import { SIMULATED_FRESHNESS, type DataFreshness } from '@/app/hooks/useLiveMarket'
+import { SIMULATED_FRESHNESS, type DataFreshness } from '@/app/features/market/useLiveMarket'
 
 function freshness(overrides: Partial<DataFreshness> = {}): DataFreshness {
   return {

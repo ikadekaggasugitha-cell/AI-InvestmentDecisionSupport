@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, type CSSProperties, type ChangeEvent } fro
 import { Search, Sun, Moon, ChevronUp, ChevronDown, X, Menu } from "lucide-react";
 import { useApp } from "@/app/context/AppContext";
 import { useTranslation } from "@/app/i18n/translations";
-import type { LiveMarketData } from "@/app/hooks/useLiveMarket";
-import type { ExchangeRateData } from "@/app/hooks/useExchangeRate";
+import type { LiveMarketData } from "@/app/features/market/useLiveMarket";
+import type { ExchangeRateData } from "@/app/features/market/useExchangeRate";
 import { DataFreshnessBadge } from "@/app/components/DataFreshnessBadge";
 
 interface HeaderProps {

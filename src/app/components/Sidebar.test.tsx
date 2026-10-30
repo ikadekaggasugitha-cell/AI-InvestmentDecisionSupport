@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { Sidebar } from '@/app/components/Sidebar'
-import { SIMULATED_FRESHNESS } from '@/app/hooks/useLiveMarket'
-import type { Account } from '@/app/hooks/useAuth'
+import { SIMULATED_FRESHNESS } from '@/app/features/market/useLiveMarket'
+import type { Account } from '@/app/features/identity/useAuth'
 
 /**
  * The sidebar used to render a hardcoded operator: the name "James Davidson",

@@ -47,7 +47,7 @@ function contrast(a: string, b: string): number {
 }
 
 function sourceFiles(): string[] {
-  return globSync('app/components/**/*.tsx', { cwd: resolve(ROOT) })
+  return [...globSync('app/components/**/*.tsx', { cwd: resolve(ROOT) }), ...globSync('app/features/**/*.tsx', { cwd: resolve(ROOT) })]
     .filter((p) => !p.includes('/ui/'))
     .map((p) => resolve(ROOT, p))
 }
@@ -65,8 +65,8 @@ describe('the checker itself', () => {
   it('finds the component files it is supposed to scan', () => {
     const files = sourceFiles().map((f) => relative(ROOT, f))
     expect(files.length).toBeGreaterThan(15)
-    expect(files).toContain('app/components/PositionModal.tsx')
-    expect(files).toContain('app/components/AuthScreen.tsx')
+    expect(files).toContain('app/features/portfolio/PositionModal.tsx')
+    expect(files).toContain('app/features/identity/AuthScreen.tsx')
   })
 
   it('reads a real file rather than an empty one', () => {

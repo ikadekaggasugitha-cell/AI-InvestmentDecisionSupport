@@ -9,7 +9,7 @@
  * Candles are [date, open, high, low, close, volume] tuples.
  */
 
-import type { OHLCVCandle } from "@/app/hooks/useTechnicals";
+import type { OHLCVCandle } from "@/app/features/market/useTechnicals";
 
 type CandleTuple = [string, number, number, number, number, number];
 

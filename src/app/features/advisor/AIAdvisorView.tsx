@@ -1,0 +1,909 @@
+import { Suspense, lazy, useState, type ElementType } from "react";
+import {
+  TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp,
+  Clock, AlertTriangle, ShieldCheck, X, MoveRight,
+  ArrowUpToLine, ArrowUpFromLine, Minimize2, MoveHorizontal, Zap,
+} from "lucide-react";
+import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { useApp } from "@/app/context/AppContext";
+import { useTranslation } from "@/app/i18n/translations";
+import { useAISignals, type AISignal } from "@/app/features/dashboard/useAISignals";
+import { useBrokerSummary } from "@/app/features/signals/useBrokerSummary";
+import { useTechnicals, type SituationInfo } from "@/app/features/market/useTechnicals";
+import type { LiveMarketData } from "@/app/features/market/useLiveMarket";
+import { DataFreshnessBadge } from "@/app/components/DataFreshnessBadge";
+import { AdvisorChat } from "@/app/features/advisor/AdvisorChat";
+import { BrokerSummaryPanel } from "@/app/features/signals/BrokerSummaryPanel";
+import { EntrySignalCard } from "@/app/features/signals/EntrySignalCard";
+import { VolumeAccumulationPanel } from "@/app/features/signals/VolumeAccumulationPanel";
+import { ViewSkeleton } from "@/app/components/ViewSkeleton";
+import { ViewError } from "@/app/components/ViewError";
+import { ConsentModal } from "@/app/features/identity/ConsentGate";
+import { clearConsent, hasAcceptedConsent, writeConsent, reportConsent } from "@/app/features/identity/consent";
+import { useAuth } from "@/app/features/identity/useAuth";
+
+// Lightweight Charts is ~45KB and only an expanded card ever renders one, so
+// it is code-split rather than shipped in the initial bundle.
+const CandlestickChart = lazy(() =>
+  import("@/app/features/market/CandlestickChart").then((m) => ({ default: m.CandlestickChart })),
+);
+
+type Tier = "VERY_HIGH" | "HIGH" | "NEUTRAL" | "LOW";
+
+const TIER_CFG: Record<Tier, { color: string; bg: string; icon: ElementType }> = {
+  "VERY_HIGH": { color: "var(--gain)", bg: "var(--gain-bg)", icon: TrendingUp },
+  "HIGH": { color: "var(--gain)", bg: "var(--gain-bg)", icon: TrendingUp },
+  "NEUTRAL": { color: "var(--warning)", bg: "var(--warning-bg)", icon: Minus },
+  "LOW": { color: "var(--loss)", bg: "var(--loss-bg)", icon: TrendingDown },
+};
+
+// Probability-band wording (REC-01). Replaces the former BELI/JUAL labels,
+// whose imperative reading conflicted with OJK rule CMP-01 (GAP-01).
+function tierLabel(tier: Tier, isId: boolean): string {
+  const map: Record<Tier, [string, string]> = {
+    "VERY_HIGH": ["Probabilitas Sangat Tinggi", "Very High Probability"],
+    "HIGH": ["Probabilitas Tinggi", "High Probability"],
+    "NEUTRAL": ["Probabilitas Netral", "Neutral Probability"],
+    "LOW": ["Probabilitas Rendah", "Low Probability"],
+  };
+  return isId ? map[tier][0] : map[tier][1];
+}
+
+/* OJK-compliant probability gauge. The ring is gone: one solid ring per row
+   is a donut with one slice, only much quieter. The figure prints ink and the
+   tier chip beside the name carries the level colour. */
+function ProbabilityGauge({ uprob, tier }: { uprob: number; tier: Tier }) {
+  const isDown = tier === "LOW";
+  const displayProb = isDown ? (100 - uprob) : uprob;
+
+  return (
+    <div style={{ minWidth: 64 }}>
+      <div style={{ fontSize: 18, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)", lineHeight: 1.1 }}>
+        {displayProb}%
+      </div>
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+        {isDown ? "Prob. turun" : "Prob. naik"}
+      </div>
+    </div>
+  );
+}
+
+/* Trend direction badge — omitted entirely when no trend data is present. */
+function TrendBadge({ trend, isId }: { trend: AISignal["trend"]; isId: boolean }) {
+  if (!trend) return null;
+
+  const cfg = {
+    uptrend: { color: "var(--gain)", bg: "var(--gain-bg)", icon: TrendingUp, id: "Uptrend", en: "Uptrend" },
+    downtrend: { color: "var(--loss)", bg: "var(--loss-bg)", icon: TrendingDown, id: "Downtrend", en: "Downtrend" },
+    sideways: { color: "var(--muted-foreground)", bg: "var(--muted)", icon: MoveRight, id: "Sideways", en: "Sideways" },
+  }[trend.trend] ?? null;
+
+  if (!cfg) return null;
+  const Icon = cfg.icon;
+
+  return (
+    <span
+      className="flex items-center gap-1 rounded px-2 py-0.5"
+      style={{ background: cfg.bg }}
+      title={isId ? `Kekuatan tren: ${trend.strength}/100` : `Trend strength: ${trend.strength}/100`}
+    >
+      <Icon size={11} style={{ color: cfg.color, flexShrink: 0 }} />
+      <span style={{ fontSize: 11, fontWeight: 600, color: cfg.color, fontFamily: "var(--font-sans)" }}>
+        {isId ? cfg.id : cfg.en}
+      </span>
+    </span>
+  );
+}
+
+/* ── Price-action situation ────────────────────────────────────────────────
+ *
+ * WHERE price sits in the structure, read deterministically on the backend with
+ * ATR-scaled zones. Each label pairs a colour with an icon AND a text label
+ * (never colour alone) — same accessibility convention as TrendBadge, and it
+ * keeps the read honest under the OJK "no bare buy/sell" framing.
+ */
+const SITUATION_CFG: Record<
+  SituationInfo["situation"],
+  { tone: "gain" | "loss" | "warning" | "neutral"; icon: ElementType; id: string; en: string }
+> = {
+  tembus_resistance: { tone: "gain", icon: TrendingUp, id: "Tembus Resistance", en: "Breakout" },
+  mantul_support: { tone: "gain", icon: ArrowUpFromLine, id: "Mantul Support", en: "Support Bounce" },
+  gagal_breakdown: { tone: "gain", icon: Zap, id: "Spring (Bear Trap)", en: "Spring (Bear Trap)" },
+  uji_resistance: { tone: "warning", icon: ArrowUpToLine, id: "Uji Resistance", en: "Testing Resistance" },
+  volatility_squeeze: { tone: "warning", icon: Minimize2, id: "Squeeze Volatilitas", en: "Volatility Squeeze" },
+  gagal_breakout: { tone: "loss", icon: AlertTriangle, id: "Gagal Breakout", en: "False Breakout" },
+  tembus_support: { tone: "loss", icon: TrendingDown, id: "Tembus Support", en: "Breakdown" },
+  konsolidasi_lebar: { tone: "neutral", icon: MoveHorizontal, id: "Konsolidasi Lebar", en: "Wide Consolidation" },
+};
+
+const SITUATION_TONE: Record<string, { color: string; bg: string }> = {
+  gain: { color: "var(--gain)", bg: "var(--gain-bg)" },
+  loss: { color: "var(--loss)", bg: "var(--loss-bg)" },
+  warning: { color: "var(--warning)", bg: "var(--muted)" },
+  neutral: { color: "var(--muted-foreground)", bg: "var(--muted)" },
+};
+
+/* The primary situation pill — sits in the chart header. Null when absent. */
+function SituationBadge({ situation, isId }: { situation: SituationInfo | null; isId: boolean }) {
+  if (!situation) return null;
+  const cfg = SITUATION_CFG[situation.situation];
+  if (!cfg) return null;
+  const tone = SITUATION_TONE[cfg.tone];
+  const Icon = cfg.icon;
+
+  return (
+    <span
+      className="flex items-center gap-1 rounded px-2 py-0.5"
+      style={{ background: tone.bg }}
+      title={isId ? situation.note : situation.noteEn}
+    >
+      <Icon size={11} style={{ color: tone.color }} />
+      <span style={{ fontSize: 11, fontWeight: 600, color: tone.color }}>
+        {isId ? cfg.id : cfg.en}
+      </span>
+    </span>
+  );
+}
+
+/* The structural facts under the header: nearest S/R with signed distances, the
+ * ATR% volatility read, and a squeeze pill when the coil isn't already the
+ * primary label. Mono, muted — it grounds the badge in concrete price levels. */
+function SituationFacts({ situation, isId }: { situation: SituationInfo | null; isId: boolean }) {
+  if (!situation) return null;
+  const fmt = (n: number) => n.toLocaleString("id-ID");
+  const showSqueeze = situation.squeeze && situation.situation !== "volatility_squeeze";
+
+  return (
+    <div
+      className="flex items-center flex-wrap gap-x-3 gap-y-1"
+      style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)", margin: "6px 0 10px" }}
+    >
+      {situation.nearestSupport != null && (
+        <span>
+          Support{" "}
+          <b style={{ color: "var(--foreground)", fontWeight: 600 }}>{fmt(situation.nearestSupport)}</b>
+          {situation.distSupportPct != null && (
+            <span style={{ color: "var(--gain)" }}> −{situation.distSupportPct.toFixed(1)}%</span>
+          )}
+        </span>
+      )}
+      {situation.nearestResistance != null && (
+        <span>
+          Resistance{" "}
+          <b style={{ color: "var(--foreground)", fontWeight: 600 }}>{fmt(situation.nearestResistance)}</b>
+          {situation.distResistancePct != null && (
+            <span style={{ color: "var(--loss)" }}> +{situation.distResistancePct.toFixed(1)}%</span>
+          )}
+        </span>
+      )}
+      <span title={isId ? "Volatilitas harian (Average True Range)" : "Daily volatility (Average True Range)"}>
+        ATR <b style={{ color: "var(--foreground)", fontWeight: 600 }}>{situation.atrPct.toFixed(1)}%</b>
+      </span>
+      {showSqueeze && (
+        <span
+          className="flex items-center gap-1 rounded"
+          style={{ padding: "0 5px", color: "var(--warning)", border: "1px solid var(--warning)", opacity: 0.85 }}
+          title={isId ? "Volatilitas menyempit: potensi pergerakan eksplosif" : "Volatility compressing: potential explosive move"}
+        >
+          <Minimize2 size={9} />
+          {isId ? "Squeeze" : "Squeeze"}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Entry / stop-loss badge.
+ *
+ * Renders nothing when there is no trade plan. The backend omits the plan when
+ * no support level sits at a usable distance — showing a placeholder or a
+ * guessed level here would be worse than showing nothing, because the reader
+ * cannot tell a derived stop from an invented one.
+ */
+function TradePlanBadge({ plan, isId }: { plan: AISignal["tradePlan"]; isId: boolean }) {
+  if (!plan || plan.entryPrice == null || plan.stopLoss == null) return null;
+
+  return (
+    <span
+      className="flex items-center gap-1.5 rounded px-2 py-0.5"
+      style={{ background: "var(--muted)", border: "1px solid var(--border)" }}
+    >
+      <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+        {isId ? "Entry" : "Entry"}
+      </span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+        {plan.entryPrice.toLocaleString("id-ID")}
+      </span>
+      <span style={{ fontSize: 11, color: "var(--border)" }}>|</span>
+      <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>SL</span>
+      <span style={{ fontSize: 11, fontWeight: 600, color: "var(--loss)", fontFamily: "var(--font-mono)" }}>
+        {plan.stopLoss.toLocaleString("id-ID")}
+        {plan.stopLossPct != null && ` (${plan.stopLossPct.toFixed(1)}%)`}
+      </span>
+      {plan.riskRewardRatio != null && (
+        <>
+          <span style={{ fontSize: 11, color: "var(--border)" }}>|</span>
+          <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>R/R</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+            {plan.riskRewardRatio.toFixed(1)}
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
+
+/* SHAP waterfall bar chart */
+function ShapChart({ shap, isId }: { shap: AISignal["shap"]; isId: boolean }) {
+  const data = [...shap].sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  const chartData = data.map((d) => ({
+    name: isId ? d.factor : d.factorEn,
+    value: d.value,
+    fill: d.value >= 0 ? "var(--gain)" : "var(--loss)",
+  }));
+
+  return (
+    <div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 4, fontFamily: "var(--font-sans)" }}>
+        {isId ? "Faktor Penentu (SHAP)" : "SHAP Factor Analysis"}
+      </div>
+      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 10 }}>
+        {isId ? "Kontribusi fitur terhadap probabilitas" : "Feature contributions to probability"}
+      </div>
+      <ResponsiveContainer width="100%" height={140}>
+        <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 24, bottom: 0, left: 0 }}>
+          <XAxis
+            type="number"
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}
+            axisLine={false}
+            tickLine={false}
+            tickFormatter={(v) => `${v > 0 ? "+" : ""}${v}`}
+          />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={78}
+            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip
+            contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--foreground)" }}
+            formatter={(v: number) => [`${v > 0 ? "+" : ""}${v}`, isId ? "Kontribusi" : "Contribution"]}
+          />
+          <Bar dataKey="value" radius={[0, 2, 2, 0]}>
+            {chartData.map((entry, i) => (
+              <Cell key={`shap-${i}`} fill={entry.fill} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/* OJK Legal Disclaimer Modal */
+
+/**
+ * One recommendation card.
+ *
+ * Extracted from the list body because it owns hooks: `useTechnicals` and
+ * `useBrokerSummary` cannot be called from inside a `.map()` callback. Both are
+ * gated on `isOpen`, so a collapsed card issues no requests — otherwise every
+ * page load would fire two round trips per symbol for panels nobody has opened.
+ */
+function SignalCard({
+  rec,
+  isOpen,
+  onToggle,
+  isId,
+  t,
+  market,
+  servingSource,
+}: {
+  rec: AISignal;
+  isOpen: boolean;
+  onToggle: () => void;
+  isId: boolean;
+  // Derived from the hook rather than widened to (key: string), so a typo in a
+  // translation key fails the type check instead of rendering the key itself.
+  t: ReturnType<typeof useTranslation>["t"];
+  market: LiveMarketData;
+  /** What the API says served this signal. Provenance cannot be hardcoded: the
+   *  response names no algorithm, so only live-vs-mock is attestable. */
+  servingSource: "live" | "mock" | null;
+}) {
+  const cfg = TIER_CFG[rec.probabilityTier as Tier];
+  const Icon = cfg.icon;
+  const upPos = rec.upside >= 0;
+
+  const technicals = useTechnicals(rec.symbol, 120, isOpen);
+
+  // Live last-trade for this symbol, fed to the chart to pulse today's forming
+  // candle. Gated to the honest live case only: a real backend feed, market
+  // open, and not the simulated/offline seed. Outside that the chart stays
+  // static rather than animating numbers that aren't the market's.
+  const isLiveFeed =
+    market.source === "backend_ws" &&
+    market.isMarketOpen &&
+    !market.freshness.isSimulated;
+  const livePrice = isLiveFeed ? (market.stocks[rec.symbol]?.price ?? null) : null;
+  const broksum = useBrokerSummary(rec.symbol, 20, isOpen);
+
+  // Prefer live technicals once loaded; fall back to whatever the signal
+  // payload carried. Both may be absent, and every consumer below guards.
+  const srLevels = technicals.supportResistance.length
+    ? technicals.supportResistance
+    : (rec.supportResistance ?? []);
+  const gaps = technicals.gaps.length ? technicals.gaps : (rec.openGaps ?? []);
+  const trend = technicals.trend ?? rec.trend ?? null;
+  const snapshot = broksum.snapshot ?? rec.brokerSummary ?? null;
+  // Prefer the live technicals trade plan / note (computed on fresh bars) over
+  // whatever the signal payload carried at generation time.
+  const plan = technicals.tradePlan ?? rec.tradePlan ?? null;
+  const note =
+    (isId ? technicals.technicalNote : technicals.technicalNoteEn) ||
+    (isId ? rec.technicalNote : rec.technicalNoteEn);
+  const patterns = (isId ? rec.activePatterns : rec.activePatternsEn) ?? [];
+  const unfilledGaps = gaps.filter((g) => !g.isFilled);
+
+  return (
+    <div
+      className="rounded overflow-hidden"
+      style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+    >
+      {/* Card header. The gauge, the name column and the right metrics wrap on
+          narrow screens instead of squeezing the name against the figures —
+          flex-shrink-0 alone turned the mobile row into an overlap. */}
+      <div
+        className="flex items-start gap-4 p-5 cursor-pointer"
+        onClick={onToggle}
+        style={{ userSelect: "none", flexWrap: "wrap", rowGap: 12 }}
+      >
+        {/* Probability gauge — OJK compliant (replaces absolute buy/sell badge) */}
+        <ProbabilityGauge uprob={rec.uprob} tier={rec.probabilityTier as Tier} />
+
+        {/* Name + symbol + thesis */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+              {rec.symbol}
+            </span>
+            <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{rec.name}</span>
+            {/* Signal label — for display context only, not trading instruction.
+                Tinted surface + coloured text + icon: the colour never carries
+                the level alone, and a var() token can't take an alpha hex, so
+                the border that used `${tone}25` it is not drawn. */}
+            <span
+              className="flex items-center gap-1 rounded px-2 py-0.5"
+              style={{ background: cfg.bg }}
+            >
+              <Icon size={11} style={{ color: cfg.color }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: cfg.color, fontFamily: "var(--font-sans)" }}>
+                {tierLabel(rec.probabilityTier as Tier, isId)}
+              </span>
+            </span>
+            <TrendBadge trend={trend} isId={isId} />
+          </div>
+
+          {/* Entry / stop loss — absent when no usable support level exists */}
+          {plan && (
+            <div className="flex mt-1.5">
+              <TradePlanBadge plan={plan} isId={isId} />
+            </div>
+          )}
+
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, lineHeight: 1.5 }}>
+            {isId ? rec.thesis.substring(0, 100) + "…" : rec.thesisEn.substring(0, 100) + "…"}
+          </div>
+        </div>
+
+        {/* Right metrics — below md they drop to their own row (the name column
+            keeps its width); md and up they sit flush to the card edge. */}
+        <div className="flex items-start gap-6 flex-shrink-0 w-full md:w-auto md:ml-auto">
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 2 }}>{t("ai_target")}</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+              {rec.targetPrice.toLocaleString("id-ID")}
+            </div>
+            <div style={{ fontSize: 11, color: upPos ? "var(--gain)" : "var(--loss)", fontFamily: "var(--font-mono)" }}>
+              {upPos ? "+" : ""}{rec.upside.toFixed(1)}%
+            </div>
+          </div>
+          <div style={{ minWidth: 96 }}>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{t("ai_model_score")}</span>
+              <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: cfg.color }}>{rec.modelScore}</span>
+            </div>
+            {/* Confidence bar */}
+            <div style={{ width: "100%", height: 3, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ width: `${rec.confidence}%`, height: "100%", background: cfg.color, borderRadius: 2 }} />
+            </div>
+            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>{t("ai_confidence")}: {rec.confidence}%</div>
+          </div>
+          <div style={{ color: "var(--muted-foreground)", marginTop: 4 }}>
+            {isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded detail */}
+      {isOpen && (
+        <div
+          className="px-5 pb-5 flex flex-col gap-5"
+          style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}
+        >
+          {/* Interactive candlestick chart with S/R, entry and stop lines */}
+          <div>
+            <div className="flex items-center justify-between gap-2" style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", }}>
+                {t("ai_price_action")}
+              </div>
+              <div className="flex items-center gap-2">
+                <DataFreshnessBadge
+                  freshness={market.freshness}
+                  isConnected={market.source !== "offline_baseline"}
+                  locale={isId ? "id" : "en"}
+                  compact
+                />
+                <SituationBadge situation={technicals.situation} isId={isId} />
+              </div>
+            </div>
+            <SituationFacts situation={technicals.situation} isId={isId} />
+            <Suspense
+              fallback={
+                <div
+                  style={{
+                    height: 280, display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 11, color: "var(--muted-foreground)", background: "var(--muted)", borderRadius: 4,
+                  }}
+                >
+                  {isId ? "Memuat grafik…" : "Loading chart…"}
+                </div>
+              }
+            >
+              <CandlestickChart
+                ohlcv={technicals.ohlcv}
+                supportResistance={srLevels}
+                entryPrice={plan?.entryPrice ?? null}
+                stopLoss={plan?.stopLoss ?? null}
+                gaps={gaps}
+                situation={technicals.situation}
+                height={280}
+                locale={isId ? "id" : "en"}
+                livePrice={livePrice}
+              />
+            </Suspense>
+          </div>
+
+          {/* Actionable technical read: when to enter, where the stop is, R:R */}
+          <EntrySignalCard entry={technicals.entrySignal} plan={plan} locale={isId ? "id" : "en"} />
+
+          <div className="grid gap-5" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            {/* Left: thesis + technical note + catalysts + meta */}
+            <div className="flex flex-col gap-4">
+              {/* Full thesis — the hand-written narrative, never replaced by a template */}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
+                  {t("ai_thesis")}
+                </div>
+                <p style={{ fontSize: 12, color: "var(--foreground)", lineHeight: 1.6 }}>
+                  {isId ? rec.thesis : rec.thesisEn}
+                </p>
+              </div>
+
+              {/* Generated technical commentary — additive to the thesis above */}
+              {note && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
+                    {t("ai_technical_note")}
+                  </div>
+                  <p
+                    style={{
+                      fontSize: 12, color: "var(--foreground)", lineHeight: 1.6,
+                      background: "var(--muted)", borderRadius: 4, padding: 10,
+                    }}
+                  >
+                    {note}
+                  </p>
+                </div>
+              )}
+
+              {/* Stop loss rationale */}
+              {plan?.stopLoss != null && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
+                    {t("ai_stop_loss")}
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--loss)", fontFamily: "var(--font-mono)" }}>
+                      Rp {plan.stopLoss.toLocaleString("id-ID")}
+                    </span>
+                    {plan.stopLossPct != null && (
+                      <span style={{ fontSize: 11, color: "var(--loss)", fontFamily: "var(--font-mono)" }}>
+                        {plan.stopLossPct.toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+                    {isId ? plan.stopLossReason : plan.stopLossReasonEn}
+                  </div>
+                </div>
+              )}
+
+              {/* Candlestick patterns */}
+              {patterns.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
+                    {t("ai_patterns")}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {patterns.map((p, i) => (
+                      <span
+                        key={`${p}-${i}`}
+                        className="rounded px-2 py-0.5"
+                        style={{ background: "var(--muted)", border: "1px solid var(--border)", fontSize: 11, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}
+                      >
+                        {p}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Open gaps */}
+              {unfilledGaps.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
+                    {t("ai_open_gaps")}
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {unfilledGaps.slice(0, 3).map((g, i) => (
+                      <div key={`${g.date}-${i}`} className="flex items-center justify-between gap-2">
+                        <span style={{ fontSize: 11, color: "var(--foreground)" }}>
+                          {g.type === "gap_up" ? (isId ? "Gap naik" : "Gap up") : (isId ? "Gap turun" : "Gap down")}
+                          {" "}
+                          <span style={{ fontFamily: "var(--font-mono)" }}>{g.gapPct.toFixed(1)}%</span>
+                        </span>
+                        <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
+                          {isId ? "prob. tutup" : "fill prob."} {Math.round(g.fillProbability * 100)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Catalysts */}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
+                  {t("ai_catalysts")}
+                </div>
+                <ul className="flex flex-col gap-1.5">
+                  {(isId ? rec.catalysts : rec.catalystsEn).map((cat, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <div style={{ width: 4, height: 4, borderRadius: "50%", background: cfg.color, marginTop: 5, flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: "var(--foreground)", lineHeight: 1.5 }}>{cat}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Meta row */}
+              <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 2 }}>{t("ai_horizon")}</div>
+                  <div className="flex items-center gap-1">
+                    <Clock size={11} style={{ color: "var(--muted-foreground)" }} />
+                    <span style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+                      {isId ? rec.horizon : rec.horizonEn}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 2 }}>{t("ai_risk_level")}</div>
+                  <div className="flex items-center gap-1">
+                    <AlertTriangle size={11} style={{ color: "var(--warning)" }} />
+                    <span style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+                      {isId ? rec.risk : rec.riskEn}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 2 }}>{t("ai_upside")}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: upPos ? "var(--gain)" : "var(--loss)", fontFamily: "var(--font-mono)" }}>
+                    {upPos ? "+" : ""}{rec.upside.toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Analyst consensus */}
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 6, }}>
+                  {t("ai_analyst_consensus")}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)", lineHeight: 1.8 }}>
+                  {(isId ? rec.analystConsensus : rec.analystConsensusEn)
+                    .split(" | ")
+                    .map((line, i) => <div key={i}>{line}</div>)
+                  }
+                </div>
+              </div>
+            </div>
+
+            {/* Right: SHAP chart + broker summary */}
+            <div className="flex flex-col gap-4">
+              <div style={{ background: "var(--muted)", borderRadius: 4, padding: 16 }}>
+                <ShapChart shap={rec.shap} isId={isId} />
+                <div
+                  className="flex items-center justify-between mt-3 pt-3"
+                  style={{ borderTop: "1px solid var(--border)" }}
+                >
+                  {/* Provenance, built from what the API can actually attest.
+                      The response carries `source: "live" | "mock"` and a
+                      `modelVersion` artefact id; it names no algorithm anywhere,
+                      so a fixed "LightGBM + SHAP" was a claim the contract could
+                      never confirm, and wrong on the seed path where no model ran. */}
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                    {servingSource === "live"
+                      ? (isId ? "Sumber: model aktif" : "Source: live model")
+                      : servingSource === "mock"
+                        ? (isId ? "Sumber: data contoh" : "Source: sample data")
+                        : (isId ? "Sumber: tidak diketahui" : "Source: unknown")}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: cfg.color, fontFamily: "var(--font-mono)" }}>
+                    {t("ai_model_score")}: {rec.modelScore}
+                  </div>
+                </div>
+              </div>
+
+              {(technicals.volume || technicals.accumulation) && (
+                <div style={{ background: "var(--muted)", borderRadius: 4, padding: 16 }}>
+                  <VolumeAccumulationPanel
+                    volume={technicals.volume}
+                    accumulation={technicals.accumulation}
+                    locale={isId ? "id" : "en"}
+                  />
+                </div>
+              )}
+
+              <div style={{ background: "var(--muted)", borderRadius: 4, padding: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", fontFamily: "var(--font-sans)", marginBottom: 10, }}>
+                  {t("ai_broker_summary")}
+                </div>
+                <BrokerSummaryPanel
+                  snapshot={snapshot}
+                  history={broksum.history}
+                  source={broksum.source}
+                  locale={isId ? "id" : "en"}
+                  loading={broksum.loading}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function AIAdvisorView({ market }: { market: LiveMarketData }) {
+  const { locale } = useApp();
+  const { t } = useTranslation(locale);
+  const isId = locale === "id";
+  const [expanded, setExpanded] = useState<number | null>(null);
+  // Persisted so the gate survives a reload or navigating away and back — the
+  // previous plain useState(false) reset on every mount, which made the OJK
+  // disclaimer gate cosmetic rather than a real gate (GAP-16). Server-side
+  // recording of the acceptance for audit is a separate concern (GAP-03).
+  // Gate 2 lives in ConsentGate now, so the AI signals list is gated the same way
+  // as the advisor chat and the stock detail panel. Reading the acceptance from
+  // the shared helper keeps the "revoke" button below honest. Server-side
+  // recording of the acceptance for audit is a separate concern (GAP-03).
+  const auth = useAuth();
+  const accountId = auth.account?.id ?? null;
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState<boolean>(
+    () => hasAcceptedConsent(accountId)
+  );
+  const {
+    signals, loading, error, failure, generatedAt, isLive,
+    modelMetrics, modelVersion, servingSource,
+  } = useAISignals();
+
+  const avgUprob = signals.length
+    ? Math.round(signals.reduce((s, r) => s + r.uprob, 0) / signals.length)
+    : 0;
+  const activeSignals = signals.filter((r) => r.probabilityTier !== "NEUTRAL").length;
+
+  // The backend's own stamp, not the moment the browser received it. On the seed
+  // path there is no model run to have a time, so the tile shows a dash rather
+  // than a number that changes on every reload.
+  const lastUpdatedLabel = generatedAt && !Number.isNaN(Date.parse(generatedAt))
+    ? new Date(generatedAt).toLocaleTimeString(isId ? "id-ID" : "en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Jakarta",
+    }) + " WIB"
+    : "—";
+
+  // Walk-forward AUC from the model's training report. Null on the seed path and
+  // on a bundle with no report, so the tile shows a dash instead of a number no
+  // model produced. The sub-line is the other gate metric, decile lift, so the
+  // reader can see which quantity is being claimed rather than one bare figure.
+  const meanAuc = modelMetrics?.meanAuc ?? null;
+  const decileLift = modelMetrics?.decileLift ?? null;
+  const aucLabel = meanAuc === null ? "—" : `${(meanAuc * 100).toFixed(1)}%`;
+  const trainedAtLabel = modelMetrics?.trainedAt
+    ? new Date(modelMetrics.trainedAt).toLocaleDateString(isId ? "id-ID" : "en-GB", {
+      day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Jakarta",
+    }) + " WIB"
+    : null;
+  const aucTitle =
+    meanAuc === null
+      ? isId
+        ? "Tidak ada model ter-train untuk data ini"
+        : "No trained model produced this data"
+      : [
+        `${isId ? "AUC walk-forward" : "Walk-forward AUC"}: ${aucLabel}`,
+        decileLift === null
+          ? null
+          : `${isId ? "lift desil teratas" : "top-decile lift"}: ${(decileLift * 100).toFixed(1)} pp`,
+        trainedAtLabel
+          ? `${isId ? "dilatih" : "trained"}: ${trainedAtLabel}`
+          : null,
+        modelVersion && modelVersion !== "seed-v1.0"
+          ? `artefak: ${modelVersion}`
+          : null,
+        modelMetrics?.symbols
+          ? `${isId ? "simbol" : "symbols"}: ${modelMetrics.symbols.toLocaleString(isId ? "id-ID" : "en-US")}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+  if (loading) {
+    return <ViewSkeleton rows={5} label={isId ? "Memuat sinyal AI…" : "Loading AI signals…"} />;
+  }
+  // A fetch error no longer blanks the page: the hook keeps the last good
+  // snapshot (or seed) in `signals`, so the view stays usable and an offline
+  // banner below explains the numbers are simulated. Only a genuine empty state
+  // (no data at all) falls through to the full error screen.
+  if (error && signals.length === 0) {
+    return <ViewError message={error} failure={failure} locale={locale} />;
+  }
+
+  return (
+    <>
+      {!disclaimerAccepted && (
+        <ConsentModal
+          locale={isId ? "id" : "en"}
+          onAccept={() => {
+            // Local first, then the server — same pattern as ConsentGate
+            writeConsent(accountId);
+            setDisclaimerAccepted(true);
+            void reportConsent(accountId);
+          }}
+        />
+      )}
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5 [&>*]:shrink-0">
+
+        {/* Offline / simulated-data banner — shown only when the live fetch
+            failed. The cards below still render the last good snapshot (or the
+            bundled seed), and the hook re-polls, so this clears itself once the
+            backend is reachable again. */}
+        {/* Same rule as RiskView: a refusal is an answer from a healthy server,
+            not an outage. Blaming the connection here sent people to debug the
+            wrong thing when their only real problem was the subscription. */}
+        {error && !isLive && (
+          <div
+            className="flex items-center gap-3 px-4 py-3 rounded"
+            role="alert"
+            style={{
+              background: failure?.kind === "locked" ? "var(--warning-bg)" : "var(--loss-bg)",
+              border: `1px solid ${failure?.kind === "locked" ? "var(--warning)" : "var(--loss)"}`,
+            }}
+          >
+            <AlertTriangle
+              size={14}
+              style={{ color: failure?.kind === "locked" ? "var(--warning)" : "var(--loss)", flexShrink: 0 }}
+            />
+            <div style={{ fontSize: 13, color: "var(--foreground)", flex: 1 }}>
+              {failure?.kind === "locked" ? (
+                <>
+                  <span style={{ fontWeight: 600, color: "var(--warning)" }}>
+                    {isId ? "Sinyal tidak dikirim:" : "Signals not served:"}
+                  </span>{" "}
+                  {isId
+                    ? "langganan belum aktif. Ini bukan masalah koneksi, server berjalan baik."
+                    : "the subscription is not active. This is not a connection problem, the server is healthy."}
+                </>
+              ) : (
+                <>
+                  <span style={{ fontWeight: 600, color: "var(--loss)" }}>
+                    {isId ? "Mode simulasi:" : "Simulated mode:"}
+                  </span>{" "}
+                  {isId
+                    ? "Backend tidak terjangkau, menampilkan data simulasi. Sistem mencoba menyambung kembali otomatis."
+                    : "Backend unreachable, showing simulated data. The system is retrying automatically."}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* OJK compliance notice banner */}
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded"
+          style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)" }}
+        >
+          <ShieldCheck size={14} style={{ color: "var(--warning)", flexShrink: 0 }} />
+          <div style={{ fontSize: 13, color: "var(--foreground)", flex: 1 }}>
+            <span style={{ fontWeight: 600, color: "var(--warning)" }}>
+              {isId ? "Kepatuhan OJK:" : "OJK Compliance:"}
+            </span>
+            {" "}
+            {isId
+              ? "Seluruh output berupa Probabilitas Skor, bukan nasihat investasi atau instruksi beli/jual yang pasti."
+              : "All outputs are Probability Scores, not investment advice or definitive buy/sell instructions."}
+          </div>
+          <button
+            onClick={() => {
+              clearConsent(accountId);
+              setDisclaimerAccepted(false);
+            }}
+            aria-label={isId ? "Batalkan persetujuan OJK" : "Revoke OJK consent"}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted-foreground)", padding: 0 }}
+          >
+            <X size={12} />
+          </button>
+        </div>
+
+        {/* Header metrics. The first tile is the model's own walk-forward AUC
+            from the backend's training report, not a hardcoded string — it used
+            to read "84.7%" unconditionally, on live data and seed data alike.
+            Labelled AUC rather than "accuracy" because there is no accuracy
+            figure in the report: the label is imbalanced, so accuracy measures
+            calibration against the imbalance, which is why the training gate
+            measures AUC and decile lift. A dash means no model produced this
+            data. */}
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))" }}>
+          {/* Icon tiles out (0 of 23 study screens): the number is the identity,
+              the label sits quiet above it, and the AUC tooltip stays attached
+              to the tile. */}
+          {[
+            { label: t("ai_model_auc"), value: aucLabel, title: aucTitle },
+            { label: t("ai_active_signals"), value: String(activeSignals), title: undefined },
+            { label: t("ai_avg_confidence"), value: `${avgUprob}%`, title: undefined },
+            { label: t("ai_last_updated"), value: lastUpdatedLabel, title: undefined },
+          ].map((m) => (
+            <div key={m.label} className="rounded p-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }} title={m.title}>
+              <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 6, lineHeight: 1.4 }}>{m.label}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "var(--foreground)", fontFamily: "var(--font-mono)", lineHeight: 1 }}>{m.value}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Portfolio Q&A — streams from /v1/advisor/chat */}
+        <AdvisorChat locale={isId ? "id" : "en"} />
+
+        {/* Recommendation cards */}
+        <div className="flex flex-col gap-3">
+          {signals.map((rec) => (
+            <SignalCard
+              key={rec.id}
+              rec={rec}
+              isOpen={expanded === rec.id}
+              onToggle={() => setExpanded(expanded === rec.id ? null : rec.id)}
+              isId={isId}
+              t={t}
+              market={market}
+              servingSource={servingSource}
+            />
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}

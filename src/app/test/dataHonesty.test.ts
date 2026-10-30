@@ -78,7 +78,7 @@ describe('recency badge derived from filing time', () => {
   })
 
   it('compares minutes against the agreed 60 minute window', () => {
-    const hook = readFileSync(join(SRC, 'hooks/useNews.ts'), 'utf8')
+    const hook = readFileSync(join(SRC, 'features/news/useNews.ts'), 'utf8')
     expect(hook).toMatch(/FRESH_WINDOW_MIN\s*=\s*60/)
     expect(hook).toMatch(/isFresh:\s*minsAgo\s*<=\s*FRESH_WINDOW_MIN/)
   })
@@ -99,13 +99,13 @@ describe('model provenance the contract cannot support', () => {
   })
 
   it('derives the provenance line from the source field', () => {
-    const view = readFileSync(join(SRC, 'components/AIAdvisorView.tsx'), 'utf8')
+    const view = readFileSync(join(SRC, 'features/advisor/AIAdvisorView.tsx'), 'utf8')
     expect(view).toMatch(/servingSource\s*===\s*"live"/)
     expect(view).toMatch(/servingSource\s*===\s*"mock"/)
   })
 
   it('exposes servingSource from the signals hook', () => {
-    const hook = readFileSync(join(SRC, 'hooks/useAISignals.ts'), 'utf8')
+    const hook = readFileSync(join(SRC, 'features/dashboard/useAISignals.ts'), 'utf8')
     expect(hook).toMatch(/servingSource/)
     expect(hook).toMatch(/source\s*===\s*"live"\s*\|\|\s*env\.source\s*===\s*"mock"|env\.source/)
   })
@@ -113,13 +113,13 @@ describe('model provenance the contract cannot support', () => {
 
 describe('"Last Updated" is never the browser clock', () => {
   it('does not seed the timestamp from Date.now()', () => {
-    const hook = readFileSync(join(SRC, 'hooks/useAISignals.ts'), 'utf8')
+    const hook = readFileSync(join(SRC, 'features/dashboard/useAISignals.ts'), 'utf8')
     expect(hook).not.toMatch(/useState[^)]*new Date\(\)\.toISOString\(\)/)
     expect(hook).not.toMatch(/setLastFetched/)
   })
 
   it('reads generatedAt from the response envelope instead', () => {
-    const hook = readFileSync(join(SRC, 'hooks/useAISignals.ts'), 'utf8')
+    const hook = readFileSync(join(SRC, 'features/dashboard/useAISignals.ts'), 'utf8')
     expect(hook).toMatch(/generatedAt/)
   })
 })
@@ -139,7 +139,7 @@ describe('fabricated operator identity', () => {
 
 describe('transaction ledger provenance', () => {
   it('labels the seed rows rather than passing them off as the user own trades', () => {
-    const view = readFileSync(join(SRC, 'components/DashboardView.tsx'), 'utf8')
+    const view = readFileSync(join(SRC, 'features/dashboard/DashboardView.tsx'), 'utf8')
     expect(view).toMatch(/Data contoh/)
     expect(view).toMatch(/txIsSample/)
   })
@@ -192,14 +192,14 @@ describe('no text characters used as icons', () => {
   })
 
   it('keeps the watchlist affordance on the Star SVG, not a text glyph', () => {
-    const view = code(join(SRC, 'components/MarketsView.tsx'))
+    const view = code(join(SRC, 'features/market/MarketsView.tsx'))
     expect(view).not.toMatch(PICTOGRAPH)
     // Three sites: the quick-view tab, the column header, the empty-state hint.
     expect((view.match(/<Star\b/g) ?? []).length).toBeGreaterThanOrEqual(3)
   })
 
   it('marks every decorative icon in MarketsView aria-hidden', () => {
-    const view = code(join(SRC, 'components/MarketsView.tsx'))
+    const view = code(join(SRC, 'features/market/MarketsView.tsx'))
     const icons = [...view.matchAll(/<(Star|ChevronsUpDown|ChevronUp|ChevronDown|ArrowUpRight|ArrowDownRight)\b[^>]*\/>/g)].map((m) => m[0])
     expect(icons.length).toBeGreaterThan(0)
     const missing = icons.filter((i) => !/aria-hidden|aria-label|role=/.test(i))
@@ -217,7 +217,7 @@ describe('no text characters used as icons', () => {
   })
 
   it('uses SVG icons for the sort affordance in both states', () => {
-    const view = code(join(SRC, 'components/MarketsView.tsx'))
+    const view = code(join(SRC, 'features/market/MarketsView.tsx'))
     // The unsorted state used a bare U+2195 next to real Chevron SVGs, so the
     // header visibly jumped between states.
     expect(view).toMatch(/<ChevronsUpDown/)
@@ -267,8 +267,8 @@ describe('palette follows the theme', () => {
   })
 
   it('gives every donut cell an explicit stroke', () => {
-    for (const view of ['PortfolioView.tsx', 'DashboardView.tsx']) {
-      const text = readFileSync(join(SRC, 'components', view), 'utf8')
+    for (const view of ['features/portfolio/PortfolioView.tsx', 'features/dashboard/DashboardView.tsx']) {
+      const text = readFileSync(join(SRC, view), 'utf8')
       const cells = [...text.matchAll(/<Cell[^>]*>/g)].map((m) => m[0])
       const donutCells = cells.filter((c) => c.includes('fill={s.color}') || c.includes('PIE_COLORS'))
       if (donutCells.length === 0) continue
@@ -279,8 +279,8 @@ describe('palette follows the theme', () => {
   })
 
   it('uses the accent-foreground token rather than white on a coloured button', () => {
-    for (const view of ['PortfolioView.tsx', 'PositionModal.tsx', 'AdvisorChat.tsx']) {
-      const text = readFileSync(join(SRC, 'components', view), 'utf8')
+    for (const view of ['features/portfolio/PortfolioView.tsx', 'features/portfolio/PositionModal.tsx', 'features/advisor/AdvisorChat.tsx']) {
+      const text = readFileSync(join(SRC, view), 'utf8')
       expect(text).not.toMatch(/color:\s*"#fff"/)
     }
   })

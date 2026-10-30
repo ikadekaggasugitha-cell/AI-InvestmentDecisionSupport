@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useApp } from "@/app/context/AppContext";
 import { useTranslation } from "@/app/i18n/translations";
-import type { Account } from "@/app/hooks/useAuth";
+import type { Account } from "@/app/features/identity/useAuth";
 import logoUrl from "@/assets/aidss-logo.svg";
 
 export type ViewType =
