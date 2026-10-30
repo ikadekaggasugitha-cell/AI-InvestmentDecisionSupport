@@ -54,3 +54,9 @@ Thumbs.db
 .scratch
 graphify-out/
 .aider*
+
+# ── Session recording artifacts (design-taste-frontend runs) ─────────────────
+# Before-restyle captures no longer represent the app; keep after/critique/mock.
+.taste-skill/session-before/
+.taste-skill/before/
+.taste-skill/before-harga/
