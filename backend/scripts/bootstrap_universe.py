@@ -74,7 +74,7 @@ async def _run(with_ohlcv: bool, days: int | None) -> int:
               f"{bf.get('instruments', 0)} instruments.")
 
     print("\nDone. Next: start the API and open the Markets view, or run "
-          "`python -m ml.training.train_signals_v2` to score the board.")
+          "`python -m ml.training.train_signals` to score the board.")
     return 0
 
 

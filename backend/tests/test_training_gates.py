@@ -9,7 +9,7 @@ questions later.
 
 import pytest
 
-from ml.training.train_signals_v2 import (
+from ml.training.train_signals import (
     MIN_AUC,
     MIN_FOLDS_POSITIVE,
     MIN_DECILE_LIFT,

@@ -42,9 +42,9 @@ flower==2.0.1          # Celery monitoring UI
 # ── Database ────────────────────────────────────────────────────────────────
 asyncpg==0.31.0        # Async PostgreSQL / TimescaleDB driver (API + workers)
 # Synchronous driver, required by the training entrypoints: pandas.read_sql in
-# ml/training/train_signals_v2.py runs outside an event loop. It was imported
-# there and in train_signals.py but absent from this file, so
-# `python -m ml.training.train_signals_v2` — the command config.py and
+# ml/training/train_signals.py runs outside an event loop. It was imported
+# there but absent from this file, so
+# `python -m ml.training.train_signals` — the command config.py and
 # signal_service.py both tell operators to run — died at import in any
 # environment built from requirements.txt.
 psycopg2-binary==2.9.12

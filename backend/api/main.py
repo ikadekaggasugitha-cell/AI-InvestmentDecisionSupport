@@ -437,13 +437,13 @@ Set `AUTH_BYPASS=true` in `.env` for development.
                     checks["model"] = (
                         f"{latest.name} — STALE ({age_days}d > "
                         f"{settings.model_max_age_days}d); retrain with "
-                        "`python -m ml.training.train_signals_v2`"
+                        "`python -m ml.training.train_signals`"
                     )
                     degraded = True
         else:
             checks["model"] = "absent"
             if not settings.use_mock_signals:
-                checks["model"] = "absent — run `python -m ml.training.train_signals_v2`"
+                checks["model"] = "absent — run `python -m ml.training.train_signals`"
                 degraded = True
 
         # Drift monitoring liveness. The weekly PSI check only reports when it
@@ -469,7 +469,7 @@ Set `AUTH_BYPASS=true` in `.env` for development.
                 if reason == "no_baseline":
                     checks["drift"] += (
                         "; PSI has no reference sample, retrain with "
-                        "`python -m ml.training.train_signals_v2`"
+                        "`python -m ml.training.train_signals`"
                     )
             else:
                 max_psi = drift.get("max_psi")

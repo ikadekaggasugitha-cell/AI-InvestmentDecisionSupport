@@ -15,7 +15,7 @@ one where every endpoint serves real data:
 
     # 3. train the signal model on that history (writes to backend/models/ if it
     #    clears the walk-forward AUC gate)
-    python -m ml.training.train_signals_v2
+    python -m ml.training.train_signals
 
 Prices come per-symbol from the Yahoo provider (real IDX quotes, vendor-delayed).
 The universe is broad on purpose: the signal model ranks cross-sectionally, so a
@@ -67,7 +67,7 @@ async def _run(days: int, universe: list[str]) -> None:
     end = datetime.now(timezone.utc)
     await _refresh_continuous_aggregate(end - timedelta(days=days + 5), end)
     print(f"\nDONE: {total} rows across {filled}/{len(universe)} symbols.")
-    print("Next: python -m ml.training.train_signals_v2   # train the signal model")
+    print("Next: python -m ml.training.train_signals   # train the signal model")
 
 
 def main() -> None:

@@ -119,7 +119,7 @@ def check_drift(self) -> dict:
     if not baseline:
         logger.warning(
             "monitoring_worker: model %s has no feature_baseline — retrain with "
-            "`python -m ml.training.train_signals_v2` to enable drift monitoring",
+            "`python -m ml.training.train_signals` to enable drift monitoring",
             bundle.get("version"),
         )
         outcome = {
@@ -129,7 +129,7 @@ def check_drift(self) -> dict:
             "detail": (
                 "Model carries no feature_baseline, so PSI has no reference to "
                 "compare against. Retrain with "
-                "`python -m ml.training.train_signals_v2`."
+                "`python -m ml.training.train_signals`."
             ),
         }
         _record_drift_status(outcome)

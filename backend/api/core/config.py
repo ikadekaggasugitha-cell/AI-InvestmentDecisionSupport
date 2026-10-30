@@ -166,7 +166,7 @@ class Settings(BaseSettings):
     #
     # Signals need two things present or they fall back to clearly-labelled
     # seed data: a trained model in backend/models/ (build one with
-    # `python -m ml.training.train_signals_v2`) and a populated `ohlcv` table.
+    # `python -m ml.training.train_signals`) and a populated `ohlcv` table.
     # The table is required because the model uses cross-sectional rank
     # features that cannot be reproduced from the fifteen displayed symbols
     # alone — they were fitted against the whole board.

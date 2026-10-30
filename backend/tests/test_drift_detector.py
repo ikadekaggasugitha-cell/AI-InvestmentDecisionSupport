@@ -70,7 +70,7 @@ class TestCheckFeatureDrift:
 
 class TestFeatureBaseline:
     def test_baseline_is_capped_and_keyed_by_feature(self):
-        from ml.training.train_signals_v2 import (
+        from ml.training.train_signals import (
             BASELINE_SAMPLE_PER_FEATURE,
             FEATURE_COLUMNS,
             _build_feature_baseline,
@@ -86,7 +86,7 @@ class TestFeatureBaseline:
             assert len(values) == BASELINE_SAMPLE_PER_FEATURE
 
     def test_baseline_drops_nan_and_survives_short_columns(self):
-        from ml.training.train_signals_v2 import _build_feature_baseline
+        from ml.training.train_signals import _build_feature_baseline
 
         df = pd.DataFrame({"ret_5d": [1.0, np.nan, 2.0, np.nan, 3.0]})
         baseline = _build_feature_baseline(df)

@@ -66,7 +66,7 @@ Populate real data and train the model:
 
 ```bash
 python scripts/bootstrap_real_data.py            # backfill real IDX OHLCV
-python -m ml.training.train_signals_v2           # train the signal model (enforces AUC/lift gates)
+python -m ml.training.train_signals           # train the signal model (enforces AUC/lift gates)
 ```
 
 Health: `GET /health` (readiness — 503 when a hard dependency is down),

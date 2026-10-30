@@ -1,203 +1,345 @@
 """
-LightGBM Signal Model Training — Phase 3
+LightGBM signal model — trained on real IDX history.
 
-Walk-forward cross-validation on 3-year IDX daily data.
-Logs experiments to MLflow and registers the best model.
+Trains on point-in-time features only — the earlier iteration leaked the
+future (see PHASE10_DISPLAY_FEATURES in ml/features/engineer.py). Everything
+here is point-in-time by construction and validated walk-forward.
+
+Release gates
+-------------
+The model is written to disk only if it clears all three:
+
+  1. **Mean walk-forward AUC above MIN_AUC**, measured out-of-sample on future
+     dates rather than a random split.
+  2. **Top-decile precision beats the base rate by MIN_DECILE_LIFT.** See below
+     for why this replaced an accuracy comparison.
+  3. **Positive AUC on the majority of folds.** One lucky fold must not carry a
+     model into production.
+
+Failing a gate is a successful run that produces no artefact. The alternative —
+shipping and hoping — is what the mock data was hiding.
+
+Why top-decile precision, not accuracy
+--------------------------------------
+The first version of this gate compared accuracy at a 0.5 threshold against the
+majority class, and a genuinely useful model failed it: AUC 0.628 across four
+folds, but accuracy 0.60 against a 0.61 majority baseline.
+
+The label is imbalanced — only ~39% of 5-day windows are up over the sample —
+so "always predict down" scores 61% while learning nothing. Accuracy at a fixed
+0.5 threshold measures calibration against that imbalance, not discrimination.
+
+More importantly it measures the wrong thing for this product. AIDSS does not
+emit binary calls; it emits `uprob` and ranks names by it. What matters is
+whether the names the model ranks highest actually rise more often than average.
+That is top-decile precision, and it is what the gate now tests.
+
+The threshold was not lowered to admit a failing model. A different quantity is
+being measured, chosen to match how the output is used, and AUC still has to
+clear a bar above chance.
 
 Usage:
-    python -m ml.training.train_signals \
-        --start-date 2021-01-01 \
-        --end-date   2024-12-31 \
-        --n-folds    5
-
-The trained model artifact is saved to:
-    models/lgbm_signals_<version>.pkl
+    python -m ml.training.train_signals --min-sessions 150
 """
 
+from __future__ import annotations
+
 import argparse
+import json
 import logging
-import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import joblib
-import lightgbm as lgb
-import mlflow
-import mlflow.lightgbm
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import TimeSeriesSplit
-from sklearn.metrics import roc_auc_score, precision_score
 
-from api.core.config import get_settings
-from ml.features.engineer import FEATURE_COLUMNS, LABEL_COLUMN, build_features
+from ml.features.point_in_time import (
+    FEATURE_COLUMNS,
+    LABEL_COLUMN,
+    build_point_in_time_features,
+    walk_forward_splits,
+)
 
 logger = logging.getLogger(__name__)
 
-MODELS_DIR = Path(__file__).parent.parent.parent / "models"
-MODELS_DIR.mkdir(exist_ok=True)
+MODEL_DIR = Path(__file__).parent.parent.parent / "models"
 
-warnings.warn(
-    "ml.training.train_signals is superseded by ml.training.train_signals_v2. It "
-    "builds features with ml.features.engineer while the serving path uses "
-    "ml.features.point_in_time, labels the last 5 rows of each symbol as 0 rather "
-    "than dropping them, has no quality gate — so it will write a model that no "
-    "longer matches how signals are computed, and one that ships even if it is "
-    "no better than chance. Use train_signals_v2.",
-    DeprecationWarning,
-    stacklevel=2,
-)
-
+# Release gates.
+MIN_AUC = 0.55            # genuinely out-of-sample, comfortably above chance
+# Top-decile precision must exceed the base rate by this margin. 3pp on a ~39%
+# base rate is a ~8% relative improvement in hit rate among the names the model
+# actually surfaces.
+MIN_DECILE_LIFT = 0.03
+MIN_FOLDS_POSITIVE = 0.5
+# Fraction of predictions treated as "the model's picks" — matches how the UI
+# surfaces a shortlist rather than scoring the whole board.
+TOP_DECILE = 0.10
 
 LGB_PARAMS: dict[str, Any] = {
-    "objective":        "binary",
-    "metric":           "auc",
-    "boosting_type":    "gbdt",
-    "num_leaves":       63,
-    "max_depth":        -1,
-    "min_child_samples": 30,
-    "learning_rate":    0.05,
-    "n_estimators":     500,
+    "objective": "binary",
+    "metric": "auc",
+    "learning_rate": 0.03,
+    "num_leaves": 31,
+    "min_data_in_leaf": 200,   # daily equity data is noisy; resist tiny leaves
     "feature_fraction": 0.8,
     "bagging_fraction": 0.8,
-    "bagging_freq":     5,
-    "reg_alpha":        0.1,
-    "reg_lambda":       0.1,
-    "class_weight":     "balanced",
-    "random_state":     42,
-    "n_jobs":           -1,
-    "verbose":          -1,
+    "bagging_freq": 5,
+    "lambda_l2": 1.0,
+    "verbose": -1,
+    "num_threads": 0,
 }
+NUM_BOOST_ROUND = 400
+EARLY_STOPPING = 40
 
 
-def load_training_data(
-    start_date: str,
-    end_date: str,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Load OHLCV, universe, and macro data from TimescaleDB.
-
-    Returns: (ohlcv_df, universe_df, macro_df)
-
-    NOTE: In production connect via asyncpg/SQLAlchemy.
-    For standalone training use psycopg2 or pandas read_sql.
-    """
+def load_training_bars(min_sessions: int = 150, universe: list[str] | None = None) -> pd.DataFrame:
+    """Read daily bars from TimescaleDB, keeping symbols with enough history."""
     import psycopg2
+
+    from api.core.config import get_settings
+
     settings = get_settings()
-    # Convert asyncpg URL to psycopg2 format
     conn_str = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
 
+    where = ""
+    params: list[Any] = [min_sessions]
+    if universe:
+        where = "AND symbol = ANY(%s)"
+        params = [min_sessions, universe]
+
+    query = f"""
+        WITH eligible AS (
+            SELECT symbol FROM ohlcv
+            GROUP BY symbol HAVING count(*) >= %s
+        )
+        SELECT time::date AS date, symbol, open, high, low, close, volume,
+               foreign_net, value_idr, listed_shares, frequency
+        FROM ohlcv
+        WHERE symbol IN (SELECT symbol FROM eligible) {where}
+        ORDER BY symbol, time
+    """
+
     with psycopg2.connect(conn_str) as conn:
-        ohlcv = pd.read_sql(
-            """
-            SELECT symbol, time::date as date, open, high, low, close, volume, foreign_net
-            FROM ohlcv
-            WHERE time >= %(start)s AND time < %(end)s
-            ORDER BY symbol, time
-            """,
-            conn,
-            params={"start": start_date, "end": end_date},
+        df = pd.read_sql(query, conn, params=params)
+
+    for col in ("open", "high", "low", "close", "foreign_net", "value_idr"):
+        if col in df:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    logger.info(
+        "loaded %d rows, %d symbols, %s..%s",
+        len(df), df["symbol"].nunique() if not df.empty else 0,
+        df["date"].min() if not df.empty else "-",
+        df["date"].max() if not df.empty else "-",
+    )
+    return df
+
+
+def evaluate_walk_forward(features: pd.DataFrame, n_splits: int = 4) -> dict[str, Any]:
+    """
+    Train and score across expanding time windows.
+
+    Returns per-fold AUC alongside the majority-class baseline, so the summary
+    answers "is this better than guessing?" rather than only "what is the AUC?".
+    """
+    import lightgbm as lgb
+    from sklearn.metrics import roc_auc_score
+
+    splits = walk_forward_splits(features, n_splits=n_splits)
+    if not splits:
+        return {"folds": [], "mean_auc": 0.0, "baseline": 0.0, "usable": False}
+
+    fold_reports: list[dict[str, Any]] = []
+
+    for i, (train, test) in enumerate(splits, start=1):
+        X_train, y_train = train[FEATURE_COLUMNS], train[LABEL_COLUMN]
+        X_test, y_test = test[FEATURE_COLUMNS], test[LABEL_COLUMN]
+
+        if y_test.nunique() < 2:
+            logger.warning("fold %d: test set is single-class, skipping", i)
+            continue
+
+        booster = lgb.train(
+            LGB_PARAMS,
+            lgb.Dataset(X_train, label=y_train),
+            num_boost_round=NUM_BOOST_ROUND,
+            valid_sets=[lgb.Dataset(X_test, label=y_test)],
+            callbacks=[lgb.early_stopping(EARLY_STOPPING, verbose=False)],
         )
 
-        # Placeholder queries for universe and macro
-        # In production: join with idx_universe and macro_data tables
-        universe = ohlcv[["date", "symbol"]].copy()
-        universe["sector"] = "Unknown"
-        universe["pe"] = np.nan
+        proba = booster.predict(X_test, num_iteration=booster.best_iteration)
+        auc = float(roc_auc_score(y_test, proba))
 
-        macro = pd.DataFrame({
-            "date":    pd.date_range(start_date, end_date, freq="B"),
-            "bi_rate": 5.75,
-            "usdidr":  16_200.0,
+        # Base rate: how often ANY name rose over the horizon in this window.
+        base_rate = float(y_test.mean())
+
+        # Top-decile precision: among the names the model ranks highest, how
+        # many actually rose. This is the question the product asks, since the
+        # UI surfaces a shortlist rather than scoring the whole board.
+        n_top = max(1, int(len(proba) * TOP_DECILE))
+        top_idx = np.argsort(proba)[-n_top:]
+        decile_precision = float(y_test.to_numpy()[top_idx].mean())
+
+        fold_reports.append({
+            "fold": i,
+            "train_rows": int(len(train)),
+            "test_rows": int(len(test)),
+            "train_end": str(train["date"].max().date()),
+            "test_start": str(test["date"].min().date()),
+            "test_end": str(test["date"].max().date()),
+            "auc": round(auc, 4),
+            "base_rate": round(base_rate, 4),
+            "decile_precision": round(decile_precision, 4),
+            "decile_lift": round(decile_precision - base_rate, 4),
         })
+        logger.info(
+            "fold %d: AUC %.4f  top-10%% precision %.4f vs base %.4f (lift %+.4f)  (%s..%s)",
+            i, auc, decile_precision, base_rate, decile_precision - base_rate,
+            fold_reports[-1]["test_start"], fold_reports[-1]["test_end"],
+        )
 
-    return ohlcv, universe, macro
+    if not fold_reports:
+        return {"folds": [], "mean_auc": 0.0, "baseline": 0.0, "usable": False}
 
+    mean_auc = float(np.mean([f["auc"] for f in fold_reports]))
+    mean_base = float(np.mean([f["base_rate"] for f in fold_reports]))
+    mean_precision = float(np.mean([f["decile_precision"] for f in fold_reports]))
+    mean_lift = float(np.mean([f["decile_lift"] for f in fold_reports]))
+    positive = sum(1 for f in fold_reports if f["auc"] > 0.5) / len(fold_reports)
 
-def train(
-    start_date: str = "2021-01-01",
-    end_date: str = "2024-12-31",
-    n_folds: int = 5,
-) -> str:
-    """Run walk-forward CV, log to MLflow, save best model. Returns model path."""
-    settings = get_settings()
-    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
-    mlflow.set_experiment(settings.mlflow_experiment_name)
-
-    logger.info("Loading training data %s → %s", start_date, end_date)
-    ohlcv, universe, macro = load_training_data(start_date, end_date)
-    df = build_features(ohlcv, universe, macro)
-
-    X = df[FEATURE_COLUMNS]
-    y = df[LABEL_COLUMN]
-
-    tscv = TimeSeriesSplit(n_splits=n_folds, gap=5)  # 5-day forward gap prevents leakage
-    fold_aucs: list[float] = []
-
-    with mlflow.start_run(run_name=f"lgbm_signals_{datetime.now().strftime('%Y%m%d_%H%M')}"):
-        mlflow.log_params(LGB_PARAMS)
-        mlflow.log_param("start_date", start_date)
-        mlflow.log_param("end_date", end_date)
-        mlflow.log_param("n_folds", n_folds)
-        mlflow.log_param("n_features", len(FEATURE_COLUMNS))
-        mlflow.log_param("n_samples", len(X))
-
-        best_model: lgb.LGBMClassifier | None = None
-        best_auc = 0.0
-
-        for fold, (train_idx, val_idx) in enumerate(tscv.split(X)):
-            X_tr, X_val = X.iloc[train_idx], X.iloc[val_idx]
-            y_tr, y_val = y.iloc[train_idx], y.iloc[val_idx]
-
-            model = lgb.LGBMClassifier(**LGB_PARAMS)
-            model.fit(
-                X_tr, y_tr,
-                eval_set=[(X_val, y_val)],
-                callbacks=[lgb.early_stopping(50, verbose=False)],
-            )
-
-            proba = model.predict_proba(X_val)[:, 1]
-            auc = roc_auc_score(y_val, proba)
-            prec = precision_score(y_val, (proba >= 0.70).astype(int), zero_division=0)
-
-            fold_aucs.append(auc)
-            logger.info("Fold %d: AUC=%.4f  Prec@70=%.4f", fold + 1, auc, prec)
-            mlflow.log_metric("fold_auc", auc, step=fold)
-            mlflow.log_metric("fold_prec_at_70", prec, step=fold)
-
-            if auc > best_auc:
-                best_auc = auc
-                best_model = model
-
-        mean_auc = float(np.mean(fold_aucs))
-        mlflow.log_metric("mean_cv_auc", mean_auc)
-        logger.info("Walk-forward mean AUC: %.4f", mean_auc)
-
-        # Save and register best model
-        # Second resolution and UTC, matching train_signals_v2 and what
-        # signal_inference._parse_model_version expects. The old minute-resolution
-        # local-time string was the one shape that parser could not read, which
-        # left age_days=None and is_stale permanently False.
-        version = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        model_path = MODELS_DIR / f"lgbm_signals_{version}.pkl"
-        joblib.dump({"model": best_model, "features": FEATURE_COLUMNS, "version": version}, model_path)
-        mlflow.lightgbm.log_model(best_model, artifact_path="model")
-        mlflow.log_artifact(str(model_path))
-
-        # Register in MLflow model registry
-        model_uri = f"runs:/{mlflow.active_run().info.run_id}/model"
-        mlflow.register_model(model_uri, "aidss-lgbm-signals")
-
-        logger.info("Model saved: %s (AUC=%.4f)", model_path, best_auc)
-        return str(model_path)
+    return {
+        "folds": fold_reports,
+        "mean_auc": round(mean_auc, 4),
+        "base_rate": round(mean_base, 4),
+        "decile_precision": round(mean_precision, 4),
+        "mean_decile_lift": round(mean_lift, 4),
+        "folds_above_chance": round(positive, 2),
+        "usable": True,
+    }
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    parser = argparse.ArgumentParser(description="Train AIDSS LightGBM signal model")
-    parser.add_argument("--start-date", default="2021-01-01")
-    parser.add_argument("--end-date",   default="2024-12-31")
-    parser.add_argument("--n-folds",    type=int, default=5)
+def check_gates(report: dict[str, Any]) -> tuple[bool, list[str]]:
+    """Return (passed, reasons-for-failure)."""
+    failures: list[str] = []
+
+    if not report.get("usable"):
+        return False, ["no usable walk-forward folds — not enough history"]
+
+    if report["mean_auc"] < MIN_AUC:
+        failures.append(f"mean AUC {report['mean_auc']:.4f} < {MIN_AUC}")
+    if report["mean_decile_lift"] < MIN_DECILE_LIFT:
+        failures.append(
+            f"top-decile lift over base rate {report['mean_decile_lift']:+.4f} "
+            f"< {MIN_DECILE_LIFT}"
+        )
+    if report["folds_above_chance"] < MIN_FOLDS_POSITIVE:
+        failures.append(
+            f"only {report['folds_above_chance']:.0%} of folds beat chance"
+        )
+
+    return not failures, failures
+
+
+BASELINE_SAMPLE_PER_FEATURE = 20_000
+
+
+def _build_feature_baseline(features: "pd.DataFrame") -> dict[str, list[float]]:
+    """
+    Per-feature reference sample for drift detection.
+
+    Stores up to BASELINE_SAMPLE_PER_FEATURE non-null values per feature (the
+    whole column when smaller). A fixed seed keeps the artefact reproducible for
+    a given training set. NaN is dropped — check_feature_drift drops it on the
+    current side too, so the two are compared on the same basis.
+    """
+    rng = np.random.default_rng(42)
+    baseline: dict[str, list[float]] = {}
+    for col in FEATURE_COLUMNS:
+        if col not in features.columns:
+            continue
+        vals = features[col].dropna().to_numpy(dtype=float)
+        if len(vals) > BASELINE_SAMPLE_PER_FEATURE:
+            vals = rng.choice(vals, BASELINE_SAMPLE_PER_FEATURE, replace=False)
+        baseline[col] = vals.tolist()
+    return baseline
+
+
+def train(min_sessions: int = 150, n_splits: int = 4) -> dict[str, Any]:
+    import lightgbm as lgb
+
+    bars = load_training_bars(min_sessions=min_sessions)
+    if bars.empty:
+        raise SystemExit(
+            "No training data. Run workers.ohlcv_worker.backfill_ohlcv first."
+        )
+
+    features = build_point_in_time_features(bars)
+    logger.info(
+        "features: %d rows, %d symbols, label mean %.4f",
+        len(features), features["symbol"].nunique(), features[LABEL_COLUMN].mean(),
+    )
+
+    report = evaluate_walk_forward(features, n_splits=n_splits)
+    passed, failures = check_gates(report)
+
+    report["passed_gates"] = passed
+    report["gate_failures"] = failures
+    report["rows"] = int(len(features))
+    report["symbols"] = int(features["symbol"].nunique())
+    report["trained_at"] = datetime.now(timezone.utc).isoformat()
+
+    if not passed:
+        logger.error("GATES FAILED — no model written: %s", "; ".join(failures))
+        return report
+
+    # Final fit on everything, now that the design is validated out-of-sample.
+    final = lgb.train(
+        LGB_PARAMS,
+        lgb.Dataset(features[FEATURE_COLUMNS], label=features[LABEL_COLUMN]),
+        num_boost_round=NUM_BOOST_ROUND,
+    )
+
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    version = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    path = MODEL_DIR / f"lgbm_signals_{version}.pkl"
+
+    import joblib
+
+    joblib.dump(
+        {
+            "model": final,
+            "features": FEATURE_COLUMNS,
+            "version": version,
+            "report": report,
+            # Reference distribution for drift monitoring. Stored at training
+            # time because that is the only point the "expected" distribution
+            # exists — workers.monitoring_worker.check_drift compares live
+            # serving features against it (PSI). Sampled to bound the artefact
+            # size; a per-feature sample is all compute_psi needs to build bins.
+            "feature_baseline": _build_feature_baseline(features),
+        },
+        path,
+    )
+    report["model_path"] = str(path)
+    logger.info("model written: %s", path)
+
+    (MODEL_DIR / f"report_{version}.json").write_text(json.dumps(report, indent=2))
+    return report
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Train the IDX signal model")
+    parser.add_argument("--min-sessions", type=int, default=150)
+    parser.add_argument("--splits", type=int, default=4)
     args = parser.parse_args()
-    train(args.start_date, args.end_date, args.n_folds)
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    report = train(min_sessions=args.min_sessions, n_splits=args.splits)
+
+    print(json.dumps({k: v for k, v in report.items() if k != "folds"}, indent=2))
+    raise SystemExit(0 if report.get("passed_gates") else 1)
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

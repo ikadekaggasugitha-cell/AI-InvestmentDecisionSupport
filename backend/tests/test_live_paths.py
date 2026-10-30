@@ -782,7 +782,7 @@ class TestDriftVisibility:
         if reason == "no_baseline":
             # The remediation has to travel with the record, not only live in a
             # log line nobody reads.
-            assert "train_signals_v2" in json.loads(cached)["detail"]
+            assert "train_signals" in json.loads(cached)["detail"]
 
 
 def test_health_distinguishes_inert_drift_from_stable_drift(live_settings):

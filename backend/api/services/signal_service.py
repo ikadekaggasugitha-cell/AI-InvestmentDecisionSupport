@@ -223,7 +223,7 @@ async def _compute_live_signals() -> SignalsResponse:
     except FileNotFoundError as exc:
         raise ModelUnavailable(
             "no trained model in backend/models/ — run "
-            "`python -m ml.training.train_signals_v2`"
+            "`python -m ml.training.train_signals`"
         ) from exc
 
     lookback = max(settings.ta_gap_lookback_days, 120)

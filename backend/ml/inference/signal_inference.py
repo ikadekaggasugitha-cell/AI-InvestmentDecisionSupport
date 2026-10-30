@@ -33,7 +33,7 @@ def _parse_model_version(version: str) -> datetime | None:
     resets to now and would make an old model look freshly trained. Returns None
     for the "unknown" placeholder or any non-conforming version.
 
-    Two shapes are accepted: `YYYYMMDD_HHMMSS` from train_signals_v2, and
+    Two shapes are accepted: `YYYYMMDD_HHMMSS` from train_signals, and
     `YYYYMMDD_HHMM` from the superseded train_signals. Accepting the short form
     matters more than it looks: on the short form the parse returns None,
     `trained_at` becomes None, `age_days` becomes None and `is_stale` is
@@ -183,7 +183,7 @@ class SignalInference:
         self.version = model_bundle.get("version", "unknown")
         self.report = model_bundle.get("report", {})
         # Per-feature reference sample for the weekly PSI drift check. Absent in
-        # artifacts trained before train_signals_v2 began storing it.
+        # artifacts trained before train_signals began storing it.
         self._bundle_baseline = model_bundle.get("feature_baseline")
         self.trained_at = _parse_model_version(self.version)
         self._explainer = shap.TreeExplainer(self.model)
@@ -207,7 +207,7 @@ class SignalInference:
         Whether the bundle carries the per-feature reference sample the weekly
         PSI check compares against.
 
-        Stored by train_signals_v2 (`_build_feature_baseline`) so it ships with
+        Stored by train_signals (`_build_feature_baseline`) so it ships with
         the model. Absence does not affect scoring at all — it only means drift
         monitoring cannot run, which is why it is reported rather than defaulted.
         """
@@ -220,7 +220,7 @@ class SignalInference:
         `lgb.train()` returns a Booster whose `predict()` already yields the
         positive-class probability for a binary objective. The sklearn wrapper
         returns a two-column array from `predict_proba()`. Supporting only the
-        latter is what would have broken serving: train_signals_v2 uses
+        latter is what would have broken serving: train_signals uses
         `lgb.train`, so the saved artefact is a Booster and `predict_proba`
         does not exist on it.
         """
@@ -240,7 +240,7 @@ class SignalInference:
             if not pkls:
                 raise FileNotFoundError(
                     "No trained model found in models/. "
-                    "Run: python -m ml.training.train_signals_v2"
+                    "Run: python -m ml.training.train_signals"
                 )
             model_path = pkls[0]
         bundle = joblib.load(model_path)
@@ -248,7 +248,7 @@ class SignalInference:
         if engine.is_stale:
             logger.warning(
                 "Loaded STALE model: %s (version=%s, age=%sd > max %dd) — retrain "
-                "with `python -m ml.training.train_signals_v2`",
+                "with `python -m ml.training.train_signals`",
                 model_path, engine.version, engine.age_days,
                 get_settings().model_max_age_days,
             )
@@ -266,7 +266,7 @@ class SignalInference:
             logger.warning(
                 "Model %s carries no feature_baseline — drift monitoring is INERT "
                 "and check_drift will skip every week. Retrain with "
-                "`python -m ml.training.train_signals_v2` to restore it.",
+                "`python -m ml.training.train_signals` to restore it.",
                 engine.version,
             )
         return engine
