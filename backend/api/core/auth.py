@@ -30,7 +30,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 
 from api.core.config import get_settings
-from api.services import accounts as accounts_service
+from api.services import account_service as accounts_service
 from api.services import entitlements
 from api.services import sessions as sessions_service
 

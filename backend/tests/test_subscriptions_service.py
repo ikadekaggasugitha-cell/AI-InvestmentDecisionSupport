@@ -14,8 +14,8 @@ import uuid
 
 import pytest
 
-from api.services import accounts
-from api.services.subscriptions import (
+from api.services import account_service as accounts
+from api.services.subscription_service import (
     InvalidGrant,
     SubscriptionPeriod,
     TransactionNotFound,

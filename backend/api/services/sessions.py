@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from api.core.db import get_pool
-from api.services.accounts import hash_session_token
+from api.services.account_service import hash_session_token
 
 TOKEN_BYTES = 32  # 64 hex characters, stored as the sha256 of the cookie value
 

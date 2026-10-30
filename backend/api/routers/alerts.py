@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from api.core.auth import CurrentUser
 from api.models.alerts import AlertsResponse
 from api.services.alerts_service import get_alerts
-from api.services.portfolio_access import resolve_portfolio_id
+from api.services.portfolio_access_service import resolve_portfolio_id
 
 router = APIRouter(prefix="/v1/alerts", tags=["alerts"])
 

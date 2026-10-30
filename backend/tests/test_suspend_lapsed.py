@@ -128,7 +128,7 @@ class TestNothingElseMoves:
 
     async def test_the_service_presented_counts_what_it_caught(self, fake_identity):
         """The worker's heartbeat and the CLI's report both read this return."""
-        from api.services import accounts
+        from api.services import account_service as accounts
 
         target = await _signup(fake_identity, "counted@aidss.id")
         _seed_subscription(fake_identity, target["id"], days_left=-1)
@@ -138,7 +138,7 @@ class TestNothingElseMoves:
         assert [(r["email"]) for r in suspended] == ["counted@aidss.id"]
 
     async def test_find_lapsed_returns_rows_for_the_cli(self, fake_identity):
-        from api.services import accounts
+        from api.services import account_service as accounts
 
         await _signup(fake_identity, "listing@aidss.id")
         target = fake_identity.users["listing@aidss.id"]

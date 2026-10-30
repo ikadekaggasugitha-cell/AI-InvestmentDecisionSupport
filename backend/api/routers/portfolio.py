@@ -19,7 +19,7 @@ from api.models.portfolio import (
     PositionsUpdate,
     PositionOutput,
 )
-from api.services.portfolio_access import (
+from api.services.portfolio_access_service import (
     Position, known_symbols, load_positions, replace_positions, resolve_portfolio_id,
 )
 from api.services.portfolio_service import get_equity_curve_cached, get_portfolio_optimisation

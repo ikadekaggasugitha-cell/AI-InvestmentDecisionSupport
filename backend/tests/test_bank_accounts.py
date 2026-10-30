@@ -26,7 +26,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.core.config import get_settings
-from api.services.settings import (
+from api.services.system_settings_service import (
     BANK_ACCOUNTS_KEY,
     BankAccountEntry,
     BankAccountInvalid,
@@ -253,7 +253,7 @@ class TestAgainstTheRealDatabase:
     @pytest.fixture
     def real_pool(self, monkeypatch):
         from api.core.db import get_pool as _real
-        from api.services import settings as settings_service
+        from api.services import system_settings_service as settings_service
 
         monkeypatch.setattr(settings_service, "get_pool", _real)
         return _real

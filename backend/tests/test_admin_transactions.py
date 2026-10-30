@@ -303,7 +303,7 @@ class TestApprove:
 
         row = fake_identity.transactions[transaction_id]
         row["created_at"] = row["created_at"] - timedelta(hours=2)
-        from api.services.payments import expire_pending
+        from api.services.payment_service import expire_pending
 
         assert asyncio.run(expire_pending(3600)) == 1
         assert row["status"] == "expire"

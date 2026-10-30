@@ -15,7 +15,7 @@ from unittest.mock import patch
 import asyncpg  # noqa: F401  (imported for typing the conn parameter in accounts)
 import pytest
 
-from api.services import accounts as accounts_service
+from api.services import account_service as accounts_service
 from api.services import passwords, sessions
 
 
@@ -161,7 +161,7 @@ def pool():
     async def _get_pool():
         return p
 
-    with patch("api.services.accounts.get_pool", _get_pool), \
+    with patch("api.services.account_service.get_pool", _get_pool), \
          patch("api.services.sessions.get_pool", _get_pool):
         yield p
 
@@ -335,7 +335,7 @@ class TestBlocking:
         async def boom():
             raise RuntimeError("db down")
 
-        with patch("api.services.accounts.get_pool", boom):
+        with patch("api.services.account_service.get_pool", boom):
             with pytest.raises(HTTPException) as caught:
                 await accounts_service.set_blocked(uuid.uuid4(), True, reason="admin")
         assert caught.value.status_code == 503
@@ -362,7 +362,7 @@ class TestBlocking:
                     r"blocked_at\s*=\s*\$", line
                 ):
                     writers.append(f"{path.relative_to(root)}: {line.strip()}")
-        assert all(w.startswith("services/accounts.py:") for w in writers), (
+        assert all(w.startswith("services/account_service.py:") for w in writers), (
             f"a writer of blocked_at escaped the identity module: {writers}"
         )
         assert len(writers) == 2, (

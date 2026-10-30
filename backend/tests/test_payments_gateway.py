@@ -24,7 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.core.config import get_settings
-from api.services.midtrans import GatewayUnavailable, SnapSession
+from api.services.midtrans_service import GatewayUnavailable, SnapSession
 from tests.test_admin_api import login, signup
 
 SERVER_KEY = "SB-Mid-server-testkey"
@@ -70,7 +70,7 @@ def snap(monkeypatch):
             redirect_url=f"https://app.sandbox.midtrans.com/snap/v2/vt/{order_id}",
         )
 
-    monkeypatch.setattr("api.services.payments.create_snap_token", _mint)
+    monkeypatch.setattr("api.services.payment_service.create_snap_token", _mint)
     return calls
 
 
@@ -185,7 +185,7 @@ class TestCheckout:
         async def _unreachable(*, order_id, gross_amount, email=None, expiry_minutes):
             raise GatewayUnavailable("the gateway could not be reached")
 
-        monkeypatch.setattr("api.services.payments.create_snap_token", _unreachable)
+        monkeypatch.setattr("api.services.payment_service.create_snap_token", _unreachable)
 
         resp = _checkout(client)
 

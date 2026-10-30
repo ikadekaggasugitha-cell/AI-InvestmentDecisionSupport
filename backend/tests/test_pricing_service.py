@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from api.services.settings import (
+from api.services.system_settings_service import (
     MAX_PRICE_IDR,
     MIN_PRICE_IDR,
     PriceOutOfRange,

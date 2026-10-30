@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from api.core.config import get_settings
 from api.core.redis_client import REDIS_KEYS, redis_get_json, redis_set_json
-from api.services.portfolio_access import load_lots
+from api.services.portfolio_access_service import load_lots
 from api.services.technicals_service import load_ohlcv
 from api.models.risk import RiskMetrics, RiskMetricsResponse, SectorExposureItem, StressTest
 

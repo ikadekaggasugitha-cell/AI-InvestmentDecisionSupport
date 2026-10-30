@@ -31,8 +31,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from api.core.auth import CurrentUser
 from api.core.config import get_settings
 from api.routers.payments import PaymentResponse, manual_deadline
-from api.services import payments as money
-from api.services.settings import PricingUnavailable
+from api.services import payment_service as money
+from api.services.system_settings_service import PricingUnavailable
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +186,7 @@ async def checkout(body: CheckoutRequest, user: CurrentUser) -> GatewayCheckoutR
     ),
 )
 async def midtrans_webhook(payload: MidtransWebhook) -> dict:
-    from api.services.midtrans import verify_webhook_signature
+    from api.services.midtrans_service import verify_webhook_signature
 
     if not verify_webhook_signature(
         order_id=payload.order_id,

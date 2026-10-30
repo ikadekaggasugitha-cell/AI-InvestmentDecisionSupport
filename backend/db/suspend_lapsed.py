@@ -10,7 +10,7 @@ can open is not.
 
 Why a command still needs --dry-run. The write is a closed row on someone's
 account, which is worth looking at before doing. The selection is the same
-guarded predicate the beat runs — `services.accounts` owns it, so the CLI can
+guarded predicate the beat runs — `services.account_service` owns it, so the CLI can
 only ever agree with the beat, never carry a second opinion about what lapsed
 means.
 
@@ -29,7 +29,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from api.core.db import close_pool  # noqa: E402
-from api.services.accounts import find_lapsed_accounts, suspend_lapsed_accounts  # noqa: E402
+from api.services.account_service import find_lapsed_accounts, suspend_lapsed_accounts  # noqa: E402
 
 
 async def _run(dry_run: bool) -> int:

@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from api.core.auth import CurrentUser
 from api.models.risk import RiskMetricsResponse
-from api.services.portfolio_access import resolve_portfolio_id
+from api.services.portfolio_access_service import resolve_portfolio_id
 from api.services.risk_service import get_risk_metrics
 
 router = APIRouter(prefix="/v1/risk", tags=["risk"])

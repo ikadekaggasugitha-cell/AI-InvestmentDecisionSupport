@@ -17,7 +17,7 @@ from api.models.reports import (
     ReportListResponse,
     ReportType,
 )
-from api.services.portfolio_access import resolve_portfolio_id
+from api.services.portfolio_access_service import resolve_portfolio_id
 from api.services.report_service import generate_pdf, list_reports
 
 router = APIRouter(prefix="/v1/reports", tags=["reports"])

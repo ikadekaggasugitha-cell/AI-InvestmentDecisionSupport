@@ -29,7 +29,7 @@ from datetime import datetime
 import asyncpg
 
 from api.core.db import get_pool
-from api.services.accounts import reopen_after_payment
+from api.services.account_service import reopen_after_payment
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ from week-old noise.
 
 Since suspensions exist, it also carries the beat that closes accounts whose
 subscription lapsed: one guarded UPDATE writing 'subscription_expired', run
-through services.accounts so there is no second opinion about what a
+through services.account_service so there is no second opinion about what a
 suspension is. It suspends only people who once had a subscription — a
 registration that never paid is not a lapsed anything.
 
@@ -44,13 +44,13 @@ logger = logging.getLogger(__name__)
 async def _expire_pending() -> dict:
     """One guarded ageing pass, on the API's own DB access layer.
 
-    Uses services.payments (and its pool) so the beat and the endpoints move
+    Uses services.payment_service (and its pool) so the beat and the endpoints move
     the same table through the same one writer — a second UPDATE path here
     would be a second opinion about what expiry means.
     """
     from api.core.config import get_settings
     from api.core.db import close_pool
-    from api.services.payments import expire_pending
+    from api.services.payment_service import expire_pending
 
     try:
         aged = await expire_pending(get_settings().manual_transaction_ttl_seconds)
@@ -91,11 +91,11 @@ def expire_pending_transactions(self) -> dict:
 async def _suspend_lapsed() -> dict:
     """One suspension pass, through the accounts service's own writer.
 
-    `services.accounts` owns the users table's SQL and the guarded statement is
+    `services.account_service` owns the users table's SQL and the guarded statement is
     its suspension decision; the worker is a clock, not a second opinion.
     """
     from api.core.db import close_pool
-    from api.services.accounts import suspend_lapsed_accounts
+    from api.services.account_service import suspend_lapsed_accounts
 
     try:
         suspended = await suspend_lapsed_accounts()

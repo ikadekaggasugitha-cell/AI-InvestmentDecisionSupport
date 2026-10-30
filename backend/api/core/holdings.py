@@ -3,7 +3,7 @@ Symbol metadata, display names, and the old seed positions.
 
 **PORTFOLIO_LOTS is not a portfolio.** It is no longer read by any request path.
 Positions live in `portfolios.lots_json` and are read through
-`api.services.portfolio_access.load_lots` (ADR-0005). What is left here is
+`api.services.portfolio_access_service.load_lots` (ADR-0005). What is left here is
 `DISPLAY_NAMES`, which the optimiser legitimately needs as a candidate universe —
 a proposal about what to hold next is not a claim about what is held.
 

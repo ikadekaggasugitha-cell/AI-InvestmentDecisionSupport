@@ -20,7 +20,7 @@ import pandas as pd
 
 from api.core.config import get_settings
 from api.core.redis_client import get_redis, redis_get_json, redis_set_json, REDIS_KEYS
-from api.services.portfolio_access import load_lots
+from api.services.portfolio_access_service import load_lots
 from api.models.portfolio import EquityCurveResponse, PortfolioOptimisationResponse
 
 logger = logging.getLogger(__name__)

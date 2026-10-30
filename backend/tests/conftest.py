@@ -286,7 +286,7 @@ def mock_redis():
 class _FakePortfoliosPool:
     """
     In-memory stand-in for the asyncpg pool, covering only the statements
-    api/services/portfolio_access.py issues.
+    api/services/portfolio_access_service.py issues.
 
     The suite has no database. Every portfolio-scoped route resolves ownership
     before it does any work, and that resolution fails closed on an unreachable
@@ -409,7 +409,7 @@ def fake_portfolios():
     async def _get_pool():
         return pool
 
-    with patch("api.services.portfolio_access.get_pool", _get_pool):
+    with patch("api.services.portfolio_access_service.get_pool", _get_pool):
         yield pool
 
 class _IdentityPool:
@@ -440,7 +440,7 @@ class _IdentityPool:
         self.sessions: dict[str, dict] = {}       # sha256(token) -> row
         self.subscriptions: list[dict] = []
         # Payment rows, keyed by str(id). subscription_id is None until a grant
-        # claims the row — the guarded UPDATE in services.subscriptions is the
+        # claims the row — the guarded UPDATE in services.subscription_service is the
         # idempotency key. invoice_codes mirrors the table's UNIQUE index.
         self.transactions: dict[str, dict] = {}
         self.invoice_codes: dict[str, str] = {}
@@ -1021,12 +1021,12 @@ def fake_identity():
     async def _get_pool():
         return pool
 
-    with patch("api.services.accounts.get_pool", _get_pool), \
+    with patch("api.services.account_service.get_pool", _get_pool), \
          patch("api.services.sessions.get_pool", _get_pool), \
          patch("api.services.entitlements.get_pool", _get_pool), \
          patch("api.services.consent.get_pool", _get_pool), \
-         patch("api.services.subscriptions.get_pool", _get_pool), \
-         patch("api.services.payments.get_pool", _get_pool), \
+         patch("api.services.subscription_service.get_pool", _get_pool), \
+         patch("api.services.payment_service.get_pool", _get_pool), \
          patch("api.routers.subscription.get_pool", _get_pool), \
-         patch("api.services.settings.get_pool", _get_pool):
+         patch("api.services.system_settings_service.get_pool", _get_pool):
         yield pool

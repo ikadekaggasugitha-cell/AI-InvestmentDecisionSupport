@@ -20,11 +20,11 @@ from redis.exceptions import RedisError
 
 from api.core.redis_client import get_redis
 from api.services.market_service import generate_snapshot
-from api.services.accounts import (
+from api.services.account_service import (
     Account, authenticate, get_account, get_or_create_bypass_account,
 )
 from api.services.entitlements import has_active_subscription
-from api.services.portfolio_access import load_lots, resolve_portfolio_id
+from api.services.portfolio_access_service import load_lots, resolve_portfolio_id
 from api.services.sessions import SESSION_COOKIE
 
 logger = logging.getLogger(__name__)

@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field, field_validator
 from api.core.auth import CurrentUser
 from api.core.config import get_settings
 from api.core.redis_client import get_redis
-from api.services import accounts as accounts_service
+from api.services import account_service as accounts_service
 from api.services import consent as consent_service
 from api.services import passwords
 from api.services import sessions as sessions_service

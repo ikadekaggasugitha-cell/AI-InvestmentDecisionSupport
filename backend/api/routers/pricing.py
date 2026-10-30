@@ -19,7 +19,7 @@ import logging
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from api.services.settings import (
+from api.services.system_settings_service import (
     BankAccountsUnavailable,
     PricingUnavailable,
     read_bank_accounts,

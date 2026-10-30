@@ -393,7 +393,7 @@ class TestPortfolioOwnership:
     async def test_cross_account_access_is_refused(self, fake_portfolios):
         from fastapi import HTTPException
 
-        from api.services.portfolio_access import resolve_portfolio_id
+        from api.services.portfolio_access_service import resolve_portfolio_id
 
         alice = await resolve_portfolio_id("alice")
         bob = await resolve_portfolio_id("bob")
@@ -408,7 +408,7 @@ class TestPortfolioOwnership:
             await resolve_portfolio_id("alice", bob)
 
     async def test_own_portfolio_is_allowed(self, fake_portfolios):
-        from api.services.portfolio_access import resolve_portfolio_id
+        from api.services.portfolio_access_service import resolve_portfolio_id
 
         alice = await resolve_portfolio_id("alice")
         assert await resolve_portfolio_id("alice", alice) == alice
@@ -420,7 +420,7 @@ class TestPortfolioOwnership:
         the same constant, so the leak was invisible: there was only ever one
         portfolio's worth of data to leak.
         """
-        from api.services.portfolio_access import load_lots, resolve_portfolio_id
+        from api.services.portfolio_access_service import load_lots, resolve_portfolio_id
 
         alice = await resolve_portfolio_id("alice")
         bob = await resolve_portfolio_id("bob")
@@ -440,7 +440,7 @@ class TestPortfolioOwnership:
         """
         from fastapi import HTTPException
 
-        from api.services import portfolio_access
+        from api.services import portfolio_access_service as portfolio_access
 
         async def boom(*args, **kwargs):
             raise RuntimeError("db down")
@@ -457,7 +457,7 @@ class TestPortfolioOwnership:
         never entered, and short positions in a long-only portfolio make every
         downstream percentage meaningless.
         """
-        from api.services.portfolio_access import load_lots, resolve_portfolio_id
+        from api.services.portfolio_access_service import load_lots, resolve_portfolio_id
 
         pid = await resolve_portfolio_id("alice")
         fake_portfolios.rows[pid] = (
@@ -472,12 +472,12 @@ class TestPortfolioOwnership:
         """Redis keys are keyed on the portfolio id and the Celery refresh_risk
         task pre-warms risk:portfolio:default, so a random id would strand that
         warm cache and force a synchronous GARCH recompute each hour."""
-        from api.services.portfolio_access import DEFAULT_PORTFOLIO, resolve_portfolio_id
+        from api.services.portfolio_access_service import DEFAULT_PORTFOLIO, resolve_portfolio_id
 
         assert await resolve_portfolio_id("first") == DEFAULT_PORTFOLIO
 
     async def test_provisioning_is_idempotent(self, fake_portfolios):
-        from api.services.portfolio_access import resolve_portfolio_id
+        from api.services.portfolio_access_service import resolve_portfolio_id
 
         first = await resolve_portfolio_id("alice")
         again = await resolve_portfolio_id("alice")
@@ -489,14 +489,14 @@ class TestPortfolioOwnership:
         first account to sign up ten IDX positions belonging to somebody else and
         showed every account after them the same portfolio. An account that has
         bought nothing must display nothing."""
-        from api.services.portfolio_access import resolve_portfolio_id
+        from api.services.portfolio_access_service import resolve_portfolio_id
 
         pid = await resolve_portfolio_id("alice")
         assert fake_portfolios.lots_for(pid) == {}
 
     async def test_two_accounts_do_not_share_positions(self, fake_portfolios):
         """The seed was the only reason two portfolios could hold the same lots."""
-        from api.services.portfolio_access import load_lots, resolve_portfolio_id
+        from api.services.portfolio_access_service import load_lots, resolve_portfolio_id
 
         alice = await resolve_portfolio_id("alice")
         bob = await resolve_portfolio_id("bob")
@@ -507,7 +507,7 @@ class TestPortfolioOwnership:
         """An unreachable database must not read as 'allowed'."""
         from fastapi import HTTPException
 
-        from api.services import portfolio_access
+        from api.services import portfolio_access_service as portfolio_access
 
         async def boom():
             raise RuntimeError("db down")
@@ -674,7 +674,7 @@ class TestSqlReferencesRealTables:
                     "workers/signal_worker.py", "workers/instruments_worker.py",
                     "api/services/risk_service.py", "api/services/technicals_service.py",
                     "api/services/market_service.py", "api/services/symbols_service.py",
-                    "api/services/broksum_service.py", "api/services/portfolio_access.py"):
+                    "api/services/broksum_service.py", "api/services/portfolio_access_service.py"):
             path = root / rel
             if not path.exists():
                 continue

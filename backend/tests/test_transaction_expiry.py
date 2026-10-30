@@ -19,7 +19,7 @@ from datetime import timedelta
 
 import pytest
 
-from api.services.payments import (
+from api.services.payment_service import (
     DenyRequiresReason,
     deny_transaction,
     expire_pending,
@@ -27,11 +27,11 @@ from api.services.payments import (
     approve_transaction,
     TransactionNotApprovable,
 )
-from api.services.subscriptions import TransactionNotFound
+from api.services.subscription_service import TransactionNotFound
 
 
 async def _account(fake_identity, email):
-    from api.services import accounts
+    from api.services import account_service as accounts
 
     return await accounts.create_account(
         email=email,

@@ -37,11 +37,11 @@ from pydantic import BaseModel, Field
 
 from api.core.auth import AdminUser
 from api.core.config import get_settings
-from api.services.accounts import Account, get_account, list_accounts, set_blocked
-from api.services.payments import (
+from api.services.account_service import Account, get_account, list_accounts, set_blocked
+from api.services.payment_service import (
     manual_deadline,
 )
-from api.services.settings import (
+from api.services.system_settings_service import (
     BankAccountInvalid,
     BankAccountsUnavailable,
     PriceOutOfRange,
@@ -51,7 +51,7 @@ from api.services.settings import (
     write_bank_accounts,
     write_pricing,
 )
-from api.services.subscriptions import InvalidGrant, grant
+from api.services.subscription_service import InvalidGrant, grant
 
 logger = logging.getLogger(__name__)
 
@@ -548,7 +548,7 @@ async def admin_list_transactions(
     admin: AdminUser,
     status_filter: str = Query(default="pending", alias="status"),
 ) -> list[AdminTransactionResponse]:
-    from api.services import payments as payments_service
+    from api.services import payment_service as payments_service
 
     if status_filter not in _ALLOWED_STATUSES:
         raise HTTPException(
@@ -592,7 +592,7 @@ async def admin_list_transactions(
 async def admin_approve_transaction(
     transaction_id: uuid.UUID, admin: AdminUser
 ) -> ApprovePaymentResponse:
-    from api.services import payments as payments_service
+    from api.services import payment_service as payments_service
 
     try:
         tx, period = await payments_service.approve_transaction(
@@ -671,7 +671,7 @@ async def admin_deny_transaction(
     admin: AdminUser,
     body: DenyPaymentRequest,
 ) -> AdminTransactionResponse:
-    from api.services import payments as payments_service
+    from api.services import payment_service as payments_service
 
     ttl_seconds = get_settings().manual_transaction_ttl_seconds
     try:

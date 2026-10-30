@@ -24,14 +24,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from api.core.auth import CurrentUser
 from api.core.config import get_settings
-from api.services.payments import (
+from api.services.payment_service import (
     ManualPaymentInvalid,
     Transaction,
     list_transactions_for_user,
     manual_deadline,
     open_manual_transaction,
 )
-from api.services.settings import PricingUnavailable
+from api.services.system_settings_service import PricingUnavailable
 
 logger = logging.getLogger(__name__)
 

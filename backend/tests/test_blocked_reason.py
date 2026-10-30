@@ -13,7 +13,7 @@ shape, not SQL text (the SQL guards are pinned in test_blocked_reason_schema).
 
 import uuid
 
-from api.services import accounts
+from api.services import account_service as accounts
 
 BLOCKED_REASON_ADMIN = "admin"
 BLOCKED_REASON_SUSPENDED = "subscription_expired"

@@ -19,7 +19,7 @@ from fastapi.responses import StreamingResponse
 from api.core.auth import CurrentUser
 from api.models.advisor import ChatRequest
 from api.services.advisor_service import stream_advisor_response
-from api.services.portfolio_access import resolve_portfolio_id
+from api.services.portfolio_access_service import resolve_portfolio_id
 
 logger = logging.getLogger(__name__)
 

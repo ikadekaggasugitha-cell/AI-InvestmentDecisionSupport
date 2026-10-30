@@ -127,7 +127,7 @@ class TestWriting:
         the analytics measure have to come out the same."""
         import asyncio
 
-        from api.services.portfolio_access import load_lots
+        from api.services.portfolio_access_service import load_lots
 
         client.put(
             "/v1/portfolio/positions",
