@@ -34,7 +34,7 @@ class TestLiveContext:
         ]
         mock_redis.zrange = AsyncMock(return_value=[])
 
-        with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
+        with patch("api.services.advisor_service.context.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _load_live_context
             ctx = await _load_live_context("default")
 
@@ -48,7 +48,7 @@ class TestLiveContext:
         mock_redis.get.side_effect = Exception("Redis connection refused")
         mock_redis.zrange = AsyncMock(side_effect=Exception("Redis connection refused"))
 
-        with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
+        with patch("api.services.advisor_service.context.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _load_live_context
             ctx = await _load_live_context("default")
 
@@ -64,7 +64,7 @@ class TestLiveContext:
         mock_redis.get = AsyncMock(return_value=None)
         mock_redis.zrange = AsyncMock(return_value=[news_item])
 
-        with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
+        with patch("api.services.advisor_service.context.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _load_live_context
             ctx = await _load_live_context("default")
 
@@ -115,7 +115,7 @@ class TestToolExecution:
         mock_redis = AsyncMock()
         mock_redis.hget = AsyncMock(return_value=tick)
 
-        with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
+        with patch("api.services.advisor_service.tools.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _execute_tool
             result = await _execute_tool("get_stock_price", {"symbol": "BBCA"}, "default")
 
@@ -135,7 +135,7 @@ class TestToolExecution:
         mock_redis = AsyncMock()
         mock_redis.get = AsyncMock(return_value=None)
 
-        with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
+        with patch("api.services.advisor_service.tools.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _execute_tool
             result = await _execute_tool("get_signal", {"symbol": "BBCA"}, "default")
 
@@ -152,7 +152,7 @@ class TestToolExecution:
         mock_redis = AsyncMock()
         mock_redis.zrange = AsyncMock(return_value=items)
 
-        with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
+        with patch("api.services.advisor_service.tools.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _execute_tool
             result = await _execute_tool("get_recent_news", {"symbol": "BBCA"}, "default")
 
@@ -207,7 +207,7 @@ class TestLLMRequest:
         """
         stub = SimpleNamespace(has_llm=False, llm_provider="groq")
 
-        with patch("api.services.advisor_service.get_settings", return_value=stub):
+        with patch("api.services.advisor_service.chat.get_settings", return_value=stub):
             from api.models.advisor import ChatRequest
             from api.services.advisor_service import stream_advisor_response
             req = ChatRequest(message="Test", locale="id")
@@ -239,8 +239,8 @@ class TestLLMRequest:
         ])
 
         with (
-            patch("api.services.advisor_service.get_redis", return_value=mock_redis),
-            patch("api.services.advisor_service.AsyncOpenAI") as mock_openai,
+            patch("api.services.advisor_service.chat.get_redis", return_value=mock_redis),
+            patch("api.services.advisor_service.chat.AsyncOpenAI") as mock_openai,
         ):
             mock_client = MagicMock()
             mock_openai.return_value = mock_client
@@ -282,7 +282,7 @@ class TestSessionPersistence:
         mock_redis = AsyncMock()
         mock_redis.get = AsyncMock(return_value=json.dumps(history))
 
-        with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
+        with patch("api.services.advisor_service.chat.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _load_session_history
             result = await _load_session_history("user-1", "test-session-abc")
 
@@ -296,7 +296,7 @@ class TestSessionPersistence:
         mock_redis = AsyncMock()
         mock_redis.get = AsyncMock(return_value=None)
 
-        with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
+        with patch("api.services.advisor_service.chat.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _load_session_history
             result = await _load_session_history("user-1", "nonexistent-session")
 
@@ -313,7 +313,7 @@ class TestSessionPersistence:
         # target the object yielded by __aenter__, not the factory's return.
         mock_redis.__aenter__.return_value = mock_redis
 
-        with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
+        with patch("api.services.advisor_service.chat.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _save_session_history, SESSION_TTL
             history = [
                 ChatMessage(role="user", content="Hello"),
@@ -341,7 +341,7 @@ class TestSessionPersistence:
             for i in range(30)
         ]
 
-        with patch("api.services.advisor_service.get_redis", return_value=mock_redis):
+        with patch("api.services.advisor_service.chat.get_redis", return_value=mock_redis):
             from api.services.advisor_service import _save_session_history
             await _save_session_history("user-1", "session-overflow", history)
 
