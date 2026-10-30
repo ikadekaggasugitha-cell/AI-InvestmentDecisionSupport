@@ -15,6 +15,7 @@ export default tseslint.config(
       'build',
       'node_modules',
       'backend/**', // Python backend + its .venv (bundled vendor JS); not our source
+      '.taste-skill/**', // session recording tool (mock API + screenshots); not app source
       '**/.venv/**',
       'src/app/components/ui/**', // generated shadcn/ui primitives
       'src/imports/**',
