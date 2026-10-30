@@ -1026,7 +1026,8 @@ def fake_identity():
          patch("api.services.entitlements.get_pool", _get_pool), \
          patch("api.services.consent.get_pool", _get_pool), \
          patch("api.services.subscription_service.get_pool", _get_pool), \
-         patch("api.services.payment_service.get_pool", _get_pool), \
+         patch("api.services.payment_service.manual.get_pool", _get_pool), \
+         patch("api.services.payment_service.gateway.get_pool", _get_pool), \
          patch("api.routers.subscription.get_pool", _get_pool), \
          patch("api.services.system_settings_service.get_pool", _get_pool):
         yield pool
