@@ -57,7 +57,7 @@ class FakeWebSocket {
 function loadHook(useLiveApi: boolean) {
   vi.resetModules();
   vi.stubEnv("VITE_USE_LIVE_API", String(useLiveApi));
-  return import("./useLiveMarket");
+  return import("@/app/hooks/useLiveMarket");
 }
 
 const SNAPSHOT = {
@@ -192,7 +192,7 @@ describe("useLiveMarket — a refusal is not an expired session", () => {
 
   /** Counts app-wide auth-expiry broadcasts. The hook's import shares this registry. */
   function watchAuthExpiry() {
-    const api = import("../config/api");
+    const api = import("@/app/config/api");
     let authExpired = 0;
     let paywalled = 0;
     const onAuth = () => { authExpired += 1; };

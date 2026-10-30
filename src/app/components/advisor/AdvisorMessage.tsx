@@ -1,8 +1,8 @@
 import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AdvisorWidget } from "./AdvisorWidget";
-import { parseSegments } from "./parseSegments";
+import { AdvisorWidget } from "@/app/components/advisor/AdvisorWidget";
+import { parseSegments } from "@/app/components/advisor/parseSegments";
 
 /**
  * Renders one assistant answer: Markdown prose interleaved with interactive

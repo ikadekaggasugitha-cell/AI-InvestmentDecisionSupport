@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { AdminBankAccountsView } from "./AdminBankAccountsView";
+import { AdminBankAccountsView } from "@/app/components/AdminBankAccountsView";
 
 /**
  * The form that sets where a manual transfer goes.
@@ -18,12 +18,12 @@ import { AdminBankAccountsView } from "./AdminBankAccountsView";
  *  - No control claims to verify a bank account. Nobody verified anything, and
  *    a button implying otherwise would be the lie this change exists to remove.
  */
-vi.mock("../config/api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../config/api")>()),
+vi.mock("@/app/config/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/app/config/api")>()),
   apiFetch: vi.fn(),
 }));
 
-import { apiFetch } from "../config/api";
+import { apiFetch } from "@/app/config/api";
 
 const mocked = vi.mocked(apiFetch);
 

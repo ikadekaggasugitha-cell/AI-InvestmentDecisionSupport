@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch,
   HttpStatusError, classifyLoadError, type LoadFailure,
-} from "../config/api";
+} from "@/app/config/api";
 
 /* ── Public types ────────────────────────────────────────────────────────── */
 

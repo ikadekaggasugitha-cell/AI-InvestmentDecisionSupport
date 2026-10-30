@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import {
   USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, HttpStatusError, apiFetch,
   classifyLoadError, type LoadFailure,
-} from "../config/api";
-import { riskResponseSchema, parseOrThrow } from "../config/schemas";
-import { RISK_DATA, STRESS_TESTS, SECTOR_EXPOSURE } from "../data/idxData";
+} from "@/app/config/api";
+import { riskResponseSchema, parseOrThrow } from "@/app/config/schemas";
+import { RISK_DATA, STRESS_TESTS, SECTOR_EXPOSURE } from "@/app/data/idxData";
 
 /* ── Public types ────────────────────────────────────────────────────────── */
 

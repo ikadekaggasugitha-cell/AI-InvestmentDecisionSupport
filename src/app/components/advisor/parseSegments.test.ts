@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseSegments } from "./parseSegments";
+import { parseSegments } from "@/app/components/advisor/parseSegments";
 
 describe("parseSegments", () => {
   it("extracts an unfenced widget the model emits without backticks", () => {

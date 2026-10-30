@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 
-import { AppProvider, useApp } from "../context/AppContext";
-import { PaywallNotice } from "./PaywallNotice";
+import { AppProvider, useApp } from "@/app/context/AppContext";
+import { PaywallNotice } from "@/app/components/PaywallNotice";
 
 /**
  * The combination that hid every other bug in this change.
@@ -40,7 +40,7 @@ describe("a refusal, with the gate actually firing", () => {
     // Rendered through the same gate the shell uses, so this exercises
     // refusal → AppContext → banner rather than just the component.
     respond(200, { active: false });
-    const api = await import("../config/api");
+    const api = await import("@/app/config/api");
 
     function Shell() {
       const { locked, subscription } = useApp();
@@ -91,7 +91,7 @@ describe("a refusal, with the gate actually firing", () => {
       expiresAt: "2027-01-01T00:00:00Z",
       daysRemaining: 30,
     });
-    const api = await import("../config/api");
+    const api = await import("@/app/config/api");
 
     function Shell() {
       return useApp().locked ? <PaywallNotice onOpenSettings={() => {}} /> : null;
@@ -129,7 +129,7 @@ describe("a refusal, with the gate actually firing", () => {
   });
 
   it("does not sign the account out when a paid request is refused", async () => {
-    const api = await import("../config/api");
+    const api = await import("@/app/config/api");
     const authExpired = vi.fn();
     const off = api.onAuthExpired(authExpired);
     respond(200, { active: false });

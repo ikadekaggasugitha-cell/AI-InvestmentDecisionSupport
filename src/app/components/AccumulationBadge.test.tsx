@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { AccumulationBadge } from './AccumulationBadge'
-import type { AccumulationBadgeData } from '../hooks/useAccumulationMap'
+import { AccumulationBadge } from '@/app/components/AccumulationBadge'
+import type { AccumulationBadgeData } from '@/app/hooks/useAccumulationMap'
 
 const acc = (over: Partial<AccumulationBadgeData> = {}): AccumulationBadgeData => ({
   symbol: 'BBCA',

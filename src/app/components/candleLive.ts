@@ -1,4 +1,4 @@
-import type { OHLCVCandle } from "../hooks/useTechnicals";
+import type { OHLCVCandle } from "@/app/hooks/useTechnicals";
 
 /**
  * Pure helpers for pulsing the live *forming* candle. Kept out of

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { planFromSearch, readPlanIntent, writePlanIntent } from "./planIntent";
+import { planFromSearch, readPlanIntent, writePlanIntent } from "@/app/planIntent";
 
 /* The intent is a client-side memo of the price line a visitor picked, kept
  * only until the billing tab turns it into a real declaration. Its failures

@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch, HttpStatusError,
   classifyLoadError, type LoadFailure,
-} from "../config/api";
-import { signalsResponseSchema, parseOrThrow } from "../config/schemas";
-import { AI_RECOMMENDATIONS } from "../data/idxData";
-import { SEED_ENRICHMENT } from "../data/seedPhase10";
+} from "@/app/config/api";
+import { signalsResponseSchema, parseOrThrow } from "@/app/config/schemas";
+import { AI_RECOMMENDATIONS } from "@/app/data/idxData";
+import { SEED_ENRICHMENT } from "@/app/data/seedPhase10";
 
 /* ── Public type ─────────────────────────────────────────────────────────── */
 

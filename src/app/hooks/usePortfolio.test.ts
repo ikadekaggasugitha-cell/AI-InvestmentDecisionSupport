@@ -30,8 +30,8 @@ function jsonResponse(body: unknown, status = 200) {
 
 // Only the transport is faked. The real error classification has to stay real or
 // these tests would agree with whatever the hook does by construction.
-vi.mock('../config/api', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../config/api')>()),
+vi.mock('@/app/config/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/config/api')>()),
   ENDPOINTS: {
     positions: '/v1/portfolio/positions',
     subscription: '/v1/subscription/current',
@@ -54,7 +54,7 @@ vi.mock('../config/api', async (importOriginal) => ({
   }),
 }))
 
-import { usePortfolio } from './usePortfolio'
+import { usePortfolio } from '@/app/hooks/usePortfolio'
 
 beforeEach(() => {
   localStorage.clear()

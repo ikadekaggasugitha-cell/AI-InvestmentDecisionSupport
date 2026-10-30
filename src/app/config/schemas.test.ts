@@ -4,7 +4,7 @@ import {
   riskResponseSchema,
   portfolioResponseSchema,
   parseOrThrow,
-} from './schemas'
+} from '@/app/config/schemas'
 
 const signal = {
   symbol: 'BBCA',

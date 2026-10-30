@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { VolumeAccumulationPanel } from './VolumeAccumulationPanel'
-import type { VolumeInfo, AccumulationInfo } from '../hooks/useTechnicals'
+import { VolumeAccumulationPanel } from '@/app/components/VolumeAccumulationPanel'
+import type { VolumeInfo, AccumulationInfo } from '@/app/hooks/useTechnicals'
 
 const volume: VolumeInfo = {
   level: 'high',

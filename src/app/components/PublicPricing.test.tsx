@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, within, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { PublicPricing } from "./PublicPricing";
+import { PublicPricing } from "@/app/components/PublicPricing";
 
 /**
  * The price a visitor reads with no session. The rules this suite pins:
@@ -26,12 +26,12 @@ import { PublicPricing } from "./PublicPricing";
  *    live Jakarta clock. The contact entry stays held until the owner names
  *    its channel — not focusable, not clickable, not a dead control.
  */
-vi.mock("../config/api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../config/api")>()),
+vi.mock("@/app/config/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/app/config/api")>()),
   apiFetch: vi.fn(),
 }));
 
-import { apiFetch } from "../config/api";
+import { apiFetch } from "@/app/config/api";
 
 const mocked = vi.mocked(apiFetch);
 

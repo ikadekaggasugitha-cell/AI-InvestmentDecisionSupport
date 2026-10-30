@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fmtIdr, fmtAmount } from './formatting'
+import { fmtIdr, fmtAmount } from '@/app/utils/formatting'
 
 describe('fmtIdr', () => {
   it('uses trillion (T) suffix at and above 1e12', () => {

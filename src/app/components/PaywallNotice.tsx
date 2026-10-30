@@ -1,6 +1,6 @@
 import { Lock } from "lucide-react";
 
-import type { Locale } from "../i18n/translations";
+import type { Locale } from "@/app/i18n/translations";
 
 /**
  * Why the paid data is not arriving.

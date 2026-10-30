@@ -4,14 +4,14 @@ import {
   Search, ChevronUp, ChevronDown, ChevronsUpDown, Star,
 } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
-import { useApp } from "../context/AppContext";
-import { useTranslation } from "../i18n/translations";
-import type { LiveMarketData, StockTick } from "../hooks/useLiveMarket";
-import type { ExchangeRateData } from "../hooks/useExchangeRate";
-import { useAccumulationMap, type AccumulationBadgeData } from "../hooks/useAccumulationMap";
-import { useUniverse } from "../hooks/useUniverse";
-import { AccumulationBadge } from "./AccumulationBadge";
-import { StockDetailPanel } from "./StockDetailPanel";
+import { useApp } from "@/app/context/AppContext";
+import { useTranslation } from "@/app/i18n/translations";
+import type { LiveMarketData, StockTick } from "@/app/hooks/useLiveMarket";
+import type { ExchangeRateData } from "@/app/hooks/useExchangeRate";
+import { useAccumulationMap, type AccumulationBadgeData } from "@/app/hooks/useAccumulationMap";
+import { useUniverse } from "@/app/hooks/useUniverse";
+import { AccumulationBadge } from "@/app/components/AccumulationBadge";
+import { StockDetailPanel } from "@/app/components/StockDetailPanel";
 
 /** Quick-view lenses, Stockbit-style. */
 type QuickView = "all" | "gainers" | "losers" | "active" | "watchlist";

@@ -4,9 +4,9 @@ import type {
   ISeriesPrimitivePaneView, SeriesType, Time,
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
-import type { GapInfo, SRLevel } from "../hooks/useAISignals";
-import type { OHLCVCandle, SituationInfo } from "../hooks/useTechnicals";
-import { mergeLiveBar, wibDateString } from "./candleLive";
+import type { GapInfo, SRLevel } from "@/app/hooks/useAISignals";
+import type { OHLCVCandle, SituationInfo } from "@/app/hooks/useTechnicals";
+import { mergeLiveBar, wibDateString } from "@/app/components/candleLive";
 
 /**
  * Lightweight Charts wrapper.

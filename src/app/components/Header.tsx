@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, type CSSProperties, type ChangeEvent } from "react";
 import { Search, Sun, Moon, ChevronUp, ChevronDown, X, Menu } from "lucide-react";
-import { useApp } from "../context/AppContext";
-import { useTranslation } from "../i18n/translations";
-import type { LiveMarketData } from "../hooks/useLiveMarket";
-import type { ExchangeRateData } from "../hooks/useExchangeRate";
-import { DataFreshnessBadge } from "./DataFreshnessBadge";
+import { useApp } from "@/app/context/AppContext";
+import { useTranslation } from "@/app/i18n/translations";
+import type { LiveMarketData } from "@/app/hooks/useLiveMarket";
+import type { ExchangeRateData } from "@/app/hooks/useExchangeRate";
+import { DataFreshnessBadge } from "@/app/components/DataFreshnessBadge";
 
 interface HeaderProps {
   title: string;

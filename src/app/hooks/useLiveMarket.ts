@@ -3,9 +3,9 @@ import {
   ENDPOINTS, USE_LIVE_API, WS_CLOSE_AUTH_REFUSED, WS_CLOSE_ENTITLEMENT_REQUIRED,
   WS_CLOSE_SUBSCRIPTION_ENDED,
   apiFetch, signalAuthExpired, signalPaywalled,
-} from "../config/api";
-import { IDX_STOCKS } from "../data/idxData";
-import type { LiveFxRate } from "./useExchangeRate";
+} from "@/app/config/api";
+import { IDX_STOCKS } from "@/app/data/idxData";
+import type { LiveFxRate } from "@/app/hooks/useExchangeRate";
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 export interface StockTick {

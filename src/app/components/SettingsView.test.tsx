@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { SettingsView } from './SettingsView'
-import { AppProvider } from '../context/AppContext'
-import { SIMULATED_FRESHNESS } from '../hooks/useLiveMarket'
-import type { ExchangeRateData } from '../hooks/useExchangeRate'
-import type { AuthState } from '../hooks/useAuth'
+import { SettingsView } from '@/app/components/SettingsView'
+import { AppProvider } from '@/app/context/AppContext'
+import { SIMULATED_FRESHNESS } from '@/app/hooks/useLiveMarket'
+import type { ExchangeRateData } from '@/app/hooks/useExchangeRate'
+import type { AuthState } from '@/app/hooks/useAuth'
 
 /* The subscription tab reads GET /v1/subscription/current. Kept mutable per test so
  * the three states can be driven separately: they are the point of the tab, and a
@@ -54,8 +54,8 @@ const declareState = {
 const declared: unknown[] = []
 
 // Only the transport is faked; the real error classification stays real.
-vi.mock('../config/api', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../config/api')>()),
+vi.mock('@/app/config/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/config/api')>()),
   ENDPOINTS: {
     subscription: '/v1/subscription/current',
     pricing: '/v1/subscriptions/pricing',

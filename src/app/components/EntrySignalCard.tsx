@@ -1,5 +1,5 @@
 import { Eye, Clock, Ban, Target, Shield, Scale } from "lucide-react";
-import type { EntrySignal, TradePlanInfo } from "../hooks/useTechnicals";
+import type { EntrySignal, TradePlanInfo } from "@/app/hooks/useTechnicals";
 
 /**
  * Actionable technical summary: WHEN to enter, WHERE the stop sits, and the R:R.

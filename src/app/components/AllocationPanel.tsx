@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Scale, FlaskConical, ArrowRight, X } from "lucide-react";
-import { usePortfolioOptimisation } from "../hooks/usePortfolioOptimisation";
-import type { PortfolioHolding } from "../hooks/usePortfolio";
+import { usePortfolioOptimisation } from "@/app/hooks/usePortfolioOptimisation";
+import type { PortfolioHolding } from "@/app/hooks/usePortfolio";
 
 /**
  * Recommended allocation against what is actually held.

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { PublicFeatures } from "./PublicFeatures";
+import { PublicFeatures } from "@/app/components/PublicFeatures";
 
 /**
  * The second public surface, reached from the price sheet's "Fitur" link

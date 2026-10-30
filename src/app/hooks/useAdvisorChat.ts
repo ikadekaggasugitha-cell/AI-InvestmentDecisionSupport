@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { USE_LIVE_API, ENDPOINTS, apiFetch, HttpStatusError,
-} from "../config/api";
+} from "@/app/config/api";
 
 /**
  * Streaming Q&A against the backend advisor.

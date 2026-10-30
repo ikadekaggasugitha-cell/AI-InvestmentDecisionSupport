@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch, HttpStatusError,
   classifyLoadError, type LoadFailure,
-} from "../config/api";
-import { portfolioResponseSchema, parseOrThrow } from "../config/schemas";
+} from "@/app/config/api";
+import { portfolioResponseSchema, parseOrThrow } from "@/app/config/schemas";
 
 /**
  * Black-Litterman + HRP allocation weights from the backend.

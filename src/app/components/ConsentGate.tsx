@@ -13,9 +13,9 @@
  */
 
 import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
-import { useAuth } from "../hooks/useAuth";
-import { useTranslation, type Locale } from "../i18n/translations";
-import { hasAcceptedConsent, reportConsent, writeConsent } from "./consent";
+import { useAuth } from "@/app/hooks/useAuth";
+import { useTranslation, type Locale } from "@/app/i18n/translations";
+import { hasAcceptedConsent, reportConsent, writeConsent } from "@/app/components/consent";
 
 export interface ConsentGateProps {
   locale: Locale;

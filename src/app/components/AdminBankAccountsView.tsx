@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ENDPOINTS, apiFetch } from "../config/api";
+import { ENDPOINTS, apiFetch } from "@/app/config/api";
 
 /**
  * Sets where a manual transfer is paid to.

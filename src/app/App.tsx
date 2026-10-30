@@ -1,45 +1,45 @@
 import { useState, useMemo, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { AppProvider, useApp } from "./context/AppContext";
-import { ErrorBoundary } from "./components/ErrorBoundary";
-import { Sidebar, type ViewType } from "./components/Sidebar";
-import { Header } from "./components/Header";
-import { ViewSkeleton } from "./components/ViewSkeleton";
+import { AppProvider, useApp } from "@/app/context/AppContext";
+import { ErrorBoundary } from "@/app/components/ErrorBoundary";
+import { Sidebar, type ViewType } from "@/app/components/Sidebar";
+import { Header } from "@/app/components/Header";
+import { ViewSkeleton } from "@/app/components/ViewSkeleton";
 // Views are code-split: each is its own chunk, loaded on first navigation to
 // it. Only the shell (Sidebar/Header) and the initial dashboard cost anything
 // up front — the app previously bundled all eight views into one eager chunk,
 // which is why the build warned about a >500 kB bundle.
-const DashboardView = lazy(() => import("./components/DashboardView").then((m) => ({ default: m.DashboardView })));
-const MarketsView   = lazy(() => import("./components/MarketsView").then((m) => ({ default: m.MarketsView })));
-const PortfolioView = lazy(() => import("./components/PortfolioView").then((m) => ({ default: m.PortfolioView })));
-const AIAdvisorView = lazy(() => import("./components/AIAdvisorView").then((m) => ({ default: m.AIAdvisorView })));
-const RiskView      = lazy(() => import("./components/RiskView").then((m) => ({ default: m.RiskView })));
-const NewsView      = lazy(() => import("./components/NewsView").then((m) => ({ default: m.NewsView })));
-const SettingsView  = lazy(() => import("./components/SettingsView").then((m) => ({ default: m.SettingsView })));
-const ReportsView   = lazy(() => import("./components/ReportsView").then((m) => ({ default: m.ReportsView })));
-const AlertsView    = lazy(() => import("./components/AlertsView").then((m) => ({ default: m.AlertsView })));
+const DashboardView = lazy(() => import("@/app/components/DashboardView").then((m) => ({ default: m.DashboardView })));
+const MarketsView   = lazy(() => import("@/app/components/MarketsView").then((m) => ({ default: m.MarketsView })));
+const PortfolioView = lazy(() => import("@/app/components/PortfolioView").then((m) => ({ default: m.PortfolioView })));
+const AIAdvisorView = lazy(() => import("@/app/components/AIAdvisorView").then((m) => ({ default: m.AIAdvisorView })));
+const RiskView      = lazy(() => import("@/app/components/RiskView").then((m) => ({ default: m.RiskView })));
+const NewsView      = lazy(() => import("@/app/components/NewsView").then((m) => ({ default: m.NewsView })));
+const SettingsView  = lazy(() => import("@/app/components/SettingsView").then((m) => ({ default: m.SettingsView })));
+const ReportsView   = lazy(() => import("@/app/components/ReportsView").then((m) => ({ default: m.ReportsView })));
+const AlertsView    = lazy(() => import("@/app/components/AlertsView").then((m) => ({ default: m.AlertsView })));
 // Lazy for the same reason as the rest, and it keeps the admin bundle out of the
 // chunk every signed-in person downloads — including the ones who will never be
 // allowed to see it.
-const AdminView     = lazy(() => import("./components/AdminView").then((m) => ({ default: m.AdminView })));
-import { useLiveMarket } from "./hooks/useLiveMarket";
-import { useExchangeRate } from "./hooks/useExchangeRate";
-import { useNews } from "./hooks/useNews";
-import { usePortfolio } from "./hooks/usePortfolio";
-import { useWatchlist } from "./hooks/useWatchlist";
-import { useWindowWidth } from "./hooks/useWindowWidth";
-import { useAlerts } from "./hooks/useAlerts";
-import { useTranslation } from "./i18n/translations";
-import { Toaster } from "./components/ui/sonner";
-import { onAuthExpired } from "./config/api";
-import { PaywallNotice } from "./components/PaywallNotice";
-import { useAuth } from "./hooks/useAuth";
-import { useOverlayScrollbars } from "./hooks/useOverlayScrollbars";
-import { AuthScreen } from "./components/AuthScreen";
-import { PublicPricing } from "./components/PublicPricing";
-import { PublicFeatures } from "./components/PublicFeatures";
-import { SuspensionScreen } from "./components/SuspensionScreen";
-import { planFromSearch, writePlanIntent } from "./planIntent";
+const AdminView     = lazy(() => import("@/app/components/AdminView").then((m) => ({ default: m.AdminView })));
+import { useLiveMarket } from "@/app/hooks/useLiveMarket";
+import { useExchangeRate } from "@/app/hooks/useExchangeRate";
+import { useNews } from "@/app/hooks/useNews";
+import { usePortfolio } from "@/app/hooks/usePortfolio";
+import { useWatchlist } from "@/app/hooks/useWatchlist";
+import { useWindowWidth } from "@/app/hooks/useWindowWidth";
+import { useAlerts } from "@/app/hooks/useAlerts";
+import { useTranslation } from "@/app/i18n/translations";
+import { Toaster } from "@/app/components/ui/sonner";
+import { onAuthExpired } from "@/app/config/api";
+import { PaywallNotice } from "@/app/components/PaywallNotice";
+import { useAuth } from "@/app/hooks/useAuth";
+import { useOverlayScrollbars } from "@/app/hooks/useOverlayScrollbars";
+import { AuthScreen } from "@/app/components/AuthScreen";
+import { PublicPricing } from "@/app/components/PublicPricing";
+import { PublicFeatures } from "@/app/components/PublicFeatures";
+import { SuspensionScreen } from "@/app/components/SuspensionScreen";
+import { planFromSearch, writePlanIntent } from "@/app/planIntent";
 import { toast } from "sonner";
 
 function formatDashboardSubtitle(locale: string): string {

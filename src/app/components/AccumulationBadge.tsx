@@ -1,5 +1,5 @@
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
-import type { AccumulationBadgeData } from "../hooks/useAccumulationMap";
+import type { AccumulationBadgeData } from "@/app/hooks/useAccumulationMap";
 
 /**
  * Compact accumulation pill for dense list/table rows.

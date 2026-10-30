@@ -1,5 +1,5 @@
 import { BarChart3, Waves, TrendingUp, TrendingDown, Minus, Zap } from "lucide-react";
-import type { VolumeInfo, AccumulationInfo } from "../hooks/useTechnicals";
+import type { VolumeInfo, AccumulationInfo } from "@/app/hooks/useTechnicals";
 
 /**
  * Volume intensity + volume-flow accumulation read, side by side.

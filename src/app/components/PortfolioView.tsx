@@ -4,19 +4,19 @@ import {
   ResponsiveContainer, Cell, BarChart, Bar,
 } from "recharts";
 import { ChevronUp, ChevronDown, FlaskConical, Pencil, Plus, Trash2 } from "lucide-react";
-import { useApp } from "../context/AppContext";
-import type { LoadFailure } from "../config/api";
-import { useTranslation } from "../i18n/translations";
-import { SECTOR_ALLOCATION } from "../data/idxData";
-import { usePortfolioOptimisation } from "../hooks/usePortfolioOptimisation";
-import { useEquityCurve } from "../hooks/useEquityCurve";
-import { useUniverse } from "../hooks/useUniverse";
-import { PositionModal, type ModalMode } from "./PositionModal";
-import { fmtIdr, fmtAmount } from "../utils/formatting";
-import type { PortfolioHolding } from "../hooks/usePortfolio";
-import type { LiveMarketData } from "../hooks/useLiveMarket";
-import type { ExchangeRateData } from "../hooks/useExchangeRate";
-import { AllocationPanel } from "./AllocationPanel";
+import { useApp } from "@/app/context/AppContext";
+import type { LoadFailure } from "@/app/config/api";
+import { useTranslation } from "@/app/i18n/translations";
+import { SECTOR_ALLOCATION } from "@/app/data/idxData";
+import { usePortfolioOptimisation } from "@/app/hooks/usePortfolioOptimisation";
+import { useEquityCurve } from "@/app/hooks/useEquityCurve";
+import { useUniverse } from "@/app/hooks/useUniverse";
+import { PositionModal, type ModalMode } from "@/app/components/PositionModal";
+import { fmtIdr, fmtAmount } from "@/app/utils/formatting";
+import type { PortfolioHolding } from "@/app/hooks/usePortfolio";
+import type { LiveMarketData } from "@/app/hooks/useLiveMarket";
+import type { ExchangeRateData } from "@/app/hooks/useExchangeRate";
+import { AllocationPanel } from "@/app/components/AllocationPanel";
 
 /**
  * Sector slice colour by position in the descending-weight list.

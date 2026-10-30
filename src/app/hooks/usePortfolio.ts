@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ENDPOINTS, HttpStatusError, apiFetch, classifyLoadError, type LoadFailure,
-} from "../config/api";
-import { LOT_MAX, PRICE_MAX } from "../constants";
-import { IDX_STOCKS } from "../data/idxData";
+} from "@/app/config/api";
+import { LOT_MAX, PRICE_MAX } from "@/app/constants";
+import { IDX_STOCKS } from "@/app/data/idxData";
 
 /**
  * The caller's positions, from GET and PUT /v1/portfolio/positions.

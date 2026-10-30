@@ -11,10 +11,10 @@ import {
   Bell,
   X,
 } from "lucide-react";
-import { useApp } from "../context/AppContext";
-import { useTranslation } from "../i18n/translations";
-import type { Account } from "../hooks/useAuth";
-import logoUrl from "../../assets/aidss-logo.svg";
+import { useApp } from "@/app/context/AppContext";
+import { useTranslation } from "@/app/i18n/translations";
+import type { Account } from "@/app/hooks/useAuth";
+import logoUrl from "@/assets/aidss-logo.svg";
 
 export type ViewType =
   | "dashboard"

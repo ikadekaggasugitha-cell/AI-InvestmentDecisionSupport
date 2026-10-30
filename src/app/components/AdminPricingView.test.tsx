@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { AdminPricingView } from "./AdminPricingView";
+import { AdminPricingView } from "@/app/components/AdminPricingView";
 
 /**
  * The form that sets what the product costs.
@@ -19,12 +19,12 @@ import { AdminPricingView } from "./AdminPricingView";
  * is sold is decided elsewhere (and nowhere yet, since there is no purchase
  * path).
  */
-vi.mock("../config/api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../config/api")>()),
+vi.mock("@/app/config/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/app/config/api")>()),
   apiFetch: vi.fn(),
 }));
 
-import { apiFetch } from "../config/api";
+import { apiFetch } from "@/app/config/api";
 
 const mocked = vi.mocked(apiFetch);
 

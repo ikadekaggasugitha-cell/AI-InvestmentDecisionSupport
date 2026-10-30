@@ -1,6 +1,6 @@
 import { TrendingUp, TrendingDown, Minus, FlaskConical } from "lucide-react";
-import type { BrokerSummarySnapshot } from "../hooks/useAISignals";
-import type { BrokerSummaryDay } from "../hooks/useBrokerSummary";
+import type { BrokerSummarySnapshot } from "@/app/hooks/useAISignals";
+import type { BrokerSummaryDay } from "@/app/hooks/useBrokerSummary";
 
 /**
  * Accumulation / distribution panel.

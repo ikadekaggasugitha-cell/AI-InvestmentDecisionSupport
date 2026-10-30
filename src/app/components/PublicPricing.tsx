@@ -55,12 +55,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Activity, ArrowRight, ArrowUpRight, Bell, PieChart, ShieldCheck } from "lucide-react";
-import { apiFetch, ENDPOINTS } from "../config/api";
-import type { Locale } from "../i18n/translations";
-import type { PlanKey } from "../planIntent";
-import { PublicFooter, type NavColumn } from "./PublicFooter";
-import { PublicNavMenu } from "./PublicNavMenu";
-import logoUrl from "../../assets/aidss-logo.svg";
+import { apiFetch, ENDPOINTS } from "@/app/config/api";
+import type { Locale } from "@/app/i18n/translations";
+import type { PlanKey } from "@/app/planIntent";
+import { PublicFooter, type NavColumn } from "@/app/components/PublicFooter";
+import { PublicNavMenu } from "@/app/components/PublicNavMenu";
+import logoUrl from "@/assets/aidss-logo.svg";
 
 export interface PublicPricingProps {
   locale: Locale;

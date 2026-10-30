@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { X, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
-import type { PortfolioHolding } from "../hooks/usePortfolio";
-import { useUniverse } from "../hooks/useUniverse";
-import { LOT_MAX, PRICE_MAX } from "../constants";
+import type { PortfolioHolding } from "@/app/hooks/usePortfolio";
+import { useUniverse } from "@/app/hooks/useUniverse";
+import { LOT_MAX, PRICE_MAX } from "@/app/constants";
 
 export type ModalMode = "add" | "edit" | "delete";
 

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { useApp } from "../context/AppContext";
-import type { AuthState } from "../hooks/useAuth";
-import { useTranslation } from "../i18n/translations";
-import { ENDPOINTS, apiFetch } from "../config/api";
-import { usePayments } from "../hooks/usePayments";
-import type { ExchangeRateData } from "../hooks/useExchangeRate";
-import type { DataFreshness } from "../hooks/useLiveMarket";
-import { readPlanIntent, writePlanIntent } from "../planIntent";
+import { useApp } from "@/app/context/AppContext";
+import type { AuthState } from "@/app/hooks/useAuth";
+import { useTranslation } from "@/app/i18n/translations";
+import { ENDPOINTS, apiFetch } from "@/app/config/api";
+import { usePayments } from "@/app/hooks/usePayments";
+import type { ExchangeRateData } from "@/app/hooks/useExchangeRate";
+import type { DataFreshness } from "@/app/hooks/useLiveMarket";
+import { readPlanIntent, writePlanIntent } from "@/app/planIntent";
 
 /*
  * Settings, per docs/settings-module-spec.md v1.1.0.

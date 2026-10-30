@@ -1,15 +1,15 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { X, ChevronUp, ChevronDown, Star } from "lucide-react";
-import type { StockTick } from "../hooks/useLiveMarket";
-import type { UniverseEntry } from "../hooks/useUniverse";
-import type { AISignal } from "../hooks/useAISignals";
-import { useTechnicals } from "../hooks/useTechnicals";
-import { ENDPOINTS, USE_LIVE_API, apiFetch, FETCH_TIMEOUT_MS } from "../config/api";
-import { EntrySignalCard } from "./EntrySignalCard";
-import { ConsentGate } from "./ConsentGate";
+import type { StockTick } from "@/app/hooks/useLiveMarket";
+import type { UniverseEntry } from "@/app/hooks/useUniverse";
+import type { AISignal } from "@/app/hooks/useAISignals";
+import { useTechnicals } from "@/app/hooks/useTechnicals";
+import { ENDPOINTS, USE_LIVE_API, apiFetch, FETCH_TIMEOUT_MS } from "@/app/config/api";
+import { EntrySignalCard } from "@/app/components/EntrySignalCard";
+import { ConsentGate } from "@/app/components/ConsentGate";
 
 const CandlestickChart = lazy(() =>
-  import("./CandlestickChart").then((m) => ({ default: m.CandlestickChart })),
+  import("@/app/components/CandlestickChart").then((m) => ({ default: m.CandlestickChart })),
 );
 
 /** Probability-tier presentation: colour + bilingual label. */

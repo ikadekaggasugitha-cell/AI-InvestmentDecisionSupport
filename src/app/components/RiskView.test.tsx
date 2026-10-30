@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { RiskView } from "./RiskView";
-import { RISK_DATA } from "../data/idxData";
+import { RiskView } from "@/app/components/RiskView";
+import { RISK_DATA } from "@/app/data/idxData";
 
 /**
  * The seed figures stay on screen; the sentence above them has to be true.
@@ -17,9 +17,9 @@ import { RISK_DATA } from "../data/idxData";
  * simulated path; what was wrong was not that seed was shown but that it was
  * explained with a cause that never happened.
  */
-vi.mock("../hooks/useRiskMetrics", () => ({ useRiskMetrics: vi.fn() }));
+vi.mock("@/app/hooks/useRiskMetrics", () => ({ useRiskMetrics: vi.fn() }));
 
-import { useRiskMetrics } from "../hooks/useRiskMetrics";
+import { useRiskMetrics } from "@/app/hooks/useRiskMetrics";
 
 const mocked = vi.mocked(useRiskMetrics);
 

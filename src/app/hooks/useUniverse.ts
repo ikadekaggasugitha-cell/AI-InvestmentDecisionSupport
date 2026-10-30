@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ENDPOINTS, USE_LIVE_API, apiFetch, FETCH_TIMEOUT_MS, HttpStatusError,
-} from "../config/api";
-import { IDX_STOCKS } from "../data/idxData";
+} from "@/app/config/api";
+import { IDX_STOCKS } from "@/app/data/idxData";
 
 /**
  * The full listed IDX board, fetched once from `/v1/symbols`.

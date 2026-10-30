@@ -59,7 +59,7 @@ export function writeConsent(accountId: string | null): void {
  */
 export async function reportConsent(accountId: string | null): Promise<boolean> {
   if (!accountId) return false;
-  const { ENDPOINTS, apiFetch } = await import("../config/api");
+  const { ENDPOINTS, apiFetch } = await import("@/app/config/api");
   try {
     const res = await apiFetch(ENDPOINTS.authConsent, { method: "POST" });
     return res.ok;

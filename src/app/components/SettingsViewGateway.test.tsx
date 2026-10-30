@@ -9,11 +9,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { SettingsView } from "./SettingsView";
-import { AppProvider } from "../context/AppContext";
-import { SIMULATED_FRESHNESS } from "../hooks/useLiveMarket";
-import type { ExchangeRateData } from "../hooks/useExchangeRate";
-import type { AuthState } from "../hooks/useAuth";
+import { SettingsView } from "@/app/components/SettingsView";
+import { AppProvider } from "@/app/context/AppContext";
+import { SIMULATED_FRESHNESS } from "@/app/hooks/useLiveMarket";
+import type { ExchangeRateData } from "@/app/hooks/useExchangeRate";
+import type { AuthState } from "@/app/hooks/useAuth";
 
 const priceState = {
   body: { weekly: 15000, monthly: 44000, annual: 252000 } as unknown,
@@ -31,8 +31,8 @@ const gateState = {
 const checkouts: unknown[] = [];
 
 // Only the transport is faked; the error classification in the hook stays real.
-vi.mock("../config/api", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../config/api")>()),
+vi.mock("@/app/config/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/app/config/api")>()),
   ENDPOINTS: {
     subscription: "/v1/subscription/current",
     pricing: "/v1/subscriptions/pricing",

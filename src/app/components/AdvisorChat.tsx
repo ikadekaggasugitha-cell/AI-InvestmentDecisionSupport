@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageSquare, Send, Square, RotateCcw, AlertTriangle } from "lucide-react";
-import { useAdvisorChat } from "../hooks/useAdvisorChat";
-import { AdvisorMessage } from "./advisor/AdvisorMessage";
+import { useAdvisorChat } from "@/app/hooks/useAdvisorChat";
+import { AdvisorMessage } from "@/app/components/advisor/AdvisorMessage";
 
 /**
  * Q&A panel over the portfolio.

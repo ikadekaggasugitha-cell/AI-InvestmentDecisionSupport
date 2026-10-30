@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-import { AdminView } from './AdminView'
-import { AppProvider } from '../context/AppContext'
+import { AdminView } from '@/app/components/AdminView'
+import { AppProvider } from '@/app/context/AppContext'
 
 /**
  * `/admin` — the account list, and block/unblock.
@@ -30,8 +30,8 @@ const ACCOUNTS = [
 ]
 
 // Only the transport is faked; the real error classification stays real.
-vi.mock('../config/api', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../config/api')>()),
+vi.mock('@/app/config/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/config/api')>()),
   ENDPOINTS: {
     adminAccounts: '/v1/admin/accounts',
     adminPricing: '/v1/admin/settings/pricing',

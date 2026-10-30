@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { ENDPOINTS, apiFetch } from "../config/api";
-import { useApp } from "../context/AppContext";
-import { AdminBankAccountsView } from "./AdminBankAccountsView";
-import { AdminPricingView } from "./AdminPricingView";
-import logoUrl from "../../assets/aidss-logo.svg";
+import { ENDPOINTS, apiFetch } from "@/app/config/api";
+import { useApp } from "@/app/context/AppContext";
+import { AdminBankAccountsView } from "@/app/components/AdminBankAccountsView";
+import { AdminPricingView } from "@/app/components/AdminPricingView";
+import logoUrl from "@/assets/aidss-logo.svg";
 
 /**
  * Account administration: the list, and blocking or unblocking.

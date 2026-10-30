@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AppProvider } from '../context/AppContext'
-import { apiFetch } from '../config/api'
-import { SuspensionScreen } from './SuspensionScreen'
+import { AppProvider } from '@/app/context/AppContext'
+import { apiFetch } from '@/app/config/api'
+import { SuspensionScreen } from '@/app/components/SuspensionScreen'
 
 const apiFetchMock = apiFetch as unknown as ReturnType<typeof vi.fn>
 
@@ -35,8 +35,8 @@ const banksState = {
 const declared: unknown[] = []
 const declareState = { accepted: true } as { accepted: boolean }
 
-vi.mock('../config/api', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../config/api')>()),
+vi.mock('@/app/config/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/config/api')>()),
   ENDPOINTS: {
     subscription: '/v1/subscription/current',
     pricing: '/v1/subscriptions/pricing',

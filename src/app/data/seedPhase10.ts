@@ -21,7 +21,7 @@ import type {
   SRLevel,
   TradePlan,
   TrendInfo,
-} from "../hooks/useAISignals";
+} from "@/app/hooks/useAISignals";
 
 export interface SignalEnrichment {
   tradePlan: TradePlan | null;

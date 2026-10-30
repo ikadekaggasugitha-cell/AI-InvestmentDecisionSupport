@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ENDPOINTS, apiFetch } from "../config/api";
+import { ENDPOINTS, apiFetch } from "@/app/config/api";
 
 /** What /v1/auth/me returns. Mirrors AccountResponse on the backend. */
 export interface Account {

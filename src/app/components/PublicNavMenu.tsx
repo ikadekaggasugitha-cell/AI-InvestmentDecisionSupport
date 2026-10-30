@@ -13,7 +13,7 @@
  */
 import { useEffect, useId, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
-import type { Locale } from "../i18n/translations";
+import type { Locale } from "@/app/i18n/translations";
 
 export interface PublicNavTarget {
   /** Real href: middle-click and sharing keep working. */

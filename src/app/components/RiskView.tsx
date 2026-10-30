@@ -1,16 +1,16 @@
 import { memo } from "react";
-import { ViewSkeleton } from "./ViewSkeleton";
+import { ViewSkeleton } from "@/app/components/ViewSkeleton";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
   Activity, AlertTriangle,
 } from "lucide-react";
-import { useApp } from "../context/AppContext";
-import { useTranslation } from "../i18n/translations";
-import { useRiskMetrics, type RiskMetrics, type StressTest, type SectorExposureItem } from "../hooks/useRiskMetrics";
-import { fmtIdr } from "../utils/formatting";
-import type { LiveMarketData } from "../hooks/useLiveMarket";
+import { useApp } from "@/app/context/AppContext";
+import { useTranslation } from "@/app/i18n/translations";
+import { useRiskMetrics, type RiskMetrics, type StressTest, type SectorExposureItem } from "@/app/hooks/useRiskMetrics";
+import { fmtIdr } from "@/app/utils/formatting";
+import type { LiveMarketData } from "@/app/hooks/useLiveMarket";
 
 interface Props { market: LiveMarketData; }
 

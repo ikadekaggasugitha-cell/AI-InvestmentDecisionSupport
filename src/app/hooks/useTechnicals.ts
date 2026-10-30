@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "../config/api";
-import { SEED_ENRICHMENT } from "../data/seedPhase10";
-import type { GapInfo, SRLevel, TrendInfo } from "./useAISignals";
+import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "@/app/config/api";
+import { SEED_ENRICHMENT } from "@/app/data/seedPhase10";
+import type { GapInfo, SRLevel, TrendInfo } from "@/app/hooks/useAISignals";
 
 /* ── Public types ────────────────────────────────────────────────────────── */
 
@@ -205,7 +205,7 @@ export function useTechnicals(
       setState(base);
 
       let stale = false;
-      import("../data/seedOhlcv")
+      import("@/app/data/seedOhlcv")
         .then(({ SEED_OHLCV }) => {
           if (stale) return;
           setState({

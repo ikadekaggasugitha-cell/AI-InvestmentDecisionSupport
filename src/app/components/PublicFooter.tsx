@@ -11,8 +11,8 @@
  * exist, "Hubungi kami" stays held (no href, [OWNER TO NAME] pending).
  */
 import { useEffect, useState } from "react";
-import type { Locale } from "../i18n/translations";
-import logoUrl from "../../assets/aidss-logo.svg";
+import type { Locale } from "@/app/i18n/translations";
+import logoUrl from "@/assets/aidss-logo.svg";
 
 export interface NavColumn {
   headId: string;

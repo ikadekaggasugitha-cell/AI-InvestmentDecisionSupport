@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 
-import { AppProvider, useApp } from "./AppContext";
+import { AppProvider, useApp } from "@/app/context/AppContext";
 
 /**
  * The shell needs one fact about the account: whether the paid data is locked,
@@ -101,7 +101,7 @@ describe("AppContext — subscription status", () => {
     // answer, re-asked, because a refusal can mean "your period ended a minute
     // ago" and the screen should say so rather than keep showing a stale no.
     respond(200, { active: false });
-    const api = await import("../config/api");
+    const api = await import("@/app/config/api");
 
     render(
       <AppProvider>
@@ -124,7 +124,7 @@ describe("AppContext — subscription status", () => {
     // A refusal arrived but the server will not say why. Showing "subscribe" here
     // would be guessing at a cause, which is the mistake this whole change is about.
     respond(503, {});
-    const api = await import("../config/api");
+    const api = await import("@/app/config/api");
 
     render(
       <AppProvider>
@@ -149,7 +149,7 @@ describe("AppContext — subscription status", () => {
     // re-fires and re-asks, and this endpoint gets hit once a minute for no new
     // information.
     respond(200, { active: false });
-    const api = await import("../config/api");
+    const api = await import("@/app/config/api");
 
     render(
       <AppProvider>

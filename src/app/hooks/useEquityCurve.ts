@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ENDPOINTS, FETCH_TIMEOUT_MS, USE_LIVE_API, apiFetch, HttpStatusError,
   classifyLoadError, type LoadFailure,
-} from "../config/api";
+} from "@/app/config/api";
 
 /**
  * Realised portfolio value over time, from GET /v1/portfolio/equity.

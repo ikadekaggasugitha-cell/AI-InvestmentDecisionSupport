@@ -3,14 +3,14 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { TrendingUp, Activity, ChevronUp, ChevronDown, AlertCircle, Zap, FlaskConical } from "lucide-react";
-import { useApp } from "../context/AppContext";
-import { useTranslation } from "../i18n/translations";
-import { SECTOR_ALLOCATION, RECENT_TRANSACTIONS } from "../data/idxData";
-import type { AlertItem } from "./AlertsView";
-import { fmtIdr, fmtAmount } from "../utils/formatting";
-import type { PortfolioHolding, Transaction } from "../hooks/usePortfolio";
-import type { LiveMarketData } from "../hooks/useLiveMarket";
-import type { ExchangeRateData } from "../hooks/useExchangeRate";
+import { useApp } from "@/app/context/AppContext";
+import { useTranslation } from "@/app/i18n/translations";
+import { SECTOR_ALLOCATION, RECENT_TRANSACTIONS } from "@/app/data/idxData";
+import type { AlertItem } from "@/app/components/AlertsView";
+import { fmtIdr, fmtAmount } from "@/app/utils/formatting";
+import type { PortfolioHolding, Transaction } from "@/app/hooks/usePortfolio";
+import type { LiveMarketData } from "@/app/hooks/useLiveMarket";
+import type { ExchangeRateData } from "@/app/hooks/useExchangeRate";
 
 interface Props {
   market:       LiveMarketData;

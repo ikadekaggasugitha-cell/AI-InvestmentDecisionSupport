@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ExternalLink, RefreshCw, WifiOff } from "lucide-react";
-import { useApp } from "../context/AppContext";
-import type { NewsItem } from "../hooks/useNews";
+import { useApp } from "@/app/context/AppContext";
+import type { NewsItem } from "@/app/hooks/useNews";
 
 interface Props {
   news: NewsItem[];

@@ -1,6 +1,6 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
-import type { LoadFailure } from "../config/api";
+import type { LoadFailure } from "@/app/config/api";
 
 interface Props {
   message?: string | null;

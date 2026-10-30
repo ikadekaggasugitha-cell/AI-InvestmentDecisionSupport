@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { HttpStatusError, classifyLoadError } from "./api";
+import { HttpStatusError, classifyLoadError } from "@/app/config/api";
 
 /**
  * Naming why a load failed.

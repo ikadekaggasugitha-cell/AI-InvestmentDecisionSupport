@@ -2,19 +2,19 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { ConsentGate, ConsentModal } from './ConsentGate'
-import { clearConsent, hasAcceptedConsent, writeConsent } from './consent'
+import { ConsentGate, ConsentModal } from '@/app/components/ConsentGate'
+import { clearConsent, hasAcceptedConsent, writeConsent } from '@/app/components/consent'
 
 const useAuthMock = vi.fn(() => ({ account: { id: 'acct-a' } as { id: string } | null }))
-vi.mock('../hooks/useAuth', () => ({ useAuth: () => useAuthMock() }))
+vi.mock('@/app/hooks/useAuth', () => ({ useAuth: () => useAuthMock() }))
 
 // The consent POST is the point of the second describe block, so the fetch mock
 // records it rather than stubbing it away.
 const posted: string[] = []
 const postState = { ok: true, throw: false }
 // Only the transport is faked; the real error classification stays real.
-vi.mock('../config/api', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../config/api')>()),
+vi.mock('@/app/config/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/config/api')>()),
   ENDPOINTS: {
     authConsent: '/v1/auth/consent',
     subscription: '/v1/subscription/current',
@@ -117,7 +117,7 @@ describe('the surface that was ungated', () => {
   it('the stock detail panel now gates its model score', async () => {
     // It renders the same model's uprob and tier, from the markets table, with no
     // modal at all. Legal-and-consent.md §5 covers signals as well as the advisor.
-    const panel = await import('./StockDetailPanel').catch(() => null)
+    const panel = await import('@/app/components/StockDetailPanel').catch(() => null)
     expect(panel).not.toBeNull()
   })
 })

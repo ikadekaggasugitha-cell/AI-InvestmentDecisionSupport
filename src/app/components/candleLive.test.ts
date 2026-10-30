@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { mergeLiveBar, wibDateString } from './candleLive'
-import type { OHLCVCandle } from '../hooks/useTechnicals'
+import { mergeLiveBar, wibDateString } from '@/app/components/candleLive'
+import type { OHLCVCandle } from '@/app/hooks/useTechnicals'
 
 const TODAY = '2026-08-21'
 

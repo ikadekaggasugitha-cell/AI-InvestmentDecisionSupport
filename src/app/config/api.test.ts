@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   authHeaders, apiFetch, onAuthExpired, signalAuthExpired, ENDPOINTS,
-} from './api'
+} from '@/app/config/api'
 
 describe('authHeaders', () => {
   it('adds no Authorization header', () => {
@@ -94,7 +94,7 @@ describe('apiFetch — the paywall signal', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
-  const loadApi = async () => import('./api')
+  const loadApi = async () => import('@/app/config/api')
 
   it('broadcasts one paywall event per outage, not one per request', async () => {
     // Eight hooks ask for paid data on first paint. One refusal is one fact about

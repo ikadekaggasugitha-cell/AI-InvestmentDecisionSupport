@@ -15,7 +15,7 @@ const fetchMock = vi.fn();
 async function loadHook() {
   vi.resetModules();
   vi.stubGlobal("fetch", fetchMock);
-  return import("./useRiskMetrics");
+  return import("@/app/hooks/useRiskMetrics");
 }
 
 function respond(status: number) {

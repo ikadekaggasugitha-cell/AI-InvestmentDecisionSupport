@@ -27,10 +27,10 @@ import {
   ShieldCheck,
   TrendingUp,
 } from "lucide-react";
-import type { Locale } from "../i18n/translations";
-import { PublicFooter, type NavColumn } from "./PublicFooter";
-import { PublicNavMenu } from "./PublicNavMenu";
-import logoUrl from "../../assets/aidss-logo.svg";
+import type { Locale } from "@/app/i18n/translations";
+import { PublicFooter, type NavColumn } from "@/app/components/PublicFooter";
+import { PublicNavMenu } from "@/app/components/PublicNavMenu";
+import logoUrl from "@/assets/aidss-logo.svg";
 
 export interface PublicFeaturesProps {
   locale: Locale;

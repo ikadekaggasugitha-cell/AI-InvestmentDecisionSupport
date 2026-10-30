@@ -1,6 +1,6 @@
 import { Download, Loader2, Plus } from "lucide-react";
-import { useApp } from "../context/AppContext";
-import { useReports } from "../hooks/useReports";
+import { useApp } from "@/app/context/AppContext";
+import { useReports } from "@/app/hooks/useReports";
 
 /**
  * Reports module.

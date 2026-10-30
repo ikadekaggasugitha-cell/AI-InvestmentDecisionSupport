@@ -19,12 +19,12 @@
  */
 
 import { useEffect, useId, useState, type FormEvent } from "react";
-import type { AuthState } from "../hooks/useAuth";
-import type { PlanKey } from "../planIntent";
-import { readPlanIntent, writePlanIntent } from "../planIntent";
-import { useTranslation, type Locale } from "../i18n/translations";
-import { PricingLink } from "./PublicPricing";
-import logoUrl from "../../assets/aidss-logo.svg";
+import type { AuthState } from "@/app/hooks/useAuth";
+import type { PlanKey } from "@/app/planIntent";
+import { readPlanIntent, writePlanIntent } from "@/app/planIntent";
+import { useTranslation, type Locale } from "@/app/i18n/translations";
+import { PricingLink } from "@/app/components/PublicPricing";
+import logoUrl from "@/assets/aidss-logo.svg";
 
 export interface AuthScreenProps {
   auth: AuthState;

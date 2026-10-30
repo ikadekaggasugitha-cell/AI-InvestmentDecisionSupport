@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { EntrySignalCard } from './EntrySignalCard'
-import type { EntrySignal, TradePlanInfo } from '../hooks/useTechnicals'
+import { EntrySignalCard } from '@/app/components/EntrySignalCard'
+import type { EntrySignal, TradePlanInfo } from '@/app/hooks/useTechnicals'
 
 const buyWatch: EntrySignal = {
   signal: 'buy_watch',

@@ -2,8 +2,8 @@ import {
   createContext, useCallback, useContext, useEffect,
   useLayoutEffect, useState, type ReactNode,
 } from "react";
-import { ENDPOINTS, apiFetch, onPaywalled } from "../config/api";
-import type { Locale } from "../i18n/translations";
+import { ENDPOINTS, apiFetch, onPaywalled } from "@/app/config/api";
+import type { Locale } from "@/app/i18n/translations";
 
 const STORAGE_THEME  = "aidss-theme";
 const STORAGE_LOCALE = "aidss-locale";

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch, HttpStatusError,
-} from "../config/api";
+} from "@/app/config/api";
 
 /* ── Public types ────────────────────────────────────────────────────────── */
 

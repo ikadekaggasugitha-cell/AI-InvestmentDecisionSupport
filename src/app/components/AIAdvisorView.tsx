@@ -5,27 +5,27 @@ import {
   ArrowUpToLine, ArrowUpFromLine, Minimize2, MoveHorizontal, Zap,
 } from "lucide-react";
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { useApp } from "../context/AppContext";
-import { useTranslation } from "../i18n/translations";
-import { useAISignals, type AISignal } from "../hooks/useAISignals";
-import { useBrokerSummary } from "../hooks/useBrokerSummary";
-import { useTechnicals, type SituationInfo } from "../hooks/useTechnicals";
-import type { LiveMarketData } from "../hooks/useLiveMarket";
-import { DataFreshnessBadge } from "./DataFreshnessBadge";
-import { AdvisorChat } from "./AdvisorChat";
-import { BrokerSummaryPanel } from "./BrokerSummaryPanel";
-import { EntrySignalCard } from "./EntrySignalCard";
-import { VolumeAccumulationPanel } from "./VolumeAccumulationPanel";
-import { ViewSkeleton } from "./ViewSkeleton";
-import { ViewError } from "./ViewError";
-import { ConsentModal } from "./ConsentGate";
-import { clearConsent, hasAcceptedConsent, writeConsent, reportConsent } from "./consent";
-import { useAuth } from "../hooks/useAuth";
+import { useApp } from "@/app/context/AppContext";
+import { useTranslation } from "@/app/i18n/translations";
+import { useAISignals, type AISignal } from "@/app/hooks/useAISignals";
+import { useBrokerSummary } from "@/app/hooks/useBrokerSummary";
+import { useTechnicals, type SituationInfo } from "@/app/hooks/useTechnicals";
+import type { LiveMarketData } from "@/app/hooks/useLiveMarket";
+import { DataFreshnessBadge } from "@/app/components/DataFreshnessBadge";
+import { AdvisorChat } from "@/app/components/AdvisorChat";
+import { BrokerSummaryPanel } from "@/app/components/BrokerSummaryPanel";
+import { EntrySignalCard } from "@/app/components/EntrySignalCard";
+import { VolumeAccumulationPanel } from "@/app/components/VolumeAccumulationPanel";
+import { ViewSkeleton } from "@/app/components/ViewSkeleton";
+import { ViewError } from "@/app/components/ViewError";
+import { ConsentModal } from "@/app/components/ConsentGate";
+import { clearConsent, hasAcceptedConsent, writeConsent, reportConsent } from "@/app/components/consent";
+import { useAuth } from "@/app/hooks/useAuth";
 
 // Lightweight Charts is ~45KB and only an expanded card ever renders one, so
 // it is code-split rather than shipped in the initial bundle.
 const CandlestickChart = lazy(() =>
-  import("./CandlestickChart").then((m) => ({ default: m.CandlestickChart })),
+  import("@/app/components/CandlestickChart").then((m) => ({ default: m.CandlestickChart })),
 );
 
 type Tier = "VERY_HIGH" | "HIGH" | "NEUTRAL" | "LOW";

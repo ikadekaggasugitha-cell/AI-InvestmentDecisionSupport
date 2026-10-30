@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { TabSubscription } from "./SettingsView";
-import { useApp } from "../context/AppContext";
+import { TabSubscription } from "@/app/components/SettingsView";
+import { useApp } from "@/app/context/AppContext";
 
 /**
  * The screen an account with a `blocked_reason` sees instead of the app.

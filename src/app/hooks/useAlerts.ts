@@ -1,8 +1,8 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { ENDPOINTS, USE_LIVE_API, apiFetch, FETCH_TIMEOUT_MS, HttpStatusError,
-} from "../config/api";
-import { ALERTS_DATA } from "../data/idxData";
-import type { AlertItem } from "../components/AlertsView";
+} from "@/app/config/api";
+import { ALERTS_DATA } from "@/app/data/idxData";
+import type { AlertItem } from "@/app/components/AlertsView";
 
 /**
  * Alerts state — live feed + persisted read/dismiss.
