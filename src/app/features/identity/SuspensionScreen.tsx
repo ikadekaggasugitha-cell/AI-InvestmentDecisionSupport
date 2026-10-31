@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TabSubscription } from '@/app/features/settings/SettingsView'
+import { TabSubscription } from '@/app/features/settings/TabSubscription'
 import { useApp } from '@/app/context/AppContext'
 
 /**

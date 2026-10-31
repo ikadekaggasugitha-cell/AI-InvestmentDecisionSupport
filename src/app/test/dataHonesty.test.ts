@@ -103,7 +103,11 @@ describe('model provenance the contract cannot support', () => {
   })
 
   it('derives the provenance line from the source field', () => {
-    const view = readFileSync(join(SRC, 'features/advisor/AIAdvisorView.tsx'), 'utf8')
+    // The branch moved out of the view shell when the signal card got its own
+    // file; the guard follows the code, not the historical filename.
+    const view =
+      readFileSync(join(SRC, 'features/advisor/AIAdvisorView.tsx'), 'utf8') +
+      readFileSync(join(SRC, 'features/advisor/signalCard.tsx'), 'utf8')
     expect(view).toMatch(/servingSource\s*===\s*["']live["']/)
     expect(view).toMatch(/servingSource\s*===\s*["']mock["']/)
   })
