@@ -145,14 +145,6 @@ function isMarketOpen(): boolean {
   return m >= OPEN_MINUTE && m <= CLOSE_MINUTE
 }
 
-function minuteToLabel(minute: number): string {
-  const h = Math.floor(minute / 60)
-    .toString()
-    .padStart(2, '0')
-  const m = (minute % 60).toString().padStart(2, '0')
-  return `${h}:${m}`
-}
-
 /* ─── Portfolio value ─────────────────────────────────────────────────────
  *
  * Not computed here. This hook used to total PORTFOLIO_HOLDINGS against the live

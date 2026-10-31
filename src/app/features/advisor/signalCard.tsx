@@ -9,16 +9,14 @@ import { ChevronDown, ChevronUp, Clock, AlertTriangle } from 'lucide-react'
 import { useTranslation } from '@/app/i18n/translations'
 import type { AISignal } from '@/app/features/dashboard/useAISignals'
 import { useBrokerSummary } from '@/app/features/signals/useBrokerSummary'
-import { useTechnicals, type SituationInfo } from '@/app/features/market/useTechnicals'
+import { useTechnicals } from '@/app/features/market/useTechnicals'
 import type { LiveMarketData } from '@/app/features/market/useLiveMarket'
 import { DataFreshnessBadge } from '@/app/components/DataFreshnessBadge'
 import { BrokerSummaryPanel } from '@/app/features/signals/BrokerSummaryPanel'
 import { EntrySignalCard } from '@/app/features/signals/EntrySignalCard'
 import { VolumeAccumulationPanel } from '@/app/features/signals/VolumeAccumulationPanel'
+import { type Tier, TIER_CFG, tierLabel } from '@/app/features/advisor/signalConfig'
 import {
-  type Tier,
-  TIER_CFG,
-  tierLabel,
   ProbabilityGauge,
   TrendBadge,
   SituationBadge,

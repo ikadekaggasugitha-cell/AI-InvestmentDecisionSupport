@@ -147,7 +147,6 @@ export function useRiskMetrics(): RiskMetricsResult {
       clearInterval(interval)
     }
     // refreshTick bump forces an immediate re-fetch for the manual Refresh button.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshTick])
 
   return { risk, stressTests, sectorExposure, loading, error, failure, isLive, refetch }

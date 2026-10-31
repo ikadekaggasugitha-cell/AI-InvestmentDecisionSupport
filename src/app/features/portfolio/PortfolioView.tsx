@@ -20,7 +20,7 @@ import { usePortfolioOptimisation } from '@/app/features/portfolio/usePortfolioO
 import { useEquityCurve } from '@/app/features/portfolio/useEquityCurve'
 import { useUniverse } from '@/app/features/market/useUniverse'
 import { PositionModal, type ModalMode } from '@/app/features/portfolio/PositionModal'
-import { fmtIdr, fmtAmount } from '@/app/utils/formatting'
+import { fmtAmount } from '@/app/utils/formatting'
 import type { PortfolioHolding } from '@/app/features/portfolio/usePortfolio'
 import type { LiveMarketData } from '@/app/features/market/useLiveMarket'
 import type { ExchangeRateData } from '@/app/features/market/useExchangeRate'

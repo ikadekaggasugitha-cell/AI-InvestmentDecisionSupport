@@ -478,7 +478,6 @@ export function MarketsView({
       setSearch(focusSymbol)
       setSector('all')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSymbol, focusNonce])
   const [sector, setSector] = useState('all')
   const [sortKey, setSortKey] = useState<SortKey>('mktCap')
