@@ -57,7 +57,7 @@
   --loss-bg: rgba(198, 59, 59, 0.08);
   /* Warning nudged darker to clear 4.5:1 on warm tinted surfaces at small sizes (F-01) */
   --warning: #8b4a04;
-  --warning-bg: rgba(168, 92, 5, 0.10);
+  --warning-bg: rgba(168, 92, 5, 0.1);
   --neutral: #5e6c7e;
   --neutral-bg: rgba(94, 108, 126, 0.08);
 
@@ -78,6 +78,42 @@
   --sidebar-selected: #344a64;
   /* A count badge on the navy surface is neutral ink, not a second accent. */
   --sidebar-badge: rgba(255, 255, 255, 0.09);
+
+  /* Glass surfaces — the dashboard's documented exception to the restrained
+     paper rule (docs/DESIGN.md, "Pengecualian terdokumentasi: dashboard glassy").
+     Opacity is a contrast result, not a taste call. Measured on the blended
+     card over the STRONGEST point of the page layer beneath it (#c8ced6, where
+     two blobs overlap), 0.80 holds --loss at 4.71:1 and --muted-foreground at
+     4.91:1 — both above AA, with the negative P&L figure the tightest pairing
+     on the screen. Dropping to 0.72 pushes that red under 4.5:1, which is the
+     one failure this glass skin cannot afford to ship silently: the guard tests
+     compare declared token hexes to declared surface hexes, so they stay green
+     while the translucent blend reads below AA. 20% of the page still shows
+     through, which is what makes it glass rather than a flat card. */
+  --glass-surface: rgba(255, 255, 255, 0.8);
+  --glass-surface-raised: rgba(255, 255, 255, 0.86);
+  --glass-border: rgba(20, 36, 58, 0.16);
+  --glass-sheen: rgba(255, 255, 255, 0.55);
+  --glass-blur: 14px;
+  /* 10px, not Tailwind's `rounded` (3.5px at this project's 14px root font):
+     a near-square corner fights a sheet surface without going as far as the
+     "excessive rounded cards" DESIGN.md rules out. */
+  --glass-radius: 10px;
+  --glass-shadow: 0 12px 32px rgba(20, 36, 58, 0.1);
+  /* What the blur has to work on. --background alone is one flat value, and a
+     backdrop-filter over flat colour refracts nothing — this is the layer that
+     makes the glass read as glass.
+     The three stops sit OVER the content column, not in the page corners: the
+     first two-ellipse version put every blob outside the card grid (measured —
+     the KPI row sat on bare #f5f7fa and all nine cards composited to the same
+     colour), which made the translucency do nothing at all. Ellipses are sized
+     so a blob boundary crosses the KPI row, the chart band and the bottom row
+     separately, giving each card a different backdrop to blur. Brand hues, low
+     alpha: a ground, not artwork. */
+  --glass-page:
+    radial-gradient(900px 520px at 34% 6%, rgba(52, 74, 100, 0.13), transparent 65%),
+    radial-gradient(760px 460px at 74% 38%, rgba(20, 36, 58, 0.1), transparent 62%),
+    radial-gradient(700px 420px at 26% 86%, rgba(15, 157, 120, 0.09), transparent 62%);
 }
 
 /* ─── Dark Mode ──────────────────────────────────────────────────────────── */
@@ -143,6 +179,21 @@
   --sidebar-selected: #344a64;
   /* A count badge on the navy surface is neutral ink, not a second accent. */
   --sidebar-badge: rgba(255, 255, 255, 0.09);
+
+  /* Glass surfaces — dark. 0.60 over the strongest blended page (#142d3c,
+     where the navy and teal blobs overlap) leaves --loss at 5.14:1 and
+     --muted-foreground at 6.02:1, so the dark card sits further from the AA
+     floor than the light one and the extra translucency is bought, not given
+     away. */
+  --glass-surface: rgba(20, 36, 58, 0.6);
+  --glass-surface-raised: rgba(23, 41, 63, 0.68);
+  --glass-border: rgba(215, 225, 236, 0.14);
+  --glass-sheen: rgba(215, 225, 236, 0.22);
+  --glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
+  --glass-page:
+    radial-gradient(900px 520px at 34% 6%, rgba(51, 80, 122, 0.18), transparent 65%),
+    radial-gradient(760px 460px at 74% 38%, rgba(52, 74, 100, 0.16), transparent 62%),
+    radial-gradient(700px 420px at 26% 86%, rgba(15, 157, 120, 0.1), transparent 62%);
 }
 
 @theme inline {
@@ -245,6 +296,62 @@
   --public-accent: #7dd3fc;
 }
 
+/* ─── Glass utility surfaces (dashboard only) ──────────────────────────────
+ *
+ * One place, so the opacity, blur and shadow of the glass are a single decision
+ * that both themes answer separately. Ten surfaces would otherwise each repeat
+ * `backdrop-filter`, and retuning the blend against the AA floor would mean
+ * finding all ten.
+ *
+ * Deliberately NOT here: a gradient in text or icons, and any glow. The sheen is
+ * a 1px inset line at the top edge, which is what makes the surface read as a
+ * sheet rather than a flat fill. See docs/DESIGN.md for the exception record.
+ */
+@layer components {
+  .glass-page {
+    background-color: var(--background);
+    background-image: var(--glass-page);
+  }
+
+  .glass-card {
+    background: var(--glass-surface);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--glass-radius);
+    box-shadow:
+      var(--glass-shadow),
+      inset 0 1px 0 var(--glass-sheen);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  }
+
+  /* The header bar: same glass, raised so the page does not show through the
+     app's one fixed chrome line. Nothing scrolls under it — the scroll
+     container starts below the bar — so the translucency and the hairline do
+     the work here and the blur is kept cheap rather than decorative. */
+  .glass-bar {
+    background: var(--glass-surface-raised);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
+  }
+
+  /* Glass is decoration that carries meaning away: on a system that asks for
+     reduced transparency the screen must still work, so it falls back to the
+     opaque paper surface every other view already uses. */
+  @media (prefers-reduced-transparency: reduce) {
+    .glass-card,
+    .glass-bar {
+      background: var(--card);
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .glass-page {
+      background-image: none;
+    }
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -312,7 +419,7 @@
       gap: 12px;
     }
 
-    .setting-row> :last-child {
+    .setting-row > :last-child {
       width: 100%;
     }
   }
