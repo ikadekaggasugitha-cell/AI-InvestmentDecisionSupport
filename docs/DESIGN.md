@@ -522,3 +522,58 @@ publik (kedua layar: lembar harga dan screen fitur):
   sah. Front install tidak menyentuh teks salinan lain: disclaimers,
   copyright "© 2026 AIDSS · MCASS", label pengirim chat "AIDSS", dan
   data pemilik rekening tetap teks/data aslinya.
+
+## Pengecualian terdokumentasi: dashboard glassy (2026-11-01)
+
+Atas arahan pemilik ("ganti desain UI untuk dasbor saja menjadi Glassy Dashboard
+clean minimalis", dipilih **glassmorphism penuh**, Header boleh ikut glass,
+**struktur isi dipertahankan**, kedua tema wajib berfungsi). Ini adalah satu-satunya
+layar yang menyimpang dari aturan "shadows minimal" dan "avoid ornamental gradients,
+glowing effects" di atas; pengecualian ini tercatat, tidak diam-diam.
+
+**Bentuk yang dipakai.** Kosakata token `--glass-*` di `src/styles/theme.css`
+(didefinisikan dua kali: `:root` dan `.dark`) plus tiga kelas utility di
+`@layer components`: `.glass-card` (translucent + hairline + sheen inset 1px di
+tepi atas + shadow lembut + `border-radius: var(--glass-radius)` 10px),
+`.glass-bar` (Header, lebih opak), `.glass-page` (lapisan latar tiga radial
+berwarna merek). Delapan permukaan kartu `DashboardView` dan satu bar Header
+memakainya; Sidebar, `--control-border`, `--link`, dan `focus.css` tidak
+disentuh. Fallback `prefers-reduced-transparency: reduce` jatuh ke `var(--card)`
+opaque tanpa blur/shadow, jadi sistem yang meminta transparansi dikurangi tetap
+utuh. Opaque `0.80`/`0.86` dipakai dengan `saturate(1.35)`, bukan gradien pada
+teks atau ikon dan bukan glow.
+
+**Batas yang terukur, bukan diasumsikan.** Test kontras yang ada membandingkan
+heksa token terhadap heksa permukaan; ia **tidak** melihat hasil blend permukaan
+translucent, sehingga ia tetap hijau walaupun angka composite di bawah AA. Karena
+itu opacity ditentukan lewat komputasi blend (`α·fg + (1−α)·bg`) lalu digandakan
+dari piksel nyata di aplikasi berjalan pada 1440×900:
+
+- Tema terang, titik latar paling gelap tempat kartu berada (`#c8ced6`, dua blob
+  tumpang tindih): kartu `rgba(255,255,255,0.80)` → `--loss` **4,71:1**,
+  `--muted-foreground` **4,91:1** (lolos AA). Pada `0.72` angka merah jatuh ke
+  **4,49:1 — gagal AA**, dan guard tidak akan menemukannya.
+- Tema gelap, titik paling gelap (`#142d3c`): kartu `rgba(20,36,58,0.60)` →
+  `--loss` **5,14:1**, `--muted-foreground` **6,02:1** (lolos AA).
+- Pengukuran piksel composite pada aplikasi nyata: warna kartu tergelap `rgb(249,250,252)`
+  → label muted **5,13:1**, merah P&L **4,92:1** (lolos). Tanpa overlay 0,80, teks
+  yang sama di atas latar blob langsung **4,34:1 / 4,16:1 (gagal)** — artinya AA di
+  layar ini dibayar oleh opasitas kartu, bukan oleh efek glass-nya.
+
+**Konsekuensi yang diterima, dicatat jujur.** Kartu pada layar ini bertetangga dan
+saling tidak menutupi, dan Header berada di atas kontainer gulung (tidak ada isi yang
+lewat di bawahnya). `backdrop-filter` karenanya tidak punya bahan untuk dibiaskan:
+perbedaan warna antar-kartu terukur hanya **ΔE 1,11** di tema terang (di bawah ambang
+terlihat ~2,3) dan **ΔE 3,7** di tema gelap (marginal). Glass pada layout non-overlap
+ini terbaca sebagai *lembar bening bertepi* — sheen, hairline, radius 10px, shadow —
+bukan sebagai kaca buram yang membiaskan isi. Membentuk efek buram yang sesungguhnya
+membutuhkan salah satu dari: isi mengalir di bawah Header (perubahan struktur,
+melebihi "ganti kulit"), atau token teks digelapkan khusus layar ini (menyimpang dari
+palet pemilik), atau latarblob cukup kuat untuk dilihat (menjatuhkan AA). Ketiganya
+belum diputuskan; bila salah satu dipilih, catatan ini yang harus diubah lebih dulu.
+
+Verifikasi: `tsc` bersih, `vitest` **384/384**, `eslint` 0 error, `format:check`
+bersih, `vite build` sukses, `pytest` backend **890 lulus** (termasuk
+`test_docs_status` yang menjaga klaim path di dokumen ini). Kelas `.glass-*`
+dikonfirmasi benar-benar ter-emit ke CSS produksi (termasuk prefiks
+`-webkit-backdrop-filter`), bukan hanya ada di sumber.
