@@ -28,7 +28,7 @@ describe('mergeLiveBar', () => {
     expect(mergeLiveBar(bar(), 130, TODAY)?.open).toBe(100)
   })
 
-  it("returns null when the last bar is a prior session — a closed bar must not move", () => {
+  it('returns null when the last bar is a prior session — a closed bar must not move', () => {
     expect(mergeLiveBar(bar({ time: '2026-08-20' }), 115, TODAY)).toBeNull()
   })
 

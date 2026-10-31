@@ -36,10 +36,13 @@ describe('the auth gate', () => {
     // "Checking" is not "signed out". Rendering the dashboard here would flash
     // the real interface at someone who turns out to be a stranger.
     let release: (r: Response) => void = () => {}
-    fetchMock.mockImplementation(() => new Promise<Response>((res) => { release = res }))
-    const { container } = render(
-      <App />,
+    fetchMock.mockImplementation(
+      () =>
+        new Promise<Response>((res) => {
+          release = res
+        }),
     )
+    const { container } = render(<App />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     expect(container.textContent).not.toContain('Masuk')
     release(jsonResponse(200, ACCOUNT))
@@ -47,10 +50,12 @@ describe('the auth gate', () => {
 
   it('lands a visitor on the public price sheet first', async () => {
     fetchMock.mockResolvedValue(jsonResponse(401, { detail: 'Not authenticated' }))
-    render(
-      <App />,
-    )
-    expect(await screen.findByRole('heading', { name: 'Subscription AI Investment Decision Support by Meta Cash Asset.' })).toBeInTheDocument()
+    render(<App />)
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Subscription AI Investment Decision Support by Meta Cash Asset.',
+      }),
+    ).toBeInTheDocument()
   })
 
   it('walks a visitor to the features screen at /fitur', async () => {
@@ -59,7 +64,9 @@ describe('the auth gate', () => {
     // the sheet's pillar band compresses, expanded in full.
     window.history.pushState({}, '', '/fitur')
     render(<App />)
-    expect(await screen.findByRole('heading', { name: 'Setiap alat bantu datang dengan alasannya.' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Setiap alat bantu datang dengan alasannya.' }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Lihat aplikasi berjalan' })).toBeInTheDocument()
   })
 
@@ -73,10 +80,14 @@ describe('the auth gate', () => {
     try {
       window.history.pushState({}, '', '/#catatan')
       render(<App />)
-      expect(await screen.findByText(/alat bantu keputusan, bukan penasihat investasi/)).toBeInTheDocument()
-      await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith(
-        expect.objectContaining({ block: 'start' }),
-      ))
+      expect(
+        await screen.findByText(/alat bantu keputusan, bukan penasihat investasi/),
+      ).toBeInTheDocument()
+      await waitFor(() =>
+        expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith(
+          expect.objectContaining({ block: 'start' }),
+        ),
+      )
     } finally {
       Element.prototype.scrollIntoView = originalScrollIntoView
       window.history.pushState({}, '', '/')
@@ -98,7 +109,9 @@ describe('the auth gate', () => {
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Buat akun', level: 1 })).toBeInTheDocument()
     expect(await screen.findByText('Paket terpilih: Bulanan')).toBeInTheDocument()
-    expect((await screen.findByRole('button', { name: 'Bulanan' })).getAttribute('aria-pressed')).toBe('true')
+    expect(
+      (await screen.findByRole('button', { name: 'Bulanan' })).getAttribute('aria-pressed'),
+    ).toBe('true')
   })
 
   it('opens the dashboard for a signed-in account', async () => {
@@ -106,9 +119,7 @@ describe('the auth gate', () => {
       if (url.includes('/v1/auth/me')) return Promise.resolve(jsonResponse(200, ACCOUNT))
       return Promise.resolve(jsonResponse(200, []))
     })
-    render(
-      <App />,
-    )
+    render(<App />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     // The shell's own copy is proof the gate let it through.
     expect(screen.queryByRole('heading', { name: 'Masuk' })).not.toBeInTheDocument()
@@ -118,9 +129,7 @@ describe('the auth gate', () => {
     // Reporting "unknown" as "nobody is signed in" would sign people out every
     // time the API blips.
     fetchMock.mockRejectedValue(new Error('network down'))
-    render(
-      <App />,
-    )
+    render(<App />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     expect(screen.queryByRole('heading', { name: 'Masuk' })).not.toBeInTheDocument()
   })
@@ -130,9 +139,7 @@ describe('the auth gate', () => {
       if (url.includes('/v1/auth/me')) return Promise.resolve(jsonResponse(200, ACCOUNT))
       return Promise.resolve(jsonResponse(200, []))
     })
-    render(
-      <App />,
-    )
+    render(<App />)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     const options = fetchMock.mock.calls[0][1] as RequestInit
     expect(options.credentials).toBe('include')
@@ -146,9 +153,7 @@ describe('auth routes', () => {
       if (url.includes('/v1/auth/me')) return Promise.resolve(jsonResponse(200, ACCOUNT))
       return Promise.resolve(jsonResponse(200, []))
     })
-    render(
-      <App />,
-    )
+    render(<App />)
     // Navigate redirects in an effect, so waiting for the fetch is not waiting
     // for the redirect. Assert on the eventual location, not the immediate one.
     await waitFor(() => expect(window.location.pathname).toBe('/'))
@@ -214,9 +219,7 @@ describe('the paywall banner', () => {
     })
     render(<App />)
 
-    expect(
-      await screen.findByText(/Status tidak dapat dipastikan/i),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/Status tidak dapat dipastikan/i)).toBeInTheDocument()
     expect(screen.queryByText(/Analisis berbayar tidak aktif/i)).not.toBeInTheDocument()
   })
 

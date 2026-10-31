@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
-  authHeaders, apiFetch, onAuthExpired, signalAuthExpired, ENDPOINTS,
+  authHeaders,
+  apiFetch,
+  onAuthExpired,
+  signalAuthExpired,
+  ENDPOINTS,
 } from '@/app/config/api'
 
 describe('authHeaders', () => {

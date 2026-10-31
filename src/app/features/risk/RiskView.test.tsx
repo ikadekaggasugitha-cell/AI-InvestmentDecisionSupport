@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen } from '@testing-library/react'
 
-import { RiskView } from "@/app/features/risk/RiskView";
-import { RISK_DATA } from "@/app/data/idxData";
+import { RiskView } from '@/app/features/risk/RiskView'
+import { RISK_DATA } from '@/app/data/idxData'
 
 /**
  * The seed figures stay on screen; the sentence above them has to be true.
@@ -17,17 +17,17 @@ import { RISK_DATA } from "@/app/data/idxData";
  * simulated path; what was wrong was not that seed was shown but that it was
  * explained with a cause that never happened.
  */
-vi.mock("@/app/features/risk/useRiskMetrics", () => ({ useRiskMetrics: vi.fn() }));
+vi.mock('@/app/features/risk/useRiskMetrics', () => ({ useRiskMetrics: vi.fn() }))
 
-import { useRiskMetrics } from "@/app/features/risk/useRiskMetrics";
+import { useRiskMetrics } from '@/app/features/risk/useRiskMetrics'
 
-const mocked = vi.mocked(useRiskMetrics);
+const mocked = vi.mocked(useRiskMetrics)
 
 function viewWith(overrides: Partial<ReturnType<typeof useRiskMetrics>> = {}) {
   mocked.mockReturnValue({
     // The hook keeps the bundled seed in state on failure; this mirrors that so
     // the view is exercised the way it actually renders when a load fails.
-    risk: RISK_DATA as ReturnType<typeof useRiskMetrics>["risk"],
+    risk: RISK_DATA as ReturnType<typeof useRiskMetrics>['risk'],
     stressTests: [],
     sectorExposure: [],
     loading: false,
@@ -36,47 +36,47 @@ function viewWith(overrides: Partial<ReturnType<typeof useRiskMetrics>> = {}) {
     isLive: false,
     refetch: vi.fn(),
     ...overrides,
-  } as unknown as ReturnType<typeof useRiskMetrics>);
+  } as unknown as ReturnType<typeof useRiskMetrics>)
   // `market` only feeds the header strip here; the failure banner under test
   // depends on nothing from it.
-  return render(<RiskView market={{} as never} />);
+  return render(<RiskView market={{} as never} />)
 }
 
-describe("RiskView — why the live figures are missing", () => {
-  beforeEach(() => mocked.mockReset());
+describe('RiskView — why the live figures are missing', () => {
+  beforeEach(() => mocked.mockReset())
 
-  it("blames the connection when the backend is the problem", () => {
-    viewWith({ failure: { kind: "unreachable" }, error: "HTTP 500" });
+  it('blames the connection when the backend is the problem', () => {
+    viewWith({ failure: { kind: 'unreachable' }, error: 'HTTP 500' })
 
-    expect(screen.getByText(/tidak terjangkau/i)).toBeInTheDocument();
-    expect(screen.queryByText(/langganan/i)).not.toBeInTheDocument();
-  });
+    expect(screen.getByText(/tidak terjangkau/i)).toBeInTheDocument()
+    expect(screen.queryByText(/langganan/i)).not.toBeInTheDocument()
+  })
 
-  it("blames the subscription when the data was refused", () => {
-    viewWith({ failure: { kind: "locked" }, error: "HTTP 402" });
+  it('blames the subscription when the data was refused', () => {
+    viewWith({ failure: { kind: 'locked' }, error: 'HTTP 402' })
 
-    expect(screen.queryByText(/tidak terjangkau/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/langganan/i)).toBeInTheDocument();
-  });
+    expect(screen.queryByText(/tidak terjangkau/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/langganan/i)).toBeInTheDocument()
+  })
 
-  it("says the backend is fine when it is — a refusal is not an outage", () => {
+  it('says the backend is fine when it is — a refusal is not an outage', () => {
     // The distinction the whole change exists for, stated as the user reads it.
-    viewWith({ failure: { kind: "locked" }, error: "HTTP 402" });
+    viewWith({ failure: { kind: 'locked' }, error: 'HTTP 402' })
 
-    expect(screen.getByText(/bukan.*masalah koneksi/i)).toBeInTheDocument();
-  });
+    expect(screen.getByText(/bukan.*masalah koneksi/i)).toBeInTheDocument()
+  })
 
-  it("keeps showing the seed figures underneath, still labelled simulated", () => {
-    viewWith({ failure: { kind: "locked" }, error: "HTTP 402" });
+  it('keeps showing the seed figures underneath, still labelled simulated', () => {
+    viewWith({ failure: { kind: 'locked' }, error: 'HTTP 402' })
 
     // Not an empty page: the simulated path is deliberate and labelled.
-    expect(screen.getAllByText(/simulasi/i).length).toBeGreaterThan(0);
-  });
+    expect(screen.getAllByText(/simulasi/i).length).toBeGreaterThan(0)
+  })
 
-  it("shows no failure banner at all when the metrics arrived", () => {
-    viewWith({ failure: null, error: null, isLive: true });
+  it('shows no failure banner at all when the metrics arrived', () => {
+    viewWith({ failure: null, error: null, isLive: true })
 
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.queryByText(/tidak terjangkau/i)).not.toBeInTheDocument();
-  });
-});
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText(/tidak terjangkau/i)).not.toBeInTheDocument()
+  })
+})

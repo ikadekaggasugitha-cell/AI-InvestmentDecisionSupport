@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { TabSubscription } from "@/app/features/settings/SettingsView";
-import { useApp } from "@/app/context/AppContext";
+import { useState } from 'react'
+import { TabSubscription } from '@/app/features/settings/SettingsView'
+import { useApp } from '@/app/context/AppContext'
 
 /**
  * The screen an account with a `blocked_reason` sees instead of the app.
@@ -26,78 +26,88 @@ export function SuspensionScreen({
   reason,
   onRefresh,
 }: {
-  reason: "admin" | "subscription_expired";
+  reason: 'admin' | 'subscription_expired'
   /** Re-ask /v1/auth/me: when a settled payment reopens the account, this is
    * how the person notices without guessing. It returns a promise — the button
    * stays busy until the answer lands. */
-  onRefresh: () => Promise<void>;
+  onRefresh: () => Promise<void>
 }) {
-  const { locale } = useApp();
-  const id: boolean = locale === "id";
-  const [busy, setBusy] = useState(false);
+  const { locale } = useApp()
+  const id: boolean = locale === 'id'
+  const [busy, setBusy] = useState(false)
   const recheck = async () => {
-    setBusy(true);
+    setBusy(true)
     try {
-      await onRefresh();
+      await onRefresh()
     } finally {
-      setBusy(false);
+      setBusy(false)
     }
-  };
+  }
 
-  if (reason === "admin") {
+  if (reason === 'admin') {
     return (
-      <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", background: "var(--background)", padding: 24 }}>
+      <div
+        style={{
+          minHeight: '100dvh',
+          display: 'grid',
+          placeItems: 'center',
+          background: 'var(--background)',
+          padding: 24,
+        }}
+      >
         <div
           role="alert"
           style={{
             maxWidth: 464,
-            width: "100%",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            background: "var(--card)",
-            padding: "24px 28px",
+            width: '100%',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            background: 'var(--card)',
+            padding: '24px 28px',
           }}
         >
-          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: "var(--foreground)" }}>
-            {id ? "Akun dinonaktifkan" : "Account disabled"}
+          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--foreground)' }}>
+            {id ? 'Akun dinonaktifkan' : 'Account disabled'}
           </h1>
-          <p style={{ fontSize: 14, color: "var(--foreground)", margin: "10px 0 0" }}>
+          <p style={{ fontSize: 14, color: 'var(--foreground)', margin: '10px 0 0' }}>
             {id
-              ? "Akun ini ditutup oleh administrator. Pembayaran tidak dapat membukanya kembali — hubungi operator untuk membahas pembukaannya."
-              : "This account was closed by an administrator. A payment cannot reopen it — contact the operator about restoring access."}
+              ? 'Akun ini ditutup oleh administrator. Pembayaran tidak dapat membukanya kembali — hubungi operator untuk membahas pembukaannya.'
+              : 'This account was closed by an administrator. A payment cannot reopen it — contact the operator about restoring access.'}
           </p>
         </div>
       </div>
-    );
+    )
   }
 
   return (
     <div
       style={{
-        minHeight: "100dvh",
-        background: "var(--background)",
-        padding: "32px 20px",
-        display: "flex",
-        justifyContent: "center",
+        minHeight: '100dvh',
+        background: 'var(--background)',
+        padding: '32px 20px',
+        display: 'flex',
+        justifyContent: 'center',
       }}
     >
-      <div style={{ width: "100%", maxWidth: 560, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div
+        style={{ width: '100%', maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 16 }}
+      >
         <div
           role="alert"
           style={{
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            background: "var(--card)",
-            padding: "20px 24px",
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            background: 'var(--card)',
+            padding: '20px 24px',
           }}
         >
-          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: "var(--foreground)" }}>
-            {id ? "Langganan berakhir" : "Subscription ended"}
+          <h1 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--foreground)' }}>
+            {id ? 'Langganan berakhir' : 'Subscription ended'}
           </h1>
-          <p style={{ fontSize: 14, color: "var(--foreground)", margin: "10px 0 0" }}>
+          <p style={{ fontSize: 14, color: 'var(--foreground)', margin: '10px 0 0' }}>
             {id
-              ? "Masa aktif langganan Anda sudah lewat, jadi seluruh analisis tertutup sampai ada pembayaran baru. Sesi ini tetap sah — harga, rekening tujuan, dan formulir deklarasi transfer ada di bawah."
-              : "Your subscription period has ended, so the analysis is closed until a new payment lands. This session is still valid — the price, destination accounts and the transfer declaration are below."}
+              ? 'Masa aktif langganan Anda sudah lewat, jadi seluruh analisis tertutup sampai ada pembayaran baru. Sesi ini tetap sah — harga, rekening tujuan, dan formulir deklarasi transfer ada di bawah.'
+              : 'Your subscription period has ended, so the analysis is closed until a new payment lands. This session is still valid — the price, destination accounts and the transfer declaration are below.'}
           </p>
           <button
             type="button"
@@ -106,19 +116,23 @@ export function SuspensionScreen({
             style={{
               fontSize: 12,
               fontWeight: 600,
-              padding: "9px 16px",
+              padding: '9px 16px',
               minHeight: 32,
-              borderRadius: "var(--radius)",
-              border: "1px solid var(--control-border)",
-              background: "var(--card)",
-              color: "var(--foreground)",
-              cursor: busy ? "default" : "pointer",
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--control-border)',
+              background: 'var(--card)',
+              color: 'var(--foreground)',
+              cursor: busy ? 'default' : 'pointer',
               marginTop: 14,
             }}
           >
             {busy
-              ? (id ? "Memeriksa…" : "Checking…")
-              : (id ? "Periksa apakah akses sudah dibuka" : "Check whether access is back")}
+              ? id
+                ? 'Memeriksa…'
+                : 'Checking…'
+              : id
+                ? 'Periksa apakah akses sudah dibuka'
+                : 'Check whether access is back'}
           </button>
         </div>
 
@@ -128,7 +142,7 @@ export function SuspensionScreen({
         <TabSubscription id={id} />
       </div>
     </div>
-  );
+  )
 }
 
-export type SuspensionReason = "admin" | "subscription_expired";
+export type SuspensionReason = 'admin' | 'subscription_expired'

@@ -7,18 +7,18 @@
  * query, and after signup through localStorage, and is thrown away once the
  * person makes their own choice in the billing tab.
  */
-export type PlanKey = "weekly" | "monthly" | "annual";
+export type PlanKey = 'weekly' | 'monthly' | 'annual'
 
-export const PLAN_KEYS: PlanKey[] = ["weekly", "monthly", "annual"];
-const STORAGE_KEY = "aidss-plan-intent";
+export const PLAN_KEYS: PlanKey[] = ['weekly', 'monthly', 'annual']
+const STORAGE_KEY = 'aidss-plan-intent'
 
 /** Reads a stored intent; unreadable storage and junk values mean "none". */
 export function readPlanIntent(): PlanKey | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw && PLAN_KEYS.includes(raw as PlanKey) ? (raw as PlanKey) : null;
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw && PLAN_KEYS.includes(raw as PlanKey) ? (raw as PlanKey) : null
   } catch {
-    return null;
+    return null
   }
 }
 
@@ -26,8 +26,8 @@ export function readPlanIntent(): PlanKey | null {
  *  the URL still carries the plan for this session. */
 export function writePlanIntent(plan: PlanKey | null): void {
   try {
-    if (plan) localStorage.setItem(STORAGE_KEY, plan);
-    else localStorage.removeItem(STORAGE_KEY);
+    if (plan) localStorage.setItem(STORAGE_KEY, plan)
+    else localStorage.removeItem(STORAGE_KEY)
   } catch {
     /* nothing persists; the sheet's click already put the plan in the URL */
   }
@@ -36,6 +36,6 @@ export function writePlanIntent(plan: PlanKey | null): void {
 /** Parses `?plan=weekly…` off a signup URL. Unknown values are ignored, not
  *  invented — the plan vocabulary belongs to the server. */
 export function planFromSearch(search: string): PlanKey | null {
-  const value = new URLSearchParams(search).get("plan");
-  return value && PLAN_KEYS.includes(value as PlanKey) ? (value as PlanKey) : null;
+  const value = new URLSearchParams(search).get('plan')
+  return value && PLAN_KEYS.includes(value as PlanKey) ? (value as PlanKey) : null
 }

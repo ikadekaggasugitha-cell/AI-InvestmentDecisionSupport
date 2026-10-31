@@ -10,19 +10,19 @@
  * /#harga. Columns themselves must obey the page rules: only anchors that
  * exist, "Hubungi kami" stays held (no href, [OWNER TO NAME] pending).
  */
-import { useEffect, useState } from "react";
-import type { Locale } from "@/app/i18n/translations";
-import logoUrl from "@/assets/aidss-logo.svg";
+import { useEffect, useState } from 'react'
+import type { Locale } from '@/app/i18n/translations'
+import logoUrl from '@/assets/aidss-logo.svg'
 
 export interface NavColumn {
-  headId: string;
-  headEn: string;
+  headId: string
+  headEn: string
   items: Array<{
-    id: string;
-    en: string;
-    anchor: string;
-    held?: boolean;
-  }>;
+    id: string
+    en: string
+    anchor: string
+    held?: boolean
+  }>
 }
 
 /* The reference's footer shows a ticking Asia/Jakarta clock, seconds
@@ -30,43 +30,47 @@ export interface NavColumn {
    artwork spells the clock with colons. h23, because h24 has leaked "24:xx"
    at midnight on other platforms. On the very first frame it shows the
    render-time time; that is honest, and one second later it ticks. */
-const jakartaFormatter = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "Asia/Jakarta",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hourCycle: "h23",
-});
-const jakartaClock = () => `${jakartaFormatter.format(new Date())} WIB`;
+const jakartaFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Jakarta',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+})
+const jakartaClock = () => `${jakartaFormatter.format(new Date())} WIB`
 
 export interface PublicFooterProps {
-  locale: Locale;
-  columns: NavColumn[];
+  locale: Locale
+  columns: NavColumn[]
   /** The sheet passes the server's pricing date when prices are ready; the
    *  features page leaves it empty and the meta line shows the clock alone. */
-  updatedAt?: string | null;
+  updatedAt?: string | null
 }
 
 export function PublicFooter({ locale, columns, updatedAt = null }: PublicFooterProps) {
-  const isId = locale === "id";
-  const [clock, setClock] = useState(jakartaClock);
+  const isId = locale === 'id'
+  const [clock, setClock] = useState(jakartaClock)
 
   useEffect(() => {
-    const timer = window.setInterval(() => setClock(jakartaClock()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
+    const timer = window.setInterval(() => setClock(jakartaClock()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   return (
     <footer className="pub-footer">
       <div className="pub-container">
         <div className="pub-footer-top">
           <div className="pub-footer-brand">
-            <img src={logoUrl} alt="AIDSS" style={{ height: "38px", width: "auto", display: "block" }} />
+            <img
+              src={logoUrl}
+              alt="AIDSS"
+              style={{ height: '38px', width: 'auto', display: 'block' }}
+            />
             <p className="pub-footer-eyebrow">Trading Intelligence Platform</p>
             <p className="pub-footer-tagline">
               {isId
-                ? "Pendukung keputusan investasi harian: sinyal, peringatan, risiko, dan portofolio dalam satu app."
-                : "A daily investment decision-support tool: signals, alerts, risk, and portfolio in one app."}
+                ? 'Pendukung keputusan investasi harian: sinyal, peringatan, risiko, dan portofolio dalam satu app.'
+                : 'A daily investment decision-support tool: signals, alerts, risk, and portfolio in one app.'}
             </p>
           </div>
           {columns.map((column) => (
@@ -91,24 +95,24 @@ export function PublicFooter({ locale, columns, updatedAt = null }: PublicFooter
         <div className="pub-footer-rule" />
         <p className="pub-disclaimer" id="catatan">
           {isId
-            ? "AIDSS adalah alat bantu keputusan, bukan penasihat investasi. Anda dapat kehilangan sebagian atau seluruh modal Anda. Kinerja masa lalu tidak menjamin hasil di masa depan."
-            : "AIDSS is a decision-support tool, not investment advice. You can lose part or all of your capital. Past performance does not guarantee future results."}
+            ? 'AIDSS adalah alat bantu keputusan, bukan penasihat investasi. Anda dapat kehilangan sebagian atau seluruh modal Anda. Kinerja masa lalu tidak menjamin hasil di masa depan.'
+            : 'AIDSS is a decision-support tool, not investment advice. You can lose part or all of your capital. Past performance does not guarantee future results.'}
         </p>
         <div className="pub-footer-rule" />
         <div className="pub-footer-bottom">
           <span className="pub-footer-copy">
             {isId
-              ? "© 2026 AIDSS · MCASS. Seluruh hak dilindungi."
-              : "© 2026 AIDSS · MCASS. All rights reserved."}
+              ? '© 2026 AIDSS · MCASS. Seluruh hak dilindungi.'
+              : '© 2026 AIDSS · MCASS. All rights reserved.'}
           </span>
           <span className="pub-footer-meta">
             {updatedAt && (
               <span>
-                {isId ? "Harga diperbarui " : "Prices updated "}
-                {new Date(updatedAt).toLocaleDateString(isId ? "id-ID" : "en-GB", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
+                {isId ? 'Harga diperbarui ' : 'Prices updated '}
+                {new Date(updatedAt).toLocaleDateString(isId ? 'id-ID' : 'en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
                 })}
               </span>
             )}
@@ -118,5 +122,5 @@ export function PublicFooter({ locale, columns, updatedAt = null }: PublicFooter
         </div>
       </div>
     </footer>
-  );
+  )
 }

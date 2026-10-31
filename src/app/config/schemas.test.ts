@@ -16,30 +16,61 @@ const signal = {
 }
 
 const riskMetrics = {
-  overallRisk: 45, marketRisk: 50, concentrationRisk: 40, liquidityRisk: 30,
-  currencyRisk: 20, creditRisk: 15,
-  var95: -3.2, cvar95: -4.1, volatility: 18.5, maxDrawdown: -12.0,
-  beta: 1.1, sharpe: 0.9, sortino: 1.2, alpha: 2.1, informationRatio: 0.5,
+  overallRisk: 45,
+  marketRisk: 50,
+  concentrationRisk: 40,
+  liquidityRisk: 30,
+  currencyRisk: 20,
+  creditRisk: 15,
+  var95: -3.2,
+  cvar95: -4.1,
+  volatility: 18.5,
+  maxDrawdown: -12.0,
+  beta: 1.1,
+  sharpe: 0.9,
+  sortino: 1.2,
+  alpha: 2.1,
+  informationRatio: 0.5,
 }
 
 const riskPayload = {
   risk: riskMetrics,
   stressTests: [{ scenario: 'x', scenarioEn: 'x', impact: -5, probability: 10 }],
-  sectorExposure: [{ sector: 'Keuangan', sectorEn: 'Financials', weight: 40, benchmark: 35, overUnder: 5 }],
+  sectorExposure: [
+    { sector: 'Keuangan', sectorEn: 'Financials', weight: 40, benchmark: 35, overUnder: 5 },
+  ],
 }
 
 const portfolioPayload = {
   weights: [
-    { symbol: 'BBCA', name: 'BBCA', weight: 0.4, weightPct: 40, expectedReturn: 12, currentValue: 1e6, lots: 10 },
+    {
+      symbol: 'BBCA',
+      name: 'BBCA',
+      weight: 0.4,
+      weightPct: 40,
+      expectedReturn: 12,
+      currentValue: 1e6,
+      lots: 10,
+    },
   ],
-  metrics: { expectedReturn: 12, expectedVolatility: 18, sharpeRatio: 0.9, diversificationRatio: 1.3, method: 'black-litterman' },
+  metrics: {
+    expectedReturn: 12,
+    expectedVolatility: 18,
+    sharpeRatio: 0.9,
+    diversificationRatio: 1.3,
+    method: 'black-litterman',
+  },
   source: 'live',
   disclaimer: 'demo',
 }
 
 describe('signalsResponseSchema', () => {
   it('accepts the envelope shape and passes through extra fields', () => {
-    const out = parseOrThrow(signalsResponseSchema, { signals: [{ ...signal, shap: [], tradePlan: null }], source: 'live' }, 'signals')
+    const out = parseOrThrow(
+      signalsResponseSchema,
+      { signals: [{ ...signal, shap: [], tradePlan: null }], source: 'live' },
+      'signals',
+    )
     expect(Array.isArray(out) ? out : out.signals).toHaveLength(1)
   })
 
@@ -65,7 +96,11 @@ describe('riskResponseSchema', () => {
   })
 
   it('passes through unknown extra fields (forward-compatible)', () => {
-    const withExtra = { ...riskPayload, risk: { ...riskMetrics, futureField: 123 }, newTopLevel: true }
+    const withExtra = {
+      ...riskPayload,
+      risk: { ...riskMetrics, futureField: 123 },
+      newTopLevel: true,
+    }
     const out = parseOrThrow(riskResponseSchema, withExtra, 'risk')
     expect(out.risk.var95).toBe(-3.2)
   })
@@ -73,11 +108,15 @@ describe('riskResponseSchema', () => {
   it('rejects when a required metric is missing', () => {
     const { sharpe, ...missingSharpe } = riskMetrics
     void sharpe
-    expect(() => parseOrThrow(riskResponseSchema, { ...riskPayload, risk: missingSharpe }, 'risk')).toThrow(/validation/)
+    expect(() =>
+      parseOrThrow(riskResponseSchema, { ...riskPayload, risk: missingSharpe }, 'risk'),
+    ).toThrow(/validation/)
   })
 
   it('rejects when the risk block is absent', () => {
-    expect(() => parseOrThrow(riskResponseSchema, { stressTests: [], sectorExposure: [] }, 'risk')).toThrow(/validation/)
+    expect(() =>
+      parseOrThrow(riskResponseSchema, { stressTests: [], sectorExposure: [] }, 'risk'),
+    ).toThrow(/validation/)
   })
 })
 
@@ -87,7 +126,19 @@ describe('portfolioResponseSchema', () => {
   })
 
   it('rejects a weight missing lots', () => {
-    const bad = { ...portfolioPayload, weights: [{ symbol: 'BBCA', name: 'BBCA', weight: 0.4, weightPct: 40, expectedReturn: 12, currentValue: 1e6 }] }
+    const bad = {
+      ...portfolioPayload,
+      weights: [
+        {
+          symbol: 'BBCA',
+          name: 'BBCA',
+          weight: 0.4,
+          weightPct: 40,
+          expectedReturn: 12,
+          currentValue: 1e6,
+        },
+      ],
+    }
     expect(() => parseOrThrow(portfolioResponseSchema, bad, 'portfolio')).toThrow(/validation/)
   })
 })

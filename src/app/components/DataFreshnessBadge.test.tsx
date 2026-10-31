@@ -25,11 +25,7 @@ describe('DataFreshnessBadge', () => {
 
   it('shows SIMULATED for the seed path — never presenting it as market data', () => {
     render(
-      <DataFreshnessBadge
-        freshness={freshness({ isSimulated: true })}
-        isConnected
-        locale="en"
-      />,
+      <DataFreshnessBadge freshness={freshness({ isSimulated: true })} isConnected locale="en" />,
     )
     expect(screen.getByText('SIMULATED')).toBeInTheDocument()
     expect(screen.getByText('not market prices')).toBeInTheDocument()
@@ -56,40 +52,33 @@ describe('DataFreshnessBadge', () => {
     expect(screen.getByText('LANGSUNG')).toBeInTheDocument()
   })
 })
-  it('lists securities that have not traded for over a week', () => {
-    // The age shown is the median quote, so without this line a robust number
-    // reads as "nothing is out of date" — the finding would be averaged away.
-    const f = freshness({ outdatedSymbols: ['PLIN', 'SUPR', 'FASW'] })
-    render(<DataFreshnessBadge freshness={f} isConnected locale="en" />)
-    const badge = screen.getByText(/LIVE|DELAYED|SIMULATED|OFFLINE/).closest('[title]')
-    expect(badge).not.toBeNull()
-    expect(badge!.getAttribute('title')).toContain('3 securities have not traded')
-    expect(badge!.getAttribute('title')).toContain('PLIN')
-  })
+it('lists securities that have not traded for over a week', () => {
+  // The age shown is the median quote, so without this line a robust number
+  // reads as "nothing is out of date" — the finding would be averaged away.
+  const f = freshness({ outdatedSymbols: ['PLIN', 'SUPR', 'FASW'] })
+  render(<DataFreshnessBadge freshness={f} isConnected locale="en" />)
+  const badge = screen.getByText(/LIVE|DELAYED|SIMULATED|OFFLINE/).closest('[title]')
+  expect(badge).not.toBeNull()
+  expect(badge!.getAttribute('title')).toContain('3 securities have not traded')
+  expect(badge!.getAttribute('title')).toContain('PLIN')
+})
 
-  it('omits the line when every quote is current', () => {
-    const f = freshness({ outdatedSymbols: [] })
-    render(<DataFreshnessBadge freshness={f} isConnected locale="en" />)
-    const badge = screen.getByText(/LIVE|DELAYED|SIMULATED|OFFLINE/).closest('[title]')
-    expect(badge!.getAttribute('title') ?? '').not.toContain('have not traded')
-  })
+it('omits the line when every quote is current', () => {
+  const f = freshness({ outdatedSymbols: [] })
+  render(<DataFreshnessBadge freshness={f} isConnected locale="en" />)
+  const badge = screen.getByText(/LIVE|DELAYED|SIMULATED|OFFLINE/).closest('[title]')
+  expect(badge!.getAttribute('title') ?? '').not.toContain('have not traded')
+})
 
-  it('still renders when a backend predates the outdatedSymbols field', () => {
-    // Frontend and backend deploy independently. A new bundle served by an old
-    // backend gets no such field; the badge must degrade to the other lines
-    // rather than blank out.
-    const legacy = { ...freshness() } as Partial<DataFreshness>
-    delete legacy.outdatedSymbols
-    render(
-      <DataFreshnessBadge
-        freshness={legacy as DataFreshness}
-        isConnected
-        locale="en"
-      />,
-    )
-    expect(screen.getByText(/LIVE|DELAYED|SIMULATED|OFFLINE/)).toBeInTheDocument()
-  })
-
+it('still renders when a backend predates the outdatedSymbols field', () => {
+  // Frontend and backend deploy independently. A new bundle served by an old
+  // backend gets no such field; the badge must degrade to the other lines
+  // rather than blank out.
+  const legacy = { ...freshness() } as Partial<DataFreshness>
+  delete legacy.outdatedSymbols
+  render(<DataFreshnessBadge freshness={legacy as DataFreshness} isConnected locale="en" />)
+  expect(screen.getByText(/LIVE|DELAYED|SIMULATED|OFFLINE/)).toBeInTheDocument()
+})
 
 /**
  * The badge has to say which of three very different things went wrong.
@@ -98,48 +87,48 @@ describe('DataFreshnessBadge', () => {
  * "the server refused because there is no subscription" into "backend
  * unreachable" — which is the sentence people act on by rebooting their router.
  */
-const base = { ...SIMULATED_FRESHNESS };
+const base = { ...SIMULATED_FRESHNESS }
 
 function renderBadge(overrides: Partial<typeof base> = {}, connected = false) {
   return render(
     <DataFreshnessBadge freshness={{ ...base, ...overrides }} isConnected={connected} />,
-  );
+  )
 }
 
-describe("DataFreshnessBadge — why the feed is not connected", () => {
-  it("names the subscription when the socket was refused for want of one", () => {
-    renderBadge({ streamRefused: "entitlement" });
+describe('DataFreshnessBadge — why the feed is not connected', () => {
+  it('names the subscription when the socket was refused for want of one', () => {
+    renderBadge({ streamRefused: 'entitlement' })
 
-    expect(screen.getByText(/TERKUNCI/i)).toBeInTheDocument();
-    expect(screen.getByText(/langganan belum aktif/i)).toBeInTheDocument();
-    expect(screen.queryByText(/tidak terjangkau/i)).not.toBeInTheDocument();
-  });
+    expect(screen.getByText(/TERKUNCI/i)).toBeInTheDocument()
+    expect(screen.getByText(/langganan belum aktif/i)).toBeInTheDocument()
+    expect(screen.queryByText(/tidak terjangkau/i)).not.toBeInTheDocument()
+  })
 
-  it("names the session when the session itself was refused", () => {
-    renderBadge({ streamRefused: "auth" });
+  it('names the session when the session itself was refused', () => {
+    renderBadge({ streamRefused: 'auth' })
 
-    expect(screen.getByText(/sesi tidak berlaku/i)).toBeInTheDocument();
-    expect(screen.queryByText(/langganan/i)).not.toBeInTheDocument();
-  });
+    expect(screen.getByText(/sesi tidak berlaku/i)).toBeInTheDocument()
+    expect(screen.queryByText(/langganan/i)).not.toBeInTheDocument()
+  })
 
-  it("names an ended subscription — not the headline of never subscribing", () => {
-    renderBadge({ streamRefused: "suspended" });
+  it('names an ended subscription — not the headline of never subscribing', () => {
+    renderBadge({ streamRefused: 'suspended' })
 
-    expect(screen.getByText(/DITANGGUHKAN/i)).toBeInTheDocument();
-    expect(screen.getByText(/langganan berakhir/i)).toBeInTheDocument();
-    expect(screen.queryByText(/langganan belum aktif/i)).not.toBeInTheDocument();
-  });
+    expect(screen.getByText(/DITANGGUHKAN/i)).toBeInTheDocument()
+    expect(screen.getByText(/langganan berakhir/i)).toBeInTheDocument()
+    expect(screen.queryByText(/langganan belum aktif/i)).not.toBeInTheDocument()
+  })
 
-  it("blames the backend only when that is actually what happened", () => {
-    renderBadge({ streamRefused: null });
+  it('blames the backend only when that is actually what happened', () => {
+    renderBadge({ streamRefused: null })
 
-    expect(screen.getByText(/backend tidak terjangkau/i)).toBeInTheDocument();
-  });
+    expect(screen.getByText(/backend tidak terjangkau/i)).toBeInTheDocument()
+  })
 
-  it("clears the refusal once prices arrive again", () => {
-    renderBadge({ streamRefused: null, isSimulated: false, isDelayed: true }, true);
+  it('clears the refusal once prices arrive again', () => {
+    renderBadge({ streamRefused: null, isSimulated: false, isDelayed: true }, true)
 
-    expect(screen.queryByText(/TERKUNCI/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/tidak terjangkau/i)).not.toBeInTheDocument();
-  });
-});
+    expect(screen.queryByText(/TERKUNCI/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/tidak terjangkau/i)).not.toBeInTheDocument()
+  })
+})

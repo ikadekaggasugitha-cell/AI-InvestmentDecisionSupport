@@ -1,39 +1,39 @@
-import { useState, useEffect } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from "@/app/config/api";
-import { SEED_ENRICHMENT } from "@/app/data/seedPhase10";
-import type { GapInfo, SRLevel, TrendInfo } from "@/app/features/dashboard/useAISignals";
+import { useState, useEffect } from 'react'
+import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch } from '@/app/config/api'
+import { SEED_ENRICHMENT } from '@/app/data/seedPhase10'
+import type { GapInfo, SRLevel, TrendInfo } from '@/app/features/dashboard/useAISignals'
 
 /* ── Public types ────────────────────────────────────────────────────────── */
 
 export type OHLCVCandle = {
   /** `yyyy-mm-dd` — the format Lightweight Charts expects for a daily series. */
-  time: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-};
+  time: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
 
 export type CandlestickPattern = {
-  pattern: string;
-  patternId: string;
-  date: string;
-  significance: "high" | "medium" | "low";
-  signal: number;
-};
+  pattern: string
+  patternId: string
+  date: string
+  significance: 'high' | 'medium' | 'low'
+  signal: number
+}
 
 /** Trading intensity vs the stock's own 20-day baseline. */
 export type VolumeInfo = {
-  level: "high" | "normal" | "low";
-  ratio: number;
-  latest: number;
-  average20d: number;
-  trend: "rising" | "falling" | "flat";
-  spike: boolean;
-  note: string;
-  noteEn: string;
-};
+  level: 'high' | 'normal' | 'low'
+  ratio: number
+  latest: number
+  average20d: number
+  trend: 'rising' | 'falling' | 'flat'
+  spike: boolean
+  note: string
+  noteEn: string
+}
 
 /**
  * Combined "smart money" accumulation read: volume-flow (OBV/ADL/CMF/MFI) for
@@ -41,50 +41,55 @@ export type VolumeInfo = {
  * substitute for gated per-broker bandarmology.
  */
 export type AccumulationInfo = {
-  phase: "accumulation" | "distribution" | "neutral";
-  phaseId: string;
-  score: number;
-  strength: number;
-  obvTrend: number;
-  cmf: number;
-  mfi: number;
-  consistencyDays: number;
-  signals: string[];
-  signalsEn: string[];
+  phase: 'accumulation' | 'distribution' | 'neutral'
+  phaseId: string
+  score: number
+  strength: number
+  obvTrend: number
+  cmf: number
+  mfi: number
+  consistencyDays: number
+  signals: string[]
+  signalsEn: string[]
   /** "volume+foreign" when foreign flow contributed, else "volume". */
-  method?: "volume" | "volume+foreign";
-  foreignAvailable?: boolean;
-  foreignPhase?: "accumulation" | "distribution" | "neutral";
-  foreignScore?: number;
+  method?: 'volume' | 'volume+foreign'
+  foreignAvailable?: boolean
+  foreignPhase?: 'accumulation' | 'distribution' | 'neutral'
+  foreignScore?: number
   /** Net foreign flow in lots (5 / 20 sessions). */
-  netForeign5d?: number;
-  netForeign20d?: number;
-  foreignConsistencyDays?: number;
-};
+  netForeign5d?: number
+  netForeign20d?: number
+  foreignConsistencyDays?: number
+}
 
 /** One session in the pullable foreign-flow accumulation history. */
 export type AccumulationHistoryPoint = {
-  date: string;
-  netForeign: number;
-  cumulativeNet: number;
-  score: number;
-  phase: "accumulation" | "distribution" | "neutral";
-  close: number;
-};
+  date: string
+  netForeign: number
+  cumulativeNet: number
+  score: number
+  phase: 'accumulation' | 'distribution' | 'neutral'
+  close: number
+}
 
 /** When to enter and why. */
 export type EntrySignal = {
-  signal: "buy_watch" | "wait" | "avoid";
-  signalId: string;
-  reason: string;
-  reasonEn: string;
-};
+  signal: 'buy_watch' | 'wait' | 'avoid'
+  signalId: string
+  reason: string
+  reasonEn: string
+}
 
 /** Machine labels for the price-action situation — keep in sync with the backend. */
 export type SituationLabel =
-  | "uji_resistance" | "tembus_resistance" | "gagal_breakout"
-  | "mantul_support" | "gagal_breakdown" | "tembus_support"
-  | "volatility_squeeze" | "konsolidasi_lebar";
+  | 'uji_resistance'
+  | 'tembus_resistance'
+  | 'gagal_breakout'
+  | 'mantul_support'
+  | 'gagal_breakdown'
+  | 'tembus_support'
+  | 'volatility_squeeze'
+  | 'konsolidasi_lebar'
 
 /**
  * Price-action situational read: WHERE the last bar sits relative to structure,
@@ -92,44 +97,44 @@ export type SituationLabel =
  * label drives display; `note`/`noteEn` carry the bilingual narration.
  */
 export type SituationInfo = {
-  situation: SituationLabel;
-  situationId: string;         // Indonesian label from the backend
-  note: string;                // Indonesian narration
-  noteEn: string;
-  atr: number;                 // Average True Range, absolute price
-  atrPct: number;              // ATR as % of price — dynamic volatility
-  squeeze: boolean;            // volatility compressed (VCP coil)
-  nearestSupport: number | null;
-  nearestResistance: number | null;
-  distSupportPct: number | null;     // % below price to nearest support
-  distResistancePct: number | null;  // % above price to nearest resistance
-};
+  situation: SituationLabel
+  situationId: string // Indonesian label from the backend
+  note: string // Indonesian narration
+  noteEn: string
+  atr: number // Average True Range, absolute price
+  atrPct: number // ATR as % of price — dynamic volatility
+  squeeze: boolean // volatility compressed (VCP coil)
+  nearestSupport: number | null
+  nearestResistance: number | null
+  distSupportPct: number | null // % below price to nearest support
+  distResistancePct: number | null // % above price to nearest resistance
+}
 
 /** Entry / stop-loss derived from fractal S/R. */
 export type TradePlanInfo = {
-  entryPrice: number | null;
-  stopLoss: number | null;
-  stopLossPct: number | null;
-  stopLossReason: string;
-  stopLossReasonEn: string;
-  riskRewardRatio: number | null;
-};
+  entryPrice: number | null
+  stopLoss: number | null
+  stopLossPct: number | null
+  stopLossReason: string
+  stopLossReasonEn: string
+  riskRewardRatio: number | null
+}
 
 export interface TechnicalsResult {
-  ohlcv: OHLCVCandle[];
-  trend: TrendInfo | null;
-  supportResistance: SRLevel[];
-  patterns: CandlestickPattern[];
-  gaps: GapInfo[];
-  volume: VolumeInfo | null;
-  accumulation: AccumulationInfo | null;
-  entrySignal: EntrySignal | null;
-  situation: SituationInfo | null;
-  tradePlan: TradePlanInfo | null;
-  technicalNote: string;
-  technicalNoteEn: string;
-  loading: boolean;
-  error: string | null;
+  ohlcv: OHLCVCandle[]
+  trend: TrendInfo | null
+  supportResistance: SRLevel[]
+  patterns: CandlestickPattern[]
+  gaps: GapInfo[]
+  volume: VolumeInfo | null
+  accumulation: AccumulationInfo | null
+  entrySignal: EntrySignal | null
+  situation: SituationInfo | null
+  tradePlan: TradePlanInfo | null
+  technicalNote: string
+  technicalNoteEn: string
+  loading: boolean
+  error: string | null
 }
 
 const EMPTY: TechnicalsResult = {
@@ -143,11 +148,11 @@ const EMPTY: TechnicalsResult = {
   entrySignal: null,
   situation: null,
   tradePlan: null,
-  technicalNote: "",
-  technicalNoteEn: "",
+  technicalNote: '',
+  technicalNoteEn: '',
   loading: false,
   error: null,
-};
+}
 
 /* ── Hook ────────────────────────────────────────────────────────────────── */
 
@@ -164,24 +169,20 @@ const EMPTY: TechnicalsResult = {
  * levels and the stop loss all describe one consistent series. Symbols outside
  * the seed resolve to empty and the panels render their unavailable state.
  */
-export function useTechnicals(
-  symbol: string,
-  days = 120,
-  enabled = true,
-): TechnicalsResult {
-  const [state, setState] = useState<TechnicalsResult>(EMPTY);
+export function useTechnicals(symbol: string, days = 120, enabled = true): TechnicalsResult {
+  const [state, setState] = useState<TechnicalsResult>(EMPTY)
 
   useEffect(() => {
     if (!enabled || !symbol) {
-      setState(EMPTY);
-      return;
+      setState(EMPTY)
+      return
     }
 
     if (!USE_LIVE_API) {
-      const seed = SEED_ENRICHMENT[symbol];
+      const seed = SEED_ENRICHMENT[symbol]
       if (!seed) {
-        setState(EMPTY);
-        return;
+        setState(EMPTY)
+        return
       }
 
       // Levels resolve immediately; candles arrive with the split chunk, in
@@ -197,50 +198,50 @@ export function useTechnicals(
         entrySignal: null,
         situation: null,
         tradePlan: seed.tradePlan ?? null,
-        technicalNote: seed.technicalNote ?? "",
-        technicalNoteEn: seed.technicalNoteEn ?? "",
+        technicalNote: seed.technicalNote ?? '',
+        technicalNoteEn: seed.technicalNoteEn ?? '',
         loading: true,
         error: null,
-      };
-      setState(base);
+      }
+      setState(base)
 
-      let stale = false;
-      import("@/app/data/seedOhlcv")
+      let stale = false
+      import('@/app/data/seedOhlcv')
         .then(({ SEED_OHLCV }) => {
-          if (stale) return;
+          if (stale) return
           setState({
             ...base,
             ohlcv: (SEED_OHLCV[symbol] ?? []).slice(-days),
             loading: false,
-          });
+          })
         })
         .catch(() => {
-          if (!stale) setState({ ...base, loading: false });
-        });
+          if (!stale) setState({ ...base, loading: false })
+        })
 
       return () => {
-        stale = true;
-      };
+        stale = true
+      }
     }
 
-    let cancelled = false;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    let cancelled = false
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
     async function load() {
-      setState((s) => ({ ...s, loading: true, error: null }));
+      setState((s) => ({ ...s, loading: true, error: null }))
       try {
         const [taRes, ohlcvRes] = await Promise.all([
           apiFetch(ENDPOINTS.technicals(symbol), { signal: controller.signal }),
           apiFetch(ENDPOINTS.ohlcv(symbol, days), { signal: controller.signal }),
-        ]);
-        if (!taRes.ok) throw new Error(`technicals HTTP ${taRes.status}`);
-        if (!ohlcvRes.ok) throw new Error(`ohlcv HTTP ${ohlcvRes.status}`);
+        ])
+        if (!taRes.ok) throw new Error(`technicals HTTP ${taRes.status}`)
+        if (!ohlcvRes.ok) throw new Error(`ohlcv HTTP ${ohlcvRes.status}`)
 
-        const ta = await taRes.json();
-        const candles = await ohlcvRes.json();
+        const ta = await taRes.json()
+        const candles = await ohlcvRes.json()
 
-        if (cancelled) return;
+        if (cancelled) return
         setState({
           ohlcv: Array.isArray(candles?.candles) ? candles.candles : [],
           trend: ta?.trend ?? null,
@@ -252,30 +253,30 @@ export function useTechnicals(
           entrySignal: ta?.entrySignal ?? null,
           situation: ta?.situation ?? null,
           tradePlan: ta?.tradePlan ?? null,
-          technicalNote: ta?.technicalNote ?? "",
-          technicalNoteEn: ta?.technicalNoteEn ?? "",
+          technicalNote: ta?.technicalNote ?? '',
+          technicalNoteEn: ta?.technicalNoteEn ?? '',
           loading: false,
           error: null,
-        });
+        })
       } catch (err) {
-        if (cancelled) return;
-        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (cancelled) return
+        if (err instanceof DOMException && err.name === 'AbortError') return
         setState({
           ...EMPTY,
-          error: err instanceof Error ? err.message : "Unknown error",
-        });
+          error: err instanceof Error ? err.message : 'Unknown error',
+        })
       } finally {
-        clearTimeout(timeout);
+        clearTimeout(timeout)
       }
     }
 
-    load();
+    load()
     return () => {
-      cancelled = true;
-      controller.abort();
-      clearTimeout(timeout);
-    };
-  }, [symbol, days, enabled]);
+      cancelled = true
+      controller.abort()
+      clearTimeout(timeout)
+    }
+  }, [symbol, days, enabled])
 
-  return state;
+  return state
 }

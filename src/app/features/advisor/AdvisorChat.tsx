@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { MessageSquare, Send, Square, RotateCcw, AlertTriangle } from "lucide-react";
-import { useAdvisorChat } from "@/app/features/advisor/useAdvisorChat";
-import { AdvisorMessage } from "@/app/features/advisor/advisor/AdvisorMessage";
+import { useEffect, useRef, useState } from 'react'
+import { MessageSquare, Send, Square, RotateCcw, AlertTriangle } from 'lucide-react'
+import { useAdvisorChat } from '@/app/features/advisor/useAdvisorChat'
+import { AdvisorMessage } from '@/app/features/advisor/advisor/AdvisorMessage'
 
 /**
  * Q&A panel over the portfolio.
@@ -15,67 +15,70 @@ import { AdvisorMessage } from "@/app/features/advisor/advisor/AdvisorMessage";
  */
 
 export interface AdvisorChatProps {
-  locale?: "id" | "en";
+  locale?: 'id' | 'en'
 }
 
 const SUGGESTIONS = {
   id: [
-    "Bagaimana profil risiko portofolio saya?",
-    "Sektor mana yang paling overweight?",
-    "Apa arti VaR 95% untuk posisi saya?",
+    'Bagaimana profil risiko portofolio saya?',
+    'Sektor mana yang paling overweight?',
+    'Apa arti VaR 95% untuk posisi saya?',
   ],
   en: [
     "What is my portfolio's risk profile?",
-    "Which sector am I most overweight in?",
-    "What does 95% VaR mean for my positions?",
+    'Which sector am I most overweight in?',
+    'What does 95% VaR mean for my positions?',
   ],
-};
+}
 
-export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
-  const isId = locale === "id";
-  const { messages, streaming, isStreaming, error, send, reset, stop } =
-    useAdvisorChat(locale);
-  const [draft, setDraft] = useState("");
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+export function AdvisorChat({ locale = 'id' }: AdvisorChatProps) {
+  const isId = locale === 'id'
+  const { messages, streaming, isStreaming, error, send, reset, stop } = useAdvisorChat(locale)
+  const [draft, setDraft] = useState('')
+  const scrollRef = useRef<HTMLDivElement | null>(null)
 
   // Follow the stream as tokens arrive.
   useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, streaming]);
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages, streaming])
 
   const submit = (text: string) => {
-    if (!text.trim() || isStreaming) return;
-    setDraft("");
-    void send(text);
-  };
+    if (!text.trim() || isStreaming) return
+    setDraft('')
+    void send(text)
+  }
 
-  const hasConversation = messages.length > 0 || isStreaming;
+  const hasConversation = messages.length > 0 || isStreaming
 
   return (
     <div
       className="rounded flex flex-col"
-      style={{ background: "var(--card)", border: "1px solid var(--control-border)" }}
+      style={{ background: 'var(--card)', border: '1px solid var(--control-border)' }}
     >
       {/* Header */}
       <div
         className="flex items-center gap-2 px-5 py-3"
-        style={{ borderBottom: "1px solid var(--border)" }}
+        style={{ borderBottom: '1px solid var(--border)' }}
       >
-        <MessageSquare size={14} style={{ color: "var(--muted-foreground)", flexShrink: 0 }} />
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
-          {isId ? "Tanya AI Advisor" : "Ask the AI Advisor"}
+        <MessageSquare size={14} style={{ color: 'var(--muted-foreground)', flexShrink: 0 }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+          {isId ? 'Tanya AI Advisor' : 'Ask the AI Advisor'}
         </span>
-        <span style={{ fontSize: 11, color: "var(--muted-foreground)", marginLeft: "auto" }}>
-          {isId ? "Jawaban bersifat probabilistik" : "Answers are probabilistic"}
+        <span style={{ fontSize: 11, color: 'var(--muted-foreground)', marginLeft: 'auto' }}>
+          {isId ? 'Jawaban bersifat probabilistik' : 'Answers are probabilistic'}
         </span>
         {hasConversation && (
           <button
             onClick={reset}
-            title={isId ? "Mulai ulang" : "Reset"}
+            title={isId ? 'Mulai ulang' : 'Reset'}
             style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: "var(--muted-foreground)", padding: 2, display: "flex",
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--muted-foreground)',
+              padding: 2,
+              display: 'flex',
             }}
           >
             <RotateCcw size={12} />
@@ -87,27 +90,27 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
       <div
         ref={scrollRef}
         className="flex flex-col gap-3 px-5 py-4"
-        style={{ maxHeight: 520, overflowY: "auto", minHeight: 120 }}
+        style={{ maxHeight: 520, overflowY: 'auto', minHeight: 120 }}
       >
         {!hasConversation && !error && (
           <div className="flex flex-col gap-2">
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-              {isId ? "Coba tanyakan:" : "Try asking:"}
+            <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+              {isId ? 'Coba tanyakan:' : 'Try asking:'}
             </div>
-            {SUGGESTIONS[isId ? "id" : "en"].map((s) => (
+            {SUGGESTIONS[isId ? 'id' : 'en'].map((s) => (
               <button
                 key={s}
                 onClick={() => submit(s)}
                 className="px-0 py-1 text-left"
                 style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--foreground)",
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--foreground)',
                   fontSize: 13,
-                  cursor: "pointer",
-                  fontFamily: "var(--font-sans)",
-                  textDecoration: "underline",
-                  textDecorationColor: "var(--border)",
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                  textDecoration: 'underline',
+                  textDecorationColor: 'var(--border)',
                   textUnderlineOffset: 4,
                 }}
               >
@@ -122,31 +125,31 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
             key={i}
             className="rounded px-3 py-2"
             style={{
-              background: m.role === "user" ? "var(--muted)" : "transparent",
-              border: m.role === "user" ? "1px solid var(--border)" : "none",
-              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-              maxWidth: "88%",
+              background: m.role === 'user' ? 'var(--muted)' : 'transparent',
+              border: m.role === 'user' ? '1px solid var(--border)' : 'none',
+              alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+              maxWidth: '88%',
             }}
           >
             <div
               style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: "var(--muted-foreground)",
+                color: 'var(--muted-foreground)',
                 marginBottom: 3,
               }}
             >
-              {m.role === "user" ? (isId ? "Anda" : "You") : "AIDSS"}
+              {m.role === 'user' ? (isId ? 'Anda' : 'You') : 'AIDSS'}
             </div>
-            {m.role === "assistant" ? (
+            {m.role === 'assistant' ? (
               <AdvisorMessage content={m.content} />
             ) : (
               <div
                 style={{
                   fontSize: 12.5,
-                  color: "var(--foreground)",
+                  color: 'var(--foreground)',
                   lineHeight: 1.6,
-                  whiteSpace: "pre-wrap",
+                  whiteSpace: 'pre-wrap',
                 }}
               >
                 {m.content}
@@ -156,11 +159,13 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
         ))}
 
         {isStreaming && (
-          <div style={{ maxWidth: "88%" }}>
+          <div style={{ maxWidth: '88%' }}>
             <div
               style={{
-                fontSize: 11, fontWeight: 600,
-                color: "var(--muted-foreground)", marginBottom: 3,
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--muted-foreground)',
+                marginBottom: 3,
               }}
             >
               AIDSS
@@ -168,8 +173,8 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
             {streaming ? (
               <AdvisorMessage content={streaming} />
             ) : (
-              <div style={{ fontSize: 12.5, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
-                {isId ? "Menyusun jawaban…" : "Thinking…"}
+              <div style={{ fontSize: 12.5, color: 'var(--muted-foreground)', lineHeight: 1.6 }}>
+                {isId ? 'Menyusun jawaban…' : 'Thinking…'}
               </div>
             )}
           </div>
@@ -178,10 +183,13 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
         {error && (
           <div
             className="flex items-start gap-2 rounded px-3 py-2"
-            style={{ background: "var(--warning-bg)", border: "1px solid var(--warning)" }}
+            style={{ background: 'var(--warning-bg)', border: '1px solid var(--warning)' }}
           >
-            <AlertTriangle size={12} style={{ color: "var(--warning)", flexShrink: 0, marginTop: 2 }} />
-            <span style={{ fontSize: 13, color: "var(--foreground)", lineHeight: 1.5 }}>
+            <AlertTriangle
+              size={12}
+              style={{ color: 'var(--warning)', flexShrink: 0, marginTop: 2 }}
+            />
+            <span style={{ fontSize: 13, color: 'var(--foreground)', lineHeight: 1.5 }}>
               {error}
             </span>
           </div>
@@ -191,45 +199,45 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
       {/* Composer */}
       <div
         className="flex items-center gap-2 px-5 py-3"
-        style={{ borderTop: "1px solid var(--border)" }}
+        style={{ borderTop: '1px solid var(--border)' }}
       >
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit(draft);
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              submit(draft)
             }
           }}
-          placeholder={isId ? "Tanya tentang portofolio Anda…" : "Ask about your portfolio…"}
+          placeholder={isId ? 'Tanya tentang portofolio Anda…' : 'Ask about your portfolio…'}
           disabled={isStreaming}
           style={{
             flex: 1,
-            background: "var(--input-background, var(--muted))",
-            border: "1px solid var(--control-border)",
+            background: 'var(--input-background, var(--muted))',
+            border: '1px solid var(--control-border)',
             borderRadius: 4,
-            padding: "7px 10px",
+            padding: '7px 10px',
             fontSize: 12.5,
-            color: "var(--foreground)",
-            fontFamily: "var(--font-sans)",
+            color: 'var(--foreground)',
+            fontFamily: 'var(--font-sans)',
           }}
         />
         <button
           onClick={() => (isStreaming ? stop() : submit(draft))}
           disabled={!isStreaming && !draft.trim()}
-          title={isStreaming ? (isId ? "Hentikan" : "Stop") : (isId ? "Kirim" : "Send")}
+          title={isStreaming ? (isId ? 'Hentikan' : 'Stop') : isId ? 'Kirim' : 'Send'}
           style={{
-            background: isStreaming ? "var(--loss)" : "var(--primary)",
-            color: isStreaming ? "var(--destructive-foreground)" : "var(--primary-foreground)",
-            border: "none",
+            background: isStreaming ? 'var(--loss)' : 'var(--primary)',
+            color: isStreaming ? 'var(--destructive-foreground)' : 'var(--primary-foreground)',
+            border: 'none',
             borderRadius: 4,
             width: 32,
             height: 32,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: !isStreaming && !draft.trim() ? "not-allowed" : "pointer",
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: !isStreaming && !draft.trim() ? 'not-allowed' : 'pointer',
             opacity: !isStreaming && !draft.trim() ? 0.45 : 1,
           }}
         >
@@ -237,5 +245,5 @@ export function AdvisorChat({ locale = "id" }: AdvisorChatProps) {
         </button>
       </div>
     </div>
-  );
+  )
 }

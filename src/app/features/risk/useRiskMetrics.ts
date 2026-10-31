@@ -1,73 +1,80 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from 'react'
 import {
-  USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, HttpStatusError, apiFetch,
-  classifyLoadError, type LoadFailure,
-} from "@/app/config/api";
-import { riskResponseSchema, parseOrThrow } from "@/app/config/schemas";
-import { RISK_DATA, STRESS_TESTS, SECTOR_EXPOSURE } from "@/app/data/idxData";
+  USE_LIVE_API,
+  ENDPOINTS,
+  FETCH_TIMEOUT_MS,
+  HttpStatusError,
+  apiFetch,
+  classifyLoadError,
+  type LoadFailure,
+} from '@/app/config/api'
+import { riskResponseSchema, parseOrThrow } from '@/app/config/schemas'
+import { RISK_DATA, STRESS_TESTS, SECTOR_EXPOSURE } from '@/app/data/idxData'
 
 /* ── Public types ────────────────────────────────────────────────────────── */
 
 export interface RiskMetrics {
-  overallRisk: number;
-  marketRisk: number;
-  concentrationRisk: number;
-  liquidityRisk: number;
-  currencyRisk: number;
-  creditRisk: number;
-  var95: number;
-  cvar95: number;
-  volatility: number;
-  maxDrawdown: number;
-  beta: number;
-  sharpe: number;
-  sortino: number;
-  alpha: number;
-  informationRatio: number;
+  overallRisk: number
+  marketRisk: number
+  concentrationRisk: number
+  liquidityRisk: number
+  currencyRisk: number
+  creditRisk: number
+  var95: number
+  cvar95: number
+  volatility: number
+  maxDrawdown: number
+  beta: number
+  sharpe: number
+  sortino: number
+  alpha: number
+  informationRatio: number
 }
 
 export interface StressTest {
-  scenario: string;
-  scenarioEn: string;
-  impact: number;
-  probability: number;
+  scenario: string
+  scenarioEn: string
+  impact: number
+  probability: number
 }
 
 export interface SectorExposureItem {
-  sector: string;
-  sectorEn: string;
-  weight: number;
-  benchmark: number;
-  overUnder: number;
+  sector: string
+  sectorEn: string
+  weight: number
+  benchmark: number
+  overUnder: number
 }
 
 export interface RiskMetricsResult {
-  risk: RiskMetrics;
-  stressTests: StressTest[];
-  sectorExposure: SectorExposureItem[];
-  loading: boolean;
-  error: string | null;
+  risk: RiskMetrics
+  stressTests: StressTest[]
+  sectorExposure: SectorExposureItem[]
+  loading: boolean
+  error: string | null
   /**
    * Why the load failed, for a view that has to say something useful about it.
    *
    * `error` alone cannot carry that: a refusal and a dead backend are the same
    * string, and RiskView answered both with "backend unreachable".
    */
-  failure: LoadFailure | null;
+  failure: LoadFailure | null
   /** True when the metrics came from the live backend, false for seed. */
-  isLive: boolean;
+  isLive: boolean
   /** Trigger an immediate re-fetch (manual "Refresh" button). */
-  refetch: () => void;
+  refetch: () => void
 }
 
 /** How often live risk metrics are re-polled, in ms. */
-const REFRESH_MS = 60_000;
+const REFRESH_MS = 60_000
 
 /* ── Seed data ───────────────────────────────────────────────────────────── */
 
-const SEED_RISK: RiskMetrics    = { ...RISK_DATA };
-const SEED_STRESS: StressTest[] = (STRESS_TESTS as unknown as StressTest[]).map((s) => ({ ...s }));
-const SEED_EXPOSURE: SectorExposureItem[] = (SECTOR_EXPOSURE as unknown as SectorExposureItem[]).map((s) => ({ ...s }));
+const SEED_RISK: RiskMetrics = { ...RISK_DATA }
+const SEED_STRESS: StressTest[] = (STRESS_TESTS as unknown as StressTest[]).map((s) => ({ ...s }))
+const SEED_EXPOSURE: SectorExposureItem[] = (
+  SECTOR_EXPOSURE as unknown as SectorExposureItem[]
+).map((s) => ({ ...s }))
 
 /* ── Hook ────────────────────────────────────────────────────────────────── */
 
@@ -82,66 +89,66 @@ const SEED_EXPOSURE: SectorExposureItem[] = (SECTOR_EXPOSURE as unknown as Secto
  *   { risk: RiskMetrics; stressTests: StressTest[]; sectorExposure: SectorExposureItem[] }
  */
 export function useRiskMetrics(): RiskMetricsResult {
-  const [risk, setRisk]                   = useState<RiskMetrics>(SEED_RISK);
-  const [stressTests, setStressTests]     = useState<StressTest[]>(SEED_STRESS);
-  const [sectorExposure, setSectorExposure] = useState<SectorExposureItem[]>(SEED_EXPOSURE);
-  const [loading, setLoading]             = useState(USE_LIVE_API);
-  const [error, setError]                 = useState<string | null>(null);
-  const [failure, setFailure]             = useState<LoadFailure | null>(null);
-  const [isLive, setIsLive]               = useState(false);
-  const [refreshTick, setRefreshTick]     = useState(0);
-  const refetch = useCallback(() => setRefreshTick((t) => t + 1), []);
+  const [risk, setRisk] = useState<RiskMetrics>(SEED_RISK)
+  const [stressTests, setStressTests] = useState<StressTest[]>(SEED_STRESS)
+  const [sectorExposure, setSectorExposure] = useState<SectorExposureItem[]>(SEED_EXPOSURE)
+  const [loading, setLoading] = useState(USE_LIVE_API)
+  const [error, setError] = useState<string | null>(null)
+  const [failure, setFailure] = useState<LoadFailure | null>(null)
+  const [isLive, setIsLive] = useState(false)
+  const [refreshTick, setRefreshTick] = useState(0)
+  const refetch = useCallback(() => setRefreshTick((t) => t + 1), [])
 
   useEffect(() => {
-    if (!USE_LIVE_API) return;
+    if (!USE_LIVE_API) return
 
-    let cancelled = false;
+    let cancelled = false
 
     async function fetchRisk(isFirst: boolean) {
-      if (isFirst) setLoading(true);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      if (isFirst) setLoading(true)
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
       try {
-        const res = await apiFetch(ENDPOINTS.riskMetrics, { signal: controller.signal });
-        if (!res.ok) throw new HttpStatusError(res.status);
-        const data = await res.json();
+        const res = await apiFetch(ENDPOINTS.riskMetrics, { signal: controller.signal })
+        if (!res.ok) throw new HttpStatusError(res.status)
+        const data = await res.json()
         // Validate before use: a malformed metric would otherwise render as
         // `undefined` in the risk tiles. On failure this throws and the seed
         // values already in state stand.
-        const parsed = parseOrThrow(riskResponseSchema, data, "risk");
+        const parsed = parseOrThrow(riskResponseSchema, data, 'risk')
         if (!cancelled) {
-          setRisk(parsed.risk as RiskMetrics);
-          setStressTests(parsed.stressTests as StressTest[]);
-          setSectorExposure(parsed.sectorExposure as SectorExposureItem[]);
-          setIsLive(true);
-          setError(null);
-          setFailure(null);
+          setRisk(parsed.risk as RiskMetrics)
+          setStressTests(parsed.stressTests as StressTest[])
+          setSectorExposure(parsed.sectorExposure as SectorExposureItem[])
+          setIsLive(true)
+          setError(null)
+          setFailure(null)
         }
       } catch (err) {
         if (!cancelled) {
-          const msg = err instanceof Error ? err.message : "Unknown error";
-          setError(msg);
-          setFailure(classifyLoadError(err));
-          setIsLive(false);
+          const msg = err instanceof Error ? err.message : 'Unknown error'
+          setError(msg)
+          setFailure(classifyLoadError(err))
+          setIsLive(false)
           // Seed values already in state stand — the view renders them with an
           // offline badge instead of a blank error page, and the next poll
           // recovers once the backend is reachable again.
         }
       } finally {
-        if (!cancelled && isFirst) setLoading(false);
-        clearTimeout(timeout);
+        if (!cancelled && isFirst) setLoading(false)
+        clearTimeout(timeout)
       }
     }
 
-    fetchRisk(true);
-    const interval = setInterval(() => fetchRisk(false), REFRESH_MS);
+    fetchRisk(true)
+    const interval = setInterval(() => fetchRisk(false), REFRESH_MS)
     return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
+      cancelled = true
+      clearInterval(interval)
+    }
     // refreshTick bump forces an immediate re-fetch for the manual Refresh button.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshTick]);
+  }, [refreshTick])
 
-  return { risk, stressTests, sectorExposure, loading, error, failure, isLive, refetch };
+  return { risk, stressTests, sectorExposure, loading, error, failure, isLive, refetch }
 }

@@ -24,7 +24,10 @@ function makeAuth(overrides: Partial<AuthState> = {}): AuthState {
 function renderScreen(
   auth: AuthState,
   onAuthed = vi.fn(),
-  extra: { initialMode?: "login" | "signup"; initialPlan?: "weekly" | "monthly" | "annual" | null } = {},
+  extra: {
+    initialMode?: 'login' | 'signup'
+    initialPlan?: 'weekly' | 'monthly' | 'annual' | null
+  } = {},
 ) {
   return render(
     <MemoryRouter>
@@ -153,7 +156,6 @@ describe('create account', () => {
     // A required field with no stated reason reads as data collection.
     expect(screen.getByText(/Dipakai untuk pemberitahuan/)).toBeInTheDocument()
   })
-
 })
 
 describe('what the screen refuses to claim', () => {
@@ -187,7 +189,12 @@ describe('what the screen refuses to claim', () => {
 describe('busy state', () => {
   it('disables the submit button and says work is happening', async () => {
     let release: () => void = () => {}
-    const signIn = vi.fn(() => new Promise<void>((resolve) => { release = resolve }))
+    const signIn = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        }),
+    )
     renderScreen(makeAuth({ signIn }))
     const user = userEvent.setup()
 

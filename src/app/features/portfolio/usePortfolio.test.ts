@@ -123,7 +123,14 @@ describe('writing positions', () => {
     const { result } = renderHook(() => usePortfolio())
     await waitFor(() => expect(result.current.loading).toBe(false))
 
-    act(() => result.current.addHolding({ symbol: 'TLKM', lots: 100, avgPrice: 3000, sector: 'Telekomunikasi' }))
+    act(() =>
+      result.current.addHolding({
+        symbol: 'TLKM',
+        lots: 100,
+        avgPrice: 3000,
+        sector: 'Telekomunikasi',
+      }),
+    )
     await waitFor(() => expect(state.stored).toHaveLength(1))
     expect(state.stored[0]).toMatchObject({ symbol: 'TLKM', lots: 100, avgPrice: 3000 })
   })
@@ -155,7 +162,14 @@ describe('writing positions', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
 
     state.putError = true
-    act(() => result.current.addHolding({ symbol: 'TLKM', lots: 100, avgPrice: 3000, sector: 'Telekomunikasi' }))
+    act(() =>
+      result.current.addHolding({
+        symbol: 'TLKM',
+        lots: 100,
+        avgPrice: 3000,
+        sector: 'Telekomunikasi',
+      }),
+    )
     await waitFor(() => expect(result.current.error).toBeTruthy())
     expect(state.stored).toHaveLength(0)
   })

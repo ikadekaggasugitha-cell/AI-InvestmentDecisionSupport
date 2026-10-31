@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect } from 'react'
 
-const IDLE_MS = 1000;
+const IDLE_MS = 1000
 
 /**
  * Reveal a scroll container's custom thumb while it scrolls and hide it again
@@ -10,27 +10,27 @@ const IDLE_MS = 1000;
  */
 export function useOverlayScrollbars(): void {
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null
 
     const onScroll = (e: Event) => {
-      const target = e.target;
+      const target = e.target
       const el =
         target instanceof Document
           ? document.scrollingElement
           : target instanceof Element
             ? target
-            : null;
-      if (el) el.classList.add("scrolling");
-      if (timer !== null) clearTimeout(timer);
+            : null
+      if (el) el.classList.add('scrolling')
+      if (timer !== null) clearTimeout(timer)
       timer = setTimeout(() => {
-        document.querySelectorAll(".scrolling").forEach((n) => n.classList.remove("scrolling"));
-      }, IDLE_MS);
-    };
+        document.querySelectorAll('.scrolling').forEach((n) => n.classList.remove('scrolling'))
+      }, IDLE_MS)
+    }
 
-    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener('scroll', onScroll, true)
     return () => {
-      window.removeEventListener("scroll", onScroll, true);
-      if (timer !== null) clearTimeout(timer);
-    };
-  }, []);
+      window.removeEventListener('scroll', onScroll, true)
+      if (timer !== null) clearTimeout(timer)
+    }
+  }, [])
 }

@@ -25,12 +25,22 @@ describe('AccumulationBadge', () => {
   })
 
   it('shows the distribution label', () => {
-    render(<AccumulationBadge data={acc({ phase: 'distribution', phaseId: 'Distribusi', score: -20 })} locale="id" />)
+    render(
+      <AccumulationBadge
+        data={acc({ phase: 'distribution', phaseId: 'Distribusi', score: -20 })}
+        locale="id"
+      />,
+    )
     expect(screen.getByText('Dist')).toBeInTheDocument()
   })
 
   it('renders neutral as a muted dash, not a pill', () => {
-    render(<AccumulationBadge data={acc({ phase: 'neutral', phaseId: 'Netral', score: 3 })} locale="id" />)
+    render(
+      <AccumulationBadge
+        data={acc({ phase: 'neutral', phaseId: 'Netral', score: 3 })}
+        locale="id"
+      />,
+    )
     expect(screen.getByText('—')).toBeInTheDocument()
     expect(screen.queryByText('Akum')).not.toBeInTheDocument()
   })

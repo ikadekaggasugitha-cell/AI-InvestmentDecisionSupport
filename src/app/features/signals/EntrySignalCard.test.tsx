@@ -47,7 +47,12 @@ describe('EntrySignalCard', () => {
   it('renders the avoid state', () => {
     render(
       <EntrySignalCard
-        entry={{ signal: 'avoid', signalId: 'Hindari', reason: 'Distribusi', reasonEn: 'Distribution' }}
+        entry={{
+          signal: 'avoid',
+          signalId: 'Hindari',
+          reason: 'Distribusi',
+          reasonEn: 'Distribution',
+        }}
         plan={null}
         locale="id"
       />,

@@ -47,7 +47,10 @@ function contrast(a: string, b: string): number {
 }
 
 function sourceFiles(): string[] {
-  return [...globSync('app/components/**/*.tsx', { cwd: resolve(ROOT) }), ...globSync('app/features/**/*.tsx', { cwd: resolve(ROOT) })]
+  return [
+    ...globSync('app/components/**/*.tsx', { cwd: resolve(ROOT) }),
+    ...globSync('app/features/**/*.tsx', { cwd: resolve(ROOT) }),
+  ]
     .filter((p) => !p.includes('/ui/'))
     .map((p) => resolve(ROOT, p))
 }

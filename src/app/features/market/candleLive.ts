@@ -1,4 +1,4 @@
-import type { OHLCVCandle } from "@/app/features/market/useTechnicals";
+import type { OHLCVCandle } from '@/app/features/market/useTechnicals'
 
 /**
  * Pure helpers for pulsing the live *forming* candle. Kept out of
@@ -8,12 +8,12 @@ import type { OHLCVCandle } from "@/app/features/market/useTechnicals";
 
 /** Today's date as `yyyy-mm-dd` in WIB (UTC+7) — the IDX trading day. */
 export function wibDateString(now: Date = new Date()): string {
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
-  const wib = new Date(utcMs + 7 * 3_600_000);
-  const y = wib.getFullYear();
-  const m = String(wib.getMonth() + 1).padStart(2, "0");
-  const d = String(wib.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000
+  const wib = new Date(utcMs + 7 * 3_600_000)
+  const y = wib.getFullYear()
+  const m = String(wib.getMonth() + 1).padStart(2, '0')
+  const d = String(wib.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 /**
@@ -29,12 +29,12 @@ export function mergeLiveBar(
   price: number,
   todayWIB: string,
 ): OHLCVCandle | null {
-  if (!lastBar || !Number.isFinite(price) || price <= 0) return null;
-  if (lastBar.time !== todayWIB) return null;
+  if (!lastBar || !Number.isFinite(price) || price <= 0) return null
+  if (lastBar.time !== todayWIB) return null
   return {
     ...lastBar,
     high: Math.max(lastBar.high, price),
     low: Math.min(lastBar.low, price),
     close: price,
-  };
+  }
 }

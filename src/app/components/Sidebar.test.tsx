@@ -63,7 +63,8 @@ describe('Sidebar operator block', () => {
       full_name: 'Siti Rahayu',
       phone_number: '081234567890',
       role: 'user',
-      blocked: false, blockedReason: null,
+      blocked: false,
+      blockedReason: null,
     })
     expect(screen.getByText('Siti Rahayu')).toBeInTheDocument()
     expect(screen.queryByText('Belum ada akun terhubung')).not.toBeInTheDocument()
@@ -76,7 +77,8 @@ describe('Sidebar operator block', () => {
       full_name: 'Siti Rahayu',
       phone_number: '081234567890',
       role: 'user',
-      blocked: false, blockedReason: null,
+      blocked: false,
+      blockedReason: null,
     })
     for (const el of Array.from(container.querySelectorAll('div'))) {
       expect(el.textContent?.trim()).not.toMatch(/^[A-Z]{2}$/)
@@ -90,7 +92,8 @@ describe('Sidebar operator block', () => {
       full_name: 'Budi Santoso',
       phone_number: '081234567891',
       role: 'admin',
-      blocked: false, blockedReason: null,
+      blocked: false,
+      blockedReason: null,
     })
     expect(screen.getByText('Administrator')).toBeInTheDocument()
     // CONTEXT.md rule 2: role is not entitlement, so this must not read as one.
@@ -100,7 +103,17 @@ describe('Sidebar operator block', () => {
   it('still renders every navigation destination', () => {
     renderSidebar()
     // Sidebar defaults to the Indonesian locale, so these are the ID labels.
-    for (const label of ['Dashboard', 'Pasar', 'Portofolio', 'AI Advisor', 'Risiko', 'Berita', 'Laporan', 'Pengaturan', 'Peringatan']) {
+    for (const label of [
+      'Dashboard',
+      'Pasar',
+      'Portofolio',
+      'AI Advisor',
+      'Risiko',
+      'Berita',
+      'Laporan',
+      'Pengaturan',
+      'Peringatan',
+    ]) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
   })

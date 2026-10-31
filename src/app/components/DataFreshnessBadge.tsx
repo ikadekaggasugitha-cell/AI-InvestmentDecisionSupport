@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { Radio, Clock, FlaskConical, Lock, WifiOff } from "lucide-react";
-import type { DataFreshness } from "@/app/features/market/useLiveMarket";
+import { useEffect, useState } from 'react'
+import { Radio, Clock, FlaskConical, Lock, WifiOff } from 'lucide-react'
+import type { DataFreshness } from '@/app/features/market/useLiveMarket'
 
 /**
  * States what the prices on screen actually are.
@@ -20,122 +20,128 @@ import type { DataFreshness } from "@/app/features/market/useLiveMarket";
  */
 
 export interface DataFreshnessBadgeProps {
-  freshness: DataFreshness;
-  isConnected: boolean;
-  locale?: "id" | "en";
-  compact?: boolean;
+  freshness: DataFreshness
+  isConnected: boolean
+  locale?: 'id' | 'en'
+  compact?: boolean
 }
 
 function formatAge(seconds: number, isId: boolean): string {
-  if (seconds < 60) return isId ? `${Math.floor(seconds)} dtk` : `${Math.floor(seconds)}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return isId ? `${minutes} mnt` : `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return isId ? `${hours} jam` : `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return isId ? `${days} hr` : `${days}d`;
+  if (seconds < 60) return isId ? `${Math.floor(seconds)} dtk` : `${Math.floor(seconds)}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return isId ? `${minutes} mnt` : `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return isId ? `${hours} jam` : `${hours}h`
+  const days = Math.floor(hours / 24)
+  return isId ? `${days} hr` : `${days}d`
 }
 
 export function DataFreshnessBadge({
   freshness,
   isConnected,
-  locale = "id",
+  locale = 'id',
   compact = false,
 }: DataFreshnessBadgeProps) {
-  const isId = locale === "id";
+  const isId = locale === 'id'
 
   // Re-render on a timer so the displayed age advances. Without this a frozen
   // feed keeps showing the age it had when the last snapshot arrived.
-  const [, setNow] = useState(() => Date.now());
+  const [, setNow] = useState(() => Date.now())
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(id);
-  }, []);
+    const id = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   const ageSeconds = freshness.asOf
     ? Math.max(0, (Date.now() - freshness.asOf.getTime()) / 1000)
-    : null;
+    : null
 
-  let icon = Radio;
-  let color = "var(--gain)";
-  let bg = "var(--gain-bg)";
-  let title = isId ? "LANGSUNG" : "LIVE";
-  let detail = "";
+  let icon = Radio
+  let color = 'var(--gain)'
+  let bg = 'var(--gain-bg)'
+  let title = isId ? 'LANGSUNG' : 'LIVE'
+  let detail = ''
 
   if (!isConnected) {
     // Three different causes, three different sentences. "Backend unreachable"
     // is only true of one of them, and it is the one people go and debug their
     // router over.
-    if (freshness.streamRefused === "entitlement") {
-      icon = Lock;
-      color = "var(--warning)";
-      bg = "var(--warning-bg)";
-      title = isId ? "TERKUNCI" : "LOCKED";
-      detail = isId ? "langganan belum aktif" : "subscription not active";
-    } else if (freshness.streamRefused === "suspended") {
+    if (freshness.streamRefused === 'entitlement') {
+      icon = Lock
+      color = 'var(--warning)'
+      bg = 'var(--warning-bg)'
+      title = isId ? 'TERKUNCI' : 'LOCKED'
+      detail = isId ? 'langganan belum aktif' : 'subscription not active'
+    } else if (freshness.streamRefused === 'suspended') {
       // Not the never-paid headline: this account held a subscription and its
       // period ended, so payment is the way back in — say that, not "locked".
-      icon = Lock;
-      color = "var(--warning)";
-      bg = "var(--warning-bg)";
-      title = isId ? "DITANGGUHKAN" : "SUSPENDED";
-      detail = isId ? "langganan berakhir" : "subscription ended";
-    } else if (freshness.streamRefused === "auth") {
-      icon = Lock;
-      color = "var(--loss)";
-      bg = "var(--loss-bg)";
-      title = isId ? "TERPUTUS" : "OFFLINE";
-      detail = isId ? "sesi tidak berlaku" : "session not valid";
+      icon = Lock
+      color = 'var(--warning)'
+      bg = 'var(--warning-bg)'
+      title = isId ? 'DITANGGUHKAN' : 'SUSPENDED'
+      detail = isId ? 'langganan berakhir' : 'subscription ended'
+    } else if (freshness.streamRefused === 'auth') {
+      icon = Lock
+      color = 'var(--loss)'
+      bg = 'var(--loss-bg)'
+      title = isId ? 'TERPUTUS' : 'OFFLINE'
+      detail = isId ? 'sesi tidak berlaku' : 'session not valid'
     } else {
-      icon = WifiOff;
-      color = "var(--loss)";
-      bg = "var(--loss-bg)";
-      title = isId ? "TERPUTUS" : "OFFLINE";
-      detail = isId ? "backend tidak terjangkau" : "backend unreachable";
+      icon = WifiOff
+      color = 'var(--loss)'
+      bg = 'var(--loss-bg)'
+      title = isId ? 'TERPUTUS' : 'OFFLINE'
+      detail = isId ? 'backend tidak terjangkau' : 'backend unreachable'
     }
   } else if (freshness.isSimulated) {
-    icon = FlaskConical;
-    color = "var(--warning)";
-    bg = "var(--warning-bg)";
-    title = isId ? "SIMULASI" : "SIMULATED";
-    detail = isId ? "bukan harga pasar" : "not market prices";
+    icon = FlaskConical
+    color = 'var(--warning)'
+    bg = 'var(--warning-bg)'
+    title = isId ? 'SIMULASI' : 'SIMULATED'
+    detail = isId ? 'bukan harga pasar' : 'not market prices'
   } else if (freshness.isDelayed) {
-    icon = Clock;
-    color = "var(--warning)";
-    bg = "var(--warning-bg)";
-    const mins = Math.round(freshness.delaySeconds / 60);
-    title = isId ? `TERTUNDA ${mins} MNT` : `DELAYED ${mins} MIN`;
-    detail = ageSeconds !== null
-      ? (isId ? `data ${formatAge(ageSeconds, true)} lalu` : `${formatAge(ageSeconds, false)} old`)
-      : freshness.label;
+    icon = Clock
+    color = 'var(--warning)'
+    bg = 'var(--warning-bg)'
+    const mins = Math.round(freshness.delaySeconds / 60)
+    title = isId ? `TERTUNDA ${mins} MNT` : `DELAYED ${mins} MIN`
+    detail =
+      ageSeconds !== null
+        ? isId
+          ? `data ${formatAge(ageSeconds, true)} lalu`
+          : `${formatAge(ageSeconds, false)} old`
+        : freshness.label
     // When the board is breathing between real polls, say so — the movement on
     // screen is an estimate anchored to the last real price, not a live tick.
     if (freshness.isIntradaySimulated) {
-      detail += isId ? " · gerak intraday estimasi" : " · intraday estimated";
+      detail += isId ? ' · gerak intraday estimasi' : ' · intraday estimated'
     }
   } else {
-    detail = ageSeconds !== null
-      ? (isId ? `${formatAge(ageSeconds, true)} lalu` : `${formatAge(ageSeconds, false)} ago`)
-      : "";
+    detail =
+      ageSeconds !== null
+        ? isId
+          ? `${formatAge(ageSeconds, true)} lalu`
+          : `${formatAge(ageSeconds, false)} ago`
+        : ''
   }
 
-  const Icon = icon;
+  const Icon = icon
 
   const tooltip = [
     isId ? `Sumber: ${freshness.provider}` : `Source: ${freshness.provider}`,
     freshness.label && `"${freshness.label}"`,
     freshness.asOf &&
       (isId
-        ? `Waktu bursa: ${freshness.asOf.toLocaleString("id-ID")}`
-        : `Exchange time: ${freshness.asOf.toLocaleString("en-GB")}`),
+        ? `Waktu bursa: ${freshness.asOf.toLocaleString('id-ID')}`
+        : `Exchange time: ${freshness.asOf.toLocaleString('en-GB')}`),
     freshness.isDelayed &&
       (isId
         ? `Feed tertunda ${Math.round(freshness.delaySeconds / 60)} menit. Realtime memerlukan feed berlisensi.`
         : `Feed delayed ${Math.round(freshness.delaySeconds / 60)} minutes. Real time requires a licensed feed.`),
     freshness.isIntradaySimulated &&
       (isId
-        ? "Pergerakan harga antar-refresh disimulasikan (random-walk kecil di-anchor ke harga real, sinkron ulang tiap ~60 dtk)."
-        : "Movement between refreshes is simulated (small random-walk anchored to the real price, re-synced every ~60s)."),
+        ? 'Pergerakan harga antar-refresh disimulasikan (random-walk kecil di-anchor ke harga real, sinkron ulang tiap ~60 dtk).'
+        : 'Movement between refreshes is simulated (small random-walk anchored to the real price, re-synced every ~60s).'),
     // The age above is the median quote, so a few dead securities cannot make the
     // whole board look stale. Saying so is the point: without this line the
     // robust number reads as "nothing is out of date".
@@ -145,11 +151,11 @@ export function DataFreshnessBadge({
     // freshness badge rather than omit one line.
     (freshness.outdatedSymbols?.length ?? 0) > 0 &&
       (isId
-        ? `${freshness.outdatedSymbols.length} saham tidak diperdagangkan >1 pekan (suspensi/delisting): ${freshness.outdatedSymbols.slice(0, 8).join(", ")}${freshness.outdatedSymbols.length > 8 ? ", …" : ""}.`
-        : `${freshness.outdatedSymbols.length} securities have not traded for over a week (suspended/delisted): ${freshness.outdatedSymbols.slice(0, 8).join(", ")}${freshness.outdatedSymbols.length > 8 ? ", …" : ""}.`),
+        ? `${freshness.outdatedSymbols.length} saham tidak diperdagangkan >1 pekan (suspensi/delisting): ${freshness.outdatedSymbols.slice(0, 8).join(', ')}${freshness.outdatedSymbols.length > 8 ? ', …' : ''}.`
+        : `${freshness.outdatedSymbols.length} securities have not traded for over a week (suspended/delisted): ${freshness.outdatedSymbols.slice(0, 8).join(', ')}${freshness.outdatedSymbols.length > 8 ? ', …' : ''}.`),
   ]
     .filter(Boolean)
-    .join("\n");
+    .join('\n')
 
   return (
     <span
@@ -163,8 +169,8 @@ export function DataFreshnessBadge({
           fontSize: 11,
           fontWeight: 700,
           color,
-          fontFamily: "var(--font-mono)",
-          whiteSpace: "nowrap",
+          fontFamily: 'var(--font-mono)',
+          whiteSpace: 'nowrap',
         }}
       >
         {title}
@@ -173,13 +179,13 @@ export function DataFreshnessBadge({
         <span
           style={{
             fontSize: 11,
-            color: "var(--muted-foreground)",
-            whiteSpace: "nowrap",
+            color: 'var(--muted-foreground)',
+            whiteSpace: 'nowrap',
           }}
         >
           {detail}
         </span>
       )}
     </span>
-  );
+  )
 }

@@ -1,8 +1,14 @@
-import { useState, useEffect } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch, HttpStatusError,
-  classifyLoadError, type LoadFailure,
-} from "@/app/config/api";
-import { portfolioResponseSchema, parseOrThrow } from "@/app/config/schemas";
+import { useState, useEffect } from 'react'
+import {
+  USE_LIVE_API,
+  ENDPOINTS,
+  FETCH_TIMEOUT_MS,
+  apiFetch,
+  HttpStatusError,
+  classifyLoadError,
+  type LoadFailure,
+} from '@/app/config/api'
+import { portfolioResponseSchema, parseOrThrow } from '@/app/config/schemas'
 
 /**
  * Black-Litterman + HRP allocation weights from the backend.
@@ -13,112 +19,118 @@ import { portfolioResponseSchema, parseOrThrow } from "@/app/config/schemas";
  */
 
 export interface AllocationWeight {
-  symbol: string;
-  name: string;
-  weight: number;      // 0–1
-  weightPct: number;   // 0–100
-  expectedReturn: number;
-  currentValue: number;
-  lots: number;
+  symbol: string
+  name: string
+  weight: number // 0–1
+  weightPct: number // 0–100
+  expectedReturn: number
+  currentValue: number
+  lots: number
 }
 
 export interface OptimisationMetrics {
-  expectedReturn: number;
-  expectedVolatility: number;
-  sharpeRatio: number;
-  diversificationRatio: number;
-  method: "black-litterman" | "hrp" | "equal-weight";
+  expectedReturn: number
+  expectedVolatility: number
+  sharpeRatio: number
+  diversificationRatio: number
+  method: 'black-litterman' | 'hrp' | 'equal-weight'
 }
 
 export interface PortfolioOptimisationResult {
-  weights: AllocationWeight[];
-  metrics: OptimisationMetrics | null;
+  weights: AllocationWeight[]
+  metrics: OptimisationMetrics | null
   /** "live" once computed from real inputs; "mock" while seeded. */
-  source: "live" | "mock" | null;
-  disclaimer: string;
-  loading: boolean;
-  error: string | null;
+  source: 'live' | 'mock' | null
+  disclaimer: string
+  loading: boolean
+  error: string | null
   /** Refused or merely unreachable. A 403 is the server declining to serve
    *  paid data — an answer, not an outage, and not the same as `null`.
    */
-  failure: LoadFailure | null;
-
+  failure: LoadFailure | null
 }
 
 const EMPTY: PortfolioOptimisationResult = {
   weights: [],
   metrics: null,
   source: null,
-  disclaimer: "",
+  disclaimer: '',
   loading: false,
   error: null,
   failure: null,
-};
+}
 
 /** How often the live allocation is re-polled, in ms. Heavier than the other
  * endpoints (Black-Litterman + HRP), so polled less aggressively. */
-const REFRESH_MS = 120_000;
+const REFRESH_MS = 120_000
 
 export function usePortfolioOptimisation(): PortfolioOptimisationResult {
-  const [state, setState] = useState<PortfolioOptimisationResult>(EMPTY);
+  const [state, setState] = useState<PortfolioOptimisationResult>(EMPTY)
 
   useEffect(() => {
     if (!USE_LIVE_API) {
-      setState(EMPTY);
-      return;
+      setState(EMPTY)
+      return
     }
 
-    let cancelled = false;
+    let cancelled = false
 
     async function load(isFirst: boolean) {
       // Only the first load shows the spinner; a background refresh keeps the
       // current allocation on screen rather than flashing an empty panel.
-      if (isFirst) setState((s) => ({ ...s, loading: true, error: null }));
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      if (isFirst) setState((s) => ({ ...s, loading: true, error: null }))
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
       try {
-        const res = await apiFetch(ENDPOINTS.portfolio(), { signal: controller.signal });
-        if (!res.ok) throw new HttpStatusError(res.status);
-        const data = await res.json();
-        if (cancelled) return;
+        const res = await apiFetch(ENDPOINTS.portfolio(), { signal: controller.signal })
+        if (!res.ok) throw new HttpStatusError(res.status)
+        const data = await res.json()
+        if (cancelled) return
 
         // Validate the weights and metrics before showing an allocation the
         // user might act on. A malformed payload throws into the catch below
         // and the view shows the empty/error state, not a broken weight.
-        const parsed = parseOrThrow(portfolioResponseSchema, data, "portfolio");
+        const parsed = parseOrThrow(portfolioResponseSchema, data, 'portfolio')
         setState({
           weights: parsed.weights as AllocationWeight[],
           metrics: (parsed.metrics ?? null) as OptimisationMetrics | null,
           source: parsed.source ?? null,
-          disclaimer: parsed.disclaimer ?? "",
+          disclaimer: parsed.disclaimer ?? '',
           loading: false,
           error: null,
-            failure: null,
-        });
+          failure: null,
+        })
       } catch (err) {
-        if (cancelled) return;
-        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (cancelled) return
+        if (err instanceof DOMException && err.name === 'AbortError') return
         // Keep the last good allocation if we have one; only fall to the empty
         // error state when nothing has loaded yet. The next poll recovers.
         setState((prev) =>
           prev.weights.length
-            ? { ...prev, loading: false, error: err instanceof Error ? err.message : "Unknown error",
-            failure: classifyLoadError(err) }
-            : { ...EMPTY, error: err instanceof Error ? err.message : "Unknown error",
-            failure: classifyLoadError(err) },
-        );
+            ? {
+                ...prev,
+                loading: false,
+                error: err instanceof Error ? err.message : 'Unknown error',
+                failure: classifyLoadError(err),
+              }
+            : {
+                ...EMPTY,
+                error: err instanceof Error ? err.message : 'Unknown error',
+                failure: classifyLoadError(err),
+              },
+        )
       } finally {
-        clearTimeout(timeout);
+        clearTimeout(timeout)
       }
     }
 
-    load(true);
-    const interval = setInterval(() => load(false), REFRESH_MS);
+    load(true)
+    const interval = setInterval(() => load(false), REFRESH_MS)
     return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [])
 
-  return state;
+  return state
 }

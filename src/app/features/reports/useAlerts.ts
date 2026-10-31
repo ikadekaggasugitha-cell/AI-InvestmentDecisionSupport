@@ -1,8 +1,13 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
-import { ENDPOINTS, USE_LIVE_API, apiFetch, FETCH_TIMEOUT_MS, HttpStatusError,
-} from "@/app/config/api";
-import { ALERTS_DATA } from "@/app/data/idxData";
-import type { AlertItem } from "@/app/features/reports/AlertsView";
+import { useState, useCallback, useMemo, useEffect } from 'react'
+import {
+  ENDPOINTS,
+  USE_LIVE_API,
+  apiFetch,
+  FETCH_TIMEOUT_MS,
+  HttpStatusError,
+} from '@/app/config/api'
+import { ALERTS_DATA } from '@/app/data/idxData'
+import type { AlertItem } from '@/app/features/reports/AlertsView'
 
 /**
  * Alerts state — live feed + persisted read/dismiss.
@@ -19,116 +24,135 @@ import type { AlertItem } from "@/app/features/reports/AlertsView";
  * unread. Both sets persist in localStorage.
  */
 
-const READ_KEY = "aidss-alerts-read";
-const DISMISSED_KEY = "aidss-alerts-dismissed";
-const REFRESH_MS = 60_000;
+const READ_KEY = 'aidss-alerts-read'
+const DISMISSED_KEY = 'aidss-alerts-dismissed'
+const REFRESH_MS = 60_000
 
 function readKeySet(storageKey: string): Set<string> {
   try {
-    const raw = localStorage.getItem(storageKey);
+    const raw = localStorage.getItem(storageKey)
     if (raw) {
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
-        return new Set(parsed.filter((s): s is string => typeof s === "string"));
+        return new Set(parsed.filter((s): s is string => typeof s === 'string'))
       }
     }
-  } catch { /* sandboxed / corrupted — start empty */ }
-  return new Set();
+  } catch {
+    /* sandboxed / corrupted — start empty */
+  }
+  return new Set()
 }
 
 function persist(storageKey: string, keys: Set<string>): void {
-  try { localStorage.setItem(storageKey, JSON.stringify([...keys])); } catch { /* ignore */ }
+  try {
+    localStorage.setItem(storageKey, JSON.stringify([...keys]))
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Bundled seed as the offline fallback, given stable keys so read/dismiss works. */
-const SEED_ALERTS: AlertItem[] = ALERTS_DATA.map((a) => ({ ...a, key: `seed-${a.id}` }));
+const SEED_ALERTS: AlertItem[] = ALERTS_DATA.map((a) => ({ ...a, key: `seed-${a.id}` }))
 
 export interface UseAlertsResult {
-  alerts: readonly AlertItem[];
-  visibleAlerts: AlertItem[];
-  unreadCount: number;
-  isLive: boolean;
-  markAllRead: () => void;
-  dismiss: (key: string) => void;
-  clearAll: () => void;
+  alerts: readonly AlertItem[]
+  visibleAlerts: AlertItem[]
+  unreadCount: number
+  isLive: boolean
+  markAllRead: () => void
+  dismiss: (key: string) => void
+  clearAll: () => void
 }
 
 export function useAlerts(): UseAlertsResult {
-  const [alerts, setAlerts] = useState<AlertItem[]>(SEED_ALERTS);
-  const [isLive, setIsLive] = useState(false);
-  const [readKeys, setReadKeys] = useState<Set<string>>(() => readKeySet(READ_KEY));
-  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(() => readKeySet(DISMISSED_KEY));
+  const [alerts, setAlerts] = useState<AlertItem[]>(SEED_ALERTS)
+  const [isLive, setIsLive] = useState(false)
+  const [readKeys, setReadKeys] = useState<Set<string>>(() => readKeySet(READ_KEY))
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(() => readKeySet(DISMISSED_KEY))
 
   // Fetch the live feed (and poll it), falling back to the seed on any failure.
   useEffect(() => {
-    if (!USE_LIVE_API) return;
-    let alive = true;
+    if (!USE_LIVE_API) return
+    let alive = true
 
     const load = async () => {
       try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-        const res = await apiFetch(ENDPOINTS.alerts, { signal: controller.signal });
-        clearTimeout(timer);
-        if (!res.ok) throw new HttpStatusError(res.status);
-        const json = await res.json();
-        const list: AlertItem[] = json.alerts ?? [];
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+        const res = await apiFetch(ENDPOINTS.alerts, { signal: controller.signal })
+        clearTimeout(timer)
+        if (!res.ok) throw new HttpStatusError(res.status)
+        const json = await res.json()
+        const list: AlertItem[] = json.alerts ?? []
         if (alive && list.length) {
-          setAlerts(list);
-          setIsLive(json.source === "live");
+          setAlerts(list)
+          setIsLive(json.source === 'live')
         }
       } catch {
         // Keep whatever we have (seed or last good live).
-        if (alive) setIsLive(false);
+        if (alive) setIsLive(false)
       }
-    };
+    }
 
-    void load();
-    const id = setInterval(load, REFRESH_MS);
-    return () => { alive = false; clearInterval(id); };
-  }, []);
+    void load()
+    const id = setInterval(load, REFRESH_MS)
+    return () => {
+      alive = false
+      clearInterval(id)
+    }
+  }, [])
 
   const unreadCount = useMemo(
     () => alerts.filter((a) => !readKeys.has(a.key) && !dismissedKeys.has(a.key)).length,
     [alerts, readKeys, dismissedKeys],
-  );
+  )
 
   const visibleAlerts = useMemo(
     () => alerts.filter((a) => !dismissedKeys.has(a.key)),
     [alerts, dismissedKeys],
-  );
+  )
 
   const markAllRead = useCallback(() => {
     setReadKeys((prev) => {
-      const missing = alerts.some((a) => !prev.has(a.key));
-      if (!missing) return prev;  // idempotent — safe to call on every open
-      const next = new Set(prev);
-      alerts.forEach((a) => next.add(a.key));
-      persist(READ_KEY, next);
-      return next;
-    });
-  }, [alerts]);
+      const missing = alerts.some((a) => !prev.has(a.key))
+      if (!missing) return prev // idempotent — safe to call on every open
+      const next = new Set(prev)
+      alerts.forEach((a) => next.add(a.key))
+      persist(READ_KEY, next)
+      return next
+    })
+  }, [alerts])
 
   const dismiss = useCallback((key: string) => {
     setReadKeys((prev) => {
-      if (prev.has(key)) return prev;
-      const next = new Set(prev).add(key);
-      persist(READ_KEY, next);
-      return next;
-    });
+      if (prev.has(key)) return prev
+      const next = new Set(prev).add(key)
+      persist(READ_KEY, next)
+      return next
+    })
     setDismissedKeys((prev) => {
-      if (prev.has(key)) return prev;
-      const next = new Set(prev).add(key);
-      persist(DISMISSED_KEY, next);
-      return next;
-    });
-  }, []);
+      if (prev.has(key)) return prev
+      const next = new Set(prev).add(key)
+      persist(DISMISSED_KEY, next)
+      return next
+    })
+  }, [])
 
   const clearAll = useCallback(() => {
-    const all = new Set(alerts.map((a) => a.key));
-    setReadKeys((prev) => { const n = new Set(prev); all.forEach((k) => n.add(k)); persist(READ_KEY, n); return n; });
-    setDismissedKeys((prev) => { const n = new Set(prev); all.forEach((k) => n.add(k)); persist(DISMISSED_KEY, n); return n; });
-  }, [alerts]);
+    const all = new Set(alerts.map((a) => a.key))
+    setReadKeys((prev) => {
+      const n = new Set(prev)
+      all.forEach((k) => n.add(k))
+      persist(READ_KEY, n)
+      return n
+    })
+    setDismissedKeys((prev) => {
+      const n = new Set(prev)
+      all.forEach((k) => n.add(k))
+      persist(DISMISSED_KEY, n)
+      return n
+    })
+  }, [alerts])
 
-  return { alerts, visibleAlerts, unreadCount, isLive, markAllRead, dismiss, clearAll };
+  return { alerts, visibleAlerts, unreadCount, isLive, markAllRead, dismiss, clearAll }
 }

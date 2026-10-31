@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { ENDPOINTS, apiFetch } from "@/app/config/api";
+import { ENDPOINTS, apiFetch } from '@/app/config/api'
 
 /**
  * One attempt to pay, exactly as GET /v1/payments/me carries it.
@@ -12,23 +12,23 @@ import { ENDPOINTS, apiFetch } from "@/app/config/api";
  * refusal reason when one exists).
  */
 export interface PaymentRow {
-  id: string;
-  invoiceCode: string;
-  amount: number;
-  plan: string;
-  paymentGateway: string;
-  paymentMethod: string;
-  status: string;
-  notes?: string | null;
-  createdAt: string;
-  expiresAt?: string | null;
+  id: string
+  invoiceCode: string
+  amount: number
+  plan: string
+  paymentGateway: string
+  paymentMethod: string
+  status: string
+  notes?: string | null
+  createdAt: string
+  expiresAt?: string | null
 }
 
 /** What a declaration sends. No amount field: the server prices the plan. */
 export interface DeclareInput {
-  plan: string;
-  payment_method: string;
-  note?: string | null;
+  plan: string
+  payment_method: string
+  note?: string | null
 }
 
 /**
@@ -37,7 +37,7 @@ export interface DeclareInput {
  * crosses this boundary, which is the point of the redirect handover.
  */
 export interface CheckoutPage {
-  redirectUrl: string;
+  redirectUrl: string
 }
 
 /**
@@ -56,68 +56,68 @@ export interface CheckoutPage {
  * very request that opened the tab.
  */
 export function usePayments() {
-  const [rows, setRows] = useState<PaymentRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [declaring, setDeclaring] = useState(false);
-  const [declareError, setDeclareError] = useState<string | null>(null);
-  const [checkoutBusy, setCheckoutBusy] = useState(false);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const inFlight = useRef<AbortController | null>(null);
+  const [rows, setRows] = useState<PaymentRow[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [declaring, setDeclaring] = useState(false)
+  const [declareError, setDeclareError] = useState<string | null>(null)
+  const [checkoutBusy, setCheckoutBusy] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const inFlight = useRef<AbortController | null>(null)
 
   const read = useCallback(async () => {
-    inFlight.current?.abort();
-    const controller = new AbortController();
-    inFlight.current = controller;
+    inFlight.current?.abort()
+    const controller = new AbortController()
+    inFlight.current = controller
     try {
-      const res = await apiFetch(ENDPOINTS.payments, { signal: controller.signal });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = (await res.json()) as PaymentRow[];
-      if (controller.signal.aborted) return true;
-      setRows(Array.isArray(body) ? body : []);
-      setError(null);
-      return true;
+      const res = await apiFetch(ENDPOINTS.payments, { signal: controller.signal })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const body = (await res.json()) as PaymentRow[]
+      if (controller.signal.aborted) return true
+      setRows(Array.isArray(body) ? body : [])
+      setError(null)
+      return true
     } catch {
-      if (controller.signal.aborted) return true;
-      setError("network");
-      return false;
+      if (controller.signal.aborted) return true
+      setError('network')
+      return false
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    void read();
-    return () => inFlight.current?.abort();
-  }, [read]);
+    void read()
+    return () => inFlight.current?.abort()
+  }, [read])
 
   const declare = useCallback(
-    async (input: DeclareInput): Promise<"ok" | "refused" | "network"> => {
-      setDeclaring(true);
-      setDeclareError(null);
+    async (input: DeclareInput): Promise<'ok' | 'refused' | 'network'> => {
+      setDeclaring(true)
+      setDeclareError(null)
       try {
         const res = await apiFetch(ENDPOINTS.paymentsDeclare, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(input),
-        });
+        })
         if (!res.ok) {
-          const failure = res.status === 503 ? "unavailable" : String(res.status);
-          setDeclareError(failure);
-          return "refused";
+          const failure = res.status === 503 ? 'unavailable' : String(res.status)
+          setDeclareError(failure)
+          return 'refused'
         }
         // The list on screen becomes the server's list again, with the new
         // pending row wherever the server put it.
-        await read();
-        return "ok";
+        await read()
+        return 'ok'
       } catch {
-        setDeclareError("network");
-        return "network";
+        setDeclareError('network')
+        return 'network'
       } finally {
-        setDeclaring(false);
+        setDeclaring(false)
       }
     },
     [read],
-  );
+  )
 
-  const resetDeclareError = useCallback(() => setDeclareError(null), []);
+  const resetDeclareError = useCallback(() => setDeclareError(null), [])
 
   /**
    * Ask the server to open a Midtrans page. Returns the page or null; the
@@ -128,37 +128,37 @@ export function usePayments() {
    * server by then, so an open tab never looks at nothing.
    */
   const checkout = useCallback(
-    async (plan: "weekly" | "monthly" | "annual"): Promise<CheckoutPage | null> => {
-      setCheckoutBusy(true);
-      setCheckoutError(null);
+    async (plan: 'weekly' | 'monthly' | 'annual'): Promise<CheckoutPage | null> => {
+      setCheckoutBusy(true)
+      setCheckoutError(null)
       try {
         const res = await apiFetch(ENDPOINTS.paymentsCheckout, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ plan }),
-        });
+        })
         if (!res.ok) {
-          setCheckoutError(res.status === 503 ? "unavailable" : String(res.status));
-          return null;
+          setCheckoutError(res.status === 503 ? 'unavailable' : String(res.status))
+          return null
         }
-        const body = (await res.json()) as { redirectUrl?: string };
+        const body = (await res.json()) as { redirectUrl?: string }
         if (!body.redirectUrl) {
           // A checkout without a page is a server bug said out loud, not an
           // `ok` to open nothing with.
-          setCheckoutError("no-page");
-          return null;
+          setCheckoutError('no-page')
+          return null
         }
-        await read();
-        return { redirectUrl: body.redirectUrl };
+        await read()
+        return { redirectUrl: body.redirectUrl }
       } catch {
-        setCheckoutError("network");
-        return null;
+        setCheckoutError('network')
+        return null
       } finally {
-        setCheckoutBusy(false);
+        setCheckoutBusy(false)
       }
     },
     [read],
-  );
+  )
 
   return {
     /** Null until the first read lands; [] is a fact, null is not yet. */
@@ -173,5 +173,5 @@ export function usePayments() {
     checkoutBusy,
     checkoutError,
     reload: read,
-  };
+  }
 }

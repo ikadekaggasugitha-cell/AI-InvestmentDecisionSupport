@@ -17,7 +17,7 @@
  * error and falls back to clearly-labelled seed data, which is the correct
  * behaviour: better a labelled simulation than a real-looking `undefined`.
  */
-import { z } from "zod";
+import { z } from 'zod'
 
 /* ── Signals ──────────────────────────────────────────────────────────────── */
 
@@ -30,7 +30,7 @@ const signalItemSchema = z
     currentPrice: z.number(),
     upside: z.number(),
   })
-  .passthrough();
+  .passthrough()
 
 // GET /v1/signals returns the envelope {signals: [...], ...}; the offline seed
 // path is a bare array. Accept both, exactly as the hook already does.
@@ -45,13 +45,16 @@ const signalItemSchema = z
 const signalsEnvelopeSchema = z.object({
   generatedAt: z.string().nullish(),
   modelVersion: z.string().nullish(),
-  source: z.enum(["live", "mock"]).nullish(),
-});
+  source: z.enum(['live', 'mock']).nullish(),
+})
 
 export const signalsResponseSchema = z.union([
   z.array(signalItemSchema),
-  z.object({ signals: z.array(signalItemSchema) }).passthrough().and(signalsEnvelopeSchema),
-]);
+  z
+    .object({ signals: z.array(signalItemSchema) })
+    .passthrough()
+    .and(signalsEnvelopeSchema),
+])
 
 /* ── Risk ─────────────────────────────────────────────────────────────────── */
 
@@ -77,7 +80,7 @@ const riskMetricsSchema = z
     alpha: z.number(),
     informationRatio: z.number(),
   })
-  .passthrough();
+  .passthrough()
 
 export const riskResponseSchema = z
   .object({
@@ -104,7 +107,7 @@ export const riskResponseSchema = z
         .passthrough(),
     ),
   })
-  .passthrough();
+  .passthrough()
 
 /* ── Portfolio optimisation ─────────────────────────────────────────────────── */
 
@@ -118,7 +121,7 @@ const allocationWeightSchema = z
     currentValue: z.number(),
     lots: z.number(),
   })
-  .passthrough();
+  .passthrough()
 
 const optimisationMetricsSchema = z
   .object({
@@ -130,16 +133,16 @@ const optimisationMetricsSchema = z
     // trip validation and drop the whole allocation to seed.
     method: z.string(),
   })
-  .passthrough();
+  .passthrough()
 
 export const portfolioResponseSchema = z
   .object({
     weights: z.array(allocationWeightSchema),
     metrics: optimisationMetricsSchema,
-    source: z.enum(["live", "mock"]).nullish(),
+    source: z.enum(['live', 'mock']).nullish(),
     disclaimer: z.string().optional(),
   })
-  .passthrough();
+  .passthrough()
 
 /* ── Helper ───────────────────────────────────────────────────────────────── */
 
@@ -150,10 +153,10 @@ export const portfolioResponseSchema = z
  * fallback.
  */
 export function parseOrThrow<T>(schema: z.ZodType<T>, data: unknown, label: string): T {
-  const result = schema.safeParse(data);
+  const result = schema.safeParse(data)
   if (!result.success) {
-    console.warn(`[api] ${label} response failed validation:`, result.error.issues);
-    throw new Error(`${label} response failed validation`);
+    console.warn(`[api] ${label} response failed validation:`, result.error.issues)
+    throw new Error(`${label} response failed validation`)
   }
-  return result.data;
+  return result.data
 }

@@ -39,7 +39,11 @@ const ALL = sourceFiles()
 /** Readable content of every source file, with comments stripped so a file may
  *  explain the defect it used to contain without tripping its own assertion. */
 function codeOnly(): string {
-  return ALL.map((f) => readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')).join('\n')
+  return ALL.map((f) =>
+    readFileSync(f, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, ''),
+  ).join('\n')
 }
 
 /** Readable content including comments, for files where the comment itself is
@@ -100,8 +104,8 @@ describe('model provenance the contract cannot support', () => {
 
   it('derives the provenance line from the source field', () => {
     const view = readFileSync(join(SRC, 'features/advisor/AIAdvisorView.tsx'), 'utf8')
-    expect(view).toMatch(/servingSource\s*===\s*"live"/)
-    expect(view).toMatch(/servingSource\s*===\s*"mock"/)
+    expect(view).toMatch(/servingSource\s*===\s*["']live["']/)
+    expect(view).toMatch(/servingSource\s*===\s*["']mock["']/)
   })
 
   it('exposes servingSource from the signals hook', () => {
@@ -148,7 +152,13 @@ describe('transaction ledger provenance', () => {
 describe('offline harness is documented, not branded', () => {
   it('names the five call sites that honour the flag', () => {
     const api = raw()
-    for (const hook of ['useNews', 'useAISignals', 'useAlerts', 'useAdvisorChat', 'StockDetailPanel']) {
+    for (const hook of [
+      'useNews',
+      'useAISignals',
+      'useAlerts',
+      'useAdvisorChat',
+      'StockDetailPanel',
+    ]) {
       expect(api).toContain(hook)
     }
   })
@@ -200,7 +210,11 @@ describe('no text characters used as icons', () => {
 
   it('marks every decorative icon in MarketsView aria-hidden', () => {
     const view = code(join(SRC, 'features/market/MarketsView.tsx'))
-    const icons = [...view.matchAll(/<(Star|ChevronsUpDown|ChevronUp|ChevronDown|ArrowUpRight|ArrowDownRight)\b[^>]*\/>/g)].map((m) => m[0])
+    const icons = [
+      ...view.matchAll(
+        /<(Star|ChevronsUpDown|ChevronUp|ChevronDown|ArrowUpRight|ArrowDownRight)\b[^>]*\/>/g,
+      ),
+    ].map((m) => m[0])
     expect(icons.length).toBeGreaterThan(0)
     const missing = icons.filter((i) => !/aria-hidden|aria-label|role=/.test(i))
     expect(missing).toEqual([])
@@ -233,10 +247,20 @@ describe('palette follows the theme', () => {
     // Assembled at runtime so this file does not itself contain the literals it
     // is asserting are absent from the app.
     const darkPalette = [
-      '#0e' + '1726', '#d7' + 'e1ec', '#33' + '507a', '#1c' + '2c42',
-      '#16' + '273c', '#93' + 'a6ba', '#14' + '3a2f', '#6f' + 'e0bd',
-      '#e2' + '6a6a', '#6e' + '7c8d', '#2a' + '3c55', '#7f' + 'b0e0',
-      '#34' + 'c79f', '#a9' + 'bcd0',
+      '#0e' + '1726',
+      '#d7' + 'e1ec',
+      '#33' + '507a',
+      '#1c' + '2c42',
+      '#16' + '273c',
+      '#93' + 'a6ba',
+      '#14' + '3a2f',
+      '#6f' + 'e0bd',
+      '#e2' + '6a6a',
+      '#6e' + '7c8d',
+      '#2a' + '3c55',
+      '#7f' + 'b0e0',
+      '#34' + 'c79f',
+      '#a9' + 'bcd0',
     ]
     const offenders: string[] = []
     for (const file of ALL) {
@@ -257,7 +281,11 @@ describe('palette follows the theme', () => {
       .map((f) => readFileSync(join(stylesDir, f), 'utf8'))
       .join('\n')
     const declared = new Set([...css.matchAll(/^\s*(--[a-z0-9-]+):/gm)].map((m) => m[1]))
-    const used = new Set(ALL.flatMap((f) => [...readFileSync(f, 'utf8').matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1])))
+    const used = new Set(
+      ALL.flatMap((f) =>
+        [...readFileSync(f, 'utf8').matchAll(/var\((--[a-z0-9-]+)/g)].map((m) => m[1]),
+      ),
+    )
     // --info and --primary-bg were both referenced with a fallback while being
     // declared nowhere, so the fallback was always what rendered. Framework-owned
     // variables (Tailwind's --spacing, Radix's --select-trigger-height and
@@ -267,10 +295,15 @@ describe('palette follows the theme', () => {
   })
 
   it('gives every donut cell an explicit stroke', () => {
-    for (const view of ['features/portfolio/PortfolioView.tsx', 'features/dashboard/DashboardView.tsx']) {
+    for (const view of [
+      'features/portfolio/PortfolioView.tsx',
+      'features/dashboard/DashboardView.tsx',
+    ]) {
       const text = readFileSync(join(SRC, view), 'utf8')
       const cells = [...text.matchAll(/<Cell[^>]*>/g)].map((m) => m[0])
-      const donutCells = cells.filter((c) => c.includes('fill={s.color}') || c.includes('PIE_COLORS'))
+      const donutCells = cells.filter(
+        (c) => c.includes('fill={s.color}') || c.includes('PIE_COLORS'),
+      )
       if (donutCells.length === 0) continue
       for (const c of donutCells) {
         expect(c).toMatch(/stroke=/)
@@ -279,7 +312,11 @@ describe('palette follows the theme', () => {
   })
 
   it('uses the accent-foreground token rather than white on a coloured button', () => {
-    for (const view of ['features/portfolio/PortfolioView.tsx', 'features/portfolio/PositionModal.tsx', 'features/advisor/AdvisorChat.tsx']) {
+    for (const view of [
+      'features/portfolio/PortfolioView.tsx',
+      'features/portfolio/PositionModal.tsx',
+      'features/advisor/AdvisorChat.tsx',
+    ]) {
       const text = readFileSync(join(SRC, view), 'utf8')
       expect(text).not.toMatch(/color:\s*"#fff"/)
     }

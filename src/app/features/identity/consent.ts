@@ -15,31 +15,31 @@
  * erased, so on its own it could never evidence that anybody accepted anything.
  */
 
-const KEY_PREFIX = "aidss.disclaimerAcceptedAt";
-const ACCEPT_LABEL_VERSION = "v1";
+const KEY_PREFIX = 'aidss.disclaimerAcceptedAt'
+const ACCEPT_LABEL_VERSION = 'v1'
 
 /** null when there is no account to bind the acceptance to. */
 export function consentKey(accountId: string | null): string | null {
-  return accountId ? `${KEY_PREFIX}:${accountId}:${ACCEPT_LABEL_VERSION}` : null;
+  return accountId ? `${KEY_PREFIX}:${accountId}:${ACCEPT_LABEL_VERSION}` : null
 }
 
 export function hasAcceptedConsent(accountId: string | null): boolean {
-  const key = consentKey(accountId);
-  if (!key) return false;
+  const key = consentKey(accountId)
+  if (!key) return false
   try {
-    return !!window.localStorage.getItem(key);
+    return !!window.localStorage.getItem(key)
   } catch {
     // Private-mode Safari and disabled storage both throw. Degrading to
     // "not accepted" re-prompts, which is the safe direction for a compliance gate.
-    return false;
+    return false
   }
 }
 
 export function writeConsent(accountId: string | null): void {
-  const key = consentKey(accountId);
-  if (!key) return;
+  const key = consentKey(accountId)
+  if (!key) return
   try {
-    window.localStorage.setItem(key, new Date().toISOString());
+    window.localStorage.setItem(key, new Date().toISOString())
   } catch {
     /* storage unavailable: the gate falls back to per-session state */
   }
@@ -58,23 +58,23 @@ export function writeConsent(accountId: string | null): void {
  * Returns true when the server recorded it.
  */
 export async function reportConsent(accountId: string | null): Promise<boolean> {
-  if (!accountId) return false;
-  const { ENDPOINTS, apiFetch } = await import("@/app/config/api");
+  if (!accountId) return false
+  const { ENDPOINTS, apiFetch } = await import('@/app/config/api')
   try {
-    const res = await apiFetch(ENDPOINTS.authConsent, { method: "POST" });
-    return res.ok;
+    const res = await apiFetch(ENDPOINTS.authConsent, { method: 'POST' })
+    return res.ok
   } catch {
     // Offline, or the server unreachable. Not fatal to the person: the gate has
     // already been satisfied for this browser and they are not waiting on us.
-    return false;
+    return false
   }
 }
 
 export function clearConsent(accountId: string | null): void {
-  const key = consentKey(accountId);
-  if (!key) return;
+  const key = consentKey(accountId)
+  if (!key) return
   try {
-    window.localStorage.removeItem(key);
+    window.localStorage.removeItem(key)
   } catch {
     /* nothing to clear */
   }

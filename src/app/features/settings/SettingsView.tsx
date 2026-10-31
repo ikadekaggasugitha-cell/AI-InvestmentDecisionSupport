@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { useApp } from "@/app/context/AppContext";
-import type { AuthState } from "@/app/features/identity/useAuth";
-import { useTranslation } from "@/app/i18n/translations";
-import { ENDPOINTS, apiFetch } from "@/app/config/api";
-import { usePayments } from "@/app/features/settings/usePayments";
-import type { ExchangeRateData } from "@/app/features/market/useExchangeRate";
-import type { DataFreshness } from "@/app/features/market/useLiveMarket";
-import { readPlanIntent, writePlanIntent } from "@/app/planIntent";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useApp } from '@/app/context/AppContext'
+import type { AuthState } from '@/app/features/identity/useAuth'
+import { useTranslation } from '@/app/i18n/translations'
+import { ENDPOINTS, apiFetch } from '@/app/config/api'
+import { usePayments } from '@/app/features/settings/usePayments'
+import type { ExchangeRateData } from '@/app/features/market/useExchangeRate'
+import type { DataFreshness } from '@/app/features/market/useLiveMarket'
+import { readPlanIntent, writePlanIntent } from '@/app/planIntent'
 
 /*
  * Settings, per docs/settings-module-spec.md v1.1.0.
@@ -24,57 +24,57 @@ import { readPlanIntent, writePlanIntent } from "@/app/planIntent";
  * Appearance, Notifications and About read state that genuinely exists.
  */
 
-const STORAGE_NOTIF = "aidss-notifications";
+const STORAGE_NOTIF = 'aidss-notifications'
 
-type NotifKey = "ai_signals" | "risk_alerts" | "corp_news";
+type NotifKey = 'ai_signals' | 'risk_alerts' | 'corp_news'
 
 /** Where a transfer can go, word for word the server's vocabulary. */
 const PAYMENT_METHODS: { value: string; label: string }[] = [
-  { value: "qris", label: "QRIS" },
-  { value: "va_bca", label: "Virtual Account BCA" },
-  { value: "va_mandiri", label: "Virtual Account Mandiri" },
-  { value: "bank_transfer", label: "Transfer bank" },
-];
+  { value: 'qris', label: 'QRIS' },
+  { value: 'va_bca', label: 'Virtual Account BCA' },
+  { value: 'va_mandiri', label: 'Virtual Account Mandiri' },
+  { value: 'bank_transfer', label: 'Transfer bank' },
+]
 
 const NOTIF_DEFAULT: Record<NotifKey, boolean> = {
   ai_signals: true,
   risk_alerts: true,
   corp_news: false,
-};
+}
 
 function readNotifPrefs(): Record<NotifKey, boolean> {
   try {
-    const saved = localStorage.getItem(STORAGE_NOTIF);
-    if (saved) return { ...NOTIF_DEFAULT, ...JSON.parse(saved) };
+    const saved = localStorage.getItem(STORAGE_NOTIF)
+    if (saved) return { ...NOTIF_DEFAULT, ...JSON.parse(saved) }
   } catch {
     /* unreadable storage falls back to defaults */
   }
-  return NOTIF_DEFAULT;
+  return NOTIF_DEFAULT
 }
 
-type TabId = "profile" | "billing" | "appearance" | "notifications" | "about";
+type TabId = 'profile' | 'billing' | 'appearance' | 'notifications' | 'about'
 
 interface Props {
-  fx: ExchangeRateData;
+  fx: ExchangeRateData
   /** Feed state, so About reports what the prices actually are. */
-  freshness?: DataFreshness;
+  freshness?: DataFreshness
   /** The signed-in account, for the Profile tab and the sign-out control. */
-  auth: AuthState;
-  onSignedOut: () => void;
+  auth: AuthState
+  onSignedOut: () => void
 }
 
 export function SettingsView({ fx, freshness, auth, onSignedOut }: Props) {
-  const { isDark, toggleTheme, locale, toggleLocale } = useApp();
-  const id = locale === "id";
-  const [tab, setTab] = useState<TabId>("appearance");
+  const { isDark, toggleTheme, locale, toggleLocale } = useApp()
+  const id = locale === 'id'
+  const [tab, setTab] = useState<TabId>('appearance')
 
   const TABS: { id: TabId; label: string; en: string }[] = [
-    { id: "profile", label: "Profil & Akun", en: "Profile & Account" },
-    { id: "billing", label: "Langganan & Tagihan", en: "Subscription & Billing" },
-    { id: "appearance", label: "Tampilan", en: "Appearance" },
-    { id: "notifications", label: "Notifikasi", en: "Notifications" },
-    { id: "about", label: "Tentang", en: "About" },
-  ];
+    { id: 'profile', label: 'Profil & Akun', en: 'Profile & Account' },
+    { id: 'billing', label: 'Langganan & Tagihan', en: 'Subscription & Billing' },
+    { id: 'appearance', label: 'Tampilan', en: 'Appearance' },
+    { id: 'notifications', label: 'Notifikasi', en: 'Notifications' },
+    { id: 'about', label: 'Tentang', en: 'About' },
+  ]
 
   /* WAI-ARIA puts arrow-key navigation on the tablist, not on the document: the
      pattern expects Left/Right to move between tabs and to take focus with them.
@@ -87,15 +87,15 @@ export function SettingsView({ fx, freshness, auth, onSignedOut }: Props) {
       ArrowLeft: index - 1,
       Home: 0,
       End: TABS.length - 1,
-    };
-    const next = offsets[e.key];
-    if (next === undefined) return;
-    e.preventDefault();
+    }
+    const next = offsets[e.key]
+    if (next === undefined) return
+    e.preventDefault()
     // Wrap at both ends: a horizontal tablist has no first or last tab to stop on.
-    const target = TABS[(next + TABS.length) % TABS.length];
-    setTab(target.id);
-    document.getElementById(`tab-${target.id}`)?.focus();
-  };
+    const target = TABS[(next + TABS.length) % TABS.length]
+    setTab(target.id)
+    document.getElementById(`tab-${target.id}`)?.focus()
+  }
 
   return (
     <div
@@ -110,17 +110,17 @@ export function SettingsView({ fx, freshness, auth, onSignedOut }: Props) {
           Scrolls horizontally on narrow screens so no tab is ever clipped. */}
       <div
         role="tablist"
-        aria-label={id ? "Bagian pengaturan" : "Settings sections"}
+        aria-label={id ? 'Bagian pengaturan' : 'Settings sections'}
         style={{
-          display: "flex",
+          display: 'flex',
           gap: 4,
-          borderBottom: "1px solid var(--border)",
-          overflowX: "auto",
-          scrollbarWidth: "none",
+          borderBottom: '1px solid var(--border)',
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
         }}
       >
         {TABS.map((t, index) => {
-          const active = tab === t.id;
+          const active = tab === t.id
           return (
             <button
               key={t.id}
@@ -133,36 +133,43 @@ export function SettingsView({ fx, freshness, auth, onSignedOut }: Props) {
               onKeyDown={(e) => onTabKeyDown(e, index)}
               onClick={() => setTab(t.id)}
               style={{
-                padding: "10px 12px",
+                padding: '10px 12px',
                 minHeight: 44,
-                whiteSpace: "nowrap",
+                whiteSpace: 'nowrap',
                 fontSize: 13,
                 fontWeight: active ? 500 : 400,
-                color: active ? "var(--primary)" : "var(--muted-foreground)",
-                background: "transparent",
-                border: "none",
-                borderBottom: `2px solid ${active ? "var(--primary)" : "transparent"}`,
-                cursor: "pointer",
-                transition: "color 0.1s, border-color 0.1s",
+                color: active ? 'var(--primary)' : 'var(--muted-foreground)',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: `2px solid ${active ? 'var(--primary)' : 'transparent'}`,
+                cursor: 'pointer',
+                transition: 'color 0.1s, border-color 0.1s',
               }}
             >
               {id ? t.label : t.en}
             </button>
-          );
+          )
         })}
       </div>
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === "profile" && <TabProfile id={id} auth={auth} onSignedOut={onSignedOut} />}
-        {tab === "billing" && <TabSubscription id={id} />}
-        {tab === "appearance" && (
-          <TabAppearance id={id} isDark={isDark} onToggleTheme={toggleTheme} locale={locale} onToggleLocale={toggleLocale} fx={fx} />
+        {tab === 'profile' && <TabProfile id={id} auth={auth} onSignedOut={onSignedOut} />}
+        {tab === 'billing' && <TabSubscription id={id} />}
+        {tab === 'appearance' && (
+          <TabAppearance
+            id={id}
+            isDark={isDark}
+            onToggleTheme={toggleTheme}
+            locale={locale}
+            onToggleLocale={toggleLocale}
+            fx={fx}
+          />
         )}
-        {tab === "notifications" && <TabNotifications id={id} />}
-        {tab === "about" && <TabAbout id={id} fx={fx} freshness={freshness} />}
+        {tab === 'notifications' && <TabNotifications id={id} />}
+        {tab === 'about' && <TabAbout id={id} fx={fx} freshness={freshness} />}
       </div>
     </div>
-  );
+  )
 }
 
 /* ── Tab 1: Profile ──────────────────────────────────────────────────────── */
@@ -172,81 +179,79 @@ function TabProfile({
   auth,
   onSignedOut,
 }: {
-  id: boolean;
-  auth: AuthState;
-  onSignedOut: () => void;
+  id: boolean
+  auth: AuthState
+  onSignedOut: () => void
 }) {
-  const { locale } = useApp();
+  const { locale } = useApp()
   // Real data, from GET /v1/auth/me. Before the multi-user backend this tab said
   // the backend had no user store, which stopped being true the moment the users
   // table existed.
-  const account = auth.account;
-  const { t: t2 } = useTranslation(locale);
-  const [busy, setBusy] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [draftName, setDraftName] = useState(account?.full_name ?? "");
-  const [draftPhone, setDraftPhone] = useState(account?.phone_number ?? "");
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const account = auth.account
+  const { t: t2 } = useTranslation(locale)
+  const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draftName, setDraftName] = useState(account?.full_name ?? '')
+  const [draftPhone, setDraftPhone] = useState(account?.phone_number ?? '')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
 
   const dirty =
-    account !== null &&
-    (draftName !== account.full_name || draftPhone !== account.phone_number);
+    account !== null && (draftName !== account.full_name || draftPhone !== account.phone_number)
 
   const save = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setSaveError(null);
-    setSaved(false);
+    e.preventDefault()
+    setSaving(true)
+    setSaveError(null)
+    setSaved(false)
     try {
-      await auth.updateProfile({ full_name: draftName, phone_number: draftPhone });
-      setEditing(false);
-      setSaved(true);
+      await auth.updateProfile({ full_name: draftName, phone_number: draftPhone })
+      setEditing(false)
+      setSaved(true)
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : t2("auth_error_generic"));
+      setSaveError(err instanceof Error ? err.message : t2('auth_error_generic'))
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
-  };
+  }
 
   if (!account) {
     return (
-      <Panel title={id ? "Profil & Akun" : "Profile & Account"}>
+      <Panel title={id ? 'Profil & Akun' : 'Profile & Account'}>
         <Unavailable
           id={id}
-          title={id ? "Akun belum dimuat" : "Account not loaded"}
+          title={id ? 'Akun belum dimuat' : 'Account not loaded'}
           body={
             id
-              ? "Gagal memuat akun. Periksa koneksi lalu buka lagi halaman ini."
-              : "Could not load the account. Check the connection and reopen this tab."
+              ? 'Gagal memuat akun. Periksa koneksi lalu buka lagi halaman ini.'
+              : 'Could not load the account. Check the connection and reopen this tab.'
           }
         />
       </Panel>
-    );
+    )
   }
 
-  const roleLabel = account.role === "admin"
-    ? (id ? "Administrator" : "Administrator")
-    : (id ? "Pengguna" : "User");
+  const roleLabel =
+    account.role === 'admin' ? (id ? 'Administrator' : 'Administrator') : id ? 'Pengguna' : 'User'
 
   return (
-    <Panel title={id ? "Profil & Akun" : "Profile & Account"}>
+    <Panel title={id ? 'Profil & Akun' : 'Profile & Account'}>
       <div className="account-name">{account.full_name}</div>
       <div className="account-email">{account.email}</div>
 
       <Divider />
 
-      <Metric label={id ? "Nomor WhatsApp" : "WhatsApp"} value={account.phone_number} />
+      <Metric label={id ? 'Nomor WhatsApp' : 'WhatsApp'} value={account.phone_number} />
       {/* Role as a text label, not a coloured pill: see docs/settings-module-spec.md
           §4.1, which removed the badge for exactly this reason. */}
-      <Metric label={id ? "Peran" : "Role"} value={roleLabel} />
+      <Metric label={id ? 'Peran' : 'Role'} value={roleLabel} />
 
       {account.blocked && (
         <p className="account-blocked">
           {id
-            ? "Akun ini sedang diblokir, jadi akses datanya ditolak."
-            : "This account is blocked, so its data access is refused."}
+            ? 'Akun ini sedang diblokir, jadi akses datanya ditolak.'
+            : 'This account is blocked, so its data access is refused.'}
         </p>
       )}
 
@@ -258,7 +263,9 @@ function TabProfile({
       {editing ? (
         <form onSubmit={save}>
           <div style={{ marginBottom: 12 }}>
-            <label htmlFor="profile-name" style={fieldLabel}>{id ? "Nama lengkap" : "Full name"}</label>
+            <label htmlFor="profile-name" style={fieldLabel}>
+              {id ? 'Nama lengkap' : 'Full name'}
+            </label>
             <input
               id="profile-name"
               name="full_name"
@@ -271,7 +278,7 @@ function TabProfile({
           </div>
           <div style={{ marginBottom: 12 }}>
             <label htmlFor="profile-phone" style={fieldLabel}>
-              {id ? "Nomor WhatsApp" : "WhatsApp number"}
+              {id ? 'Nomor WhatsApp' : 'WhatsApp number'}
             </label>
             <input
               id="profile-phone"
@@ -285,20 +292,37 @@ function TabProfile({
             />
           </div>
 
-          {saveError && <p role="alert" className="profile-error">{saveError}</p>}
-          {saved && <p role="status" className="profile-saved">{t2("auth_saved")}</p>}
+          {saveError && (
+            <p role="alert" className="profile-error">
+              {saveError}
+            </p>
+          )}
+          {saved && (
+            <p role="status" className="profile-saved">
+              {t2('auth_saved')}
+            </p>
+          )}
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="submit" className="auth-control" disabled={!dirty || saving} style={primaryButton}>
-              {saving ? t2("auth_working") : t2("auth_save")}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="submit"
+              className="auth-control"
+              disabled={!dirty || saving}
+              style={primaryButton}
+            >
+              {saving ? t2('auth_working') : t2('auth_save')}
             </button>
             <button
               type="button"
               className="auth-control"
-              onClick={() => { setEditing(false); setSaveError(null); setSaved(false); }}
+              onClick={() => {
+                setEditing(false)
+                setSaveError(null)
+                setSaved(false)
+              }}
               style={secondaryButton}
             >
-              {t2("auth_cancel")}
+              {t2('auth_cancel')}
             </button>
           </div>
         </form>
@@ -307,15 +331,15 @@ function TabProfile({
           type="button"
           className="auth-control"
           onClick={() => {
-            setEditing(true);
-            setDraftName(account.full_name);
-            setDraftPhone(account.phone_number);
-            setSaveError(null);
-            setSaved(false);
+            setEditing(true)
+            setDraftName(account.full_name)
+            setDraftPhone(account.phone_number)
+            setSaveError(null)
+            setSaved(false)
           }}
           style={secondaryButton}
         >
-          {t2("auth_edit_profile")}
+          {t2('auth_edit_profile')}
         </button>
       )}
 
@@ -327,15 +351,15 @@ function TabProfile({
         disabled={busy}
         style={signOutButton}
         onClick={async () => {
-          setBusy(true);
-          await auth.signOut();
-          onSignedOut();
+          setBusy(true)
+          await auth.signOut()
+          onSignedOut()
         }}
       >
-        {id ? "Keluar akun" : "Sign out"}
+        {id ? 'Keluar akun' : 'Sign out'}
       </button>
-</Panel>
-  );
+    </Panel>
+  )
 }
 
 /* Shared control styles for the Profile tab. Declared once because three
@@ -343,63 +367,63 @@ function TabProfile({
    3:1 border, and one of them would eventually get it wrong. */
 
 const fieldLabel: React.CSSProperties = {
-  display: "block",
+  display: 'block',
   fontSize: 13,
-  color: "var(--foreground)",
+  color: 'var(--foreground)',
   marginBottom: 6,
-};
+}
 
 const fieldInput: React.CSSProperties = {
-  width: "100%",
-  minHeight: "44px",
-  padding: "10px 12px",
+  width: '100%',
+  minHeight: '44px',
+  padding: '10px 12px',
   fontSize: 14,
-  fontFamily: "var(--font-sans)",
-  color: "var(--foreground)",
-  background: "var(--input-background, #ffffff)",
-  border: "1px solid var(--control-border)",
-  borderRadius: "var(--radius)",
-  boxSizing: "border-box",
-};
+  fontFamily: 'var(--font-sans)',
+  color: 'var(--foreground)',
+  background: 'var(--input-background, #ffffff)',
+  border: '1px solid var(--control-border)',
+  borderRadius: 'var(--radius)',
+  boxSizing: 'border-box',
+}
 
 const primaryButton: React.CSSProperties = {
-  minHeight: "44px",
-  padding: "10px 16px",
+  minHeight: '44px',
+  padding: '10px 16px',
   fontSize: 13,
-  fontFamily: "var(--font-sans)",
+  fontFamily: 'var(--font-sans)',
   fontWeight: 500,
-  color: "var(--primary-foreground)",
-  background: "var(--primary)",
-  border: "1px solid var(--primary)",
-  borderRadius: "var(--radius)",
-  cursor: "pointer",
-};
+  color: 'var(--primary-foreground)',
+  background: 'var(--primary)',
+  border: '1px solid var(--primary)',
+  borderRadius: 'var(--radius)',
+  cursor: 'pointer',
+}
 
 const secondaryButton: React.CSSProperties = {
-  minHeight: "44px",
-  padding: "10px 16px",
+  minHeight: '44px',
+  padding: '10px 16px',
   fontSize: 13,
-  fontFamily: "var(--font-sans)",
+  fontFamily: 'var(--font-sans)',
   fontWeight: 500,
-  color: "var(--foreground)",
-  background: "transparent",
-  border: "1px solid var(--control-border)",
-  borderRadius: "var(--radius)",
-  cursor: "pointer",
-};
+  color: 'var(--foreground)',
+  background: 'transparent',
+  border: '1px solid var(--control-border)',
+  borderRadius: 'var(--radius)',
+  cursor: 'pointer',
+}
 
 const signOutButton: React.CSSProperties = {
-  minHeight: "44px",
-  padding: "10px 16px",
+  minHeight: '44px',
+  padding: '10px 16px',
   fontSize: 13,
-  fontFamily: "var(--font-sans)",
+  fontFamily: 'var(--font-sans)',
   fontWeight: 500,
-  color: "var(--destructive)",
-  background: "transparent",
-  border: "1px solid var(--destructive)",
-  borderRadius: "var(--radius)",
-  cursor: "pointer",
-};
+  color: 'var(--destructive)',
+  background: 'transparent',
+  border: '1px solid var(--destructive)',
+  borderRadius: 'var(--radius)',
+  cursor: 'pointer',
+}
 
 /* ── Tab 2: Subscription ─────────────────────────────────────────────────── */
 
@@ -422,223 +446,242 @@ export function TabSubscription({ id }: { id: boolean }) {
    * and inventing them is what this tab used to be careful not to do.
    */
   const [state, setState] = useState<{
-    loading: boolean;
-    error: string | null;
+    loading: boolean
+    error: string | null
     subscription: {
-      active: boolean;
-      expiresAt: string | null;
-      daysRemaining: number | null;
-    } | null;
-  }>({ loading: true, error: null, subscription: null });
+      active: boolean
+      expiresAt: string | null
+      daysRemaining: number | null
+    } | null
+  }>({ loading: true, error: null, subscription: null })
 
   /* The price, read separately from the status because they answer different
      questions and can fail independently: an account with no subscription can
      still read what one costs, and a working status endpoint says nothing about
      whether this install has a price configured. */
   const [price, setPrice] = useState<{
-    loading: boolean;
-    error: string | null;
-    weekly: number | null;
-    monthly: number | null;
-    annual: number | null;
-  }>({ loading: true, error: null, weekly: null, monthly: null, annual: null });
+    loading: boolean
+    error: string | null
+    weekly: number | null
+    monthly: number | null
+    annual: number | null
+  }>({ loading: true, error: null, weekly: null, monthly: null, annual: null })
 
   useEffect(() => {
-    const controller = new AbortController();
-    (async () => {
+    const controller = new AbortController()
+    ;(async () => {
       try {
-        const res = await apiFetch(ENDPOINTS.subscription, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        setState({ loading: false, error: null, subscription: await res.json() });
+        const res = await apiFetch(ENDPOINTS.subscription, { signal: controller.signal })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        setState({ loading: false, error: null, subscription: await res.json() })
       } catch {
-        if (controller.signal.aborted) return;
-        setState({ loading: false, error: "unknown", subscription: null });
+        if (controller.signal.aborted) return
+        setState({ loading: false, error: 'unknown', subscription: null })
       }
-    })();
-    return () => controller.abort();
-  }, []);
+    })()
+    return () => controller.abort()
+  }, [])
 
   useEffect(() => {
-    const controller = new AbortController();
-    (async () => {
+    const controller = new AbortController()
+    ;(async () => {
       try {
-        const res = await apiFetch(ENDPOINTS.pricing, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = (await res.json()) as { weekly: number; monthly: number; annual: number };
+        const res = await apiFetch(ENDPOINTS.pricing, { signal: controller.signal })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const body = (await res.json()) as { weekly: number; monthly: number; annual: number }
         setPrice({
           loading: false,
           error: null,
           weekly: body.weekly,
           monthly: body.monthly,
           annual: body.annual,
-        });
+        })
       } catch {
         // Left as `unknown` rather than zero. A price of zero is a number nobody
         // set, and printing "Rp 0" here would be quoting for free.
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) return
         setPrice({
           loading: false,
-          error: "unknown",
+          error: 'unknown',
           weekly: null,
           monthly: null,
           annual: null,
-        });
+        })
       }
-    })();
-    return () => controller.abort();
-  }, []);
+    })()
+    return () => controller.abort()
+  }, [])
 
   /* The bank accounts, read the way the price is: from the server, per mount,
      because the destination is the one fact a transfer depends on and a cached
      copy of it would be a previous account's answer. */
   const [banks, setBanks] = useState<{
-    loading: boolean;
-    error: string | null;
-    accounts: { bank: string; accountNumber: string; holderName: string }[];
-  }>({ loading: true, error: null, accounts: [] });
+    loading: boolean
+    error: string | null
+    accounts: { bank: string; accountNumber: string; holderName: string }[]
+  }>({ loading: true, error: null, accounts: [] })
 
   useEffect(() => {
-    const controller = new AbortController();
-    (async () => {
+    const controller = new AbortController()
+    ;(async () => {
       try {
-        const res = await apiFetch(ENDPOINTS.bankAccounts, { signal: controller.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const res = await apiFetch(ENDPOINTS.bankAccounts, { signal: controller.signal })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const body = (await res.json()) as {
-          accounts: { bank: string; accountNumber: string; holderName: string }[];
-        };
-        if (controller.signal.aborted) return;
-        setBanks({ loading: false, error: null, accounts: body.accounts ?? [] });
+          accounts: { bank: string; accountNumber: string; holderName: string }[]
+        }
+        if (controller.signal.aborted) return
+        setBanks({ loading: false, error: null, accounts: body.accounts ?? [] })
       } catch {
-        if (controller.signal.aborted) return;
-        setBanks({ loading: false, error: "unknown", accounts: [] });
+        if (controller.signal.aborted) return
+        setBanks({ loading: false, error: 'unknown', accounts: [] })
       }
-    })();
-    return () => controller.abort();
-  }, []);
+    })()
+    return () => controller.abort()
+  }, [])
 
   /* The account's own attempts to pay: the waiting money and the refusals. */
-  const payments = usePayments();
+  const payments = usePayments()
 
   /* The declaration defaults are mild on purpose: the server still prices the
      plan, so no default here can cost anyone the wrong amount. The only seed
      allowed to preselect is the plan intent the visitor themselves put in:
      picked on the price sheet, carried through signup, cleared on use. */
-  const [plan, setPlan] = useState<"weekly" | "monthly" | "annual">(() => readPlanIntent() ?? "monthly");
-  const [method, setMethod] = useState("bank_transfer");
-  const [note, setNote] = useState("");
+  const [plan, setPlan] = useState<'weekly' | 'monthly' | 'annual'>(
+    () => readPlanIntent() ?? 'monthly',
+  )
+  const [method, setMethod] = useState('bank_transfer')
+  const [note, setNote] = useState('')
   /* The gateway's own plan choice, deliberate and separate: the two cards
      should never flip each other's state from underneath the reader. */
-  const [gatewayPlan, setGatewayPlan] = useState<"weekly" | "monthly" | "annual">(() => readPlanIntent() ?? "monthly");
+  const [gatewayPlan, setGatewayPlan] = useState<'weekly' | 'monthly' | 'annual'>(
+    () => readPlanIntent() ?? 'monthly',
+  )
 
   const emptyBody = state.error
-    ? (id
-        ? "Status langganan tidak dapat dimuat. Itu tidak berarti langganan Anda habis."
-        : "Subscription status could not be loaded. That does not mean your subscription has ended.")
-    : (id
-        ? "Transfer ke salah satu rekening di atas, nyatakan transfernya di formulir, dan akses menyala setelah pembayaran diperiksa admin."
-        : "Transfer to one of the accounts above, declare it with the form, and access starts once the payment has been reviewed.");
+    ? id
+      ? 'Status langganan tidak dapat dimuat. Itu tidak berarti langganan Anda habis.'
+      : 'Subscription status could not be loaded. That does not mean your subscription has ended.'
+    : id
+      ? 'Transfer ke salah satu rekening di atas, nyatakan transfernya di formulir, dan akses menyala setelah pembayaran diperiksa admin.'
+      : 'Transfer to one of the accounts above, declare it with the form, and access starts once the payment has been reviewed.'
 
-  const active = state.subscription?.active === true;
-  const expiry = active && state.subscription?.expiresAt
-    ? new Date(state.subscription.expiresAt)
-    : null;
-  const days = state.subscription?.daysRemaining ?? null;
+  const active = state.subscription?.active === true
+  const expiry =
+    active && state.subscription?.expiresAt ? new Date(state.subscription.expiresAt) : null
+  const days = state.subscription?.daysRemaining ?? null
 
-  const fmt = id ? "id-ID" : "en-GB";
+  const fmt = id ? 'id-ID' : 'en-GB'
   const waiting = (payments.rows ?? []).filter(
-    (r) => r.status === "pending" || r.status === "expire",
-  );
+    (r) => r.status === 'pending' || r.status === 'expire',
+  )
   const history = (payments.rows ?? []).filter(
-    (r) => r.status !== "pending" && r.status !== "expire",
-  );
+    (r) => r.status !== 'pending' && r.status !== 'expire',
+  )
 
   /** The server's status names, said in this tab's words — no renaming of
       facts, just the same fact with the words the account reads. */
   const statusLabel = (status: string) =>
-    status === "pending"
-      ? (id ? "Menunggu pemeriksaan admin" : "Awaiting review")
-      : status === "expire"
-        ? (id
-            ? "Kedaluwarsa antrian — masih bisa disetujui"
-            : "Aged out of the queue — still approvable")
-        : status === "deny"
-          ? (id ? "Ditolak" : "Refused")
-          : status === "settlement"
-            ? (id ? "Disetujui" : "Approved")
-            : status;
+    status === 'pending'
+      ? id
+        ? 'Menunggu pemeriksaan admin'
+        : 'Awaiting review'
+      : status === 'expire'
+        ? id
+          ? 'Kedaluwarsa antrian — masih bisa disetujui'
+          : 'Aged out of the queue — still approvable'
+        : status === 'deny'
+          ? id
+            ? 'Ditolak'
+            : 'Refused'
+          : status === 'settlement'
+            ? id
+              ? 'Disetujui'
+              : 'Approved'
+            : status
 
   const declare = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
     const outcome = await payments.declare({
       plan,
       payment_method: method,
       note: note.trim() || null,
-    });
-    if (outcome === "ok") {
-      setNote("");
+    })
+    if (outcome === 'ok') {
+      setNote('')
       // The carried intent served its purpose: the choice here is now the
       // person's own word, not the price sheet's.
-      writePlanIntent(null);
+      writePlanIntent(null)
     }
-  };
+  }
 
   /* The gateway's one ask: a page. By the time it opens, the pending row
      behind it is already in this tab's own history — the server wrote the
      row in the same request whose answer carried the URL. */
   const startCheckout = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const result = await payments.checkout(gatewayPlan);
+    e.preventDefault()
+    const result = await payments.checkout(gatewayPlan)
     if (result?.redirectUrl) {
-      window.open(result.redirectUrl, "_blank", "noopener,noreferrer");
+      window.open(result.redirectUrl, '_blank', 'noopener,noreferrer')
       // Same clearing rule as the manual declaration: the row the server wrote
       // in this very request becomes the choice of record.
-      writePlanIntent(null);
+      writePlanIntent(null)
     }
-  };
+  }
 
   return (
-    <Panel title={id ? "Langganan & Tagihan" : "Subscription & Billing"}>
+    <Panel title={id ? 'Langganan & Tagihan' : 'Subscription & Billing'}>
       {/* What it costs, whether or not there is one. Read from the server, never
           from a constant: an administrator can change it, and a build-time copy
           of the number would be a second source drifting from the first. */}
       {price.loading ? (
         <div className="setting-row" style={{ paddingBottom: 12 }}>
-          <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-            {id ? "Memuat harga…" : "Loading price…"}
+          <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+            {id ? 'Memuat harga…' : 'Loading price…'}
           </span>
         </div>
       ) : price.error ? (
         <div className="setting-row" style={{ paddingBottom: 12 }}>
-          <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+          <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
             {id
-              ? "Harga tidak dapat dimuat. Tidak ditampilkan sebagai nol — nol bukan harga yang ditetapkan."
-              : "The price could not be loaded. Not shown as zero — zero is not a price anyone set."}
+              ? 'Harga tidak dapat dimuat. Tidak ditampilkan sebagai nol — nol bukan harga yang ditetapkan.'
+              : 'The price could not be loaded. Not shown as zero — zero is not a price anyone set.'}
           </span>
         </div>
       ) : (
-        <div className="setting-row" style={{ paddingBottom: 12, display: "flex", gap: 24 }}>
+        <div className="setting-row" style={{ paddingBottom: 12, display: 'flex', gap: 24 }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)" }}>
-              {id ? "Harga" : "Price"}
+            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+              {id ? 'Harga' : 'Price'}
             </div>
-            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>
               {id
-                ? "Mingguan, bulanan, dan tahunan, dari server."
-                : "Weekly, monthly, and annual, from the server."}
+                ? 'Mingguan, bulanan, dan tahunan, dari server.'
+                : 'Weekly, monthly, and annual, from the server.'}
             </div>
           </div>
           {/* Three parallel prices, each carrying its plan name: a stack of
               bare numbers would make the reader guess which is which. */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, textAlign: "right" }}>
-            {([
-              ["weekly", id ? "Mingguan" : "Weekly"],
-              ["monthly", id ? "Bulanan" : "Monthly"],
-              ["annual", id ? "Tahunan" : "Annual"],
-            ] as const).map(([key, label]) => (
-              <div key={key} style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-                <span style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 1 }}>{label}</span>
-                <span style={{ fontSize: 13, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
-                  {`Rp ${price[key]?.toLocaleString(id ? "id-ID" : "en-GB")}`}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'right' }}>
+            {(
+              [
+                ['weekly', id ? 'Mingguan' : 'Weekly'],
+                ['monthly', id ? 'Bulanan' : 'Monthly'],
+                ['annual', id ? 'Tahunan' : 'Annual'],
+              ] as const
+            ).map(([key, label]) => (
+              <div key={key} style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <span style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 1 }}>
+                  {label}
+                </span>
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: 'var(--foreground)',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {`Rp ${price[key]?.toLocaleString(id ? 'id-ID' : 'en-GB')}`}
                 </span>
               </div>
             ))}
@@ -648,25 +691,34 @@ export function TabSubscription({ id }: { id: boolean }) {
 
       {active ? (
         <>
-          <div className="setting-row" style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
+          <div
+            className="setting-row"
+            style={{ display: 'flex', justifyContent: 'space-between', gap: 24 }}
+          >
             <div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)" }}>
-                {id ? "Masa aktif" : "Active period"}
+              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                {id ? 'Masa aktif' : 'Active period'}
               </div>
-              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
-                {id ? "Diturunkan dari tanggal berakhir subscription." : "Derived from the subscription's end date."}
+              <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>
+                {id
+                  ? 'Diturunkan dari tanggal berakhir subscription.'
+                  : "Derived from the subscription's end date."}
               </div>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 12, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+            <div style={{ textAlign: 'right' }}>
+              <div
+                style={{ fontSize: 12, color: 'var(--foreground)', fontFamily: 'var(--font-mono)' }}
+              >
                 {expiry
-                  ? expiry.toLocaleDateString(id ? "id-ID" : "en-GB", {
-                      day: "2-digit", month: "short", year: "numeric",
+                  ? expiry.toLocaleDateString(id ? 'id-ID' : 'en-GB', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
                     })
-                  : "—"}
+                  : '—'}
               </div>
               {days !== null && (
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 2 }}>
                   {id ? `${days} hari tersisa` : `${days} days remaining`}
                 </div>
               )}
@@ -674,8 +726,8 @@ export function TabSubscription({ id }: { id: boolean }) {
           </div>
         </>
       ) : state.loading ? (
-        <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-          {id ? "Memuat status…" : "Loading status…"}
+        <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+          {id ? 'Memuat status…' : 'Loading status…'}
         </span>
       ) : (
         <>
@@ -683,47 +735,54 @@ export function TabSubscription({ id }: { id: boolean }) {
             <div
               role="status"
               style={{
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius)",
-                padding: "14px 16px",
-                background: "var(--card)",
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '14px 16px',
+                background: 'var(--card)',
               }}
             >
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
-                {id ? "Transfer sedang diperiksa" : "Transfer under review"}
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                {id ? 'Transfer sedang diperiksa' : 'Transfer under review'}
               </div>
-              <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, marginBottom: 0 }}>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: 'var(--muted-foreground)',
+                  marginTop: 4,
+                  marginBottom: 0,
+                }}
+              >
                 {id
-                  ? "Akses datanya belum aktif sampai admin memeriksa pembayaran ini — tidak ada yang menyala otomatis dari baris ini."
-                  : "Data access stays inactive until an administrator reviews this payment — nothing turns on by itself."}
+                  ? 'Akses datanya belum aktif sampai admin memeriksa pembayaran ini — tidak ada yang menyala otomatis dari baris ini.'
+                  : 'Data access stays inactive until an administrator reviews this payment — nothing turns on by itself.'}
               </p>
               {waiting.map((row) => (
                 <div
                   key={row.id}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
+                    display: 'flex',
+                    justifyContent: 'space-between',
                     gap: 12,
                     fontSize: 12,
-                    borderTop: "1px solid var(--border)",
+                    borderTop: '1px solid var(--border)',
                     paddingTop: 10,
                     marginTop: 10,
                   }}
                 >
                   <div>
-                    <div style={{ fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--foreground)' }}>
                       {`Rp ${row.amount.toLocaleString(fmt)}`}
                     </div>
-                    <div style={{ color: "var(--muted-foreground)", fontSize: 11, marginTop: 2 }}>
+                    <div style={{ color: 'var(--muted-foreground)', fontSize: 11, marginTop: 2 }}>
                       {`${statusLabel(row.status)} · ${new Date(row.createdAt).toLocaleString(fmt)}`}
                     </div>
                   </div>
                   <div
                     style={{
-                      fontFamily: "var(--font-mono)",
-                      color: "var(--muted-foreground)",
+                      fontFamily: 'var(--font-mono)',
+                      color: 'var(--muted-foreground)',
                       fontSize: 11,
-                      textAlign: "right",
+                      textAlign: 'right',
                     }}
                   >
                     {row.invoiceCode}
@@ -738,45 +797,45 @@ export function TabSubscription({ id }: { id: boolean }) {
               payer would control. */}
           <div
             style={{
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius)",
-              padding: "14px 16px",
-              background: "var(--card)",
-              display: "flex",
-              flexDirection: "column",
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              padding: '14px 16px',
+              background: 'var(--card)',
+              display: 'flex',
+              flexDirection: 'column',
               gap: 10,
             }}
           >
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
-                {id ? "Isi pembayaran transfer manual" : "Pay by manual transfer"}
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                {id ? 'Isi pembayaran transfer manual' : 'Pay by manual transfer'}
               </div>
-              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>
                 {id
-                  ? "Uang dikirim di luar aplikasi; di sini Anda menyatakan transfer. Admin mencocokkannya dengan mutasi, jadi tuliskan nomor dan nama pengirim."
+                  ? 'Uang dikirim di luar aplikasi; di sini Anda menyatakan transfer. Admin mencocokkannya dengan mutasi, jadi tuliskan nomor dan nama pengirim.'
                   : "The money moves outside this app; here you declare that it moved. An administrator matches it to the statement, so leave the sender's number and name."}
               </div>
             </div>
 
             <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
-                {id ? "Rekening tujuan" : "Destination account"}
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>
+                {id ? 'Rekening tujuan' : 'Destination account'}
               </div>
               {banks.loading ? (
-                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
-                  {id ? "Memuat rekening…" : "Loading accounts…"}
+                <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 4 }}>
+                  {id ? 'Memuat rekening…' : 'Loading accounts…'}
                 </div>
               ) : banks.error ? (
-                <div style={{ fontSize: 12, color: "var(--warning)", marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: 'var(--warning)', marginTop: 4 }}>
                   {id
-                    ? "Rekening tidak dapat dimuat. Transfer tanpa rekening yang ditulis server tidak boleh ditebak."
+                    ? 'Rekening tidak dapat dimuat. Transfer tanpa rekening yang ditulis server tidak boleh ditebak.'
                     : "The accounts could not be loaded. Transferring without the server's account is a guess nobody should make."}
                 </div>
               ) : banks.accounts.length === 0 ? (
-                <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 4 }}>
                   {id
-                    ? "Belum ada rekening tujuan yang ditulis admin — tunggu sampai muncul di sini."
-                    : "No destination account has been written yet — wait for one to appear here."}
+                    ? 'Belum ada rekening tujuan yang ditulis admin — tunggu sampai muncul di sini.'
+                    : 'No destination account has been written yet — wait for one to appear here.'}
                 </div>
               ) : (
                 banks.accounts.map((b, i) => (
@@ -784,8 +843,8 @@ export function TabSubscription({ id }: { id: boolean }) {
                     key={`${b.bank}-${b.accountNumber}-${i}`}
                     style={{
                       fontSize: 12,
-                      color: "var(--foreground)",
-                      fontFamily: "var(--font-mono)",
+                      color: 'var(--foreground)',
+                      fontFamily: 'var(--font-mono)',
                       marginTop: i === 0 ? 6 : 2,
                     }}
                   >
@@ -795,30 +854,29 @@ export function TabSubscription({ id }: { id: boolean }) {
               )}
             </div>
 
-            <form
-              onSubmit={declare}
-              style={{ display: "flex", flexDirection: "column", gap: 10 }}
-            >
-              <fieldset
-                style={{ border: "none", padding: 0, margin: 0, display: "flex", gap: 16 }}
-              >
-                <legend style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", padding: 0 }}>
-                  {id ? "Paket" : "Plan"}
+            <form onSubmit={declare} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <fieldset style={{ border: 'none', padding: 0, margin: 0, display: 'flex', gap: 16 }}>
+                <legend
+                  style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)', padding: 0 }}
+                >
+                  {id ? 'Paket' : 'Plan'}
                 </legend>
-                {([
-                  ["weekly", id ? "Mingguan" : "Weekly"],
-                  ["monthly", id ? "Bulanan" : "Monthly"],
-                  ["annual", id ? "Tahunan" : "Annual"],
-                ] as const).map(([value, label]) => (
+                {(
+                  [
+                    ['weekly', id ? 'Mingguan' : 'Weekly'],
+                    ['monthly', id ? 'Bulanan' : 'Monthly'],
+                    ['annual', id ? 'Tahunan' : 'Annual'],
+                  ] as const
+                ).map(([value, label]) => (
                   <label
                     key={value}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
+                      display: 'flex',
+                      alignItems: 'center',
                       gap: 8,
                       fontSize: 13,
-                      color: "var(--foreground)",
-                      cursor: "pointer",
+                      color: 'var(--foreground)',
+                      cursor: 'pointer',
                       minHeight: 32,
                     }}
                   >
@@ -826,8 +884,11 @@ export function TabSubscription({ id }: { id: boolean }) {
                       type="radio"
                       name="payment-plan"
                       checked={plan === value}
-                      onChange={() => { setPlan(value); writePlanIntent(value); }}
-                      style={{ accentColor: "var(--primary)" }}
+                      onChange={() => {
+                        setPlan(value)
+                        writePlanIntent(value)
+                      }}
+                      style={{ accentColor: 'var(--primary)' }}
                     />
                     {label}
                   </label>
@@ -835,21 +896,30 @@ export function TabSubscription({ id }: { id: boolean }) {
               </fieldset>
 
               <fieldset
-                style={{ border: "none", padding: 0, margin: 0, display: "flex", gap: 16, flexWrap: "wrap" }}
+                style={{
+                  border: 'none',
+                  padding: 0,
+                  margin: 0,
+                  display: 'flex',
+                  gap: 16,
+                  flexWrap: 'wrap',
+                }}
               >
-                <legend style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", padding: 0 }}>
-                  {id ? "Cara transfer" : "Method"}
+                <legend
+                  style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)', padding: 0 }}
+                >
+                  {id ? 'Cara transfer' : 'Method'}
                 </legend>
                 {PAYMENT_METHODS.map((m) => (
                   <label
                     key={m.value}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
+                      display: 'flex',
+                      alignItems: 'center',
                       gap: 8,
                       fontSize: 13,
-                      color: "var(--foreground)",
-                      cursor: "pointer",
+                      color: 'var(--foreground)',
+                      cursor: 'pointer',
                       minHeight: 32,
                     }}
                   >
@@ -858,7 +928,7 @@ export function TabSubscription({ id }: { id: boolean }) {
                       name="payment-method"
                       checked={method === m.value}
                       onChange={() => setMethod(m.value)}
-                      style={{ accentColor: "var(--primary)" }}
+                      style={{ accentColor: 'var(--primary)' }}
                     />
                     {m.label}
                   </label>
@@ -869,60 +939,70 @@ export function TabSubscription({ id }: { id: boolean }) {
                 type="text"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder={id ? "Nomor & nama pengirim (opsional)" : "Sender's number & name (optional)"}
-                aria-label={id ? "Catatan untuk admin yang memeriksa" : "Note for the reviewing administrator"}
+                placeholder={
+                  id ? 'Nomor & nama pengirim (opsional)' : "Sender's number & name (optional)"
+                }
+                aria-label={
+                  id ? 'Catatan untuk admin yang memeriksa' : 'Note for the reviewing administrator'
+                }
                 maxLength={500}
                 style={{
                   fontSize: 13,
-                  padding: "9px 12px",
+                  padding: '9px 12px',
                   minHeight: 36,
-                  borderRadius: "var(--radius)",
-                  border: "1px solid var(--control-border)",
-                  background: "var(--input-background, #fff)",
-                  color: "var(--foreground)",
-                  width: "100%",
+                  borderRadius: 'var(--radius)',
+                  border: '1px solid var(--control-border)',
+                  background: 'var(--input-background, #fff)',
+                  color: 'var(--foreground)',
+                  width: '100%',
                 }}
               />
 
               {payments.declareError && (
-                <p role="alert" style={{ fontSize: 12, color: "var(--warning)", margin: 0 }}>
-                  {payments.declareError === "unavailable"
-                    ? (id
-                        ? "Server tidak dapat mencatat transfer sekarang — harga belum terbaca. Tidak ada yang tersimpan; coba lagi nanti."
-                        : "The server cannot record a transfer right now — the price is unreadable. Nothing was saved; try again later.")
-                    : payments.declareError === "network"
-                      ? (id
-                          ? "Server tidak terjangkau. Transfer belum tercatat."
-                          : "The server is unreachable. The transfer was not recorded.")
-                      : (id
-                          ? "Permintaan ditolak server. Periksa isian lalu kirim ulang."
-                          : "The request was refused. Check the fields and send again.")}
+                <p role="alert" style={{ fontSize: 12, color: 'var(--warning)', margin: 0 }}>
+                  {payments.declareError === 'unavailable'
+                    ? id
+                      ? 'Server tidak dapat mencatat transfer sekarang — harga belum terbaca. Tidak ada yang tersimpan; coba lagi nanti.'
+                      : 'The server cannot record a transfer right now — the price is unreadable. Nothing was saved; try again later.'
+                    : payments.declareError === 'network'
+                      ? id
+                        ? 'Server tidak terjangkau. Transfer belum tercatat.'
+                        : 'The server is unreachable. The transfer was not recorded.'
+                      : id
+                        ? 'Permintaan ditolak server. Periksa isian lalu kirim ulang.'
+                        : 'The request was refused. Check the fields and send again.'}
                 </p>
               )}
 
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <button
                   type="submit"
                   disabled={payments.declaring}
                   style={{
                     fontSize: 12,
                     fontWeight: 600,
-                    padding: "9px 16px",
+                    padding: '9px 16px',
                     minHeight: 32,
-                    borderRadius: "var(--radius)",
-                    border: "1px solid var(--primary)",
-                    color: "var(--primary-foreground)",
-                    background: "var(--primary)",
-                    cursor: payments.declaring ? "default" : "pointer",
+                    borderRadius: 'var(--radius)',
+                    border: '1px solid var(--primary)',
+                    color: 'var(--primary-foreground)',
+                    background: 'var(--primary)',
+                    cursor: payments.declaring ? 'default' : 'pointer',
                     opacity: payments.declaring ? 0.7 : 1,
                   }}
                 >
                   {payments.declaring
-                    ? (id ? "Mengirim…" : "Sending…")
-                    : (id ? "Saya sudah transfer" : "I've transferred")}
+                    ? id
+                      ? 'Mengirim…'
+                      : 'Sending…'
+                    : id
+                      ? 'Saya sudah transfer'
+                      : "I've transferred"}
                 </button>
-                <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-                  {id ? "Nominal yang dicatat adalah harga server untuk paket yang dipilih." : "The recorded amount is the server's price for the chosen plan."}
+                <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+                  {id
+                    ? 'Nominal yang dicatat adalah harga server untuk paket yang dipilih.'
+                    : "The recorded amount is the server's price for the chosen plan."}
                 </span>
               </div>
             </form>
@@ -935,50 +1015,52 @@ export function TabSubscription({ id }: { id: boolean }) {
               in sentence form instead of swallowing the option. */}
           <div
             style={{
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius)",
-              padding: "14px 16px",
-              background: "var(--card)",
-              display: "flex",
-              flexDirection: "column",
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              padding: '14px 16px',
+              background: 'var(--card)',
+              display: 'flex',
+              flexDirection: 'column',
               gap: 10,
             }}
           >
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>
-                {id ? "Bayar lewat Midtrans" : "Pay via Midtrans"}
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                {id ? 'Bayar lewat Midtrans' : 'Pay via Midtrans'}
               </div>
-              <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>
                 {id
-                  ? "Halaman pembayaran dibuka di tab baru — kartu, QRIS, atau e-wallet. Statusnya masuk ke daftar di bawah, dan akses menyala ketika pembayaran diterima."
-                  : "The payment page opens in a new tab — card, QRIS, or e-wallet. Its status appears in the list below, and access starts when the payment has been received."}
+                  ? 'Halaman pembayaran dibuka di tab baru — kartu, QRIS, atau e-wallet. Statusnya masuk ke daftar di bawah, dan akses menyala ketika pembayaran diterima.'
+                  : 'The payment page opens in a new tab — card, QRIS, or e-wallet. Its status appears in the list below, and access starts when the payment has been received.'}
               </div>
             </div>
 
             <form
               onSubmit={startCheckout}
-              style={{ display: "flex", flexDirection: "column", gap: 10 }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
             >
-              <fieldset
-                style={{ border: "none", padding: 0, margin: 0, display: "flex", gap: 16 }}
-              >
-                <legend style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", padding: 0 }}>
-                  {id ? "Paket" : "Plan"}
+              <fieldset style={{ border: 'none', padding: 0, margin: 0, display: 'flex', gap: 16 }}>
+                <legend
+                  style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)', padding: 0 }}
+                >
+                  {id ? 'Paket' : 'Plan'}
                 </legend>
-                {([
-                  ["weekly", id ? "Mingguan" : "Weekly"],
-                  ["monthly", id ? "Bulanan" : "Monthly"],
-                  ["annual", id ? "Tahunan" : "Annual"],
-                ] as const).map(([value, label]) => (
+                {(
+                  [
+                    ['weekly', id ? 'Mingguan' : 'Weekly'],
+                    ['monthly', id ? 'Bulanan' : 'Monthly'],
+                    ['annual', id ? 'Tahunan' : 'Annual'],
+                  ] as const
+                ).map(([value, label]) => (
                   <label
                     key={value}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
+                      display: 'flex',
+                      alignItems: 'center',
                       gap: 8,
                       fontSize: 13,
-                      color: "var(--foreground)",
-                      cursor: "pointer",
+                      color: 'var(--foreground)',
+                      cursor: 'pointer',
                       minHeight: 32,
                     }}
                   >
@@ -986,94 +1068,105 @@ export function TabSubscription({ id }: { id: boolean }) {
                       type="radio"
                       name="gateway-plan"
                       checked={gatewayPlan === value}
-                      onChange={() => { setGatewayPlan(value); writePlanIntent(value); }}
-                      style={{ accentColor: "var(--primary)" }}
+                      onChange={() => {
+                        setGatewayPlan(value)
+                        writePlanIntent(value)
+                      }}
+                      style={{ accentColor: 'var(--primary)' }}
                     />
                     {label}
                   </label>
                 ))}
               </fieldset>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <button
                   type="submit"
                   disabled={payments.checkoutBusy}
                   style={{
                     fontSize: 12,
                     fontWeight: 600,
-                    padding: "9px 16px",
+                    padding: '9px 16px',
                     minHeight: 32,
-                    borderRadius: "var(--radius)",
-                    border: "1px solid var(--primary)",
-                    color: "var(--primary-foreground)",
-                    background: "var(--primary)",
-                    cursor: payments.checkoutBusy ? "default" : "pointer",
+                    borderRadius: 'var(--radius)',
+                    border: '1px solid var(--primary)',
+                    color: 'var(--primary-foreground)',
+                    background: 'var(--primary)',
+                    cursor: payments.checkoutBusy ? 'default' : 'pointer',
                     opacity: payments.checkoutBusy ? 0.7 : 1,
                   }}
                 >
                   {payments.checkoutBusy
-                    ? (id ? "Menunggu halaman bayar…" : "Waiting for the payment page…")
-                    : (id ? "Buka halaman bayar Midtrans" : "Open the Midtrans payment page")}
+                    ? id
+                      ? 'Menunggu halaman bayar…'
+                      : 'Waiting for the payment page…'
+                    : id
+                      ? 'Buka halaman bayar Midtrans'
+                      : 'Open the Midtrans payment page'}
                 </button>
-                <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+                <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
                   {id
-                    ? "Nominal yang dicatat adalah harga server untuk paket yang dipilih."
+                    ? 'Nominal yang dicatat adalah harga server untuk paket yang dipilih.'
                     : "The recorded amount is the server's price for the chosen plan."}
                 </span>
               </div>
 
               {payments.checkoutError && (
-                <p role="alert" style={{ fontSize: 12, color: "var(--warning)", margin: 0 }}>
-                  {payments.checkoutError === "unavailable"
-                    ? (id
-                        ? "Pembayaran online belum aktif di server ini. Transfer manual di atas masih berlaku."
-                        : "Online payment is not active on this server. The manual transfer above still works.")
-                    : payments.checkoutError === "network"
-                      ? (id
-                          ? "Server tidak terjangkau. Halaman pembayaran tidak dibuka."
-                          : "The server is unreachable. The payment page was not opened.")
-                      : (id
-                          ? "Pembayaran online tidak dapat dibuka sekarang. Transfer manual di atas masih berlaku."
-                          : "Online payment could not be opened right now. The manual transfer above still works.")}
+                <p role="alert" style={{ fontSize: 12, color: 'var(--warning)', margin: 0 }}>
+                  {payments.checkoutError === 'unavailable'
+                    ? id
+                      ? 'Pembayaran online belum aktif di server ini. Transfer manual di atas masih berlaku.'
+                      : 'Online payment is not active on this server. The manual transfer above still works.'
+                    : payments.checkoutError === 'network'
+                      ? id
+                        ? 'Server tidak terjangkau. Halaman pembayaran tidak dibuka.'
+                        : 'The server is unreachable. The payment page was not opened.'
+                      : id
+                        ? 'Pembayaran online tidak dapat dibuka sekarang. Transfer manual di atas masih berlaku.'
+                        : 'Online payment could not be opened right now. The manual transfer above still works.'}
                 </p>
               )}
             </form>
           </div>
 
           {history.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>
-                {id ? "Riwayat pembayaran" : "Payment history"}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>
+                {id ? 'Riwayat pembayaran' : 'Payment history'}
               </div>
               {history.map((row) => (
                 <div
                   key={row.id}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
+                    display: 'flex',
+                    justifyContent: 'space-between',
                     gap: 12,
                     fontSize: 12,
-                    borderBottom: "1px solid var(--border)",
+                    borderBottom: '1px solid var(--border)',
                     paddingBottom: 8,
                   }}
                 >
                   <div>
-                    <div style={{ fontFamily: "var(--font-mono)", color: "var(--foreground)" }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--foreground)' }}>
                       {`Rp ${row.amount.toLocaleString(fmt)}`}
                     </div>
-                    <div style={{ color: row.status === "deny" ? "var(--loss)" : "var(--muted-foreground)", fontSize: 11, marginTop: 2 }}>
+                    <div
+                      style={{
+                        color: row.status === 'deny' ? 'var(--loss)' : 'var(--muted-foreground)',
+                        fontSize: 11,
+                        marginTop: 2,
+                      }}
+                    >
                       {`${statusLabel(row.status)} · ${new Date(row.createdAt).toLocaleString(fmt)}`}
-                      {row.status === "deny" && row.notes
-                        ? ` · ${row.notes}`
-                        : ""}
+                      {row.status === 'deny' && row.notes ? ` · ${row.notes}` : ''}
                     </div>
                   </div>
                   <div
                     style={{
-                      fontFamily: "var(--font-mono)",
-                      color: "var(--muted-foreground)",
+                      fontFamily: 'var(--font-mono)',
+                      color: 'var(--muted-foreground)',
                       fontSize: 11,
-                      textAlign: "right",
+                      textAlign: 'right',
                     }}
                   >
                     {row.invoiceCode}
@@ -1086,9 +1179,15 @@ export function TabSubscription({ id }: { id: boolean }) {
           {waiting.length === 0 && (
             <Unavailable
               id={id}
-              title={state.error
-                ? (id ? "Status tidak dapat dimuat" : "Status unavailable")
-                : (id ? "Belum ada langganan" : "No subscription yet")}
+              title={
+                state.error
+                  ? id
+                    ? 'Status tidak dapat dimuat'
+                    : 'Status unavailable'
+                  : id
+                    ? 'Belum ada langganan'
+                    : 'No subscription yet'
+              }
               body={emptyBody}
             />
           )}
@@ -1101,7 +1200,7 @@ export function TabSubscription({ id }: { id: boolean }) {
           way it is money received that turns into access, written by `grant()`
           from the settlement or the admin's approval — never a third hand. */}
     </Panel>
-  );
+  )
 }
 
 /* ── Tab 3: Appearance ───────────────────────────────────────────────────── */
@@ -1114,20 +1213,33 @@ function TabAppearance({
   onToggleLocale,
   fx,
 }: {
-  id: boolean;
-  isDark: boolean;
-  onToggleTheme: () => void;
-  locale: "id" | "en";
-  onToggleLocale: () => void;
-  fx: ExchangeRateData;
+  id: boolean
+  isDark: boolean
+  onToggleTheme: () => void
+  locale: 'id' | 'en'
+  onToggleLocale: () => void
+  fx: ExchangeRateData
 }) {
   return (
-    <Panel title={id ? "Tampilan" : "Appearance"}>
-      <SettingRow label={id ? "Tema" : "Theme"} description={id ? "Tampilan terang atau gelap" : "Light or dark appearance"}>
+    <Panel title={id ? 'Tampilan' : 'Appearance'}>
+      <SettingRow
+        label={id ? 'Tema' : 'Theme'}
+        description={id ? 'Tampilan terang atau gelap' : 'Light or dark appearance'}
+      >
         <ChoiceGroup
           options={[
-            { key: "light", label: id ? "Terang" : "Light", active: !isDark, onClick: isDark ? onToggleTheme : undefined },
-            { key: "dark", label: id ? "Gelap" : "Dark", active: isDark, onClick: isDark ? undefined : onToggleTheme },
+            {
+              key: 'light',
+              label: id ? 'Terang' : 'Light',
+              active: !isDark,
+              onClick: isDark ? onToggleTheme : undefined,
+            },
+            {
+              key: 'dark',
+              label: id ? 'Gelap' : 'Dark',
+              active: isDark,
+              onClick: isDark ? undefined : onToggleTheme,
+            },
           ]}
           id={id}
         />
@@ -1135,11 +1247,24 @@ function TabAppearance({
 
       <Divider />
 
-      <SettingRow label={id ? "Bahasa antarmuka" : "Interface language"} description={id ? "Bahasa teks antarmuka" : "Language of interface text"}>
+      <SettingRow
+        label={id ? 'Bahasa antarmuka' : 'Interface language'}
+        description={id ? 'Bahasa teks antarmuka' : 'Language of interface text'}
+      >
         <ChoiceGroup
           options={[
-            { key: "id", label: "Indonesia", active: locale === "id", onClick: locale === "en" ? onToggleLocale : undefined },
-            { key: "en", label: "English", active: locale === "en", onClick: locale === "id" ? onToggleLocale : undefined },
+            {
+              key: 'id',
+              label: 'Indonesia',
+              active: locale === 'id',
+              onClick: locale === 'en' ? onToggleLocale : undefined,
+            },
+            {
+              key: 'en',
+              label: 'English',
+              active: locale === 'en',
+              onClick: locale === 'id' ? onToggleLocale : undefined,
+            },
           ]}
           id={id}
         />
@@ -1147,11 +1272,26 @@ function TabAppearance({
 
       <Divider />
 
-      <SettingRow label={id ? "Mata uang" : "Currency"} description={id ? "Nilai portofolio ditampilkan dalam" : "Portfolio values are displayed in"}>
+      <SettingRow
+        label={id ? 'Mata uang' : 'Currency'}
+        description={
+          id ? 'Nilai portofolio ditampilkan dalam' : 'Portfolio values are displayed in'
+        }
+      >
         <ChoiceGroup
           options={[
-            { key: "idr", label: "IDR", active: !fx.showUsd, onClick: fx.showUsd ? fx.toggleCurrency : undefined },
-            { key: "usd", label: "USD", active: fx.showUsd, onClick: !fx.showUsd ? fx.toggleCurrency : undefined },
+            {
+              key: 'idr',
+              label: 'IDR',
+              active: !fx.showUsd,
+              onClick: fx.showUsd ? fx.toggleCurrency : undefined,
+            },
+            {
+              key: 'usd',
+              label: 'USD',
+              active: fx.showUsd,
+              onClick: !fx.showUsd ? fx.toggleCurrency : undefined,
+            },
           ]}
           id={id}
         />
@@ -1161,20 +1301,20 @@ function TabAppearance({
 
       <FxCard fx={fx} id={id} />
     </Panel>
-  );
+  )
 }
 
 function FxCard({ fx, id }: { fx: ExchangeRateData; id: boolean }) {
   // The rate is pushed with the market snapshot, so it is never older than the
   // prices. Saying so is the point: an unexplained number reads as a live feed.
-  const weaker = fx.change > 0;
+  const weaker = fx.change > 0
   return (
     <div
       style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius)",
-        padding: "16px 20px",
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        padding: '16px 20px',
         marginTop: 16,
       }}
     >
@@ -1182,107 +1322,116 @@ function FxCard({ fx, id }: { fx: ExchangeRateData; id: boolean }) {
         style={{
           fontSize: 12,
           fontWeight: 600,
-          color: "var(--foreground)",
+          color: 'var(--foreground)',
           marginBottom: 12,
-          display: "flex",
-          alignItems: "center",
+          display: 'flex',
+          alignItems: 'center',
           gap: 8,
         }}
       >
-        {id ? "Kurs USD/IDR" : "USD/IDR rate"}
-        <span style={{ fontSize: 11, fontWeight: 400, color: fx.isLive ? "var(--muted-foreground)" : "var(--warning)" }}>
+        {id ? 'Kurs USD/IDR' : 'USD/IDR rate'}
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 400,
+            color: fx.isLive ? 'var(--muted-foreground)' : 'var(--warning)',
+          }}
+        >
           {fx.isLive
             ? id
-              ? "dari snapshot pasar"
-              : "from market snapshot"
+              ? 'dari snapshot pasar'
+              : 'from market snapshot'
             : id
-              ? "belum ada feed"
-              : "no feed yet"}
+              ? 'belum ada feed'
+              : 'no feed yet'}
         </span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-        <Metric label={id ? "Kurs saat ini" : "Current rate"} value={`Rp ${fx.usdIdr.toLocaleString("id-ID")}`} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         <Metric
-          label={id ? "Perubahan" : "Change"}
-          value={`${fx.change >= 0 ? "+" : ""}${fx.change.toLocaleString("id-ID")}`}
-          tone={fx.change > 0 ? "loss" : fx.change < 0 ? "gain" : undefined}
+          label={id ? 'Kurs saat ini' : 'Current rate'}
+          value={`Rp ${fx.usdIdr.toLocaleString('id-ID')}`}
+        />
+        <Metric
+          label={id ? 'Perubahan' : 'Change'}
+          value={`${fx.change >= 0 ? '+' : ''}${fx.change.toLocaleString('id-ID')}`}
+          tone={fx.change > 0 ? 'loss' : fx.change < 0 ? 'gain' : undefined}
         />
         <Metric
           label="%"
-          value={`${fx.changePct >= 0 ? "+" : ""}${fx.changePct.toFixed(3)}%`}
-          tone={fx.changePct > 0 ? "loss" : fx.changePct < 0 ? "gain" : undefined}
+          value={`${fx.changePct >= 0 ? '+' : ''}${fx.changePct.toFixed(3)}%`}
+          tone={fx.changePct > 0 ? 'loss' : fx.changePct < 0 ? 'gain' : undefined}
         />
       </div>
 
-      <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: "12px 0 0" }}>
+      <p style={{ fontSize: 11, color: 'var(--muted-foreground)', margin: '12px 0 0' }}>
         {fx.isLive
           ? id
-            ? "Kurs dikirim bersama snapshot pasar, jadi kesegaran kurs mengikuti feed pasar. Rupiah melemah berarti potensi kerugian bagi investor yang memegang aset dalam dolar."
-            : "The rate arrives with the market snapshot, so it refreshes whenever the feed does. Rupiah weakening means potential loss for a holder of dollar-denominated assets."
+            ? 'Kurs dikirim bersama snapshot pasar, jadi kesegaran kurs mengikuti feed pasar. Rupiah melemah berarti potensi kerugian bagi investor yang memegang aset dalam dolar.'
+            : 'The rate arrives with the market snapshot, so it refreshes whenever the feed does. Rupiah weakening means potential loss for a holder of dollar-denominated assets.'
           : id
-            ? "Feed forex belum pernah mengirim angka, jadi nilai di atas bukan kurs pasar. Muat ulang setelah backend terhubung."
-            : "The forex feed has not reported a rate yet, so the figure above is not a market rate. Reload once the backend is connected."}
+            ? 'Feed forex belum pernah mengirim angka, jadi nilai di atas bukan kurs pasar. Muat ulang setelah backend terhubung.'
+            : 'The forex feed has not reported a rate yet, so the figure above is not a market rate. Reload once the backend is connected.'}
       </p>
       {weaker && !fx.isLive && null}
     </div>
-  );
+  )
 }
 
 /* ── Tab 4: Notifications ────────────────────────────────────────────────── */
 
 function TabNotifications({ id }: { id: boolean }) {
-  const [notifs, setNotifs] = useState<Record<NotifKey, boolean>>(readNotifPrefs);
-  const [saved, setSaved] = useState<NotifKey | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [notifs, setNotifs] = useState<Record<NotifKey, boolean>>(readNotifPrefs)
+  const [saved, setSaved] = useState<NotifKey | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     return () => {
-      if (timer.current !== null) clearTimeout(timer.current);
-    };
-  }, []);
+      if (timer.current !== null) clearTimeout(timer.current)
+    }
+  }, [])
 
   function toggle(key: NotifKey) {
     setNotifs((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
+      const next = { ...prev, [key]: !prev[key] }
       try {
-        localStorage.setItem(STORAGE_NOTIF, JSON.stringify(next));
+        localStorage.setItem(STORAGE_NOTIF, JSON.stringify(next))
       } catch {
         /* preference stays in memory for this session */
       }
-      return next;
-    });
-    if (timer.current !== null) clearTimeout(timer.current);
-    setSaved(key);
-    timer.current = setTimeout(() => setSaved(null), 2000);
+      return next
+    })
+    if (timer.current !== null) clearTimeout(timer.current)
+    setSaved(key)
+    timer.current = setTimeout(() => setSaved(null), 2000)
   }
 
   const rows: { key: NotifKey; label: string; en: string; desc: string; descEn: string }[] = [
     {
-      key: "ai_signals",
-      label: "Sinyal AI baru",
-      en: "New AI signals",
-      desc: "Saat model kuantitatif menghasilkan sinyal probabilitas baru",
-      descEn: "When the quantitative model produces a new probability signal",
+      key: 'ai_signals',
+      label: 'Sinyal AI baru',
+      en: 'New AI signals',
+      desc: 'Saat model kuantitatif menghasilkan sinyal probabilitas baru',
+      descEn: 'When the quantitative model produces a new probability signal',
     },
     {
-      key: "risk_alerts",
-      label: "Peringatan risiko",
-      en: "Risk alerts",
-      desc: "Saat eksposur risiko portofolio melewati ambang toleransi",
-      descEn: "When portfolio risk exposure crosses the tolerance threshold",
+      key: 'risk_alerts',
+      label: 'Peringatan risiko',
+      en: 'Risk alerts',
+      desc: 'Saat eksposur risiko portofolio melewati ambang toleransi',
+      descEn: 'When portfolio risk exposure crosses the tolerance threshold',
     },
     {
-      key: "corp_news",
-      label: "Berita korporasi",
-      en: "Corporate news",
-      desc: "Keterbukaan informasi emiten yang sedang dipantau",
-      descEn: "Listed-company disclosure filings for tracked holdings",
+      key: 'corp_news',
+      label: 'Berita korporasi',
+      en: 'Corporate news',
+      desc: 'Keterbukaan informasi emiten yang sedang dipantau',
+      descEn: 'Listed-company disclosure filings for tracked holdings',
     },
-  ];
+  ]
 
   return (
-    <Panel title={id ? "Notifikasi" : "Notifications"}>
+    <Panel title={id ? 'Notifikasi' : 'Notifications'}>
       {rows.map((r, i) => (
         <div key={r.key}>
           {i > 0 && <Divider />}
@@ -1291,58 +1440,80 @@ function TabNotifications({ id }: { id: boolean }) {
             description={id ? r.desc : r.descEn}
             isOn={notifs[r.key]}
             saved={saved === r.key}
-            savedLabel={id ? "Tersimpan" : "Saved"}
+            savedLabel={id ? 'Tersimpan' : 'Saved'}
             onToggle={() => toggle(r.key)}
             id={`notif-${r.key}`}
           />
         </div>
       ))}
     </Panel>
-  );
+  )
 }
 
 /* ── Tab 5: About ────────────────────────────────────────────────────────── */
 
-function TabAbout({ id, fx, freshness }: { id: boolean; fx: ExchangeRateData; freshness?: DataFreshness }) {
+function TabAbout({
+  id,
+  fx,
+  freshness,
+}: {
+  id: boolean
+  fx: ExchangeRateData
+  freshness?: DataFreshness
+}) {
   // Only facts this component can actually verify. Version, model name and
   // last-trained date are absent on purpose: they are not readable from the
   // backend, so a fixed string there would be a number that goes stale.
   const feedStatus = !fx.isLive
     ? id
-      ? "Belum terhubung"
-      : "Not connected"
+      ? 'Belum terhubung'
+      : 'Not connected'
     : !freshness
       ? id
-        ? "Langsung"
-        : "Live"
+        ? 'Langsung'
+        : 'Live'
       : freshness.isSimulated
         ? id
-          ? "Simulasi"
-          : "Simulated"
+          ? 'Simulasi'
+          : 'Simulated'
         : freshness.isDelayed
           ? id
             ? `Tertunda ${Math.round(freshness.delaySeconds / 60)} menit`
             : `Delayed ${Math.round(freshness.delaySeconds / 60)} min`
           : id
-            ? "Langsung"
-            : "Live";
+            ? 'Langsung'
+            : 'Live'
 
   const rows: [string, string][] = [
-    [id ? "Sumber data" : "Data source", "IDX / Yahoo Finance"],
-    [id ? "Bursa" : "Exchange", "BEI (IDX)"],
-    [id ? "Zona waktu" : "Timezone", "WIB (UTC+7)"],
-    [id ? "Status feed" : "Feed status", feedStatus],
-  ];
+    [id ? 'Sumber data' : 'Data source', 'IDX / Yahoo Finance'],
+    [id ? 'Bursa' : 'Exchange', 'BEI (IDX)'],
+    [id ? 'Zona waktu' : 'Timezone', 'WIB (UTC+7)'],
+    [id ? 'Status feed' : 'Feed status', feedStatus],
+  ]
 
   return (
-    <Panel title={id ? "Tentang" : "About"}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+    <Panel title={id ? 'Tentang' : 'About'}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         {rows.map(([label, value]) => (
-          <div key={label} style={{ background: "var(--muted)", borderRadius: "var(--radius)", padding: "10px 14px" }}>
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>
+          <div
+            key={label}
+            style={{
+              background: 'var(--muted)',
+              borderRadius: 'var(--radius)',
+              padding: '10px 14px',
+            }}
+          >
+            <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>
               {label}
             </div>
-            <div style={{ fontSize: 12, fontWeight: 500, color: "var(--foreground)", fontFamily: "var(--font-mono)" }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 500,
+                color: 'var(--foreground)',
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
               {value}
             </div>
           </div>
@@ -1354,61 +1525,92 @@ function TabAbout({ id, fx, freshness }: { id: boolean; fx: ExchangeRateData; fr
       {/* Regulatory line, plain text. The consent modal in AIAdvisorView is the
           enforced gate (Gate 2 in docs/legal-and-consent.md); this is the
           standing reference, not a second consent surface. */}
-      <p style={{ fontSize: 11, color: "var(--muted-foreground)", margin: 0 }}>
+      <p style={{ fontSize: 11, color: 'var(--muted-foreground)', margin: 0 }}>
         {id
-          ? "AIDSS adalah perangkat analisis data, bukan Penasihat Investasi berizin OJK. Semua skor adalah probabilitas matematis, bukan rekomendasi beli, jual, atau tahan efek."
-          : "AIDSS is a data analytics tool, not an OJK-licensed Investment Advisor. Every score is a mathematical probability, not a recommendation to buy, sell, or hold any security."}
+          ? 'AIDSS adalah perangkat analisis data, bukan Penasihat Investasi berizin OJK. Semua skor adalah probabilitas matematis, bukan rekomendasi beli, jual, atau tahan efek.'
+          : 'AIDSS is a data analytics tool, not an OJK-licensed Investment Advisor. Every score is a mathematical probability, not a recommendation to buy, sell, or hold any security.'}
       </p>
     </Panel>
-  );
+  )
 }
 
 /* ── Primitives ──────────────────────────────────────────────────────────── */
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
-      <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)" }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)" }}>{title}</span>
+    <div
+      style={{
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>{title}</span>
       </div>
-      <div style={{ padding: "16px 20px" }}>{children}</div>
+      <div style={{ padding: '16px 20px' }}>{children}</div>
     </div>
-  );
+  )
 }
 
 function Unavailable({ id, title, body }: { id: boolean; title: string; body: string }) {
   return (
-    <div role="status" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <span style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)" }}>{title}</span>
-      <span style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{body}</span>
-      <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontFamily: "var(--font-mono)" }}>
-        {id ? "docs/saas-subscription-platform.md, Fase 1" : "docs/saas-subscription-platform.md, Phase 1"}
+    <div role="status" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{title}</span>
+      <span style={{ fontSize: 12, color: 'var(--muted-foreground)', lineHeight: 1.5 }}>
+        {body}
+      </span>
+      <span
+        style={{ fontSize: 11, color: 'var(--muted-foreground)', fontFamily: 'var(--font-mono)' }}
+      >
+        {id
+          ? 'docs/saas-subscription-platform.md, Fase 1'
+          : 'docs/saas-subscription-platform.md, Phase 1'}
       </span>
     </div>
-  );
+  )
 }
 
-function SettingRow({ label, description, children }: { label: string; description: string; children: ReactNode }) {
+function SettingRow({
+  label,
+  description,
+  children,
+}: {
+  label: string
+  description: string
+  children: ReactNode
+}) {
   return (
-    <div className="setting-row" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24 }}>
+    <div
+      className="setting-row"
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: 24,
+      }}
+    >
       <div>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)" }}>{label}</div>
-        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>{description}</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{label}</div>
+        <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>
+          {description}
+        </div>
       </div>
       {children}
     </div>
-  );
+  )
 }
 
 function ChoiceGroup({
   options,
   id,
 }: {
-  options: { key: string; label: string; active: boolean; onClick?: () => void }[];
-  id: boolean;
+  options: { key: string; label: string; active: boolean; onClick?: () => void }[]
+  id: boolean
 }) {
   return (
-    <div role="group" style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+    <div role="group" style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
       {options.map((o) => (
         <button
           key={o.key}
@@ -1418,12 +1620,12 @@ function ChoiceGroup({
           disabled={!o.onClick}
           style={{
             minHeight: 32,
-            padding: "6px 12px",
-            borderRadius: "var(--radius)",
-            cursor: o.onClick ? "pointer" : "default",
-            background: o.active ? "var(--muted)" : "transparent",
-            border: "none",
-            color: o.active ? "var(--foreground)" : "var(--muted-foreground)",
+            padding: '6px 12px',
+            borderRadius: 'var(--radius)',
+            cursor: o.onClick ? 'pointer' : 'default',
+            background: o.active ? 'var(--muted)' : 'transparent',
+            border: 'none',
+            color: o.active ? 'var(--foreground)' : 'var(--muted-foreground)',
             fontSize: 12,
             fontWeight: o.active ? 500 : 400,
           }}
@@ -1433,7 +1635,7 @@ function ChoiceGroup({
       ))}
       {id ? null : null}
     </div>
-  );
+  )
 }
 
 function ToggleRow({
@@ -1445,31 +1647,41 @@ function ToggleRow({
   savedLabel,
   id,
 }: {
-  label: string;
-  description: string;
-  isOn: boolean;
-  onToggle: () => void;
-  saved: boolean;
-  savedLabel: string;
-  id: string;
+  label: string
+  description: string
+  isOn: boolean
+  onToggle: () => void
+  saved: boolean
+  savedLabel: string
+  id: string
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, padding: "4px 0" }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: 24,
+        padding: '4px 0',
+      }}
+    >
       <div style={{ flex: 1 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 20 }}>
-          <label htmlFor={id} style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)", cursor: "pointer" }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 20 }}>
+          <label
+            htmlFor={id}
+            style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}
+          >
             {label}
           </label>
           {saved && (
-            <span
-              style={{ fontSize: 11, color: "var(--muted-foreground)" }}
-              role="status"
-            >
+            <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }} role="status">
               {savedLabel}
             </span>
           )}
         </div>
-        <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>{description}</div>
+        <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>
+          {description}
+        </div>
       </div>
       <button
         id={id}
@@ -1483,14 +1695,14 @@ function ToggleRow({
           height: 20,
           minHeight: 44,
           borderRadius: 10,
-          background: isOn ? "var(--primary)" : "var(--switch-background)",
-          position: "relative",
-          cursor: "pointer",
+          background: isOn ? 'var(--primary)' : 'var(--switch-background)',
+          position: 'relative',
+          cursor: 'pointer',
           flexShrink: 0,
           marginTop: 12,
-          border: "none",
+          border: 'none',
           padding: 0,
-          transition: "background 0.15s",
+          transition: 'background 0.15s',
         }}
       >
         <span
@@ -1498,40 +1710,39 @@ function ToggleRow({
           style={{
             width: 14,
             height: 14,
-            borderRadius: "50%",
-            background: "var(--card)",
-            position: "absolute",
+            borderRadius: '50%',
+            background: 'var(--card)',
+            position: 'absolute',
             top: 3,
             left: isOn ? 19 : 3,
-            transition: "left 0.15s",
-            pointerEvents: "none",
+            transition: 'left 0.15s',
+            pointerEvents: 'none',
           }}
         />
       </button>
     </div>
-  );
+  )
 }
 
-function Metric({ label, value, tone }: { label: string; value: string; tone?: "gain" | "loss" }) {
+function Metric({ label, value, tone }: { label: string; value: string; tone?: 'gain' | 'loss' }) {
   return (
     <div>
-      <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 4 }}>
-        {label}
-      </div>
+      <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>{label}</div>
       <div
         style={{
           fontSize: 13,
           fontWeight: 600,
-          fontFamily: "var(--font-mono)",
-          color: tone === "gain" ? "var(--gain)" : tone === "loss" ? "var(--loss)" : "var(--foreground)",
+          fontFamily: 'var(--font-mono)',
+          color:
+            tone === 'gain' ? 'var(--gain)' : tone === 'loss' ? 'var(--loss)' : 'var(--foreground)',
         }}
       >
         {value}
       </div>
     </div>
-  );
+  )
 }
 
 function Divider() {
-  return <div style={{ height: 1, background: "var(--border)", margin: "16px 0" }} />;
+  return <div style={{ height: 1, background: 'var(--border)', margin: '16px 0' }} />
 }

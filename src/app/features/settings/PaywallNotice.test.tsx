@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
-import { PaywallNotice } from "@/app/features/settings/PaywallNotice";
+import { PaywallNotice } from '@/app/features/settings/PaywallNotice'
 
 /**
  * What the app says when the paid data is being refused.
@@ -16,39 +16,39 @@ import { PaywallNotice } from "@/app/features/settings/PaywallNotice";
  * to one — a control that looks live and does nothing is worse than its absence
  * (R-26, recorded in SettingsView).
  */
-describe("PaywallNotice", () => {
-  it("names the subscription rather than the connection", () => {
-    render(<PaywallNotice onOpenSettings={() => {}} />);
+describe('PaywallNotice', () => {
+  it('names the subscription rather than the connection', () => {
+    render(<PaywallNotice onOpenSettings={() => {}} />)
 
-    expect(screen.getByText(/langganan/i)).toBeInTheDocument();
-    expect(screen.queryByText(/tidak terjangkau/i)).not.toBeInTheDocument();
-  });
+    expect(screen.getByText(/langganan/i)).toBeInTheDocument()
+    expect(screen.queryByText(/tidak terjangkau/i)).not.toBeInTheDocument()
+  })
 
-  it("points at Settings, which is where the status can be read", async () => {
-    const onOpenSettings = vi.fn();
-    render(<PaywallNotice onOpenSettings={onOpenSettings} />);
+  it('points at Settings, which is where the status can be read', async () => {
+    const onOpenSettings = vi.fn()
+    render(<PaywallNotice onOpenSettings={onOpenSettings} />)
 
-    await userEvent.click(screen.getByRole("button"));
+    await userEvent.click(screen.getByRole('button'))
 
-    expect(onOpenSettings).toHaveBeenCalledTimes(1);
-  });
+    expect(onOpenSettings).toHaveBeenCalledTimes(1)
+  })
 
-  it("offers nothing that pretends to be a purchase", () => {
-    render(<PaywallNotice onOpenSettings={() => {}} />);
+  it('offers nothing that pretends to be a purchase', () => {
+    render(<PaywallNotice onOpenSettings={() => {}} />)
 
     // R-26: no control may look live without a path behind it.
-    expect(screen.queryByRole("button", { name: /beli|buy|upgrade/i })).toBeNull();
-  });
+    expect(screen.queryByRole('button', { name: /beli|buy|upgrade/i })).toBeNull()
+  })
 
-  it("says nothing is known when the server could not be asked", () => {
-    render(<PaywallNotice reason="unknown" onOpenSettings={() => {}} />);
+  it('says nothing is known when the server could not be asked', () => {
+    render(<PaywallNotice reason="unknown" onOpenSettings={() => {}} />)
 
-    expect(screen.getByText(/tidak dapat dipastikan/i)).toBeInTheDocument();
-  });
+    expect(screen.getByText(/tidak dapat dipastikan/i)).toBeInTheDocument()
+  })
 
-  it("renders in English when the interface is", () => {
-    render(<PaywallNotice locale="en" onOpenSettings={() => {}} />);
+  it('renders in English when the interface is', () => {
+    render(<PaywallNotice locale="en" onOpenSettings={() => {}} />)
 
-    expect(screen.getByText(/subscription/i)).toBeInTheDocument();
-  });
-});
+    expect(screen.getByText(/subscription/i)).toBeInTheDocument()
+  })
+})

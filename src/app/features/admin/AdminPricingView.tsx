@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { ENDPOINTS, apiFetch } from "@/app/config/api";
+import { ENDPOINTS, apiFetch } from '@/app/config/api'
 
 /**
  * Sets what a subscription costs.
@@ -24,48 +24,48 @@ import { ENDPOINTS, apiFetch } from "@/app/config/api";
  */
 
 interface PricingState {
-  weekly: number;
-  monthly: number;
-  annual: number;
-  updatedAt: string | null;
+  weekly: number
+  monthly: number
+  annual: number
+  updatedAt: string | null
 }
 
 type LoadState =
-  | { kind: "loading" }
-  | { kind: "ready"; pricing: PricingState }
-  | { kind: "unavailable" }
-  | { kind: "forbidden" };
+  | { kind: 'loading' }
+  | { kind: 'ready'; pricing: PricingState }
+  | { kind: 'unavailable' }
+  | { kind: 'forbidden' }
 
 const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  fontSize: "14px",
-  fontFamily: "var(--font-mono)",
-  color: "var(--foreground)",
-  background: "var(--input-background, #fff)",
+  width: '100%',
+  padding: '10px 12px',
+  fontSize: '14px',
+  fontFamily: 'var(--font-mono)',
+  color: 'var(--foreground)',
+  background: 'var(--input-background, #fff)',
   // --control-border, not --border: ADR-0007 gives interactive boundaries a
   // contrast floor that the divider token deliberately sits below.
-  border: "1px solid var(--control-border)",
-  borderRadius: "var(--radius)",
-};
+  border: '1px solid var(--control-border)',
+  borderRadius: 'var(--radius)',
+}
 
 const labelStyle: React.CSSProperties = {
-  display: "block",
+  display: 'block',
   fontSize: 13,
-  color: "var(--foreground)",
-  marginBottom: "6px",
-};
+  color: 'var(--foreground)',
+  marginBottom: '6px',
+}
 
-const rupiah = (n: number) => `Rp ${n.toLocaleString("id-ID")}`;
+const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
 
 export function AdminPricingView() {
-  const [state, setState] = useState<LoadState>({ kind: "loading" });
-  const [weekly, setWeekly] = useState("");
-  const [monthly, setMonthly] = useState("");
-  const [annual, setAnnual] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [state, setState] = useState<LoadState>({ kind: 'loading' })
+  const [weekly, setWeekly] = useState('')
+  const [monthly, setMonthly] = useState('')
+  const [annual, setAnnual] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [savedAt, setSavedAt] = useState<number | null>(null)
 
   /**
    * Put the fields back to the last price the server confirmed.
@@ -73,15 +73,15 @@ export function AdminPricingView() {
    * A ref, not state: `save` reads it at the moment a re-read fails, and holding
    * it in state would re-create every consumer on each keystroke for no benefit.
    */
-  const lastKnown = useRef<PricingState | null>(null);
+  const lastKnown = useRef<PricingState | null>(null)
 
   const restoreFields = useCallback(() => {
-    const pricing = lastKnown.current;
-    if (!pricing) return;
-    setWeekly(String(pricing.weekly));
-    setMonthly(String(pricing.monthly));
-    setAnnual(String(pricing.annual));
-  }, []);
+    const pricing = lastKnown.current
+    if (!pricing) return
+    setWeekly(String(pricing.weekly))
+    setMonthly(String(pricing.monthly))
+    setAnnual(String(pricing.annual))
+  }, [])
 
   /**
    * `quiet` is a re-read after a refused save.
@@ -92,56 +92,56 @@ export function AdminPricingView() {
    * caller has to do something different when it did not.
    */
   const load = useCallback(async (quiet = false): Promise<boolean> => {
-    if (!quiet) setState({ kind: "loading" });
+    if (!quiet) setState({ kind: 'loading' })
     try {
-      const res = await apiFetch(ENDPOINTS.adminPricing);
+      const res = await apiFetch(ENDPOINTS.adminPricing)
       if (res.status === 403) {
-        if (!quiet) setState({ kind: "forbidden" });
-        return false;
+        if (!quiet) setState({ kind: 'forbidden' })
+        return false
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const pricing = (await res.json()) as PricingState;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const pricing = (await res.json()) as PricingState
       if (
         !Number.isFinite(pricing.weekly) ||
         !Number.isFinite(pricing.monthly) ||
         !Number.isFinite(pricing.annual)
       ) {
-        throw new Error("price payload is not three numbers");
+        throw new Error('price payload is not three numbers')
       }
-      lastKnown.current = pricing;
-      setState({ kind: "ready", pricing });
-      setWeekly(String(pricing.weekly));
-      setMonthly(String(pricing.monthly));
-      setAnnual(String(pricing.annual));
-      return true;
+      lastKnown.current = pricing
+      setState({ kind: 'ready', pricing })
+      setWeekly(String(pricing.weekly))
+      setMonthly(String(pricing.monthly))
+      setAnnual(String(pricing.annual))
+      return true
     } catch {
       // 503, a transport failure, and a body that is not a price all land here.
       // Either way the screen must not fall back to an empty field, which would
       // read as "free".
-      if (!quiet) setState({ kind: "unavailable" });
-      return false;
+      if (!quiet) setState({ kind: 'unavailable' })
+      return false
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load()
+  }, [load])
 
   async function save() {
-    const w = Number(weekly);
-    const m = Number(monthly);
-    const a = Number(annual);
-    setSaving(true);
-    setSaveError(null);
-    setSavedAt(null);
+    const w = Number(weekly)
+    const m = Number(monthly)
+    const a = Number(annual)
+    setSaving(true)
+    setSaveError(null)
+    setSavedAt(null)
     try {
       const res = await apiFetch(ENDPOINTS.adminPricing, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ weekly: w, monthly: m, annual: a }),
-      });
+      })
       if (!res.ok) {
-        setSaveError(String(res.status));
+        setSaveError(String(res.status))
         // Re-read, so the fields go back to what the server still holds rather
         // than sitting there showing a number it refused.
         //
@@ -150,63 +150,59 @@ export function AdminPricingView() {
         // exact failure this component exists to prevent, and it would be worse
         // here than nowhere, because the banner would be claiming "unchanged"
         // directly above a field showing something else.
-        if (!(await load(true))) restoreFields();
-        return;
+        if (!(await load(true))) restoreFields()
+        return
       }
-      const saved = (await res.json()) as PricingState;
+      const saved = (await res.json()) as PricingState
       if (
         !Number.isFinite(saved.weekly) ||
         !Number.isFinite(saved.monthly) ||
         !Number.isFinite(saved.annual)
       ) {
-        throw new Error("price payload is not three numbers");
+        throw new Error('price payload is not three numbers')
       }
-      lastKnown.current = saved;
-      setState({ kind: "ready", pricing: saved });
-      setWeekly(String(saved.weekly));
-      setMonthly(String(saved.monthly));
-      setAnnual(String(saved.annual));
-      setSavedAt(Date.now());
+      lastKnown.current = saved
+      setState({ kind: 'ready', pricing: saved })
+      setWeekly(String(saved.weekly))
+      setMonthly(String(saved.monthly))
+      setAnnual(String(saved.annual))
+      setSavedAt(Date.now())
     } catch {
-      setSaveError("network");
-      if (!(await load(true))) restoreFields();
+      setSaveError('network')
+      if (!(await load(true))) restoreFields()
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
   }
 
-  if (state.kind === "loading") {
-    return (
-      <p style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-        Memuat harga…
-      </p>
-    );
+  if (state.kind === 'loading') {
+    return <p style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Memuat harga…</p>
   }
 
-  if (state.kind === "forbidden") {
+  if (state.kind === 'forbidden') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
         Hanya administrator yang bisa mengubah harga. Ini bukan masalah langganan.
       </div>
-    );
+    )
   }
 
-  if (state.kind === "unavailable") {
+  if (state.kind === 'unavailable') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-        Harga tidak dapat dimuat. Formulir sengaja dikosongkan di sini: kolom kosong
-        terbaca sebagai gratis, dan gratis bukan harga yang pernah ditetapkan.
+      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+        Harga tidak dapat dimuat. Formulir sengaja dikosongkan di sini: kolom kosong terbaca sebagai
+        gratis, dan gratis bukan harga yang pernah ditetapkan.
       </div>
-    );
+    )
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 460 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 460 }}>
       <div>
         <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Harga Langganan</h3>
-        <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
-          Satu-satunya tempat harga ini ditulis. Angka di dokumen tidak mengikat —
-          nilai di bawah adalah yang dibaca publik.
+        <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
+          Satu-satunya tempat harga ini ditulis. Angka di dokumen tidak mengikat — nilai di bawah
+          adalah yang dibaca publik.
         </p>
       </div>
 
@@ -215,26 +211,26 @@ export function AdminPricingView() {
           role="alert"
           style={{
             fontSize: 12,
-            color: "var(--warning)",
-            background: "var(--warning-bg)",
-            border: "1px solid var(--warning)",
-            borderRadius: "var(--radius)",
-            padding: "8px 10px",
+            color: 'var(--warning)',
+            background: 'var(--warning-bg)',
+            border: '1px solid var(--warning)',
+            borderRadius: 'var(--radius)',
+            padding: '8px 10px',
           }}
         >
-          {saveError === "network"
-            ? "Server tidak terjangkau. Harga tidak berubah."
+          {saveError === 'network'
+            ? 'Server tidak terjangkau. Harga tidak berubah.'
             : `Permintaan ditolak (${saveError}). Harga tidak berubah.`}
         </div>
       )}
 
       {savedAt !== null && (
-        <div style={{ fontSize: 11, color: "var(--gain)" }}>
+        <div style={{ fontSize: 11, color: 'var(--gain)' }}>
           Tersimpan. Endpoint publik sekarang melaporkan nilai ini.
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 180 }}>
           <label htmlFor="pricing-weekly" style={labelStyle}>
             Mingguan (Rp)
@@ -247,7 +243,7 @@ export function AdminPricingView() {
             onChange={(e) => setWeekly(e.target.value)}
             style={inputStyle}
           />
-          <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+          <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
             Sekarang: {rupiah(state.pricing.weekly)}
           </p>
         </div>
@@ -264,7 +260,7 @@ export function AdminPricingView() {
             onChange={(e) => setMonthly(e.target.value)}
             style={inputStyle}
           />
-          <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+          <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
             Sekarang: {rupiah(state.pricing.monthly)}
           </p>
         </div>
@@ -281,38 +277,38 @@ export function AdminPricingView() {
             onChange={(e) => setAnnual(e.target.value)}
             style={inputStyle}
           />
-          <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+          <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
             Sekarang: {rupiah(state.pricing.annual)}
           </p>
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <button
           type="button"
           onClick={() => void save()}
           disabled={saving}
           style={{
             fontSize: 12,
-            padding: "8px 16px",
+            padding: '8px 16px',
             minHeight: 36,
             fontWeight: 600,
-            color: "var(--primary-foreground)",
-            background: "var(--primary)",
-            border: "1px solid var(--primary)",
-            borderRadius: "var(--radius)",
-            cursor: saving ? "default" : "pointer",
+            color: 'var(--primary-foreground)',
+            background: 'var(--primary)',
+            border: '1px solid var(--primary)',
+            borderRadius: 'var(--radius)',
+            cursor: saving ? 'default' : 'pointer',
             opacity: saving ? 0.7 : 1,
           }}
         >
-          {saving ? "Menyimpan…" : "Simpan"}
+          {saving ? 'Menyimpan…' : 'Simpan'}
         </button>
         {state.pricing.updatedAt && (
-          <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
-            Diperbarui {new Date(state.pricing.updatedAt).toLocaleString("id-ID")}
+          <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+            Diperbarui {new Date(state.pricing.updatedAt).toLocaleString('id-ID')}
           </span>
         )}
       </div>
     </div>
-  );
+  )
 }

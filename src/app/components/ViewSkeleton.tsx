@@ -1,8 +1,8 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties } from 'react'
 
 /** Pulsing placeholder used while async data hooks are fetching. */
 export function ViewSkeleton({ rows = 4, label }: { rows?: number; label?: string }) {
-  const cols = Math.min(rows, 4);
+  const cols = Math.min(rows, 4)
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5 [&>*]:shrink-0">
       {/* Metric strip */}
@@ -11,7 +11,7 @@ export function ViewSkeleton({ rows = 4, label }: { rows?: number; label?: strin
           <div
             key={i}
             className="rounded p-4"
-            style={{ background: "var(--card)", border: "1px solid var(--border)", height: 72 }}
+            style={{ background: 'var(--card)', border: '1px solid var(--border)', height: 72 }}
           >
             <Pulse width="40%" height={10} />
             <Pulse width="70%" height={18} style={{ marginTop: 10 }} />
@@ -24,10 +24,10 @@ export function ViewSkeleton({ rows = 4, label }: { rows?: number; label?: strin
         <div
           key={i}
           className="rounded p-5 flex flex-col gap-3"
-          style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
         >
           <div className="flex items-center gap-4">
-            <Pulse width={56} height={56} style={{ borderRadius: "50%", flexShrink: 0 }} />
+            <Pulse width={56} height={56} style={{ borderRadius: '50%', flexShrink: 0 }} />
             <div className="flex-1 flex flex-col gap-2">
               <Pulse width="35%" height={12} />
               <Pulse width="80%" height={10} />
@@ -38,15 +38,30 @@ export function ViewSkeleton({ rows = 4, label }: { rows?: number; label?: strin
       ))}
 
       {label && (
-        <div style={{ textAlign: "center", fontSize: 11, color: "var(--muted-foreground)", marginTop: 4 }}>
+        <div
+          style={{
+            textAlign: 'center',
+            fontSize: 11,
+            color: 'var(--muted-foreground)',
+            marginTop: 4,
+          }}
+        >
           {label}
         </div>
       )}
     </div>
-  );
+  )
 }
 
-function Pulse({ width, height, style }: { width: number | string; height: number; style?: CSSProperties }) {
+function Pulse({
+  width,
+  height,
+  style,
+}: {
+  width: number | string
+  height: number
+  style?: CSSProperties
+}) {
   return (
     <div
       className="animate-pulse"
@@ -54,9 +69,9 @@ function Pulse({ width, height, style }: { width: number | string; height: numbe
         width,
         height,
         borderRadius: 4,
-        background: "var(--muted)",
+        background: 'var(--muted)',
         ...style,
       }}
     />
-  );
+  )
 }

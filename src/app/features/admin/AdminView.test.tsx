@@ -25,8 +25,24 @@ const state = {
 }
 
 const ACCOUNTS = [
-  { id: 'a1', email: 'siti@aidss.id', full_name: 'Siti Rahayu', phone_number: '0812', role: 'user', blocked: false, blocked_at: null },
-  { id: 'a2', email: 'budi@aidss.id', full_name: 'Budi Santoso', phone_number: '0813', role: 'admin', blocked: true, blocked_at: '2026-10-01T00:00:00+00:00' },
+  {
+    id: 'a1',
+    email: 'siti@aidss.id',
+    full_name: 'Siti Rahayu',
+    phone_number: '0812',
+    role: 'user',
+    blocked: false,
+    blocked_at: null,
+  },
+  {
+    id: 'a2',
+    email: 'budi@aidss.id',
+    full_name: 'Budi Santoso',
+    phone_number: '0813',
+    role: 'admin',
+    blocked: true,
+    blocked_at: '2026-10-01T00:00:00+00:00',
+  },
 ]
 
 // Only the transport is faked; the real error classification stays real.
@@ -43,7 +59,11 @@ vi.mock('@/app/config/api', async (importOriginal) => ({
 
     if (method !== 'GET') {
       const reply = state.block ?? { status: 200, body: {} }
-      return { ok: reply.status < 400, status: reply.status, json: async () => reply.body } as unknown as Response
+      return {
+        ok: reply.status < 400,
+        status: reply.status,
+        json: async () => reply.body,
+      } as unknown as Response
     }
 
     if (state.failList) throw new Error('offline')
@@ -58,11 +78,19 @@ vi.mock('@/app/config/api', async (importOriginal) => ({
           updatedAt: '2026-10-01T09:30:00+00:00',
         },
       }
-      return { ok: reply.status < 400, status: reply.status, json: async () => reply.body } as unknown as Response
+      return {
+        ok: reply.status < 400,
+        status: reply.status,
+        json: async () => reply.body,
+      } as unknown as Response
     }
 
     const reply = state.list ?? { status: 200, body: { accounts: ACCOUNTS, hasMore: false } }
-    return { ok: reply.status < 400, status: reply.status, json: async () => reply.body } as unknown as Response
+    return {
+      ok: reply.status < 400,
+      status: reply.status,
+      json: async () => reply.body,
+    } as unknown as Response
   }),
 }))
 

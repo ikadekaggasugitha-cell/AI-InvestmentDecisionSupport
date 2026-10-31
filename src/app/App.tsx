@@ -1,107 +1,159 @@
-import { useState, useMemo, useEffect, lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { AppProvider, useApp } from "@/app/context/AppContext";
-import { ErrorBoundary } from "@/app/components/ErrorBoundary";
-import { Sidebar, type ViewType } from "@/app/components/Sidebar";
-import { Header } from "@/app/components/Header";
-import { ViewSkeleton } from "@/app/components/ViewSkeleton";
+import { useState, useMemo, useEffect, lazy, Suspense } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { AppProvider, useApp } from '@/app/context/AppContext'
+import { ErrorBoundary } from '@/app/components/ErrorBoundary'
+import { Sidebar, type ViewType } from '@/app/components/Sidebar'
+import { Header } from '@/app/components/Header'
+import { ViewSkeleton } from '@/app/components/ViewSkeleton'
 // Views are code-split: each is its own chunk, loaded on first navigation to
 // it. Only the shell (Sidebar/Header) and the initial dashboard cost anything
 // up front — the app previously bundled all eight views into one eager chunk,
 // which is why the build warned about a >500 kB bundle.
-const DashboardView = lazy(() => import("@/app/features/dashboard/DashboardView").then((m) => ({ default: m.DashboardView })));
-const MarketsView   = lazy(() => import("@/app/features/market/MarketsView").then((m) => ({ default: m.MarketsView })));
-const PortfolioView = lazy(() => import("@/app/features/portfolio/PortfolioView").then((m) => ({ default: m.PortfolioView })));
-const AIAdvisorView = lazy(() => import("@/app/features/advisor/AIAdvisorView").then((m) => ({ default: m.AIAdvisorView })));
-const RiskView      = lazy(() => import("@/app/features/risk/RiskView").then((m) => ({ default: m.RiskView })));
-const NewsView      = lazy(() => import("@/app/features/news/NewsView").then((m) => ({ default: m.NewsView })));
-const SettingsView  = lazy(() => import("@/app/features/settings/SettingsView").then((m) => ({ default: m.SettingsView })));
-const ReportsView   = lazy(() => import("@/app/features/reports/ReportsView").then((m) => ({ default: m.ReportsView })));
-const AlertsView    = lazy(() => import("@/app/features/reports/AlertsView").then((m) => ({ default: m.AlertsView })));
+const DashboardView = lazy(() =>
+  import('@/app/features/dashboard/DashboardView').then((m) => ({ default: m.DashboardView })),
+)
+const MarketsView = lazy(() =>
+  import('@/app/features/market/MarketsView').then((m) => ({ default: m.MarketsView })),
+)
+const PortfolioView = lazy(() =>
+  import('@/app/features/portfolio/PortfolioView').then((m) => ({ default: m.PortfolioView })),
+)
+const AIAdvisorView = lazy(() =>
+  import('@/app/features/advisor/AIAdvisorView').then((m) => ({ default: m.AIAdvisorView })),
+)
+const RiskView = lazy(() =>
+  import('@/app/features/risk/RiskView').then((m) => ({ default: m.RiskView })),
+)
+const NewsView = lazy(() =>
+  import('@/app/features/news/NewsView').then((m) => ({ default: m.NewsView })),
+)
+const SettingsView = lazy(() =>
+  import('@/app/features/settings/SettingsView').then((m) => ({ default: m.SettingsView })),
+)
+const ReportsView = lazy(() =>
+  import('@/app/features/reports/ReportsView').then((m) => ({ default: m.ReportsView })),
+)
+const AlertsView = lazy(() =>
+  import('@/app/features/reports/AlertsView').then((m) => ({ default: m.AlertsView })),
+)
 // Lazy for the same reason as the rest, and it keeps the admin bundle out of the
 // chunk every signed-in person downloads — including the ones who will never be
 // allowed to see it.
-const AdminView     = lazy(() => import("@/app/features/admin/AdminView").then((m) => ({ default: m.AdminView })));
-import { useLiveMarket } from "@/app/features/market/useLiveMarket";
-import { useExchangeRate } from "@/app/features/market/useExchangeRate";
-import { useNews } from "@/app/features/news/useNews";
-import { usePortfolio } from "@/app/features/portfolio/usePortfolio";
-import { useWatchlist } from "@/app/features/market/useWatchlist";
-import { useWindowWidth } from "@/app/hooks/useWindowWidth";
-import { useAlerts } from "@/app/features/reports/useAlerts";
-import { useTranslation } from "@/app/i18n/translations";
-import { Toaster } from "@/app/components/ui/sonner";
-import { onAuthExpired } from "@/app/config/api";
-import { PaywallNotice } from "@/app/features/settings/PaywallNotice";
-import { useAuth } from "@/app/features/identity/useAuth";
-import { useOverlayScrollbars } from "@/app/hooks/useOverlayScrollbars";
-import { AuthScreen } from "@/app/features/identity/AuthScreen";
-import { PublicPricing } from "@/app/features/public/PublicPricing";
-import { PublicFeatures } from "@/app/features/public/PublicFeatures";
-import { SuspensionScreen } from "@/app/features/identity/SuspensionScreen";
-import { planFromSearch, writePlanIntent } from "@/app/planIntent";
-import { toast } from "sonner";
+const AdminView = lazy(() =>
+  import('@/app/features/admin/AdminView').then((m) => ({ default: m.AdminView })),
+)
+import { useLiveMarket } from '@/app/features/market/useLiveMarket'
+import { useExchangeRate } from '@/app/features/market/useExchangeRate'
+import { useNews } from '@/app/features/news/useNews'
+import { usePortfolio } from '@/app/features/portfolio/usePortfolio'
+import { useWatchlist } from '@/app/features/market/useWatchlist'
+import { useWindowWidth } from '@/app/hooks/useWindowWidth'
+import { useAlerts } from '@/app/features/reports/useAlerts'
+import { useTranslation } from '@/app/i18n/translations'
+import { Toaster } from '@/app/components/ui/sonner'
+import { onAuthExpired } from '@/app/config/api'
+import { PaywallNotice } from '@/app/features/settings/PaywallNotice'
+import { useAuth } from '@/app/features/identity/useAuth'
+import { useOverlayScrollbars } from '@/app/hooks/useOverlayScrollbars'
+import { AuthScreen } from '@/app/features/identity/AuthScreen'
+import { PublicPricing } from '@/app/features/public/PublicPricing'
+import { PublicFeatures } from '@/app/features/public/PublicFeatures'
+import { SuspensionScreen } from '@/app/features/identity/SuspensionScreen'
+import { planFromSearch, writePlanIntent } from '@/app/planIntent'
+import { toast } from 'sonner'
 
 function formatDashboardSubtitle(locale: string): string {
-  const now = new Date();
-  const wib = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60_000);
-  const hh  = wib.getHours().toString().padStart(2, "0");
-  const mm  = wib.getMinutes().toString().padStart(2, "0");
+  const now = new Date()
+  const wib = new Date(now.getTime() + (7 * 60 - now.getTimezoneOffset()) * 60_000)
+  const hh = wib.getHours().toString().padStart(2, '0')
+  const mm = wib.getMinutes().toString().padStart(2, '0')
 
-  if (locale === "id") {
-    const day = wib.getDate();
-    const months = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
-    return `Ringkasan portofolio · ${day} ${months[wib.getMonth()]} ${wib.getFullYear()} · ${hh}:${mm} WIB`;
+  if (locale === 'id') {
+    const day = wib.getDate()
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ]
+    return `Ringkasan portofolio · ${day} ${months[wib.getMonth()]} ${wib.getFullYear()} · ${hh}:${mm} WIB`
   }
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const day = wib.getDate();
-  return `Portfolio overview · ${months[wib.getMonth()]} ${day}, ${wib.getFullYear()} · ${hh}:${mm} WIB`;
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ]
+  const day = wib.getDate()
+  return `Portfolio overview · ${months[wib.getMonth()]} ${day}, ${wib.getFullYear()} · ${hh}:${mm} WIB`
 }
 
 function AppInner() {
-  const [view, setView] = useState<ViewType>("dashboard");
-  const { isDark, locale, locked, subscription, refreshSubscription } = useApp();
-  const { t } = useTranslation(locale);
-  const auth = useAuth();
-  useOverlayScrollbars();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [view, setView] = useState<ViewType>('dashboard')
+  const { isDark, locale, locked, subscription, refreshSubscription } = useApp()
+  const { t } = useTranslation(locale)
+  const auth = useAuth()
+  useOverlayScrollbars()
+  const navigate = useNavigate()
+  const location = useLocation()
 
-  const market        = useLiveMarket();
+  const market = useLiveMarket()
   // Convert at the feed's USD/IDR, not an invented one.
-  const fx            = useExchangeRate(market.fx);
-  const { news, loading: newsLoading, isLive: newsIsLive, error: newsError, retry: newsRetry } = useNews();
-  const portfolio     = usePortfolio();
-  const watchlistHook = useWatchlist();
-  const windowWidth   = useWindowWidth();
+  const fx = useExchangeRate(market.fx)
+  const {
+    news,
+    loading: newsLoading,
+    isLive: newsIsLive,
+    error: newsError,
+    retry: newsRetry,
+  } = useNews()
+  const portfolio = usePortfolio()
+  const watchlistHook = useWatchlist()
+  const windowWidth = useWindowWidth()
 
-  const isMobile = windowWidth < 768;
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isMobile = windowWidth < 768
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Cross-view "open this stock": Dashboard rows and the Header search jump to
   // Markets pre-filtered to a symbol. Bumped each selection so re-selecting the
   // same symbol still re-applies the filter.
-  const [focus, setFocus] = useState<{ symbol: string; nonce: number } | null>(null);
+  const [focus, setFocus] = useState<{ symbol: string; nonce: number } | null>(null)
   const selectSymbol = (symbol: string) => {
-    setFocus((f) => ({ symbol, nonce: (f?.nonce ?? 0) + 1 }));
-    setView("markets");
-  };
+    setFocus((f) => ({ symbol, nonce: (f?.nonce ?? 0) + 1 }))
+    setView('markets')
+  }
 
   useEffect(() => {
-    if (!isMobile) setSidebarOpen(false);
-  }, [isMobile]);
+    if (!isMobile) setSidebarOpen(false)
+  }, [isMobile])
 
   // Surface an expired/rejected session instead of letting hooks fall back to
   // seed data silently. apiFetch clears the token and fires this on a 401.
   useEffect(() => {
     return onAuthExpired(() => {
-      toast.error(t("auth_expired_title"), {
-        description: t("auth_expired_desc"),
+      toast.error(t('auth_expired_title'), {
+        description: t('auth_expired_desc'),
         duration: Infinity,
-        id: "auth-expired", // one persistent toast, not one per failed request
-      });
-    });
-  }, [t]);
+        id: 'auth-expired', // one persistent toast, not one per failed request
+      })
+    })
+  }, [t])
 
   /* Destructured once so the effect below can depend on the callback itself:
      the exhaustive-deps rule wants the exact function, not a property of the
@@ -115,14 +167,14 @@ function AppInner() {
     markAllRead,
     dismiss: alertDismiss,
     clearAll: alertClearAll,
-  } = useAlerts();
+  } = useAlerts()
 
   // Opening the Peringatan view marks everything read, so the badge clears the
   // moment the user looks at their alerts (and stays cleared — the read state is
   // persisted). This is what the badge count is supposed to track.
   useEffect(() => {
-    if (view === "alerts") markAllRead();
-  }, [view, markAllRead]);
+    if (view === 'alerts') markAllRead()
+  }, [view, markAllRead])
 
   // Public screens cross-link with hashes (the features screen's Catatan
   // lands on the sheet's disclaimer). A client-side navigation never scrolls
@@ -130,23 +182,21 @@ function AppInner() {
   // effect does it once the target element exists. Smooth scrolling honours
   // the visitor's reduced-motion request.
   useEffect(() => {
-    if (!location.hash) return;
+    if (!location.hash) return
     const timer = window.setTimeout(() => {
-      document
-        .getElementById(location.hash.slice(1))
-        ?.scrollIntoView({
-          behavior:
-            typeof window.matchMedia === "function" &&
-            window.matchMedia("(prefers-reduced-motion: reduce)").matches
-              ? "auto"
-              : "smooth",
-          block: "start",
-        });
-    }, 60);
-    return () => window.clearTimeout(timer);
-  }, [location.hash, location.pathname]);
+      document.getElementById(location.hash.slice(1))?.scrollIntoView({
+        behavior:
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            ? 'auto'
+            : 'smooth',
+        block: 'start',
+      })
+    }, 60)
+    return () => window.clearTimeout(timer)
+  }, [location.hash, location.pathname])
 
-  const dashSubtitle = useMemo(() => formatDashboardSubtitle(locale), [locale]);
+  const dashSubtitle = useMemo(() => formatDashboardSubtitle(locale), [locale])
 
   // The gate. Three states, because "checking" is genuinely different from
   // "signed out": until /v1/auth/me answers, we do not know, and redirecting on
@@ -154,20 +204,20 @@ function AppInner() {
   //
   // While checking, render nothing rather than the dashboard. The alternative is
   // a frame of the real interface at someone who turns out not to be signed in.
-  if (auth.status === "checking") {
+  if (auth.status === 'checking') {
     return (
       <div
-        className={isDark ? "dark" : ""}
+        className={isDark ? 'dark' : ''}
         style={{
-          minHeight: "100dvh",
-          background: "var(--background)",
-          fontFamily: "var(--font-sans)",
+          minHeight: '100dvh',
+          background: 'var(--background)',
+          fontFamily: 'var(--font-sans)',
         }}
       />
-    );
+    )
   }
 
-  if (auth.status === "signed-out") {
+  if (auth.status === 'signed-out') {
     // The public price sheet is a visitor's first view: `/` lands on it, and
     // `/harga` keeps working as its own URL. The price is the fact they are
     // exercising — the person deciding whether to subscribe is, by
@@ -177,91 +227,94 @@ function AppInner() {
     // `?plan=`; the payment itself still starts inside the app (R-26).
     // `/fitur` is the second public surface: the features the sheet's pillar
     // band compresses, expanded in full.
-    if (location.pathname === "/fitur") {
+    if (location.pathname === '/fitur') {
       return (
-        <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
+        <div className={isDark ? 'dark' : ''} style={{ fontFamily: 'var(--font-sans)' }}>
           <PublicFeatures
             locale={locale}
-            onEnter={() => navigate("/masuk")}
-            onSignUp={() => navigate("/daftar")}
-            onViewPricing={() => navigate("/")}
-            onViewNotes={() => navigate("/#catatan")}
+            onEnter={() => navigate('/masuk')}
+            onSignUp={() => navigate('/daftar')}
+            onViewPricing={() => navigate('/')}
+            onViewNotes={() => navigate('/#catatan')}
           />
         </div>
-      );
+      )
     }
-    if (location.pathname === "/masuk" || location.pathname === "/login") {
+    if (location.pathname === '/masuk' || location.pathname === '/login') {
       return (
-        <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
+        <div className={isDark ? 'dark' : ''} style={{ fontFamily: 'var(--font-sans)' }}>
           <AuthScreen
             auth={auth}
             locale={locale}
             initialMode="login"
-            onAuthed={() => { refreshSubscription(); navigate("/", { replace: true }); }}
-            onViewPricing={() => navigate("/")}
+            onAuthed={() => {
+              refreshSubscription()
+              navigate('/', { replace: true })
+            }}
+            onViewPricing={() => navigate('/')}
           />
         </div>
-      );
+      )
     }
-    if (location.pathname === "/daftar" || location.pathname === "/signup") {
+    if (location.pathname === '/daftar' || location.pathname === '/signup') {
       return (
-        <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
+        <div className={isDark ? 'dark' : ''} style={{ fontFamily: 'var(--font-sans)' }}>
           <AuthScreen
             auth={auth}
             locale={locale}
             initialMode="signup"
             initialPlan={planFromSearch(location.search)}
-            onAuthed={() => { refreshSubscription(); navigate("/", { replace: true }); }}
-            onViewPricing={() => navigate("/")}
+            onAuthed={() => {
+              refreshSubscription()
+              navigate('/', { replace: true })
+            }}
+            onViewPricing={() => navigate('/')}
           />
         </div>
-      );
+      )
     }
     return (
-      <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
+      <div className={isDark ? 'dark' : ''} style={{ fontFamily: 'var(--font-sans)' }}>
         <PublicPricing
           locale={locale}
-          onEnter={() => navigate("/masuk")}
-          onSignUp={() => navigate("/daftar")}
-          onViewFeatures={() => navigate("/fitur")}
+          onEnter={() => navigate('/masuk')}
+          onSignUp={() => navigate('/daftar')}
+          onViewFeatures={() => navigate('/fitur')}
           onPickPlan={(plan) => {
-            writePlanIntent(plan);
-            navigate(`/daftar?plan=${plan}`);
+            writePlanIntent(plan)
+            navigate(`/daftar?plan=${plan}`)
           }}
         />
       </div>
-    );
+    )
   }
 
   // A closed account with a reason: the app frame is replaced, because every
   // data route refuses this account server-side. The screen carries the billing
   // pane itself for a lapse, and a refusal with no payment path for a ban.
   // Signed-in, not signed-out — the session is valid; only the data is closed.
-  const suspensionReason = auth.account?.blockedReason;
+  const suspensionReason = auth.account?.blockedReason
   if (suspensionReason) {
     return (
-      <div className={isDark ? "dark" : ""} style={{ fontFamily: "var(--font-sans)" }}>
-        <SuspensionScreen
-          reason={suspensionReason}
-          onRefresh={() => auth.refresh()}
-        />
+      <div className={isDark ? 'dark' : ''} style={{ fontFamily: 'var(--font-sans)' }}>
+        <SuspensionScreen reason={suspensionReason} onRefresh={() => auth.refresh()} />
       </div>
-    );
+    )
   }
 
   const viewTitles: Record<ViewType, { title: string; subtitle: string }> = {
-    dashboard: { title: t("nav_dashboard"), subtitle: dashSubtitle },
-    markets:   { title: t("nav_markets"),   subtitle: t("mkt_subtitle")  },
-    portfolio: { title: t("nav_portfolio"), subtitle: t("port_subtitle") },
-    advisor:   { title: t("nav_advisor"),   subtitle: t("ai_subtitle")   },
-    risk:      { title: t("nav_risk"),      subtitle: t("risk_subtitle") },
-    news:      { title: t("nav_news"),      subtitle: t("news_subtitle")    },
-    reports:   { title: t("nav_reports"),  subtitle: t("reports_subtitle") },
-    settings:  { title: t("nav_settings"), subtitle: t("settings_sub")     },
-    alerts:    { title: t("nav_alerts"),   subtitle: t("alerts_subtitle")  },
-  };
+    dashboard: { title: t('nav_dashboard'), subtitle: dashSubtitle },
+    markets: { title: t('nav_markets'), subtitle: t('mkt_subtitle') },
+    portfolio: { title: t('nav_portfolio'), subtitle: t('port_subtitle') },
+    advisor: { title: t('nav_advisor'), subtitle: t('ai_subtitle') },
+    risk: { title: t('nav_risk'), subtitle: t('risk_subtitle') },
+    news: { title: t('nav_news'), subtitle: t('news_subtitle') },
+    reports: { title: t('nav_reports'), subtitle: t('reports_subtitle') },
+    settings: { title: t('nav_settings'), subtitle: t('settings_sub') },
+    alerts: { title: t('nav_alerts'), subtitle: t('alerts_subtitle') },
+  }
 
-  const cfg = viewTitles[view];
+  const cfg = viewTitles[view]
 
   // The two auth paths are real URLs so they survive a refresh and can be
   // linked to. Both redirect into the shell, because by this point the gate above
@@ -269,8 +322,12 @@ function AppInner() {
   // renders the auth screen instead and none of this is reached.
   const shell = (
     <div
-      className={`flex h-dvh overflow-hidden${isDark ? " dark" : ""}`}
-      style={{ background: "var(--background)", fontFamily: "var(--font-sans)", color: "var(--foreground)" }}
+      className={`flex h-dvh overflow-hidden${isDark ? ' dark' : ''}`}
+      style={{
+        background: 'var(--background)',
+        fontFamily: 'var(--font-sans)',
+        color: 'var(--foreground)',
+      }}
     >
       <Sidebar
         account={auth.account}
@@ -296,37 +353,37 @@ function AppInner() {
         {/* One banner for the whole app, not one per panel. Every paid view
             refusing at once is one fact about the account; saying it eight times
             is noise that hides the one thing worth reading. */}
-        {locked && (
-          <PaywallNotice locale={locale} onOpenSettings={() => setView("settings")} />
-        )}
+        {locked && <PaywallNotice locale={locale} onOpenSettings={() => setView('settings')} />}
         {/* `unknown` gets its own line rather than nothing. A server that will
             not answer is not the same as an account with no subscription, and
             silently showing nothing there is the claim that they are the same. */}
-        {!locked && subscription.kind === "unknown" && (
+        {!locked && subscription.kind === 'unknown' && (
           <PaywallNotice
             locale={locale}
             reason="unknown"
-            onOpenSettings={() => setView("settings")}
+            onOpenSettings={() => setView('settings')}
           />
         )}
-          <Suspense fallback={<ViewSkeleton />}>
-          {view === "dashboard"  && (
+        <Suspense fallback={<ViewSkeleton />}>
+          {view === 'dashboard' && (
             <ErrorBoundary key="dashboard" locale={locale}>
               <DashboardView
-                market={market} fx={fx}
+                market={market}
+                fx={fx}
                 holdings={portfolio.holdings}
                 transactions={portfolio.transactions}
                 onSelectSymbol={selectSymbol}
                 alerts={alertList}
                 alertsIsLive={alertsIsLive}
-                onOpenPortfolio={() => setView("portfolio")}
+                onOpenPortfolio={() => setView('portfolio')}
               />
             </ErrorBoundary>
           )}
-          {view === "markets"    && (
+          {view === 'markets' && (
             <ErrorBoundary key="markets" locale={locale}>
               <MarketsView
-                market={market} fx={fx}
+                market={market}
+                fx={fx}
                 watchlist={watchlistHook.watchlist}
                 onToggleWatchlist={watchlistHook.toggle}
                 focusSymbol={focus?.symbol ?? null}
@@ -334,10 +391,11 @@ function AppInner() {
               />
             </ErrorBoundary>
           )}
-          {view === "portfolio"  && (
+          {view === 'portfolio' && (
             <ErrorBoundary key="portfolio" locale={locale}>
               <PortfolioView
-                market={market} fx={fx}
+                market={market}
+                fx={fx}
                 holdings={portfolio.holdings}
                 loading={portfolio.loading}
                 error={portfolio.error}
@@ -348,17 +406,58 @@ function AppInner() {
               />
             </ErrorBoundary>
           )}
-          {view === "advisor"    && <ErrorBoundary key="advisor"  locale={locale}><AIAdvisorView market={market} /></ErrorBoundary>}
-          {view === "risk"       && <ErrorBoundary key="risk"     locale={locale}><RiskView market={market} /></ErrorBoundary>}
-          {view === "news"       && <ErrorBoundary key="news"     locale={locale}><NewsView news={news} loading={newsLoading} isLive={newsIsLive} error={newsError} retry={newsRetry} /></ErrorBoundary>}
-          {view === "reports"    && <ErrorBoundary key="reports"  locale={locale}><ReportsView /></ErrorBoundary>}
-          {view === "settings"   && <ErrorBoundary key="settings" locale={locale}><SettingsView fx={fx} freshness={market.freshness} auth={auth} onSignedOut={() => navigate("/", { replace: true })} /></ErrorBoundary>}
-          {view === "alerts"     && <ErrorBoundary key="alerts"   locale={locale}><AlertsView alerts={alertList} onDismiss={alertDismiss} onClearAll={alertClearAll} locale={locale} isLive={alertsIsLive} /></ErrorBoundary>}
-          </Suspense>
+          {view === 'advisor' && (
+            <ErrorBoundary key="advisor" locale={locale}>
+              <AIAdvisorView market={market} />
+            </ErrorBoundary>
+          )}
+          {view === 'risk' && (
+            <ErrorBoundary key="risk" locale={locale}>
+              <RiskView market={market} />
+            </ErrorBoundary>
+          )}
+          {view === 'news' && (
+            <ErrorBoundary key="news" locale={locale}>
+              <NewsView
+                news={news}
+                loading={newsLoading}
+                isLive={newsIsLive}
+                error={newsError}
+                retry={newsRetry}
+              />
+            </ErrorBoundary>
+          )}
+          {view === 'reports' && (
+            <ErrorBoundary key="reports" locale={locale}>
+              <ReportsView />
+            </ErrorBoundary>
+          )}
+          {view === 'settings' && (
+            <ErrorBoundary key="settings" locale={locale}>
+              <SettingsView
+                fx={fx}
+                freshness={market.freshness}
+                auth={auth}
+                onSignedOut={() => navigate('/', { replace: true })}
+              />
+            </ErrorBoundary>
+          )}
+          {view === 'alerts' && (
+            <ErrorBoundary key="alerts" locale={locale}>
+              <AlertsView
+                alerts={alertList}
+                onDismiss={alertDismiss}
+                onClearAll={alertClearAll}
+                locale={locale}
+                isLive={alertsIsLive}
+              />
+            </ErrorBoundary>
+          )}
+        </Suspense>
       </div>
-      <Toaster theme={isDark ? "dark" : "light"} position="top-right" richColors />
+      <Toaster theme={isDark ? 'dark' : 'light'} position="top-right" richColors />
     </div>
-  );
+  )
 
   /* `/admin` gets its own URL and no sidebar.
    *
@@ -374,13 +473,13 @@ function AppInner() {
    */
   const adminPage = (
     <div
-      className={isDark ? "dark" : ""}
+      className={isDark ? 'dark' : ''}
       style={{
-        minHeight: "100dvh",
-        display: "flex",
-        background: "var(--background)",
-        color: "var(--foreground)",
-        fontFamily: "var(--font-sans)",
+        minHeight: '100dvh',
+        display: 'flex',
+        background: 'var(--background)',
+        color: 'var(--foreground)',
+        fontFamily: 'var(--font-sans)',
       }}
     >
       <Suspense fallback={<ViewSkeleton />}>
@@ -389,7 +488,7 @@ function AppInner() {
         </ErrorBoundary>
       </Suspense>
     </div>
-  );
+  )
 
   return (
     <Routes>
@@ -404,7 +503,7 @@ function AppInner() {
       <Route path="/admin" element={adminPage} />
       <Route path="*" element={shell} />
     </Routes>
-  );
+  )
 }
 
 export default function App() {
@@ -416,5 +515,5 @@ export default function App() {
         </BrowserRouter>
       </AppProvider>
     </ErrorBoundary>
-  );
+  )
 }

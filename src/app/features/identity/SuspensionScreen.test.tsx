@@ -28,7 +28,11 @@ const subState = {
 }
 const payState = { rows: [] as unknown[], status: 200, throws: false }
 const banksState = {
-  accounts: [{ bank: 'BCA', accountNumber: '999000111', holderName: 'Pemilik' }] as Array<{ bank: string; accountNumber: string; holderName: string }>,
+  accounts: [{ bank: 'BCA', accountNumber: '999000111', holderName: 'Pemilik' }] as Array<{
+    bank: string
+    accountNumber: string
+    holderName: string
+  }>,
   status: 200,
   throws: false,
 }
@@ -48,22 +52,43 @@ vi.mock('@/app/config/api', async (importOriginal) => ({
   apiFetch: vi.fn(async (url: string, init?: RequestInit) => {
     if (url.includes('/v1/subscriptions/pricing')) {
       if (priceState.throws) throw new Error('offline')
-      return { ok: priceState.status < 400, status: priceState.status, json: async () => priceState.body } as unknown as Response
+      return {
+        ok: priceState.status < 400,
+        status: priceState.status,
+        json: async () => priceState.body,
+      } as unknown as Response
     }
     if (url.includes('/v1/subscription/current')) {
       if (subState.throws) throw new Error('offline')
-      return { ok: subState.status < 400, status: subState.status, json: async () => subState.body } as unknown as Response
+      return {
+        ok: subState.status < 400,
+        status: subState.status,
+        json: async () => subState.body,
+      } as unknown as Response
     }
     if (url.includes('/v1/payments/me')) {
       if (payState.throws) throw new Error('offline')
-      return { ok: payState.status < 400, status: payState.status, json: async () => payState.rows } as unknown as Response
+      return {
+        ok: payState.status < 400,
+        status: payState.status,
+        json: async () => payState.rows,
+      } as unknown as Response
     }
     if (url.includes('/v1/subscriptions/bank-accounts')) {
       if (banksState.throws) throw new Error('offline')
-      return { ok: banksState.status < 400, status: banksState.status, json: async () => ({ accounts: banksState.accounts }) } as unknown as Response
+      return {
+        ok: banksState.status < 400,
+        status: banksState.status,
+        json: async () => ({ accounts: banksState.accounts }),
+      } as unknown as Response
     }
     if (url.includes('/v1/payments/manual')) {
-      if (!declareState.accepted) return { ok: false, status: 400, json: async () => ({ detail: 'no' }) } as unknown as Response
+      if (!declareState.accepted)
+        return {
+          ok: false,
+          status: 400,
+          json: async () => ({ detail: 'no' }),
+        } as unknown as Response
       declared.push(JSON.parse(String(init?.body ?? '{}')))
       return { ok: true, status: 200, json: async () => ({}) } as unknown as Response
     }
@@ -71,10 +96,7 @@ vi.mock('@/app/config/api', async (importOriginal) => ({
   }),
 }))
 
-function renderScreen(
-  reason: 'admin' | 'subscription_expired',
-  onRefresh?: () => Promise<void>,
-) {
+function renderScreen(reason: 'admin' | 'subscription_expired', onRefresh?: () => Promise<void>) {
   const refresh = onRefresh ?? vi.fn(() => Promise.resolve())
   render(
     <AppProvider>
@@ -88,7 +110,7 @@ describe('the suspension screen', () => {
   beforeEach(() => {
     // The transport mock is shared across tests in the file; the "never asked
     // for a price" test only counts what ITS test asked for.
-    (apiFetchMock as ReturnType<typeof vi.fn>).mockClear()
+    ;(apiFetchMock as ReturnType<typeof vi.fn>).mockClear()
     declared.length = 0
     priceState.status = 200
     priceState.throws = false
@@ -128,7 +150,9 @@ describe('the suspension screen', () => {
     it('the status check is a real round trip to /v1/auth/me', async () => {
       const user = userEvent.setup()
       const refresh = renderScreen('subscription_expired')
-      const button = await screen.findByRole('button', { name: 'Periksa apakah akses sudah dibuka' })
+      const button = await screen.findByRole('button', {
+        name: 'Periksa apakah akses sudah dibuka',
+      })
       expect(refresh).not.toHaveBeenCalled()
       await user.click(button)
       await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))

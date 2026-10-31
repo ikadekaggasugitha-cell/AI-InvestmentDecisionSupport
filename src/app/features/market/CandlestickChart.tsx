@@ -1,12 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from 'react'
 import type {
-  ISeriesApi, ISeriesPrimitive, ISeriesPrimitivePaneRenderer,
-  ISeriesPrimitivePaneView, SeriesType, Time,
-} from "lightweight-charts";
-import type { CanvasRenderingTarget2D } from "fancy-canvas";
-import type { GapInfo, SRLevel } from "@/app/features/dashboard/useAISignals";
-import type { OHLCVCandle, SituationInfo } from "@/app/features/market/useTechnicals";
-import { mergeLiveBar, wibDateString } from "@/app/features/market/candleLive";
+  ISeriesApi,
+  ISeriesPrimitive,
+  ISeriesPrimitivePaneRenderer,
+  ISeriesPrimitivePaneView,
+  SeriesType,
+  Time,
+} from 'lightweight-charts'
+import type { CanvasRenderingTarget2D } from 'fancy-canvas'
+import type { GapInfo, SRLevel } from '@/app/features/dashboard/useAISignals'
+import type { OHLCVCandle, SituationInfo } from '@/app/features/market/useTechnicals'
+import { mergeLiveBar, wibDateString } from '@/app/features/market/candleLive'
 
 /**
  * Lightweight Charts wrapper.
@@ -25,14 +29,14 @@ import { mergeLiveBar, wibDateString } from "@/app/features/market/candleLive";
  */
 
 export interface CandlestickChartProps {
-  ohlcv: readonly OHLCVCandle[];
-  supportResistance?: readonly SRLevel[];
-  entryPrice?: number | null;
-  stopLoss?: number | null;
-  gaps?: readonly GapInfo[];
-  situation?: SituationInfo | null;
-  height?: number;
-  locale?: "id" | "en";
+  ohlcv: readonly OHLCVCandle[]
+  supportResistance?: readonly SRLevel[]
+  entryPrice?: number | null
+  stopLoss?: number | null
+  gaps?: readonly GapInfo[]
+  situation?: SituationInfo | null
+  height?: number
+  locale?: 'id' | 'en'
   /**
    * Live last-trade price from the market feed. When present it pulses the
    * *forming* (today's) candle — close follows the tick, high/low extend — via
@@ -40,13 +44,13 @@ export interface CandlestickChartProps {
    * chart static, which is the honest state when the market is closed, the feed
    * is simulated, or the backend is unreachable (the caller gates this).
    */
-  livePrice?: number | null;
+  livePrice?: number | null
 }
 
 /* Situations that describe behaviour at the ceiling vs. the floor — decides
    which level the ATR proximity band wraps. Kept in sync with the backend. */
-const RESISTANCE_SITUATIONS = new Set(["uji_resistance", "tembus_resistance", "gagal_breakout"]);
-const SUPPORT_SITUATIONS = new Set(["mantul_support", "gagal_breakdown", "tembus_support"]);
+const RESISTANCE_SITUATIONS = new Set(['uji_resistance', 'tembus_resistance', 'gagal_breakout'])
+const SUPPORT_SITUATIONS = new Set(['mantul_support', 'gagal_breakdown', 'tembus_support'])
 
 /**
  * A shaded horizontal band drawn as a Lightweight-Charts *series primitive*.
@@ -60,56 +64,60 @@ const SUPPORT_SITUATIONS = new Set(["mantul_support", "gagal_breakdown", "tembus
  * last bar sitting *inside* the zone, which is the whole point of showing it.
  */
 function createZonePrimitive(opts: {
-  top: number;
-  bottom: number;
-  fill: string;   // band fill (colour + low alpha)
-  edge: string;   // the two boundary lines (colour + higher alpha)
+  top: number
+  bottom: number
+  fill: string // band fill (colour + low alpha)
+  edge: string // the two boundary lines (colour + higher alpha)
 }): ISeriesPrimitive<Time> {
-  let series: ISeriesApi<SeriesType> | null = null;
+  let series: ISeriesApi<SeriesType> | null = null
 
   const renderer: ISeriesPrimitivePaneRenderer = {
     draw(target: CanvasRenderingTarget2D) {
-      const s = series;
-      if (!s) return;
-      const yTop = s.priceToCoordinate(opts.top);
-      const yBottom = s.priceToCoordinate(opts.bottom);
-      if (yTop == null || yBottom == null) return;
+      const s = series
+      if (!s) return
+      const yTop = s.priceToCoordinate(opts.top)
+      const yBottom = s.priceToCoordinate(opts.bottom)
+      if (yTop == null || yBottom == null) return
 
       target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
-        const y1 = Math.min(yTop, yBottom);
-        const y2 = Math.max(yTop, yBottom);
-        ctx.fillStyle = opts.fill;
-        ctx.fillRect(0, y1, mediaSize.width, Math.max(1, y2 - y1));
-        ctx.strokeStyle = opts.edge;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, y1 + 0.5);
-        ctx.lineTo(mediaSize.width, y1 + 0.5);
-        ctx.moveTo(0, y2 - 0.5);
-        ctx.lineTo(mediaSize.width, y2 - 0.5);
-        ctx.stroke();
-      });
+        const y1 = Math.min(yTop, yBottom)
+        const y2 = Math.max(yTop, yBottom)
+        ctx.fillStyle = opts.fill
+        ctx.fillRect(0, y1, mediaSize.width, Math.max(1, y2 - y1))
+        ctx.strokeStyle = opts.edge
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(0, y1 + 0.5)
+        ctx.lineTo(mediaSize.width, y1 + 0.5)
+        ctx.moveTo(0, y2 - 0.5)
+        ctx.lineTo(mediaSize.width, y2 - 0.5)
+        ctx.stroke()
+      })
     },
-  };
+  }
 
   const paneView: ISeriesPrimitivePaneView = {
-    zOrder: () => "bottom",
+    zOrder: () => 'bottom',
     renderer: () => renderer,
-  };
+  }
 
   return {
-    attached: (param) => { series = param.series; },
-    detached: () => { series = null; },
+    attached: (param) => {
+      series = param.series
+    },
+    detached: () => {
+      series = null
+    },
     paneViews: () => [paneView],
     updateAllViews: () => {},
-  };
+  }
 }
 
 /** Read a CSS custom property off the document root. */
 function cssVar(name: string, fallback: string): string {
-  if (typeof window === "undefined") return fallback;
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name);
-  return value.trim() || fallback;
+  if (typeof window === 'undefined') return fallback
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name)
+  return value.trim() || fallback
 }
 
 /* Fallbacks mirror the light-theme token values in src/styles/theme.css.
@@ -117,15 +125,15 @@ function cssVar(name: string, fallback: string): string {
  * then render a colour that no longer exists in the palette. */
 function readTheme() {
   return {
-    background: cssVar("--card", "#ffffff"),
-    text: cssVar("--muted-foreground", "#5e6c7e"),
-    grid: cssVar("--border", "#dce2ea"),
-    up: cssVar("--gain", "#14764a"),
-    down: cssVar("--loss", "#c63b3b"),
-    support: cssVar("--gain", "#14764a"),
-    resistance: cssVar("--loss", "#c63b3b"),
-    warning: cssVar("--warning", "#a85c05"),
-  };
+    background: cssVar('--card', '#ffffff'),
+    text: cssVar('--muted-foreground', '#5e6c7e'),
+    grid: cssVar('--border', '#dce2ea'),
+    up: cssVar('--gain', '#14764a'),
+    down: cssVar('--loss', '#c63b3b'),
+    support: cssVar('--gain', '#14764a'),
+    resistance: cssVar('--loss', '#c63b3b'),
+    warning: cssVar('--warning', '#a85c05'),
+  }
 }
 
 export function CandlestickChart({
@@ -136,67 +144,67 @@ export function CandlestickChart({
   gaps = [],
   situation = null,
   height = 280,
-  locale = "id",
+  locale = 'id',
   livePrice = null,
 }: CandlestickChartProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [failed, setFailed] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [failed, setFailed] = useState(false)
   // Bumped whenever the theme flips, to force a full chart rebuild.
-  const [themeTick, setThemeTick] = useState(0);
+  const [themeTick, setThemeTick] = useState(0)
 
   // Live pulse plumbing: the build effect owns the candle series; the live
   // effect below reaches it through this ref to call update() on the forming
   // bar without tearing the chart down. `formingBarRef` carries the running
   // OHLC of today's bar so successive ticks extend high/low correctly.
-  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const formingBarRef = useRef<OHLCVCandle | null>(null);
+  const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
+  const formingBarRef = useRef<OHLCVCandle | null>(null)
 
-  const isId = locale === "id";
+  const isId = locale === 'id'
 
   /* Watch for theme changes. next-themes toggles a class / data attribute on
      <html>, and the OS-level preference can change independently. */
   useEffect(() => {
-    const bump = () => setThemeTick((t) => t + 1);
+    const bump = () => setThemeTick((t) => t + 1)
 
-    const observer = new MutationObserver(bump);
+    const observer = new MutationObserver(bump)
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["class", "data-theme", "style"],
-    });
+      attributeFilter: ['class', 'data-theme', 'style'],
+    })
 
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    media.addEventListener("change", bump);
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    media.addEventListener('change', bump)
 
     return () => {
-      observer.disconnect();
-      media.removeEventListener("change", bump);
-    };
-  }, []);
+      observer.disconnect()
+      media.removeEventListener('change', bump)
+    }
+  }, [])
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container || ohlcv.length === 0) return;
+    const container = containerRef.current
+    if (!container || ohlcv.length === 0) return
 
-    let disposed = false;
-    let cleanup: (() => void) | undefined;
+    let disposed = false
+    let cleanup: (() => void) | undefined
 
-    (async () => {
-      let lib: typeof import("lightweight-charts");
+    ;(async () => {
+      let lib: typeof import('lightweight-charts')
       try {
-        lib = await import("lightweight-charts");
+        lib = await import('lightweight-charts')
       } catch {
-        if (!disposed) setFailed(true);
-        return;
+        if (!disposed) setFailed(true)
+        return
       }
-      if (disposed) return;
+      if (disposed) return
 
-      const theme = readTheme();
+      const theme = readTheme()
       const chart = lib.createChart(container, {
         height,
         layout: {
           background: { type: lib.ColorType.Solid, color: theme.background },
           textColor: theme.text,
-          fontFamily: cssVar("--font-mono", "monospace"),
+          fontFamily: cssVar('--font-mono', 'monospace'),
           fontSize: 11,
         },
         grid: {
@@ -207,7 +215,7 @@ export function CandlestickChart({
         timeScale: { borderColor: theme.grid, timeVisible: false },
         crosshair: { mode: lib.CrosshairMode.Normal },
         handleScale: { axisPressedMouseMove: false },
-      });
+      })
 
       const candleSeries = chart.addCandlestickSeries({
         upColor: theme.up,
@@ -216,7 +224,7 @@ export function CandlestickChart({
         borderDownColor: theme.down,
         wickUpColor: theme.up,
         wickDownColor: theme.down,
-      });
+      })
       candleSeries.setData(
         ohlcv.map((c) => ({
           time: c.time as never,
@@ -225,41 +233,41 @@ export function CandlestickChart({
           low: c.low,
           close: c.close,
         })),
-      );
+      )
 
       // Hand the series to the live-pulse effect and seed the forming bar from
       // the freshest history bar. Both reset on every rebuild (theme / new
       // history), so live accumulation always restarts from the real last bar.
-      candleSeriesRef.current = candleSeries;
-      formingBarRef.current = ohlcv.length ? { ...ohlcv[ohlcv.length - 1] } : null;
+      candleSeriesRef.current = candleSeries
+      formingBarRef.current = ohlcv.length ? { ...ohlcv[ohlcv.length - 1] } : null
 
       // Volume on its own scale, pinned to the lower quarter of the pane.
       const volumeSeries = chart.addHistogramSeries({
-        priceFormat: { type: "volume" },
-        priceScaleId: "volume",
-      });
-      chart.priceScale("volume").applyOptions({
+        priceFormat: { type: 'volume' },
+        priceScaleId: 'volume',
+      })
+      chart.priceScale('volume').applyOptions({
         scaleMargins: { top: 0.78, bottom: 0 },
-      });
+      })
       volumeSeries.setData(
         ohlcv.map((c) => ({
           time: c.time as never,
           value: c.volume,
           color: c.close >= c.open ? `${theme.up}55` : `${theme.down}55`,
         })),
-      );
+      )
 
       // EMA9 × EMA21 overlay — the same cross the backend reads for trend, drawn
       // so the up/down structure is visible on the chart itself. EMA9 above EMA21
       // and both rising is the uptrend footprint; the inverse is a downtrend.
       const emaLine = (period: number, color: string, title: string) => {
-        const k = 2 / (period + 1);
-        const points: { time: never; value: number }[] = [];
-        let prev = 0;
+        const k = 2 / (period + 1)
+        const points: { time: never; value: number }[] = []
+        let prev = 0
         ohlcv.forEach((c, i) => {
-          prev = i === 0 ? c.close : c.close * k + prev * (1 - k);
-          if (i >= period - 1) points.push({ time: c.time as never, value: prev });
-        });
+          prev = i === 0 ? c.close : c.close * k + prev * (1 - k)
+          if (i >= period - 1) points.push({ time: c.time as never, value: prev })
+        })
         const series = chart.addLineSeries({
           color,
           lineWidth: 1,
@@ -267,24 +275,29 @@ export function CandlestickChart({
           lastValueVisible: false,
           crosshairMarkerVisible: false,
           title,
-        });
-        series.setData(points);
-      };
-      emaLine(9, theme.warning, "EMA9");
-      emaLine(21, theme.text, "EMA21");
+        })
+        series.setData(points)
+      }
+      emaLine(9, theme.warning, 'EMA9')
+      emaLine(21, theme.text, 'EMA21')
 
       // Support / resistance as horizontal lines on the candle series.
       for (const level of supportResistance) {
         candleSeries.createPriceLine({
           price: level.price,
-          color: level.type === "support" ? theme.support : theme.resistance,
+          color: level.type === 'support' ? theme.support : theme.resistance,
           lineWidth: 1,
           lineStyle: lib.LineStyle.Dotted,
           axisLabelVisible: true,
-          title: level.type === "support"
-            ? (isId ? "Support" : "Support")
-            : (isId ? "Resisten" : "Resistance"),
-        });
+          title:
+            level.type === 'support'
+              ? isId
+                ? 'Support'
+                : 'Support'
+              : isId
+                ? 'Resisten'
+                : 'Resistance',
+        })
       }
 
       if (entryPrice != null) {
@@ -294,8 +307,8 @@ export function CandlestickChart({
           lineWidth: 2,
           lineStyle: lib.LineStyle.Solid,
           axisLabelVisible: true,
-          title: "Entry",
-        });
+          title: 'Entry',
+        })
       }
 
       if (stopLoss != null) {
@@ -305,8 +318,8 @@ export function CandlestickChart({
           lineWidth: 2,
           lineStyle: lib.LineStyle.Dashed,
           axisLabelVisible: true,
-          title: isId ? "Stop Loss" : "Stop Loss",
-        });
+          title: isId ? 'Stop Loss' : 'Stop Loss',
+        })
       }
 
       // Unfilled gaps: mark the zone edges. A shaded band would need a custom
@@ -319,8 +332,8 @@ export function CandlestickChart({
             lineWidth: 1,
             lineStyle: lib.LineStyle.SparseDotted,
             axisLabelVisible: false,
-            title: "",
-          });
+            title: '',
+          })
         }
       }
 
@@ -330,70 +343,74 @@ export function CandlestickChart({
       // situation reads "testing"/"bounce"/"breakdown". Skipped for
       // konsolidasi_lebar, which has no single active level to wrap.
       if (situation && situation.atr > 0) {
-        let level: number | null = null;
-        let zoneColor = theme.warning;
+        let level: number | null = null
+        let zoneColor = theme.warning
         if (RESISTANCE_SITUATIONS.has(situation.situation) && situation.nearestResistance != null) {
-          level = situation.nearestResistance;
-          zoneColor = theme.resistance;
-        } else if (SUPPORT_SITUATIONS.has(situation.situation) && situation.nearestSupport != null) {
-          level = situation.nearestSupport;
-          zoneColor = theme.support;
-        } else if (situation.situation === "volatility_squeeze") {
+          level = situation.nearestResistance
+          zoneColor = theme.resistance
+        } else if (
+          SUPPORT_SITUATIONS.has(situation.situation) &&
+          situation.nearestSupport != null
+        ) {
+          level = situation.nearestSupport
+          zoneColor = theme.support
+        } else if (situation.situation === 'volatility_squeeze') {
           // Coil sits near a level but the label doesn't name a side — wrap the
           // level nearest the last close, coloured as caution.
-          const last = ohlcv[ohlcv.length - 1].close;
-          const candidates = [situation.nearestResistance, situation.nearestSupport]
-            .filter((v): v is number => v != null);
+          const last = ohlcv[ohlcv.length - 1].close
+          const candidates = [situation.nearestResistance, situation.nearestSupport].filter(
+            (v): v is number => v != null,
+          )
           if (candidates.length) {
-            level = candidates.reduce((a, b) => (Math.abs(b - last) < Math.abs(a - last) ? b : a));
-            zoneColor = theme.warning;
+            level = candidates.reduce((a, b) => (Math.abs(b - last) < Math.abs(a - last) ? b : a))
+            zoneColor = theme.warning
           }
         }
 
         if (level != null) {
-          const half = 0.5 * situation.atr;
+          const half = 0.5 * situation.atr
           candleSeries.attachPrimitive(
             createZonePrimitive({
               top: level + half,
               bottom: level - half,
-              fill: `${zoneColor}26`,  // ~15% — a thin shade, candles stay legible
-              edge: `${zoneColor}66`,  // ~40% — faint boundary lines
+              fill: `${zoneColor}26`, // ~15% — a thin shade, candles stay legible
+              edge: `${zoneColor}66`, // ~40% — faint boundary lines
             }),
-          );
+          )
         }
       }
 
-      chart.timeScale().fitContent();
+      chart.timeScale().fitContent()
 
-      const resize = () => chart.applyOptions({ width: container.clientWidth });
-      resize();
-      const resizeObserver = new ResizeObserver(resize);
-      resizeObserver.observe(container);
+      const resize = () => chart.applyOptions({ width: container.clientWidth })
+      resize()
+      const resizeObserver = new ResizeObserver(resize)
+      resizeObserver.observe(container)
 
       cleanup = () => {
-        resizeObserver.disconnect();
-        candleSeriesRef.current = null;
-        chart.remove();
-      };
-    })();
+        resizeObserver.disconnect()
+        candleSeriesRef.current = null
+        chart.remove()
+      }
+    })()
 
     return () => {
-      disposed = true;
-      cleanup?.();
-    };
-  }, [ohlcv, supportResistance, entryPrice, stopLoss, gaps, situation, height, isId, themeTick]);
+      disposed = true
+      cleanup?.()
+    }
+  }, [ohlcv, supportResistance, entryPrice, stopLoss, gaps, situation, height, isId, themeTick])
 
   /* Live pulse — deliberately keyed on `livePrice` alone so a tick updates the
      forming bar in place instead of retriggering the (expensive) rebuild above.
      Only today's bar moves; a stale-day last bar is left untouched. */
   useEffect(() => {
-    const series = candleSeriesRef.current;
-    const base = formingBarRef.current;
-    if (!series || !base || livePrice == null) return;
+    const series = candleSeriesRef.current
+    const base = formingBarRef.current
+    if (!series || !base || livePrice == null) return
 
-    const merged = mergeLiveBar(base, livePrice, wibDateString());
-    if (!merged) return;
-    formingBarRef.current = merged;
+    const merged = mergeLiveBar(base, livePrice, wibDateString())
+    if (!merged) return
+    formingBarRef.current = merged
 
     try {
       series.update({
@@ -402,30 +419,30 @@ export function CandlestickChart({
         high: merged.high,
         low: merged.low,
         close: merged.close,
-      });
+      })
     } catch {
       // The series can be mid-teardown during a theme/history rebuild; the next
       // tick lands on the fresh series, so a dropped update here is harmless.
     }
-  }, [livePrice]);
+  }, [livePrice])
 
   if (failed) {
     return (
       <div
         style={{
           height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           fontSize: 11,
-          color: "var(--muted-foreground)",
-          background: "var(--muted)",
+          color: 'var(--muted-foreground)',
+          background: 'var(--muted)',
           borderRadius: 4,
         }}
       >
-        {isId ? "Grafik tidak dapat dimuat" : "Chart could not be loaded"}
+        {isId ? 'Grafik tidak dapat dimuat' : 'Chart could not be loaded'}
       </div>
-    );
+    )
   }
 
   if (ohlcv.length === 0) {
@@ -433,19 +450,19 @@ export function CandlestickChart({
       <div
         style={{
           height,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           fontSize: 11,
-          color: "var(--muted-foreground)",
-          background: "var(--muted)",
+          color: 'var(--muted-foreground)',
+          background: 'var(--muted)',
           borderRadius: 4,
         }}
       >
-        {isId ? "Data harga belum tersedia" : "Price data not available"}
+        {isId ? 'Data harga belum tersedia' : 'Price data not available'}
       </div>
-    );
+    )
   }
 
-  return <div ref={containerRef} style={{ width: "100%", height }} />;
+  return <div ref={containerRef} style={{ width: '100%', height }} />
 }

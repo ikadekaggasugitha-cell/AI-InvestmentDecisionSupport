@@ -67,19 +67,35 @@ vi.mock('@/app/config/api', async (importOriginal) => ({
   apiFetch: vi.fn(async (url: string, init?: RequestInit) => {
     if (url.includes('/v1/subscriptions/pricing')) {
       if (priceState.throws) throw new Error('offline')
-      return { ok: priceState.status < 400, status: priceState.status, json: async () => priceState.body } as unknown as Response
+      return {
+        ok: priceState.status < 400,
+        status: priceState.status,
+        json: async () => priceState.body,
+      } as unknown as Response
     }
     if (url.includes('/v1/subscription/current')) {
       if (subState.throws) throw new Error('offline')
-      return { ok: subState.status < 400, status: subState.status, json: async () => subState.body } as unknown as Response
+      return {
+        ok: subState.status < 400,
+        status: subState.status,
+        json: async () => subState.body,
+      } as unknown as Response
     }
     if (url.includes('/v1/payments/me')) {
       if (payState.throws) throw new Error('offline')
-      return { ok: payState.status < 400, status: payState.status, json: async () => payState.rows } as unknown as Response
+      return {
+        ok: payState.status < 400,
+        status: payState.status,
+        json: async () => payState.rows,
+      } as unknown as Response
     }
     if (url.includes('/v1/subscriptions/bank-accounts')) {
       if (banksState.throws) throw new Error('offline')
-      return { ok: banksState.status < 400, status: banksState.status, json: async () => ({ accounts: banksState.accounts }) } as unknown as Response
+      return {
+        ok: banksState.status < 400,
+        status: banksState.status,
+        json: async () => ({ accounts: banksState.accounts }),
+      } as unknown as Response
     }
     if (url.includes('/v1/payments/manual')) {
       declared.push(JSON.parse(String(init?.body ?? '{}')))
@@ -152,13 +168,7 @@ function renderSettings(props: Partial<Parameters<typeof SettingsView>[0]> = {})
   )
 }
 
-const TABS = [
-  'Profil & Akun',
-  'Langganan & Tagihan',
-  'Tampilan',
-  'Notifikasi',
-  'Tentang',
-] as const
+const TABS = ['Profil & Akun', 'Langganan & Tagihan', 'Tampilan', 'Notifikasi', 'Tentang'] as const
 
 describe('SettingsView — tab navigation (R-32, R-26)', () => {
   it('exposes every tab the spec defines, with no emoji in any label', () => {
@@ -236,7 +246,14 @@ describe('SettingsView — Tampilan tab (working controls)', () => {
   it('currency choice calls the toggle and marks the pressed option', async () => {
     const user = userEvent.setup()
     let toggled = 0
-    renderSettings({ fx: fx({ showUsd: false, toggleCurrency: () => { toggled += 1 } }) })
+    renderSettings({
+      fx: fx({
+        showUsd: false,
+        toggleCurrency: () => {
+          toggled += 1
+        },
+      }),
+    })
 
     expect(screen.getByRole('button', { name: 'IDR' })).toHaveAttribute('aria-pressed', 'true')
     await user.click(screen.getByRole('button', { name: 'USD' }))
@@ -246,7 +263,14 @@ describe('SettingsView — Tampilan tab (working controls)', () => {
   it('an already-selected option is inert rather than firing the toggle again', async () => {
     const user = userEvent.setup()
     let toggled = 0
-    renderSettings({ fx: fx({ showUsd: false, toggleCurrency: () => { toggled += 1 } }) })
+    renderSettings({
+      fx: fx({
+        showUsd: false,
+        toggleCurrency: () => {
+          toggled += 1
+        },
+      }),
+    })
 
     await user.click(screen.getByRole('button', { name: 'IDR' }))
     expect(toggled).toBe(0)
@@ -423,7 +447,9 @@ describe('SettingsView — editing the profile (R-26, R-27)', () => {
   })
 
   it('says what the server refused, in text, and stays in edit mode', async () => {
-    const updateProfile = vi.fn().mockRejectedValue(new Error('expected an Indonesian mobile number'))
+    const updateProfile = vi
+      .fn()
+      .mockRejectedValue(new Error('expected an Indonesian mobile number'))
     renderSettings({ auth: auth({ updateProfile }) })
     const user = userEvent.setup()
     await openEditor(user)
@@ -741,9 +767,7 @@ describe('SettingsView — the declared manual transfer (Tab 2, pembayaran)', ()
     renderSettings()
     await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
 
-    expect(
-      await screen.findByText(/BNI · 9876543210 · a\.n PT AIDSS JAYA/),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/BNI · 9876543210 · a\.n PT AIDSS JAYA/)).toBeInTheDocument()
   })
 
   it('when the server has written no destination, the tab says so instead of showing digits', async () => {

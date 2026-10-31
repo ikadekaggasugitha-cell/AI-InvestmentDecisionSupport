@@ -1,148 +1,219 @@
-import { useState, useEffect, useCallback } from "react";
-import { USE_LIVE_API, ENDPOINTS, FETCH_TIMEOUT_MS, apiFetch,
-  HttpStatusError, classifyLoadError, type LoadFailure,
-} from "@/app/config/api";
+import { useState, useEffect, useCallback } from 'react'
+import {
+  USE_LIVE_API,
+  ENDPOINTS,
+  FETCH_TIMEOUT_MS,
+  apiFetch,
+  HttpStatusError,
+  classifyLoadError,
+  type LoadFailure,
+} from '@/app/config/api'
 
 /* ── Public types ────────────────────────────────────────────────────────── */
 
-export type ReportType =
-  | "performance" | "quarterly" | "risk" | "tax_loss" | "signal_audit";
+export type ReportType = 'performance' | 'quarterly' | 'risk' | 'tax_loss' | 'signal_audit'
 
 export type ReportMeta = {
-  type: ReportType;
-  titleId: string;
-  titleEn: string;
-  descId: string;
-  descEn: string;
-  labelId: string;
-  labelEn: string;
-  status: string;
+  type: ReportType
+  titleId: string
+  titleEn: string
+  descId: string
+  descEn: string
+  labelId: string
+  labelEn: string
+  status: string
   /** Populated after a successful generate/download. */
-  sizeKb?: number;
-  generatedAt?: string;
-};
+  sizeKb?: number
+  generatedAt?: string
+}
 
 export interface ReportsResult {
-  reports: ReportMeta[];
-  loading: boolean;
-  error: string | null;
+  reports: ReportMeta[]
+  loading: boolean
+  error: string | null
   /** Refused or unreachable. Reports are a paid route, so a 402 is a lock. */
-  failure: LoadFailure | null;
+  failure: LoadFailure | null
   /** type currently generating (Buat Laporan), or null. */
-  generating: ReportType | null;
+  generating: ReportType | null
   /** type currently downloading (Unduh), or null. */
-  downloading: ReportType | null;
+  downloading: ReportType | null
   /**
    * False when the catalogue is the bundled OFFLINE list because the backend
    * could not be reached. The view previously hardcoded a "Live" data-source
    * tile, which stayed "Live" in exactly the case where nothing was live.
    */
-  isLive: boolean;
-  generate: (type: ReportType) => Promise<void>;
-  download: (type: ReportType) => Promise<void>;
+  isLive: boolean
+  generate: (type: ReportType) => Promise<void>
+  download: (type: ReportType) => Promise<void>
 }
 
 /* Offline catalogue so the view still renders without a backend. */
 const OFFLINE: ReportMeta[] = [
-  { type: "performance", titleId: "Laporan Kinerja Portofolio", titleEn: "Portfolio Performance Report", descId: "Alokasi optimal, bobot, dan ekspektasi imbal hasil per posisi.", descEn: "Optimal allocation, weights, and expected return per position.", labelId: "Kinerja", labelEn: "Performance", status: "ready" },
-  { type: "quarterly", titleId: "Tinjauan Investasi Kuartalan", titleEn: "Quarterly Investment Review", descId: "Ringkasan alokasi, metrik portofolio, dan proyeksi.", descEn: "Allocation summary, portfolio metrics, and outlook.", labelId: "Kuartalan", labelEn: "Quarterly", status: "ready" },
-  { type: "risk", titleId: "Laporan Penilaian Risiko", titleEn: "Risk Assessment Report", descId: "VaR/CVaR, volatilitas, beta, dan hasil stress test.", descEn: "VaR/CVaR, volatility, beta, and stress-test results.", labelId: "Risiko", labelEn: "Risk", status: "ready" },
-  { type: "tax_loss", titleId: "Peluang Tax-Loss Harvesting", titleEn: "Tax-Loss Harvesting Opportunities", descId: "Posisi dengan ekspektasi imbal hasil negatif, kandidat efisiensi pajak.", descEn: "Positions with negative expected return, tax-efficiency candidates.", labelId: "Pajak", labelEn: "Tax", status: "ready" },
-  { type: "signal_audit", titleId: "Audit Kinerja Sinyal AI", titleEn: "AI Signal Performance Audit", descId: "Probabilitas naik, tier, dan skor model per saham.", descEn: "Upside probability, tier, and model score per stock.", labelId: "Audit AI", labelEn: "AI Audit", status: "ready" },
-];
+  {
+    type: 'performance',
+    titleId: 'Laporan Kinerja Portofolio',
+    titleEn: 'Portfolio Performance Report',
+    descId: 'Alokasi optimal, bobot, dan ekspektasi imbal hasil per posisi.',
+    descEn: 'Optimal allocation, weights, and expected return per position.',
+    labelId: 'Kinerja',
+    labelEn: 'Performance',
+    status: 'ready',
+  },
+  {
+    type: 'quarterly',
+    titleId: 'Tinjauan Investasi Kuartalan',
+    titleEn: 'Quarterly Investment Review',
+    descId: 'Ringkasan alokasi, metrik portofolio, dan proyeksi.',
+    descEn: 'Allocation summary, portfolio metrics, and outlook.',
+    labelId: 'Kuartalan',
+    labelEn: 'Quarterly',
+    status: 'ready',
+  },
+  {
+    type: 'risk',
+    titleId: 'Laporan Penilaian Risiko',
+    titleEn: 'Risk Assessment Report',
+    descId: 'VaR/CVaR, volatilitas, beta, dan hasil stress test.',
+    descEn: 'VaR/CVaR, volatility, beta, and stress-test results.',
+    labelId: 'Risiko',
+    labelEn: 'Risk',
+    status: 'ready',
+  },
+  {
+    type: 'tax_loss',
+    titleId: 'Peluang Tax-Loss Harvesting',
+    titleEn: 'Tax-Loss Harvesting Opportunities',
+    descId: 'Posisi dengan ekspektasi imbal hasil negatif, kandidat efisiensi pajak.',
+    descEn: 'Positions with negative expected return, tax-efficiency candidates.',
+    labelId: 'Pajak',
+    labelEn: 'Tax',
+    status: 'ready',
+  },
+  {
+    type: 'signal_audit',
+    titleId: 'Audit Kinerja Sinyal AI',
+    titleEn: 'AI Signal Performance Audit',
+    descId: 'Probabilitas naik, tier, dan skor model per saham.',
+    descEn: 'Upside probability, tier, and model score per stock.',
+    labelId: 'Audit AI',
+    labelEn: 'AI Audit',
+    status: 'ready',
+  },
+]
 
 /* ── Hook ────────────────────────────────────────────────────────────────── */
 
 /** Lists on-demand PDF reports and drives generate/download. */
 export function useReports(): ReportsResult {
-  const [reports, setReports] = useState<ReportMeta[]>(USE_LIVE_API ? [] : OFFLINE);
-  const [loading, setLoading] = useState(USE_LIVE_API);
-  const [error, setError] = useState<string | null>(null);
-  const [failure, setFailure] = useState<LoadFailure | null>(null);
-  const [isLive, setIsLive] = useState(false);
-  const [generating, setGenerating] = useState<ReportType | null>(null);
-  const [downloading, setDownloading] = useState<ReportType | null>(null);
+  const [reports, setReports] = useState<ReportMeta[]>(USE_LIVE_API ? [] : OFFLINE)
+  const [loading, setLoading] = useState(USE_LIVE_API)
+  const [error, setError] = useState<string | null>(null)
+  const [failure, setFailure] = useState<LoadFailure | null>(null)
+  const [isLive, setIsLive] = useState(false)
+  const [generating, setGenerating] = useState<ReportType | null>(null)
+  const [downloading, setDownloading] = useState<ReportType | null>(null)
 
   useEffect(() => {
-    if (!USE_LIVE_API) return;
-    let cancelled = false;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    if (!USE_LIVE_API) return
+    let cancelled = false
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
-    (async () => {
+    ;(async () => {
       try {
-        const res = await apiFetch(ENDPOINTS.reports, { signal: controller.signal });
-        if (!res.ok) throw new HttpStatusError(res.status);
-        const data = await res.json();
+        const res = await apiFetch(ENDPOINTS.reports, { signal: controller.signal })
+        if (!res.ok) throw new HttpStatusError(res.status)
+        const data = await res.json()
         if (!cancelled) {
-          setReports(Array.isArray(data?.reports) ? data.reports : OFFLINE);
-          setIsLive(true);
+          setReports(Array.isArray(data?.reports) ? data.reports : OFFLINE)
+          setIsLive(true)
         }
       } catch (err) {
-        if (cancelled) return;
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        setError(err instanceof Error ? err.message : "Unknown error");
-        setFailure(classifyLoadError(err));
-        setReports(OFFLINE); // still render the catalogue
-        setIsLive(false);
+        if (cancelled) return
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        setError(err instanceof Error ? err.message : 'Unknown error')
+        setFailure(classifyLoadError(err))
+        setReports(OFFLINE) // still render the catalogue
+        setIsLive(false)
       } finally {
-        if (!cancelled) setLoading(false);
-        clearTimeout(timeout);
+        if (!cancelled) setLoading(false)
+        clearTimeout(timeout)
       }
-    })();
+    })()
 
-    return () => { cancelled = true; controller.abort(); clearTimeout(timeout); };
-  }, []);
+    return () => {
+      cancelled = true
+      controller.abort()
+      clearTimeout(timeout)
+    }
+  }, [])
 
   const triggerDownload = useCallback(async (type: ReportType) => {
     // Blob download so the bearer token rides the request (a plain <a href>
     // could not send Authorization). Object URL is revoked after the click.
-    const res = await apiFetch(ENDPOINTS.reportDownload(type));
-    if (!res.ok) throw new HttpStatusError(res.status);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `aidss-${type}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }, []);
+    const res = await apiFetch(ENDPOINTS.reportDownload(type))
+    if (!res.ok) throw new HttpStatusError(res.status)
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `aidss-${type}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }, [])
 
-  const download = useCallback(async (type: ReportType) => {
-    if (!USE_LIVE_API) { setError("Live API disabled: cannot download."); return; }
-    setDownloading(type); setError(null);
-        setFailure(null);
-    try {
-      await triggerDownload(type);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Download failed");
-        setFailure(classifyLoadError(err));
-    } finally {
-      setDownloading(null);
-    }
-  }, [triggerDownload]);
+  const download = useCallback(
+    async (type: ReportType) => {
+      if (!USE_LIVE_API) {
+        setError('Live API disabled: cannot download.')
+        return
+      }
+      setDownloading(type)
+      setError(null)
+      setFailure(null)
+      try {
+        await triggerDownload(type)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Download failed')
+        setFailure(classifyLoadError(err))
+      } finally {
+        setDownloading(null)
+      }
+    },
+    [triggerDownload],
+  )
 
-  const generate = useCallback(async (type: ReportType) => {
-    if (!USE_LIVE_API) { setError("Live API disabled: cannot generate."); return; }
-    setGenerating(type); setError(null);
-        setFailure(null);
-    try {
-      const res = await apiFetch(ENDPOINTS.reportGenerate(type), { method: "POST" });
-      if (!res.ok) throw new HttpStatusError(res.status);
-      const meta = await res.json();
-      setReports((rs) => rs.map((r) =>
-        r.type === type ? { ...r, sizeKb: meta?.sizeKb, generatedAt: meta?.generatedAt } : r));
-      // A generated report is immediately downloaded so the click has a result.
-      await triggerDownload(type);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Generate failed");
-        setFailure(classifyLoadError(err));
-    } finally {
-      setGenerating(null);
-    }
-  }, [triggerDownload]);
+  const generate = useCallback(
+    async (type: ReportType) => {
+      if (!USE_LIVE_API) {
+        setError('Live API disabled: cannot generate.')
+        return
+      }
+      setGenerating(type)
+      setError(null)
+      setFailure(null)
+      try {
+        const res = await apiFetch(ENDPOINTS.reportGenerate(type), { method: 'POST' })
+        if (!res.ok) throw new HttpStatusError(res.status)
+        const meta = await res.json()
+        setReports((rs) =>
+          rs.map((r) =>
+            r.type === type ? { ...r, sizeKb: meta?.sizeKb, generatedAt: meta?.generatedAt } : r,
+          ),
+        )
+        // A generated report is immediately downloaded so the click has a result.
+        await triggerDownload(type)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Generate failed')
+        setFailure(classifyLoadError(err))
+      } finally {
+        setGenerating(null)
+      }
+    },
+    [triggerDownload],
+  )
 
-  return { reports, loading, error, failure, isLive, generating, downloading, generate, download };
+  return { reports, loading, error, failure, isLive, generating, downloading, generate, download }
 }
