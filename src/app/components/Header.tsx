@@ -15,6 +15,12 @@ interface HeaderProps {
   onMenuToggle?: () => void
   /** Open a search result in Markets, pre-filtered to that symbol. */
   onSelectSymbol?: (symbol: string) => void
+  /**
+   * Glass chrome on the dashboard only (docs/DESIGN.md, dashboard exception).
+   * Passed as a flag rather than applied unconditionally so the other views keep
+   * the opaque paper surface the rest of the app is built on.
+   */
+  glass?: boolean
 }
 
 // LQ45 / IDX30 / ISSI used to be rendered here from hardcoded constants on the
@@ -208,7 +214,11 @@ const dropdownStyle: CSSProperties = {
   borderRadius: 6,
   zIndex: 40,
   boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-  overflow: 'hidden',
+  // A long result set on a short viewport used to be cut off with no way to
+  // reach the rest: overflow hidden clipped it and there was no height limit.
+  maxHeight: 'min(60vh, 420px)',
+  overflowY: 'auto',
+  overflowX: 'hidden',
 }
 
 export function Header({
@@ -219,6 +229,7 @@ export function Header({
   isMobile = false,
   onMenuToggle,
   onSelectSymbol,
+  glass = false,
 }: HeaderProps) {
   const [search, setSearch] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -251,7 +262,14 @@ export function Header({
 
   return (
     <header
-      style={{ background: 'var(--card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}
+      className={glass ? 'glass-bar' : undefined}
+      style={{
+        // Inline background would beat the class's translucent one, so it is
+        // simply not written when the glass surface is the one asked for.
+        ...(glass ? null : { background: 'var(--card)' }),
+        borderBottom: '1px solid var(--border)',
+        flexShrink: 0,
+      }}
       role="banner"
     >
       {/* ── Ticker row ──────────────────────────────────────────────────────── */}

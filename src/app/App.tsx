@@ -316,6 +316,12 @@ function AppInner() {
 
   const cfg = viewTitles[view]
 
+  /* Glass is a dashboard-only contract. The decorative page layer that gives
+     the blur something to refract, and the blurred header bar, are switched on
+     together and only here — the other eight views keep the opaque paper surface
+     and the flat ground they were built and contrast-checked against. */
+  const glassy = view === 'dashboard'
+
   // The two auth paths are real URLs so they survive a refresh and can be
   // linked to. Both redirect into the shell, because by this point the gate above
   // has already established that there is a session; if there is not, the gate
@@ -340,13 +346,14 @@ function AppInner() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className={`flex-1 flex flex-col overflow-hidden min-w-0${glassy ? ' glass-page' : ''}`}>
         <Header
           title={cfg.title}
           subtitle={cfg.subtitle}
           market={market}
           fx={fx}
           isMobile={isMobile}
+          glass={glassy}
           onMenuToggle={() => setSidebarOpen(true)}
           onSelectSymbol={selectSymbol}
         />

@@ -230,10 +230,7 @@ export function DashboardView({
      Six parts exceed the ring budget (three to five slices): the bar list
      ranks them and reads without hue. */
   const sectorCard = (
-    <div
-      className="rounded p-5"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-    >
+    <div className="p-5 glass-card">
       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)', marginBottom: 2 }}>
         {t('dash_sector_alloc')}
       </div>
@@ -289,16 +286,12 @@ export function DashboardView({
   )
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-5 [&>*]:shrink-0">
+    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-6 [&>*]:shrink-0">
       {/* KPI row. Icon chips are gone: the KPI's ink is the identity, the
           value is the key number, and the label stays quiet above them. */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
-          <div
-            key={card.label}
-            className="rounded p-5"
-            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-          >
+          <div key={card.label} className="p-6 glass-card">
             <div style={{ fontSize: 13, color: 'var(--muted-foreground)', marginBottom: 8 }}>
               {card.label}
             </div>
@@ -330,10 +323,7 @@ export function DashboardView({
           the row; with data both cards sit side by side. */}
       {chartData.length === 0 ? (
         <>
-          <div
-            className="rounded p-4"
-            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-          >
+          <div className="p-4 glass-card">
             <div style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
               {t('dash_no_intraday')}
             </div>
@@ -344,10 +334,7 @@ export function DashboardView({
         <div className="grid gap-4 grid-cols-1 xl:grid-cols-[1fr_296px] items-start">
           {/* Intraday chart. The main data element owns the one chart hue; the
               grid and axes stay grey and horizontal only. */}
-          <div
-            className="rounded p-5"
-            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-          >
+          <div className="p-5 glass-card">
             <div
               style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)', marginBottom: 2 }}
             >
@@ -414,10 +401,7 @@ export function DashboardView({
           because three ~150px columns at 768 truncate the figures. */}
       <div className="grid gap-4 grid-cols-1 lg:grid-cols-3 items-start">
         {/* Top holdings */}
-        <div
-          className="rounded p-5"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-        >
+        <div className="p-5 glass-card">
           <div
             style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)', marginBottom: 12 }}
           >
@@ -522,10 +506,7 @@ export function DashboardView({
         </div>
 
         {/* Recent transactions */}
-        <div
-          className="rounded p-5"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-        >
+        <div className="p-5 glass-card">
           {/* Provenance stated in plain text, matching the alerts card below.
               These seed rows are shaped exactly like real ones (ticker, BUY/SELL
               chip, rupiah total, a plausible date), so without the label a
@@ -621,10 +602,7 @@ export function DashboardView({
         </div>
 
         {/* AI alerts */}
-        <div
-          className="rounded p-5"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-        >
+        <div className="p-5 glass-card">
           <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
               {t('dash_ai_alerts')}
