@@ -462,7 +462,8 @@ describe.each([
       'app/features/settings/tabPrimitives.tsx',
       'app/features/advisor/signalCard.tsx',
     ]
-    const onSurface = new Set<string>()
+    const onSurface = new Map<string, RGBA>()
+    const seenMixes: string[] = []
     const sizes: number[] = []
     /** The object literal a match sits in, by brace depth — a character window
      *  was wrong: a comment between `background:` and `color:` pushed an accent
@@ -492,9 +493,51 @@ describe.each([
     }
     for (const file of TABLE_SOURCES) {
       const src = readFileSync(resolve(ROOT, file), 'utf8')
+      /** An ink with a fill of its own is measured against that fill elsewhere, so
+       *  only the ones sitting straight on the surface belong to this rule. `bg:`
+       *  counts as a fill; `bg: 'transparent'` does not. */
+      const hasOwnFill = (block: string) => {
+        const m = block.match(/(?:background|bg)(?:Color)?:\s*'([^']+)'/)
+        return !!m && m[1] !== 'transparent'
+      }
       for (const m of src.matchAll(/color: 'var\(--([a-z0-9-]+)\)'/g)) {
         const block = enclosingBlock(src, m.index ?? 0)
-        if (!/background(Color)?:/.test(block)) onSurface.add(m[1])
+        if (!hasOwnFill(block)) onSurface.set(`--${m[1]}`, parseColor(token(source, m[1])))
+      }
+      /* colour-mix() inks, resolved the way the browser resolves them. Without
+       * this the guard is blind to the market table's tier ramp, which turned out
+       * to hold the worst real text on a glass surface. The closing `))'` is part
+       * of the pattern: a regex that silently matches nothing reports a clean
+       * pass forever, which is how the first version of this rule shipped. */
+      const MIX =
+        /color: 'color-mix\(in srgb, var\(--([a-z0-9-]+)\) (\d+)%, var\(--([a-z0-9-]+)\)\)'/g
+      for (const m of src.matchAll(MIX)) {
+        const a = parseColor(token(source, m[1]))
+        const b = parseColor(token(source, m[3]))
+        const p = Number(m[2]) / 100
+        const name = `--${m[1]} ${m[2]}% over --${m[3]}`
+        // Recorded before the fill check so the "did this scan run" assertion
+        // counts every expression found, not only the ones policed here.
+        seenMixes.push(name)
+        if (hasOwnFill(enclosingBlock(src, m.index ?? 0))) continue
+        /* Pre-existing debt, named so it cannot quietly grow or drift: the tier
+           ramp was built against an opaque white card, where its quietest step
+           already measured 1,75:1. Glass did not create it and cannot fix it;
+           clearing AA here means redesigning a three-step semantic ramp, which is
+           the owner's decision, not a side effect of a restyle. Adding a colour to
+           this list is a decision, and the test below proves the two entries are
+           still the exact expressions in the source. */
+        const KNOWN_DEBT = [
+          '--accent-foreground 35% over --card',
+          '--accent-foreground 65% over --card',
+        ]
+        if (KNOWN_DEBT.includes(name)) continue
+        onSurface.set(name, {
+          r: Math.round(a.r * p + b.r * (1 - p)),
+          g: Math.round(a.g * p + b.g * (1 - p)),
+          b: Math.round(a.b * p + b.b * (1 - p)),
+          a: 1,
+        })
       }
       for (const m of src.matchAll(/fontSize: (\d+)/g)) sizes.push(Number(m[1]))
     }
@@ -502,21 +545,21 @@ describe.each([
     // rather than silently inherit a contrast budget written for larger text.
     expect(sizes.filter((s) => s < 11)).toEqual([])
     const failures: string[] = []
-    for (const name of onSurface) {
-      let value: string
-      try {
-        value = token(source, name)
-      } catch {
-        continue // not a colour token in these blocks
-      }
-      const ink = parseColor(value)
+    for (const [name, ink] of onSurface) {
       const worst = Math.min(...cards.map((c) => contrast(ink, c)))
-      if (worst < AA) failures.push(`--${name} at ${worst.toFixed(2)}:1`)
+      if (worst < AA) failures.push(`${name} at ${worst.toFixed(2)}:1`)
     }
+    // The scan has to prove it saw what it is written to police.
+    expect(seenMixes).toEqual(
+      expect.arrayContaining([
+        '--accent-foreground 35% over --card',
+        '--accent-foreground 65% over --card',
+      ]),
+    )
     // A guard that quietly stops testing anything is not a guard. The named ink is
     // the row-label colour the whole question is about: if the scan ever stops
     // finding it, the scan has broken, not the palette.
-    expect([...onSurface]).toContain('muted-foreground')
+    expect([...onSurface.keys()]).toContain('--muted-foreground')
     expect(onSurface.size).toBeGreaterThanOrEqual(3)
     expect(failures).toEqual([])
   })
