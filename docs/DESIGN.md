@@ -748,6 +748,19 @@ keluar (+15,0px), **nol teks di bawah 11px**, `scrollWidth` 390 = `clientWidth`
 `--surface-hairline`, dari 0,94 sebelumnya. Console hanya memuat 402 paywall yang
 jujur.
 
+**Temuan pra-eksisting pada tabel Pasar: rampa warna tier.** Audit piksel menemukan
+teks terburuk di atas surface glass adalah label tier-3: **1,54:1** (terang) dan
+**2,11:1** (gelap). Ini bukan buatan glass dan glass tidak bisa memperbaikinya:
+garis `TIER_RAMP` yang sama sudah ada di commit sebelum glass pertama, dan pada
+kartu putih opaque langkah paling tenang itu sudah **1,75:1**. Guard kini melihat
+kelas ini (sebelumnya buta, karena ia hanya mengenali `var(--x)` dan rampa ditulis
+sebagai `color-mix(...)`), dan kedua langkah yang gagal dicatat sebagai **utang
+bernama** di test — exact-match, sehingga menggeser 35% ke 34% pun membuat run
+merah. Memperbaikinya berarti merancang ulang rampa tiga langkah yang adalah bahasa
+warna semantik produk (butuh ~95% untuk lolos AA, yaitu menghapus tingkatan itu),
+dan itu keputusan pemilik, bukan efek samping mengganti kulit. Ditanyakan, belum
+diputuskan.
+
 **Tepi kartu besar, diukur bukan diasumsikan.** Rencana menyiapkan fallback
 `--glass-border-strong` bila `--glass-border` (α 0,16) terlalu lemah untuk kartu
 tabel besar. Tidak diperlukan: pemisah baris Pasar kini terukur ΔE 9,18 dan
