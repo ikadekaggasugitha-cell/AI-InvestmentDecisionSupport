@@ -6,30 +6,38 @@ import { resolve } from 'node:path'
  * The glass blend, enforced rather than commented.
  *
  * contrast.test.ts compares a declared token hex against a declared surface hex.
- * That is the right check for opaque surfaces, and it is blind to the one thing
- * translucent surfaces actually do: a card at alpha 0.5 paints a colour that is
+ * That is the right check for opaque surfaces and blind to the one thing
+ * translucent surfaces actually do: a card at alpha 0.60 paints a colour that is
  * neither its own token nor the ground beneath it. Both numbers are real and
  * neither is what the reader sees.
  *
- * That blindness cost real money here — a first pass at this skin shipped a
- * comment claiming a contrast ratio that the composited surface did not have,
- * and no test could have caught it. So this file composites the glass the way
- * the browser would and holds the result to WCAG AA.
+ * That blindness cost real work here. A first pass at this skin shipped a comment
+ * claiming the composited card could not reach AA without darker ink, and the
+ * claim was produced by a Lab function that divided the sRGB channels by 255
+ * twice — it reported a real ΔE of 4.7 as 0.03. Nothing in the suite could catch
+ * that, so the arithmetic moved out of prose and into this file.
  *
  * Approximation, stated honestly: CSS interpolates a colour toward `transparent`
- * in premultiplied space, and the ramp here is linear in alpha. On the low-alpha
- * pastel gradients this skin uses the difference is well under a point of
- * contrast; the margins asserted below are not razor-thin, so the approximation
- * does not decide any outcome.
+ * in premultiplied space; the ramp below is linear in alpha across the gradient's
+ * own radius. On these pale, low-chroma sweeps the difference is a fraction of a
+ * point of contrast, and the margins asserted below are not razor-thin, so the
+ * approximation does not decide any outcome.
  */
 
 const ROOT = resolve(__dirname, '../..')
 const css = readFileSync(resolve(ROOT, 'styles/theme.css'), 'utf8')
 
-/** The app's own light and dark blocks — the first `:root` and the `.dark`. */
-function block(selector: string, from = 0): string {
-  const start = css.indexOf(selector, from)
-  if (start === -1) throw new Error(`${selector} not found in theme.css`)
+/**
+ * The app's own light and dark blocks.
+ *
+ * The dark selector is anchored to the start of a line on purpose. `css.indexOf('.dark')`
+ * finds `@custom-variant dark (&:is(.dark *))` on line 1 instead, and the block that
+ * follows is the LIGHT `:root` — a mutation of the light card then "fails the dark
+ * tests" while the real dark values are never read. Found exactly that way.
+ */
+function block(selector: string): string {
+  const start = css.search(new RegExp(`^${selector}\\s*\\{`, 'm'))
+  if (start === -1) throw new Error(`${selector} block not found in theme.css`)
   const open = css.indexOf('{', start)
   let depth = 0
   for (let i = open; i < css.length; i++) {
@@ -59,9 +67,9 @@ function parseColor(value: string): RGBA {
     const [r, g, b, a = '1'] = rgba[1].split(',').map((s) => s.trim())
     return { r: +r, g: +g, b: +b, a: +a }
   }
-  const hex = value.match(/^#([0-9a-f]{6})$/i)
+  const hex = value.match(/^(#[0-9a-f]{6})$/i)
   if (hex) {
-    const h = hex[1]
+    const h = hex[1].slice(1)
     return {
       r: parseInt(h.slice(0, 2), 16),
       g: parseInt(h.slice(2, 4), 16),
@@ -72,7 +80,7 @@ function parseColor(value: string): RGBA {
   throw new Error(`unsupported colour: ${value}`)
 }
 
-/** One `radial-gradient(rx ry at x% y%, rgba(...) , transparent s%)`. */
+/** One `radial-gradient(rx ry at x% y%, rgba(...), transparent s%)`. */
 type Sweep = { rx: number; ry: number; cx: number; cy: number; color: RGBA; stop: number }
 
 function parseSweeps(source: string): Sweep[] {
@@ -89,22 +97,41 @@ function parseSweeps(source: string): Sweep[] {
 }
 
 /**
- * Two real column boxes, not a guess at one: the 1440 desktop content column
- * (window minus the 220px sidebar) and the 390 phone column. A skin that only
- * holds AA at one width is not holding AA.
+ * The nine glass cards, measured in the running app at 1440x900: four KPI cards
+ * across the top, the intraday chart and the sector list in the middle band, and
+ * the three bottom cards. Centres are relative to the painted column box (1220 x
+ * 900 — the window minus the 220px sidebar), which is what `background-attachment:
+ * scroll` anchors the sweeps to.
  */
-const CANVASES = [
-  { name: 'desktop 1440 column', w: 1220, h: 900 },
-  { name: 'phone 390 column', w: 390, h: 844 },
+const CARD_CENTRES: [number, number][] = [
+  [161.6, 251.5],
+  [456.9, 251.5],
+  [752.1, 251.5],
+  [1047.4, 251.5],
+  [604.5, 357.6],
+  [604.5, 558.7],
+  [210.8, 794.8],
+  [604.5, 897.1],
+  [998.2, 952.3],
+]
+const COLUMN = { w: 1220, h: 900 }
+
+/**
+ * A coarse sweep of the whole column, at desktop and phone width. The nine
+ * centres are what a reader sees today; this is the guard against a future card
+ * layout sitting on a worse patch of ground than any of them.
+ */
+const COLUMN_PROBES: { w: number; h: number }[] = [
+  { w: 1220, h: 900 },
+  { w: 390, h: 844 },
 ]
 
-/** Where a sweep still contributes, as a fraction of its own centre alpha. */
-function sweepAt(s: Sweep, x: number, y: number, w: number, h: number): number {
+function sweepAlpha(s: Sweep, x: number, y: number, w: number, h: number): number {
   const d = Math.hypot((x - (s.cx / 100) * w) / s.rx, (y - (s.cy / 100) * h) / s.ry)
   return Math.max(0, (s.stop - d) / s.stop)
 }
 
-function over(top: RGBA, bottom: RGBA) {
+function over(top: RGBA, bottom: RGBA): RGBA {
   const a = top.a
   return {
     r: top.r * a + bottom.r * (1 - a),
@@ -130,16 +157,15 @@ function contrast(a: RGBA, b: RGBA): number {
   return (hi + 0.05) / (lo + 0.05)
 }
 
-/** CIE76 ΔE, for the one question alpha ratios cannot answer: is it visible? */
 function lab(c: RGBA): [number, number, number] {
   const r = channel(c.r)
   const g = channel(c.g)
   const b = channel(c.b)
   const f = (v: number) => (v > 0.008856 ? Math.cbrt(v) : 7.787 * v + 16 / 116)
-  const fx = f((r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047)
-  const fy = f(r * 0.2126 + g * 0.7152 + b * 0.0722)
-  const fz = f((r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883)
-  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)]
+  const x = f((r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047)
+  const y = f(r * 0.2126 + g * 0.7152 + b * 0.0722)
+  const z = f((r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883)
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)]
 }
 
 function deltaE(a: RGBA, b: RGBA): number {
@@ -148,83 +174,101 @@ function deltaE(a: RGBA, b: RGBA): number {
   return Math.hypot(l1 - l2, a1 - a2, b1 - b2)
 }
 
-/** A 7x7 grid across the column: the worst card is somewhere in here. */
-function cardColours(source: string): { cards: RGBA[]; canvas: string } {
-  const surface = parseColor(token(source, 'glass-surface'))
-  const base = parseColor(token(source, 'background'))
-  const sweeps = parseSweeps(token(source, 'glass-page'))
-  const canvas = CANVASES[0]
-  const cards: RGBA[] = []
-  for (const { w, h } of CANVASES) {
+/** The inks a glass card actually paints, read from the theme, not hardcoded. */
+const CARD_INKS = ['foreground', 'muted-foreground', 'gain', 'loss', 'warning', 'link'] as const
+
+function cardAt(source: string, x: number, y: number, w: number, h: number): RGBA {
+  return over(parseColor(token(source, 'glass-surface')), groundAt(source, x, y, w, h))
+}
+
+/** The painted page, before any card sits on it — what the sticky bar sees between cards. */
+function groundAt(source: string, x: number, y: number, w: number, h: number): RGBA {
+  let ground = parseColor(token(source, 'background'))
+  for (const s of parseSweeps(token(source, 'glass-page'))) {
+    const t = sweepAlpha(s, x, y, w, h)
+    if (t <= 0) continue
+    ground = over({ ...s.color, a: s.color.a * t }, ground)
+  }
+  return ground
+}
+
+function cardColours(source: string): RGBA[] {
+  return CARD_CENTRES.map(([x, y]) => cardAt(source, x, y, COLUMN.w, COLUMN.h))
+}
+
+function probeColours(source: string): RGBA[] {
+  const out: RGBA[] = []
+  for (const { w, h } of COLUMN_PROBES) {
     for (let iy = 0; iy < 7; iy++) {
       for (let ix = 0; ix < 7; ix++) {
-        const x = ((ix + 0.5) / 7) * w
-        const y = ((iy + 0.5) / 7) * h
-        let ground = base
-        for (const s of sweeps) {
-          const t = sweepAt(s, x, y, w, h)
-          if (t <= 0) continue
-          ground = over({ ...s.color, a: s.color.a * t }, ground)
-        }
-        cards.push(over(surface, ground))
+        out.push(cardAt(source, ((ix + 0.5) / 7) * w, ((iy + 0.5) / 7) * h, w, h))
       }
     }
   }
-  return { cards, canvas: canvas.name }
+  return out
 }
 
-// The inks this skin actually paints inside a glass card. The two `glass`
-// variants exist because a translucent surface needs darker ink than the same
-// surface painted opaque; the app tokens are checked too, wherever they appear.
-const INKS = {
-  light: {
-    foreground: 'foreground',
-    'glass-ink-muted': 'glass-ink-muted',
-    'glass-loss': 'glass-loss',
-    gain: 'gain',
-    warning: 'warning',
-    link: 'link',
-  },
-  dark: {
-    foreground: 'foreground',
-    'glass-ink-muted': 'glass-ink-muted',
-    'glass-loss': 'glass-loss',
-    gain: 'gain',
-    warning: 'warning',
-    link: 'link',
-  },
-} as const
+function groundProbes(source: string): RGBA[] {
+  const out: RGBA[] = []
+  for (const { w, h } of COLUMN_PROBES) {
+    for (let iy = 0; iy < 7; iy++) {
+      for (let ix = 0; ix < 7; ix++) {
+        out.push(groundAt(source, ((ix + 0.5) / 7) * w, ((iy + 0.5) / 7) * h, w, h))
+      }
+    }
+  }
+  return out
+}
 
 describe('the checker itself', () => {
-  it('finds the glass tokens it is supposed to read', () => {
+  it('proves its own colour maths against known answers', () => {
+    // Every number in this file descends from these two functions. A doubled
+    // /255 in either one is what produced the wrong claim this test replaces,
+    // so the maths is checked before its output is trusted.
+    const white = parseColor('#ffffff')
+    const black = parseColor('#000000')
+    expect(lab(white)[0]).toBeCloseTo(100, 2)
+    expect(lab(black)[0]).toBe(0)
+    expect(deltaE(white, black)).toBeCloseTo(100, 1)
+    expect(contrast(white, black)).toBeCloseTo(21, 1)
+    // The published WCAG figure for #767676 on white is 4.54.
+    expect(contrast(parseColor('#767676'), white)).toBeCloseTo(4.54, 2)
+  })
+
+  it('reads the glass tokens it is supposed to read', () => {
+    // The two blocks must actually differ, or every "dark" assertion below has
+    // been reading light values in disguise.
+    expect(token(DARK, 'background')).not.toBe(token(LIGHT, 'background'))
+    expect(token(DARK, 'glass-surface')).not.toBe(token(LIGHT, 'glass-surface'))
     for (const source of [LIGHT, DARK]) {
       expect(token(source, 'glass-surface')).toMatch(/rgba?\(/)
-      expect(token(source, 'glass-radius')).toMatch(/px$/)
-      expect(parseSweeps(token(source, 'glass-page')).length).toBeGreaterThanOrEqual(2)
+      expect(parseSweeps(token(source, 'glass-page'))).toHaveLength(2)
     }
+    // Radius is not a per-theme value, so it is declared once and read once.
+    expect(token(LIGHT, 'glass-radius')).toBe('16px')
+    // Nine cards, as measured — not a sample of one.
+    expect(CARD_CENTRES).toHaveLength(9)
+    expect(cardColours(LIGHT)).toHaveLength(9)
   })
 
-  it('composites a real spread of cards, not a sample of one', () => {
-    const { cards } = cardColours(LIGHT)
-    expect(cards.length).toBe(98) // 2 canvases x 7x7
-    expect(cards.every((c) => c.a === 1)).toBe(true)
+  it('does not disturb the tokens contrast.test.ts counts', () => {
+    // That file asserts exactly two declarations of each across the stylesheet.
+    // Glass tokens must not be named anything it is already holding to a count.
+    expect((css.match(/^\s*--control-border:/gm) ?? []).length).toBe(2)
+    expect((css.match(/^\s*--link:/gm) ?? []).length).toBe(2)
   })
 
-  it('is not a test that cannot fail', () => {
-    // A guard that passes for every input is worse than no guard. Feed the
-    // machinery an obviously broken skin — an almost-clear card over a near-black
-    // ground — and it must reject it. Written as its own block rather than a
-    // patch of the real CSS, so retuning the real tokens can never quietly
-    // disable this check.
+  it('rejects a skin it is shown to be broken', () => {
+    // A guard that passes for every input is worse than no guard. Its own block,
+    // so retuning the real tokens can never quietly disable this check.
     const broken = `
       --background: #f5f7fa;
       --glass-surface: rgba(255, 255, 255, 0.02);
-      --glass-ink-muted: #4e5b6b;
-      --glass-page: radial-gradient(1200px 900px at 50% 50%, rgba(20, 36, 58, 0.95), transparent 80%);
+      --muted-foreground: #5e6c7e;
+      --glass-page: radial-gradient(1200px 900px at 50% 50%, rgba(20, 36, 58, 0.95), transparent 100%);
     `
-    const { cards } = cardColours(broken)
-    const muted = parseColor(token(broken, 'glass-ink-muted'))
-    const worst = Math.min(...cards.map((c) => contrast(muted, c)))
+    const muted = parseColor(token(broken, 'muted-foreground'))
+    const worst = Math.min(...probeColours(broken).map((c) => contrast(muted, c)))
     expect(worst).toBeLessThan(4.5)
   })
 })
@@ -232,23 +276,65 @@ describe('the checker itself', () => {
 describe.each([
   ['light', LIGHT],
   ['dark', DARK],
-])('the %s glass blend', (_name, source) => {
-  const { cards } = cardColours(source)
+])('the %s glass blend', (_theme, source) => {
+  const cards = cardColours(source)
+  const probes = probeColours(source)
+  // Dark text sits on the lightest ground, light text on the darkest: the worst
+  // card is the one with the least luminance in light and the most in dark.
+  const darkest = _theme === 'dark'
+  const pick = (list: RGBA[]) =>
+    list.reduce((acc, c) => (luminance(c) > luminance(acc) === darkest ? c : acc), list[0])
 
-  it('keeps every ink at AA or better on the worst card in the column', () => {
+  it('keeps every ink the cards use at AA on the worst card', () => {
     const failures: string[] = []
-    for (const [label, tokenName] of Object.entries(INKS[_name as 'light' | 'dark'])) {
-      const ink = parseColor(token(source, tokenName))
+    for (const name of CARD_INKS) {
+      const ink = parseColor(token(source, name))
       const worst = Math.min(...cards.map((c) => contrast(ink, c)))
-      if (worst < 4.5) failures.push(`${label} (--${tokenName}) at ${worst.toFixed(2)}:1`)
+      if (worst < 4.5) failures.push(`--${name} at ${worst.toFixed(2)}:1`)
     }
     expect(failures).toEqual([])
   })
 
-  it('is visibly glass: cards differ by position, not by luck', () => {
+  it('holds across the whole column, not only where cards sit today', () => {
+    const failures: string[] = []
+    for (const name of CARD_INKS) {
+      const ink = parseColor(token(source, name))
+      const worst = Math.min(...probes.map((c) => contrast(ink, c)))
+      if (worst < 4.5) failures.push(`--${name} at ${worst.toFixed(2)}:1`)
+    }
+    expect(failures).toEqual([])
+  })
+
+  it('is visibly glass: the cards differ by position', () => {
     const spread = Math.max(...cards.flatMap((a, i) => cards.slice(i + 1).map((b) => deltaE(a, b))))
-    // ~2.3 ΔE76 is the usual just-noticeable difference for adjacent flat
-    // colours. Below this the "glass" is a story told by a stylesheet.
-    expect(spread).toBeGreaterThanOrEqual(2.3)
+    // ~2.3 ΔE76 is the usual just-noticeable difference between adjacent flat
+    // colours. Below this the "glass" is a story a stylesheet tells about itself.
+    expect(spread).toBeGreaterThanOrEqual(2.5)
+  })
+
+  it('keeps the sticky bar legible over both things that pass behind it', () => {
+    // The bar is glass over a moving page: its own text sits on the bare ground
+    // half the time and on a card the rest of the time. Both are checked, and
+    // neither was checked at all before — the bar's alpha was changed by eye.
+    const raised = parseColor(token(source, 'glass-surface-raised'))
+    // Everything the bar can actually sit over: bare ground, the most saturated
+    // patch of it, and a card sliding underneath.
+    const backdrops = [...groundProbes(source), ...cardColours(source)]
+    const failures: string[] = []
+    for (const name of CARD_INKS) {
+      const ink = parseColor(token(source, name))
+      const worst = Math.min(...backdrops.map((b) => contrast(ink, over(raised, b))))
+      if (worst < 4.5) failures.push(`--${name} at ${worst.toFixed(2)}:1`)
+    }
+    expect(failures).toEqual([])
+  })
+
+  it('keeps the card a plausible distance from the bare ground', () => {
+    // If the glass were nearly opaque it would pass every contrast test above and
+    // still not be glass. The card must read as a sheet over the page, not as a
+    // solid card with a gradient painted next to it.
+    const base = parseColor(token(source, 'background'))
+    const shift = deltaE(pick(cards), base)
+    expect(shift).toBeGreaterThanOrEqual(1.5)
   })
 })
