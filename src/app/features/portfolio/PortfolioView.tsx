@@ -291,11 +291,7 @@ export function PortfolioView({
           label sits quiet above it, mirroring the dashboard row. */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
-          <div
-            key={card.label}
-            className="rounded p-5"
-            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-          >
+          <div key={card.label} className="p-5 surface-glass">
             <div style={{ fontSize: 13, color: 'var(--muted-foreground)', marginBottom: 8 }}>
               {card.label}
             </div>
@@ -325,10 +321,7 @@ export function PortfolioView({
       {/* Equity curve + donut — items-start: an honest empty curve must not
           stretch its card to match the sector card's height. */}
       <div className="grid gap-4 grid-cols-1 xl:grid-cols-[1fr_296px] items-start">
-        <div
-          className="rounded p-5"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-        >
+        <div className="p-5 surface-glass">
           <div className="flex items-center gap-2" style={{ marginBottom: 2 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
               {t('port_equity_curve')}
@@ -468,10 +461,7 @@ export function PortfolioView({
           )}
         </div>
 
-        <div
-          className="rounded p-5"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-        >
+        <div className="p-5 surface-glass">
           <div className="flex items-center gap-2" style={{ marginBottom: 2 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
               {t('port_sector_alloc')}
@@ -563,10 +553,7 @@ export function PortfolioView({
       />
 
       {/* Returns bar */}
-      <div
-        className="rounded p-5"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-      >
+      <div className="p-5 surface-glass">
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)', marginBottom: 2 }}>
           {t('port_returns')}
         </div>
@@ -643,10 +630,7 @@ export function PortfolioView({
       </div>
 
       {/* Positions table */}
-      <div
-        className="rounded overflow-hidden"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-      >
+      <div className="overflow-hidden surface-glass">
         <div
           className="px-5 py-3 flex items-center justify-between"
           style={{ borderBottom: '1px solid var(--border)' }}

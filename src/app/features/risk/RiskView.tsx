@@ -64,10 +64,7 @@ const RiskRadarPanel = memo(function RiskRadarPanel({ isId, t, rd }: RadarPanelP
   return (
     <div className="grid gap-4">
       {/* Risk gauges */}
-      <div
-        className="rounded p-5"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-      >
+      <div className="p-5 surface-glass">
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)', marginBottom: 2 }}>
           {isId ? 'Skor Risiko' : 'Risk Scores'}
         </div>
@@ -125,10 +122,7 @@ const StressTestsPanel = memo(function StressTestsPanel({
   return (
     <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
       {/* Stress tests chart */}
-      <div
-        className="rounded p-5"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-      >
+      <div className="p-5 surface-glass">
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)', marginBottom: 2 }}>
           {t('risk_stress')}
         </div>
@@ -185,10 +179,7 @@ const StressTestsPanel = memo(function StressTestsPanel({
       </div>
 
       {/* Sector exposure */}
-      <div
-        className="rounded p-5"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-      >
+      <div className="p-5 surface-glass">
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)', marginBottom: 2 }}>
           {t('risk_sector_exp')}
         </div>
@@ -439,11 +430,7 @@ export function RiskView({ market }: Props) {
           paint a glyph over a KPI. */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         {kpis.map((k) => (
-          <div
-            key={k.label}
-            className="rounded p-4"
-            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-          >
+          <div key={k.label} className="p-4 surface-glass">
             <div
               style={{
                 fontSize: 11,
@@ -491,10 +478,7 @@ export function RiskView({ market }: Props) {
       />
 
       {/* Stress probability table — uses market.portfolioValue, re-renders on tick */}
-      <div
-        className="rounded overflow-hidden"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-      >
+      <div className="overflow-hidden surface-glass">
         <div className="px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
             {isId ? 'Rincian Probabilitas Skenario' : 'Scenario Probability Detail'}

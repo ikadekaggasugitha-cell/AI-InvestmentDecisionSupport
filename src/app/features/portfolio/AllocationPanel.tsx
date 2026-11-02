@@ -36,10 +36,7 @@ export function AllocationPanel({ holdings, prices, locale = 'id' }: AllocationP
 
   if (loading) {
     return (
-      <div
-        className="rounded p-5"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-      >
+      <div className="p-5 surface-glass">
         <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
           {isId ? 'Menghitung alokasi optimal…' : 'Computing optimal allocation…'}
         </div>
@@ -49,10 +46,7 @@ export function AllocationPanel({ holdings, prices, locale = 'id' }: AllocationP
 
   if (error || weights.length === 0) {
     return (
-      <div
-        className="rounded p-5"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-      >
+      <div className="p-5 surface-glass">
         <div className="flex items-center gap-2 mb-1">
           <Scale size={14} style={{ color: 'var(--muted-foreground)' }} />
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
@@ -81,10 +75,7 @@ export function AllocationPanel({ holdings, prices, locale = 'id' }: AllocationP
   const ranked = [...weights].sort((a, b) => b.weightPct - a.weightPct)
 
   return (
-    <div
-      className="rounded p-5 flex flex-col gap-4"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-    >
+    <div className="p-5 flex flex-col gap-4 surface-glass">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 flex-wrap">

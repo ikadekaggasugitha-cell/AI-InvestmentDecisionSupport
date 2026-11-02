@@ -143,15 +143,13 @@ export function NewsView({ news, loading, isLive, error, retry }: Props) {
            on this sheet: a sentence plus the action, not a centred void. */
         <div
           role="status"
+          className="surface-glass"
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 14,
             flexWrap: 'wrap',
             padding: '14px 16px',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            background: 'var(--card)',
           }}
         >
           <span
@@ -192,11 +190,9 @@ export function NewsView({ news, loading, isLive, error, retry }: Props) {
            looks like, and it says so. */
         <div
           role="status"
+          className="surface-glass"
           style={{
             padding: '14px 16px',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            background: 'var(--card)',
           }}
         >
           <span
@@ -245,10 +241,12 @@ export function NewsView({ news, loading, isLive, error, retry }: Props) {
               <div
                 key={item.id}
                 onClick={() => setActive(isOpen ? null : item.id)}
+                className="surface-glass"
                 style={{
-                  background: 'var(--card)',
-                  border: `1px solid ${isOpen ? 'var(--muted-foreground)' : 'var(--border)'}`,
-                  borderRadius: 8,
+                  // The open state is carried by border colour only, so it stays
+                  // an inline override of the shared surface edge rather than a
+                  // second border declaration: width and style come from the class.
+                  borderColor: isOpen ? 'var(--muted-foreground)' : 'var(--glass-border)',
                   padding: 20,
                   cursor: 'pointer',
                   transition: 'border-color 0.15s',
