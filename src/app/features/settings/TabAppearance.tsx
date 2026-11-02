@@ -112,10 +112,8 @@ function FxCard({ fx, id }: { fx: ExchangeRateData; id: boolean }) {
   const weaker = fx.change > 0
   return (
     <div
+      className="surface-glass"
       style={{
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
         padding: '16px 20px',
         marginTop: 16,
       }}

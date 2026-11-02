@@ -25,7 +25,15 @@ import type { ViewType } from '@/app/components/Sidebar'
  * source does not paint the surface, and also if a view sits on the pastel
  * ground while still holding opaque cards.
  */
-export const GLASS_VIEWS: readonly ViewType[] = ['dashboard', 'portfolio', 'risk', 'news']
+export const GLASS_VIEWS: readonly ViewType[] = [
+  'dashboard',
+  'portfolio',
+  'risk',
+  'news',
+  'reports',
+  'settings',
+  'advisor',
+]
 
 const GLASS_SHELL_VIEWS: readonly ViewType[] = ['dashboard']
 

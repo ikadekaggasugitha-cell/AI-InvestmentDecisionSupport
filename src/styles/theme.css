@@ -99,7 +99,13 @@
      earlier pass used dark navy sweeps and concluded that clear glass and AA could
      not coexist — an artefact of the ground, and of a broken Lab function that
      reported a real spread as invisible. */
-  --glass-surface: rgba(255, 255, 255, 0.6);
+  /* 0.66, not 0.60. Measured on rendered pixels, --loss on a 0.60 card over the
+     lavender sweep painted 4.40:1 — below AA for the 18px figures in Risiko, and
+     the analytic guard had called it 4.62. Raising the sheet and lifting the
+     sweep together put the worst real pairing above 4.65 while keeping the ground
+     visible through the card (ΔE 3.1 against pure white) and the edge readable
+     (ΔE 6.3 against the ground beneath it) — both asserted in glassContrast. */
+  --glass-surface: rgba(255, 255, 255, 0.66);
   /* The bar is where the glass finally has something to refract: on the
      dashboard the column scrolls and cards pass beneath it. 0.86 made that
      meaningless — measured in the running app, the bar looked identical with a
@@ -136,8 +142,11 @@
      held at 0.5 of a pale tint for that reason, and the separation is re-checked
      by eye, not only by ratio.
   */
+  /* Lavender lifted from rgb(207,196,240) and its coverage eased to 0.50: the
+     darker the ground under a card, the darker the card's own composite, and the
+     text on it loses contrast with it. Still two hues only — lavender and mint. */
   --glass-page:
-    radial-gradient(2684px 1350px at 30% 6%, rgba(207, 196, 240, 0.55), transparent 100%),
+    radial-gradient(2684px 1350px at 30% 6%, rgba(214, 206, 245, 0.5), transparent 100%),
     radial-gradient(2440px 1260px at 80% 96%, rgba(191, 230, 210, 0.5), transparent 100%);
 }
 
@@ -214,7 +223,11 @@
      reference is charcoal restraint, and a coloured ground behind green and red
      financial figures is how a P&L starts to read as decoration. */
   --glass-surface: rgba(20, 36, 58, 0.62);
-  --glass-surface-raised: rgba(23, 41, 63, 0.6);
+  /* 0.66 rather than 0.60: this is the surface text sits on while cards scroll
+     beneath it, and at 0.60 the worst dark-theme pairing (--loss on the bar) came
+     out at 4.61 — above the published 4.5 but inside the 0.15-0.22 by which the
+     analytic model was measured to overstate reality. */
+  --glass-surface-raised: rgba(23, 41, 63, 0.66);
   --glass-border: rgba(215, 225, 236, 0.14);
   --glass-sheen: rgba(215, 225, 236, 0.22);
   --glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);

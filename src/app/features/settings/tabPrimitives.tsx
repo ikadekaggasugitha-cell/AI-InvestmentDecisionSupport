@@ -6,10 +6,8 @@ import type { ReactNode } from 'react'
 export function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div
+      className="surface-glass"
       style={{
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
         overflow: 'hidden',
       }}
     >

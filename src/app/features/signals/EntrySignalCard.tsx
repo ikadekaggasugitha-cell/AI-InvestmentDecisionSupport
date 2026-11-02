@@ -34,10 +34,7 @@ export function EntrySignalCard({ entry, plan, locale = 'id' }: EntrySignalCardP
   const hasPlan = plan && plan.entryPrice != null
 
   return (
-    <div
-      className="flex flex-col gap-3 rounded"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)', padding: 12 }}
-    >
+    <div className="flex flex-col gap-3 surface-glass" style={{ padding: 12 }}>
       {/* Signal badge + reason. The tint lives on the pill alone; the panel
           itself stays on card chrome like every other nested surface. */}
       <div className="flex items-start gap-2.5">

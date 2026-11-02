@@ -85,10 +85,7 @@ export function SignalCard({
   const unfilledGaps = gaps.filter((g) => !g.isFilled)
 
   return (
-    <div
-      className="rounded overflow-hidden"
-      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-    >
+    <div className="overflow-hidden surface-glass">
       {/* Card header. The gauge, the name column and the right metrics wrap on
           narrow screens instead of squeezing the name against the figures —
           flex-shrink-0 alone turned the mobile row into an overlap. */}

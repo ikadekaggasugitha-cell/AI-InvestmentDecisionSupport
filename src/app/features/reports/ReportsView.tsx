@@ -51,10 +51,7 @@ export function ReportsView() {
       )}
 
       {/* Reports list */}
-      <div
-        className="rounded overflow-hidden"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-      >
+      <div className="overflow-hidden surface-glass">
         <div
           className="flex items-center justify-between px-5 py-4"
           style={{ borderBottom: '1px solid var(--border)' }}

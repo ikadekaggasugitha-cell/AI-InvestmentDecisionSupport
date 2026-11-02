@@ -20,13 +20,23 @@ import { GLASS_VIEWS, OPAQUE_ONLY_FILES, SURFACE_CLASS } from '@/app/surfaces'
  *
  * Approximation, stated honestly: CSS interpolates a colour toward `transparent`
  * in premultiplied space; the ramp below is linear in alpha across the gradient's
- * own radius. On these pale, low-chroma sweeps the difference is a fraction of a
- * point of contrast, and the margins asserted below are not razor-thin, so the
- * approximation does not decide any outcome.
+ * own radius.
+ *
+ * That approximation was first described as "a fraction of a point of contrast"
+ * and "does not decide any outcome". Measured against real screenshot pixels it
+ * decided one: it modelled a card at 4.62 where Chrome painted 4.40, i.e. 0.15 to
+ * 0.22 optimistic, and a 4.5 bar would have waved through a pairing that is below
+ * AA on screen. The threshold below carries that error instead of arguing with it.
  */
 
 const ROOT = resolve(__dirname, '../..')
 const css = readFileSync(resolve(ROOT, 'styles/theme.css'), 'utf8')
+
+/**
+ * The bar every text assertion in this file uses: AA for normal text plus the
+ * measured model-vs-render error of the blend maths above.
+ */
+const AA = 4.65
 
 /**
  * The app's own light and dark blocks.
@@ -348,18 +358,13 @@ describe.each([
 ])('the %s glass blend', (_theme, source) => {
   const cards = cardColours(source)
   const probes = probeColours(source)
-  // Dark text sits on the lightest ground, light text on the darkest: the worst
-  // card is the one with the least luminance in light and the most in dark.
-  const darkest = _theme === 'dark'
-  const pick = (list: RGBA[]) =>
-    list.reduce((acc, c) => (luminance(c) > luminance(acc) === darkest ? c : acc), list[0])
 
   it('keeps every ink the cards use at AA on the worst card', () => {
     const failures: string[] = []
     for (const name of CARD_INKS) {
       const ink = parseColor(token(source, name))
       const worst = Math.min(...cards.map((c) => contrast(ink, c)))
-      if (worst < 4.5) failures.push(`--${name} at ${worst.toFixed(2)}:1`)
+      if (worst < AA) failures.push(`--${name} at ${worst.toFixed(2)}:1`)
     }
     expect(failures).toEqual([])
   })
@@ -369,7 +374,7 @@ describe.each([
     for (const name of CARD_INKS) {
       const ink = parseColor(token(source, name))
       const worst = Math.min(...probes.map((c) => contrast(ink, c)))
-      if (worst < 4.5) failures.push(`--${name} at ${worst.toFixed(2)}:1`)
+      if (worst < AA) failures.push(`--${name} at ${worst.toFixed(2)}:1`)
     }
     expect(failures).toEqual([])
   })
@@ -393,17 +398,29 @@ describe.each([
     for (const name of CARD_INKS) {
       const ink = parseColor(token(source, name))
       const worst = Math.min(...backdrops.map((b) => contrast(ink, over(raised, b))))
-      if (worst < 4.5) failures.push(`--${name} at ${worst.toFixed(2)}:1`)
+      if (worst < AA) failures.push(`--${name} at ${worst.toFixed(2)}:1`)
     }
     expect(failures).toEqual([])
   })
 
-  it('keeps the card a plausible distance from the bare ground', () => {
-    // If the glass were nearly opaque it would pass every contrast test above and
-    // still not be glass. The card must read as a sheet over the page, not as a
-    // solid card with a gradient painted next to it.
-    const base = parseColor(token(source, 'background'))
-    const shift = deltaE(pick(cards), base)
-    expect(shift).toBeGreaterThanOrEqual(1.5)
+  it('keeps the sheet visibly separate from the ground it sits on', () => {
+    // This test used to compare the card with --background — the colour
+    // *underneath* the gradient. That is not what a reader compares: on a glass
+    // screen the card sits on tinted ground, so the separation that matters is
+    // card against its own local ground. The old pair was also blind to the
+    // failure it claimed to guard: a fully opaque white card is ~3 ΔE from
+    // #f5f7fa, so it would have passed here while showing no glass at all.
+    const grounds = CARD_CENTRES.map(([x, y]) => groundAt(source, x, y, COLUMN.w, COLUMN.h))
+    const edges = cards.map((c, i) => deltaE(c, grounds[i]))
+    expect(Math.min(...edges)).toBeGreaterThanOrEqual(4)
+  })
+
+  it('proves the ground actually shows through the card', () => {
+    // The other half of "is this glass": a card that resolves to pure white is a
+    // solid card no matter how pretty the page behind it is. Aimed at the right
+    // pair, this catches the opaque-card case the old assertion could not.
+    const white = { r: 255, g: 255, b: 255, a: 1 }
+    const through = cards.map((c) => deltaE(c, white))
+    expect(Math.min(...through)).toBeGreaterThanOrEqual(2.5)
   })
 })

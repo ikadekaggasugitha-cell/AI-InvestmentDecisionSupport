@@ -224,12 +224,7 @@ export function AIAdvisorView({ market }: { market: LiveMarketData }) {
             { label: t('ai_avg_confidence'), value: `${avgUprob}%`, title: undefined },
             { label: t('ai_last_updated'), value: lastUpdatedLabel, title: undefined },
           ].map((m) => (
-            <div
-              key={m.label}
-              className="rounded p-4"
-              style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-              title={m.title}
-            >
+            <div key={m.label} className="p-4 surface-glass" title={m.title}>
               <div
                 style={{
                   fontSize: 11,

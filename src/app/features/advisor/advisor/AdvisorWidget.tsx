@@ -95,12 +95,8 @@ function MetricTiles({ w }: { w: any }) {
           <div
             key={i}
             title={String(it.label ?? '')}
-            className="rounded"
-            style={{
-              background: 'var(--card)',
-              border: '1px solid var(--border)',
-              padding: '8px 10px',
-            }}
+            className="surface-glass"
+            style={{ padding: '8px 10px' }}
           >
             <div
               style={{
