@@ -83,22 +83,32 @@
      paper rule (docs/DESIGN.md, "Pengecualian terdokumentasi: dashboard glassy",
      following the owner's references referensi/contoh-desain-ui.png for light and
      contoh-desain-ui-2.png for dark).
-     Opacity is a contrast result, not a taste call, and it is now enforced by
+     Opacity is a contrast result, not a taste call, and it is enforced by
      src/app/test/glassContrast.test.ts rather than claimed here: that test
-     composites the card over the page layer at 98 points across two real column
-     widths and holds every ink at AA in both themes. 0.50 is the clearest card
-     that test still accepts. The binding pair in light is --gain at 4.94:1 (the
-     green figure, not the red — --glass-loss sits at 5.25:1); in dark it is
-     --glass-loss at 5.02:1. saturate(1.35) in the backdrop filter widens the
-     card-to-card colour spread by roughly a third; the ratios above are computed
-     without it, so they are the conservative number.
-     What makes this clarity affordable is the GROUND, not the card: pastel hues
-     kept high in luminance leave the composited surface light enough for dark
-     ink. An earlier pass used dark navy sweeps and concluded that clear glass
-     and AA could not coexist — that conclusion was an artefact of the ground,
-     and of a broken Lab function that reported the spread as invisible. */
-  --glass-surface: rgba(255, 255, 255, 0.5);
-  --glass-surface-raised: rgba(255, 255, 255, 0.86);
+     composites the card over the page layer and holds every ink the cards use at
+     AA in both themes, and requires the cards to differ by position.
+     0.60 is the clearest card that passes with the application's OWN colour
+     tokens — muted 4.81:1, loss 4.62:1 (the binding pair), gain 5.08:1, warning
+     6.13:1, link 8.18:1, foreground 14.58:1 — so no separate "ink on glass" set
+     is needed. An earlier pass forked --muted-foreground and --loss into darker
+     twins to justify a 0.50 card; measured properly, the fork bought nothing that
+     the ground was not already giving, and a second red in a financial product is
+     a cost, not a saving. It is gone.
+     What makes clarity affordable is the GROUND, not the card: pastel hues kept
+     high in luminance leave the composited surface light enough for dark ink. An
+     earlier pass used dark navy sweeps and concluded that clear glass and AA could
+     not coexist — an artefact of the ground, and of a broken Lab function that
+     reported a real spread as invisible. */
+  --glass-surface: rgba(255, 255, 255, 0.6);
+  /* The bar is where the glass finally has something to refract: on the
+     dashboard the column scrolls and cards pass beneath it. 0.86 made that
+     meaningless — measured in the running app, the bar looked identical with a
+     card behind it and with bare ground, because 14% of the backdrop cannot move
+     the eye. At 0.70 a dark figure smearing behind the bar is visible, and the
+     worst pairing still reads 4.88:1 (measured over the strongest lavender
+     ground; 5.03:1 over a card passing under). Enforced for the bar's own text
+     by src/app/test/glassContrast.test.ts. */
+  --glass-surface-raised: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(20, 36, 58, 0.16);
   --glass-sheen: rgba(255, 255, 255, 0.55);
   --glass-blur: 14px;
@@ -107,31 +117,28 @@
      font and lives in the utilities layer — it would override this value, so it
      is not on the card elements. */
   --glass-radius: 16px;
-  /* Text on glass. Same hue families as --muted-foreground and --loss, taken
-     darker because the surface behind them is genuinely translucent: at 0.50
-     the app's own --loss lands on 4.50:1 — exactly the floor, zero margin —
-     while --glass-loss reads 5.25:1. The fork is what buys the clarity, and it
-     is scoped to glass surfaces and nowhere else. */
-  --glass-ink-muted: #4e5b6b;
-  --glass-loss: #b83030;
   --glass-shadow: 0 12px 32px rgba(20, 36, 58, 0.1);
   /* What the blur has to work on, and what makes the clarity affordable: two
      pastel sweeps, lavender entering from the upper left and mint from the lower
-     right, each wider than the column so they still carry real alpha where the
-     cards are. Two rather than three: fewer paint layers per frame, and a broad
-     sweep produces a larger colour difference between cards than three small
-     ellipses that fade to nothing before reaching the content.
-     Anchoring, stated exactly: background-attachment is `scroll`, so these
-     sweeps are fixed to the visible column box, NOT to a row of content. A card
-     carries a different tint as it scrolls past them; the mint does not travel
-     with the bottom row. The effect is a hue drift across the viewport
-     (measured ΔE 6.5 across the nine cards, ceiling 9.6 anywhere in the box)
-     rather than a lightness gradient.
+     right, each wider than the column and fading across its whole radius
+     (`transparent 100%`) rather than collapsing at 60-70% of it — small ellipses
+     were measured to leave every card on nearly the same colour.
+     Two sweeps, not three: fewer paint layers per frame, and a broad sweep
+     produces a larger colour difference between cards.
+     Anchoring, stated exactly: background-attachment is `scroll`, so these sweeps
+     are fixed to the visible column box, NOT to a row of content; a card carries a
+     different tint as it scrolls past them. The effect is a hue drift across the
+     viewport (ΔE 4.7 between the nine cards, enforced by the test) rather than a
+     lightness gradient.
      These two hues are new to the product and are licensed for this background
-     layer only — never for text, icons, or accents. */
+     layer only — never for text, icons, or accents. Mint sits opposite the
+     P&L-bearing bottom row and shares a neighbourhood with --gain; its alpha is
+     held at 0.5 of a pale tint for that reason, and the separation is re-checked
+     by eye, not only by ratio.
+  */
   --glass-page:
-    radial-gradient(2700px 1350px at 30% 6%, rgba(207, 196, 240, 0.55), transparent 70%),
-    radial-gradient(2440px 1260px at 80% 96%, rgba(191, 230, 210, 0.5), transparent 70%);
+    radial-gradient(2684px 1350px at 30% 6%, rgba(207, 196, 240, 0.55), transparent 100%),
+    radial-gradient(2440px 1260px at 80% 96%, rgba(191, 230, 210, 0.5), transparent 100%);
 }
 
 /* ─── Dark Mode ──────────────────────────────────────────────────────────── */
@@ -199,22 +206,21 @@
   --sidebar-badge: rgba(255, 255, 255, 0.09);
 
   /* Glass surfaces — dark. The dark card stays cloudier than the light one
-     (0.62 against 0.50) because the ground here is dark: clearing it costs
-     luminance instead of buying it. Enforced, not asserted, by
-     src/app/test/glassContrast.test.ts. The two sweeps are brand hues — slate
-     and Emerald Teal at low alpha — not the light theme's pastels: the owner's
-     dark reference is charcoal restraint, and a coloured ground behind green and
-     red financial figures is how a P&L starts to read as decoration. */
+     (0.62 against 0.60) because the ground here is dark: clearing it costs
+     luminance instead of buying it. Measured with the application's own inks —
+     the binding pair is --loss at 4.89:1, muted 5.74:1 — and enforced by
+     src/app/test/glassContrast.test.ts. The two sweeps are brand hues (slate and
+     Emerald Teal at low alpha), not the light theme's pastels: the owner's dark
+     reference is charcoal restraint, and a coloured ground behind green and red
+     financial figures is how a P&L starts to read as decoration. */
   --glass-surface: rgba(20, 36, 58, 0.62);
-  --glass-surface-raised: rgba(23, 41, 63, 0.68);
+  --glass-surface-raised: rgba(23, 41, 63, 0.6);
   --glass-border: rgba(215, 225, 236, 0.14);
   --glass-sheen: rgba(215, 225, 236, 0.22);
-  --glass-ink-muted: #93a6ba;
-  --glass-loss: #e87474;
   --glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
   --glass-page:
-    radial-gradient(2700px 1350px at 30% 6%, rgba(51, 80, 122, 0.35), transparent 70%),
-    radial-gradient(2440px 1260px at 80% 96%, rgba(15, 157, 120, 0.25), transparent 70%);
+    radial-gradient(2684px 1350px at 30% 6%, rgba(51, 80, 122, 0.35), transparent 100%),
+    radial-gradient(2440px 1260px at 80% 96%, rgba(15, 157, 120, 0.25), transparent 100%);
 }
 
 @theme inline {
