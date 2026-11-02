@@ -547,8 +547,10 @@ radial lebar). Delapan permukaan kartu `DashboardView` dan satu bar Header
 memakainya; Sidebar, `--control-border`, `--link`, dan `focus.css` tidak
 disentuh. Fallback `prefers-reduced-transparency: reduce` jatuh ke `var(--card)`
 opaque tanpa blur/shadow, jadi sistem yang meminta transparansi dikurangi tetap
-utuh. Opasitas kartu `0,50` (terang) / `0,62` (gelap) dengan `saturate(1.35)`;
-bukan gradien pada teks atau ikon, dan bukan glow.
+utuh. Opasitas kartu `0,60` (terang) / `0,62` (gelap), bilah header `0,70` /
+`0,60`, dengan `saturate(1.35)`; bukan gradien pada teks atau ikon, dan bukan
+glow. Angka KPI dinaikkan 26/20 → **30/24** mengikuti bobot referensi: DESIGN.md
+§Typography sudah bilang "the numbers are the product".
 
 **Satu perubahan struktur, atas izin pemilik.** Pada dashboard saja, kolom shell
 yang menggulung (`.glass-page`) dan Header menjadi `sticky` di dalamnya, sehingga
@@ -563,34 +565,41 @@ static`, `rgb(255,255,255)`, tanpa kelas glass).
 tetap hue merek (slate + Emerald Teal alpha rendah): latar berwarna di belakang
 angka hijau/merah adalah cara P&L mulai terbaca sebagai dekorasi.
 
-**Batas yang terukur, dan koreksi atas pengukuran sebelumnya.** Test kontras yang
-ada membandingkan heksa token terhadap heksa permukaan; ia **tidak** melihat hasil
-blend, sehingga tetap hijau walaupun composite di bawah AA. Karena itu opacity
-ditentukan lewat komposit dan sekarang **ditegakkan** oleh
-`src/app/test/glassContrast.test.ts` (98 titik di dua lebar kolom nyata, kedua
-tema, plus meta-test yang memastikan ia bisa gagal), bukan lagi berupa klaim di
-komentar ini:
+**Batas yang terukur, dan ditegakkan test.** `contrast.test.ts` membandingkan
+heksa token terhadap heksa permukaan; ia **buta** terhadap hasil blend, sehingga
+tetap hijau walaupun composite di bawah AA. Karena itu opacity ditentukan lewat
+komposit dan dijaga `src/app/test/glassContrast.test.ts` (14 assertion: validasi
+known-answer matematika test itu sendiri, parsing token kedua blok tema, jumlah
+deklarasi `--control-border`/`--link`, penolakan skin rusak, AA pada 9 pusat kartu
+maupun 98 titik di dua lebar kolom, sebaran ΔE ≥ 2,5, dan AA teks bilah di atas
+latar maupun di atas kartu yang lewat). Nilai terukur, dengan **token warna aplikasi
+apa adanya**:
 
-- Tema terang, kartu `rgba(255,255,255,0.50)`: rasio terburuk **4,945:1** —
-  pemecatnya `--gain` (angka hijau), bukan merah (`--glass-loss` 5,25:1).
-- Tema gelap, kartu `rgba(20,36,58,0.62)`: terburuk **4,884:1** (`--glass-loss`).
-- Sebaran warna antar sembilan kartu: **ΔE76 maks 6,5** (terang, plafon 9,6 di
-  seluruh kolom) dan **5,5** (gelap). Ini geseran **hue** lavender→cyan, bukan
-  gradien terang-gelap; `saturate(1.35)` melebarkan sebaran sekitar sepertiga.
-- `--glass-ink-muted` `#4e5b6b` dan `--glass-loss` `#b83030` dipakai di dalam
-  kartu glass. Pada `0,50` tinta aplikasi asli memberi `--loss` **4,50:1 — tepat
-  di lantai AA, margin nol**; varian glass membaca 5,25:1. Percabangan inilah yang
-  membeli kejernihan, dan ia terbatas ke permukaan glass. Pada `0,60` percabangan
-  menjadi opsional — pilihan itu terbuka bila pemilik kelak menolak dua merah.
+| Permukaan | Terburuk | Pemecatnya |
+|---|---|---|
+| Kartu terang `rgba(255,255,255,0.60)` | **4,62:1** | `--loss` |
+| idem | 4,81 · 5,08 · 6,13 · 8,18 · 14,58 | muted · gain · warning · link · foreground |
+| Bilah terang `rgba(255,255,255,0.70)` | **4,74:1** | `--loss` |
+| Kartu gelap `rgba(20,36,58,0.62)` | **4,89:1** | `--loss` |
+| Bilah gelap `rgba(23,41,63,0.60)` | **4,68:1** | `--loss` |
+| Sebaran ΔE76 antar sembilan kartu | 3,87 (terang) · 3,68 (gelap) | ambang terlihat ~2,3 |
 
-Koreksi yang wajib dicatat: versi pertama bagian ini melaporkan ΔE 1,11/3,7 dan
-menyimpulkan "AA dibayar seluruhnya oleh opasitas kartu, kaca tidak terlihat".
-Kesimpulan itu **salah**, berasal dari fungsi Lab yang cacat (pembagian 255 ganda)
-dan dari pemakaian blob **gelap**. Diukur ulang dengan fungsi yang divalidasi pada
-known-answer (L* putih = 100, hitam = 0, ΔE putih/hitam = 100, kontras #767676 di
-atas putih = 4,542): kejernihan justru **murah** selama latarnya kromatik-**terang**.
-Angka lama di pesan commit `11d58e5`/`f81bcdd`/`2d22470` dibatalkan oleh catatan
-ini; history tidak ditulis ulang karena `38a37c8` sudah ada di remote.
+Percabangan token tinta (`--glass-ink-muted`, `--glass-loss`) yang sempat dibuat
+untuk membenarkan kartu 0,50 **dihapus**: pada 0,60 dengan latar pastel terang,
+token asli aplikasi sudah lolos AA, dan "merah kedua" di produk keuangan adalah
+biaya tanpa keuntungan. Kartu kini memakai `--muted-foreground` dan `--loss` yang
+sama seperti delapan layar lain.
+
+Koreksi yang wajib dicatat, dua-duanya hasil mutasi, bukan pembacaan kode:
+versi pertama bagian ini melaporkan ΔE 1,11/3,7 dan menyimpulkan "AA dibayar
+seluruhnya oleh opasitas kartu, kaca tidak terlihat" — salah, karena fungsi Lab
+membagi kanal ke sRGB dua kali. Dan guard pertama saya `css.indexOf('.dark')`
+menemukan `@custom-variant dark (&:is(.dark *))` di baris 1, jadi seluruh
+assertion "gelap" sebenarnya membaca token **terang**; mutasi opacity bilah yang
+menyalakan test gelap adalah yang membuktikannya. Selektor kini di-anchor ke
+awal baris dan test menuntut kedua blok benar-benar berbeda. Angka lama di pesan
+commit `11d58e5`/`f81bcdd`/`2d22470` dibatalkan catatan ini; history itu tidak
+ditulis ulang karena `38a37c8` sudah ada di remote.
 
 **Yang sengaja TIDAK disalin dari referensi.** Emoji pada baris sapaan
 (`dataHonesty.test.ts` menolak glif piktografis di seluruh `src/app`); donut
@@ -599,17 +608,31 @@ charcoal global (akan merembet ke sembilan view dan menggeser assertion permukaa
 `contrast.test.ts`). Radius 24px gambar rujukan diturunkan ke 16px atas pilihan
 pemilik.
 
-**Belum terverifikasi.** Kaca di atas kurva intraday yang **berisi data**: saat
-verifikasi feed tidak mengirim titik (WebSocket gagal, akun uji belum berlangganan
-sehingga positions/signals menjawab 402) — kartu chart hanya menampilkan state
-kosongnya. Kelas `.glass-card` pada kartu itu sendiri terverifikasi, tapi piksel
-chart di bawah blur belum.
+**Belum terverifikasi, dua hal.** Pertama, kaca di atas kurva intraday yang
+**berisi data**: saat verifikasi feed tidak mengirim titik (WebSocket gagal, akun
+uji belum berlangganan sehingga positions/signals menjawab 402) — kartu chart hanya
+menampilkan state kosongnya; kelas `.glass-card` pada kartu itu terverifikasi,
+piksel chart di bawah blur belum. Kedua, dan ini temuan jujur dari screenshot
+terarah: **frost pada bilah header belum terbaca mata**. Pada `0,86` bilah
+berpenampilan identik baik saat ada kartu lewat di belakangnya maupun saat latar
+kosong; diturunkan ke `0,70` pun perbedaannya masih kecil, karena backdrop-nya
+serba terang (kartu putih bening di atas latar pastel) sehingga tidak ada
+kontras luminance untuk dibiaskan. Momen frost yang sesungguhnya butuh konten
+gelap lewat di bawah bilah — yaitu kurva berisi data, hal yang sedang tidak bisa
+direproduksi di sini. Angka AA di atas tetap aman; klaim "kaca buram" di bilah
+belum boleh dianggap terbukti.
 
-Verifikasi: `tsc` bersih, `vitest` **391/391** (384 + 7 guard blend baru),
-`eslint` 0 error, `format:check` bersih, `vite build` sukses, `pytest` backend
-**890 lulus** dan `ruff` bersih. Diukur pada aplikasi nyata di 1440×900 dan
-390×844: radius 16px pada 9 kartu, dua radial-gradient terkomputasi, header sticky
-terkunci di y=0 sementara kartu bergerak lewat di bawahnya, dan `scroll-padding-top:
+Verifikasi: `tsc` bersih, `vitest` **398/398** (384 + 14 guard glass, termasuk
+mutasi yang membuktikan guard bisa gagal di kedua tema), `eslint` 0 error,
+`format:check` bersih, `vite build` sukses, `pytest` backend **890 lulus** dan
+`ruff` bersih. Diukur pada aplikasi nyata lewat Playwright/Chrome, screenshot
+tersimpan di 1440×900 dan 390×844, terang dan gelap: 9 kartu `.glass-card`
+berradius **16px**, latar `rgba(255,255,255,0.6)` / `rgba(20,36,58,0.62)`, dua
+radial-gradient terkomputasi, **10 permukaan ber-blur dengan 0 sarang blur** dan
+bilah gulung itu sendiri tidak ber-blur, header `sticky` terkunci di y=0 sementara
+kartu lewat di bawahnya (overlap 29px pada scrollTop 120), `scroll-padding-top:
 112px` terbukti bekerja — tanpanya elemen terfokus tertinggal **tersembunyi penuh**
 di bawah bilah (clearance −44,5px), dengannya browser menggulung hingga elemen
-keluar (+15,0px).
+keluar (+15,0px), **nol teks di bawah 11px**, `scrollWidth` 390 = `clientWidth`
+(tanpa luapan horizontal), dan `Pasar`/`Pengaturan` terbukti tetap `static` +
+`rgb(255,255,255)` + nol kartu glass. Console hanya memuat 402 paywall yang jujur.
