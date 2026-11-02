@@ -125,7 +125,9 @@
   background: var(--public-card);
   color: var(--public-navy);
   cursor: pointer;
-  transition: background 140ms ease, border-color 140ms ease;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
 }
 
 .pub-menu-btn:hover {
@@ -155,7 +157,10 @@
   visibility: hidden;
   transform: translateY(-6px);
   pointer-events: none;
-  transition: opacity 160ms ease, transform 160ms ease, visibility 0s linear 160ms;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    visibility 0s linear 160ms;
 }
 
 .pub-menu-pop.is-open {
@@ -163,7 +168,10 @@
   visibility: visible;
   transform: none;
   pointer-events: auto;
-  transition: opacity 160ms ease, transform 160ms ease, visibility 0s linear 0s;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    visibility 0s linear 0s;
 }
 
 /* The popup's links keep the bar's non-word marks voice (uppercase, the
@@ -181,7 +189,9 @@
   text-transform: uppercase;
   text-decoration: none;
   color: var(--public-muted);
-  transition: background 140ms ease, color 140ms ease;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
 }
 
 .pub-menu-pop a:hover,
@@ -310,7 +320,7 @@
   padding: 24px 24px 22px;
 }
 
-.pub-card[data-checked="true"] {
+.pub-card[data-checked='true'] {
   border-color: var(--public-navy-deep);
 }
 
@@ -334,7 +344,7 @@
   cursor: pointer;
 }
 
-.pub-radio[aria-checked="true"] {
+.pub-radio[aria-checked='true'] {
   border-color: var(--public-navy);
 }
 
@@ -355,7 +365,7 @@
   opacity: 1;
 }
 
-.pub-radio[aria-checked="true"] .pub-radio-dot {
+.pub-radio[aria-checked='true'] .pub-radio-dot {
   width: 10px;
   height: 10px;
   background: var(--public-navy);
@@ -376,17 +386,17 @@
   white-space: nowrap;
 }
 
-.pub-badge[data-tone="lavender"] {
+.pub-badge[data-tone='lavender'] {
   background: var(--public-lavender);
   color: var(--public-navy);
 }
 
-.pub-badge[data-tone="mint"] {
+.pub-badge[data-tone='mint'] {
   background: var(--public-mint);
   color: var(--public-green);
 }
 
-.pub-badge[data-tone="solid"] {
+.pub-badge[data-tone='solid'] {
   background: var(--public-navy);
   color: #ffffff;
 }
@@ -492,7 +502,7 @@
 
 .pub-footer::before,
 .pub-footer::after {
-  content: "";
+  content: '';
   position: absolute;
   border-radius: 50%;
   border: 1px solid rgba(201, 210, 238, 0.16);
@@ -559,7 +569,7 @@
    still open): an anchor without href renders like the rest but is not
    focusable and not clickable — an honest placeholder, not a dead
    control. */
-.pub-footer-link[aria-disabled="true"] {
+.pub-footer-link[aria-disabled='true'] {
   color: var(--public-footer-muted);
   cursor: default;
 }
@@ -681,9 +691,16 @@
     height: 19px;
   }
 
+  .pub-topbar-link {
+    /* Measured 49x29 on a 320px phone: the label is small but the hit area was
+       smaller than the finger. Padding grows the target, not the type. */
+    padding: 10px 4px;
+  }
+
   .pub-enter {
     white-space: nowrap;
     padding: 9px 12px;
+    min-height: 40px;
   }
 
   .pub-enter svg {
@@ -718,11 +735,12 @@
   padding: 10px 0 56px;
 }
 
-/* A reading column, left-aligned inside the sheet's own container so its edge
-   matches the hero above: 760px holds roughly 74 characters at 15px, and the
-   space to its right stays empty on purpose rather than stretched. */
+/* The box that holds headings and the hairlines between sections. It matches
+   the prose measure below (492px measured), so a rule never runs longer than
+   the text it separates. The measure itself lives on the paragraph in ch; this
+   px value is the container, not the line length. */
 .pubnotes-col {
-  max-width: 760px;
+  max-width: 500px;
 }
 
 /* scroll-margin-top because a footer link lands on a section by hash, and the
@@ -749,14 +767,88 @@
   text-wrap: balance;
 }
 
+/* The measure, in the unit that describes line length. Measured in the browser
+   at 15px by counting characters in a full first line: 52ch gives a 492px box
+   and 55-70 characters per line across the nine paragraphs (mean 63), inside the
+   60-75 reading band. The alternatives that were measured and rejected: 760px
+   gave 89 characters, 68ch gave 76-87, 64ch gave 73-87. A px cap also cannot
+   follow the type when it shrinks, so the phone's 14px inherits the same
+   measure instead of a second magic number. */
 .pubnotes-section p {
   margin: 10px 0 0;
+  max-width: 52ch;
   font-size: 15px;
   line-height: 1.65;
   color: var(--public-muted);
 }
 
+/* The section index earns its place only when there is room beside the text.
+   Below 1024 it is off: nine jump links stacked above the prose would push the
+   first sentence off a phone screen, and a nav nobody scrolls to is decoration.
+   jsdom never reads this file, so the links stay in the tree for tests. */
+.pubnotes-index {
+  display: none;
+}
+
+.pubnotes-index ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.pubnotes-index a {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--public-muted);
+  text-decoration: none;
+}
+
+.pubnotes-index a:hover {
+  color: var(--public-ink);
+  text-decoration: underline;
+}
+
+/* Wide screens get the two-zone layout: the rail takes the space at the hero's
+   left edge, the prose sits beside it, and the measure stays what it is on a
+   phone. Below this breakpoint the container is a plain block and the rail is
+   off, so the page is one column and nothing is hidden that a reader needs. */
+@media (min-width: 1024px) {
+  .pubnotes-body .pub-container {
+    display: grid;
+    grid-template-columns: 208px minmax(0, 500px);
+    gap: 56px;
+    align-items: start;
+  }
+
+  .pubnotes-index {
+    display: block;
+    position: sticky;
+    top: 24px;
+    /* Nine links in a rail outgrow a short window; the rail then scrolls on
+       its own instead of pushing the last sections off the page. */
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+  }
+}
+
 @media (max-width: 560px) {
+  .pubnotes .pub-hero {
+    padding: 34px 0 22px;
+  }
+
+  .pubnotes-body {
+    padding: 4px 0 44px;
+  }
+
+  .pubnotes-section {
+    padding: 22px 0;
+  }
+
   .pubnotes-section h2 {
     font-size: 17px;
   }
@@ -921,7 +1013,7 @@
 }
 
 .pubf-example-list li::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
   top: 8px;
@@ -1331,38 +1423,40 @@
    when .is-in lands. The lift is small (12px) with an ease-out curve, and
    grid children enter on a light stagger (MOTION 2's polish, owner
    2026-10-24): a row arrives as a wave, not as eight simultaneous blocks. */
-[data-motion="armed"] [data-reveal] {
+[data-motion='armed'] [data-reveal] {
   opacity: 0;
   transform: translateY(12px);
-  transition: opacity 0.42s ease, transform 0.42s cubic-bezier(0.2, 0.7, 0.3, 1);
+  transition:
+    opacity 0.42s ease,
+    transform 0.42s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
-[data-motion="armed"] [data-reveal].is-in {
+[data-motion='armed'] [data-reveal].is-in {
   opacity: 1;
   transform: none;
 }
 
-[data-motion="armed"] .pubf-tools-grid [data-reveal]:nth-child(4n + 2) {
+[data-motion='armed'] .pubf-tools-grid [data-reveal]:nth-child(4n + 2) {
   transition-delay: 70ms;
 }
 
-[data-motion="armed"] .pubf-tools-grid [data-reveal]:nth-child(4n + 3) {
+[data-motion='armed'] .pubf-tools-grid [data-reveal]:nth-child(4n + 3) {
   transition-delay: 140ms;
 }
 
-[data-motion="armed"] .pubf-tools-grid [data-reveal]:nth-child(4n) {
+[data-motion='armed'] .pubf-tools-grid [data-reveal]:nth-child(4n) {
   transition-delay: 210ms;
 }
 
-[data-motion="armed"] .pubf-flow-steps [data-reveal]:nth-child(2) {
+[data-motion='armed'] .pubf-flow-steps [data-reveal]:nth-child(2) {
   transition-delay: 90ms;
 }
 
-[data-motion="armed"] .pubf-flow-steps [data-reveal]:nth-child(3) {
+[data-motion='armed'] .pubf-flow-steps [data-reveal]:nth-child(3) {
   transition-delay: 180ms;
 }
 
-[data-motion="armed"] .pubf-flow-steps [data-reveal]:nth-child(4) {
+[data-motion='armed'] .pubf-flow-steps [data-reveal]:nth-child(4) {
   transition-delay: 270ms;
 }
 
@@ -1370,7 +1464,7 @@
    never hold invisible content, and the hamburger popup must open without
    its rise-and-fade for a visitor who asked for stillness. */
 @media (prefers-reduced-motion: reduce) {
-  .pubf [data-motion="armed"] [data-reveal] {
+  .pubf [data-motion='armed'] [data-reveal] {
     opacity: 1;
     transform: none;
     transition: none;

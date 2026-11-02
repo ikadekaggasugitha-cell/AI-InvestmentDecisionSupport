@@ -84,6 +84,30 @@ describe('PublicNotes', () => {
     }
   })
 
+  it('offers a jump rail whose links match the sections one for one', () => {
+    const { container } = renderNotes()
+    const rail = within(screen.getByRole('navigation', { name: 'Daftar bagian catatan' }))
+    const hrefs = rail.getAllByRole('link').map((a) => a.getAttribute('href'))
+    expect(hrefs).toEqual([
+      '#risiko',
+      '#probabilitas',
+      '#data',
+      '#contoh',
+      '#langganan',
+      '#pembayaran',
+      '#pengembalian-dana',
+      '#privasi',
+      '#status',
+    ])
+    /* Every rail link lands on an element that exists on this page. */
+    for (const href of hrefs) {
+      expect(container.querySelector(`main ${href}`)).toBeInTheDocument()
+    }
+    /* Short labels, not the sentence headings: the rail is 208px wide. */
+    expect(rail.getByRole('link', { name: 'Bukan penasihat' })).toBeInTheDocument()
+    expect(rail.queryByRole('link', { name: SECTIONS[0] })).not.toBeInTheDocument()
+  })
+
   it('carries the revision stamp as printed text, not the browser clock', () => {
     renderNotes()
     expect(screen.getByText(/Catatan ini direvisi 2 November 2026/)).toBeInTheDocument()

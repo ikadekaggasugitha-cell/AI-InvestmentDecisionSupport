@@ -43,6 +43,10 @@ const REVISED = { id: '2 November 2026', en: '2 November 2026' }
 
 interface NoteSection {
   id: string
+  /** Short label for the wide-screen jump rail. The heading itself is a
+   *  sentence and does not fit a 208px column without wrapping oddly. */
+  navId: string
+  navEn: string
   titleId: string
   titleEn: string
   bodyId: string
@@ -55,6 +59,8 @@ interface NoteSection {
 const SECTIONS: NoteSection[] = [
   {
     id: 'risiko',
+    navId: 'Bukan penasihat',
+    navEn: 'Not an adviser',
     titleId: 'Bukan penasihat investasi',
     titleEn: 'Not an investment adviser',
     bodyId:
@@ -74,6 +80,8 @@ const SECTIONS: NoteSection[] = [
   },
   {
     id: 'probabilitas',
+    navId: 'Probabilitas',
+    navEn: 'Probabilities',
     titleId: 'Angka yang Anda lihat adalah probabilitas',
     titleEn: 'The numbers you see are probabilities',
     bodyId:
@@ -89,6 +97,8 @@ const SECTIONS: NoteSection[] = [
   },
   {
     id: 'data',
+    navId: 'Sumber data',
+    navEn: 'Data sources',
     titleId: 'Dari mana datanya, dan seberapa baru',
     titleEn: 'Where the data comes from, and how fresh',
     bodyId:
@@ -104,6 +114,8 @@ const SECTIONS: NoteSection[] = [
   },
   {
     id: 'contoh',
+    navId: 'Data contoh',
+    navEn: 'Sample data',
     titleId: 'Angka contoh dan angka Anda',
     titleEn: 'Sample figures and your figures',
     bodyId:
@@ -119,6 +131,8 @@ const SECTIONS: NoteSection[] = [
   },
   {
     id: 'langganan',
+    navId: 'Yang dibuka langganan',
+    navEn: 'What opens',
     titleId: 'Apa yang dibuka langganan',
     titleEn: 'What a subscription opens',
     bodyId:
@@ -138,6 +152,8 @@ const SECTIONS: NoteSection[] = [
   },
   {
     id: 'pembayaran',
+    navId: 'Cara membayar',
+    navEn: 'How payment works',
     titleId: 'Cara membayar dan apa yang terjadi setelahnya',
     titleEn: 'How payment works, and what happens after',
     bodyId:
@@ -157,6 +173,8 @@ const SECTIONS: NoteSection[] = [
   },
   {
     id: 'pengembalian-dana',
+    navId: 'Pengembalian dana',
+    navEn: 'Refunds',
     titleId: 'Pengembalian dana',
     titleEn: 'Refunds',
     bodyId:
@@ -170,6 +188,8 @@ const SECTIONS: NoteSection[] = [
   },
   {
     id: 'privasi',
+    navId: 'Data pribadi',
+    navEn: 'Personal data',
     titleId: 'Data pribadi Anda',
     titleEn: 'Your personal data',
     bodyId:
@@ -187,6 +207,8 @@ const SECTIONS: NoteSection[] = [
   },
   {
     id: 'status',
+    navId: 'Status & revisi',
+    navEn: 'Status & revisions',
     titleId: 'Status layanan dan revisi catatan ini',
     titleEn: 'Service status, and when these notes changed',
     bodyId:
@@ -317,6 +339,22 @@ export function PublicNotes({
 
         <section className="pubnotes-body">
           <div className="pub-container">
+            {/* Jump rail for a nine-part page, shown only from 1024px where
+                there is room beside the prose. Every heading is still in
+                reading order at every width, so this rail is a shortcut and
+                never the only way to reach a section. */}
+            <nav
+              className="pubnotes-index"
+              aria-label={isId ? 'Daftar bagian catatan' : 'Notes section list'}
+            >
+              <ul>
+                {SECTIONS.map((section) => (
+                  <li key={section.id}>
+                    <a href={`#${section.id}`}>{isId ? section.navId : section.navEn}</a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
             <div className="pubnotes-col">
               {SECTIONS.map((section) => (
                 <article className="pubnotes-section" id={section.id} key={section.id}>
