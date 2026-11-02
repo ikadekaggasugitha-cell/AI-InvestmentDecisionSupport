@@ -523,13 +523,18 @@ publik (kedua layar: lembar harga dan screen fitur):
   copyright "© 2026 AIDSS · MCASS", label pengirim chat "AIDSS", dan
   data pemilik rekening tetap teks/data aslinya.
 
-## Pengecualian terdokumentasi: dashboard glassy (2026-11-01)
+## Pengecualian terdokumentasi: glass di view dalam-sesi (2026-11-01, diperluas 2026-11-02)
 
 Atas arahan pemilik ("ganti desain UI untuk dasbor saja menjadi Glassy Dashboard
 clean minimalis", dipilih **glassmorphism penuh**, Header boleh ikut glass,
 **struktur isi dipertahankan**, kedua tema wajib berfungsi). Ini adalah satu-satunya
-layar yang menyimpang dari aturan "shadows minimal" dan "avoid ornamental gradients,
-glowing effects" di atas; pengecualian ini tercatat, tidak diam-diam.
+penyimpangan dari aturan "shadows minimal" dan "avoid ornamental gradients, glowing
+effects" di atas; pengecualian ini tercatat, tidak diam-diam. **Cakupannya diperluas
+pada 2026-11-02** dari satu layar menjadi **sembilan view dalam-sesi** ("ya saya ingin
+memperluas Glass", dipilih: bertahap tetapi pasti, tanpa mengubah struktur gulung,
+permukaan non-kartu tetap opaque, layar di luar shell tidak ikut) — lihat
+"Perluasan" di bawah. Portal Admin, layar masuk/daftar, SuspensionScreen, dan lembar
+harga publik tetap kertas.
 
 **Rujukan pemilik.** `referensi/contoh-desain-ui.png` (dasbor e-commerce kertas
 translucent di atas latar pastel) mengatur tema **terang**;
@@ -539,50 +544,140 @@ Header ikut glass, **latar terbatas 2 hue**, radius **16px**, dan **struktur isi
 AIDSS tetap** — yang berubah hanya kulit.
 
 **Bentuk yang dipakai.** Kosakata token `--glass-*` di `src/styles/theme.css`
-(didefinisikan dua kali: `:root` dan `.dark`) plus tiga kelas utility di
-`@layer components`: `.glass-card` (translucent + hairline + sheen inset 1px di
-tepi atas + shadow lembut + `border-radius: var(--glass-radius)` 16px),
-`.glass-bar` (Header, lebih opak, `position: sticky`), `.glass-page` (dua sapuan
-radial lebar). Delapan permukaan kartu `DashboardView` dan satu bar Header
-memakainya; Sidebar, `--control-border`, `--link`, dan `focus.css` tidak
+(didefinisikan dua kali: `:root` dan `.dark`) plus empat kelas utility di
+`@layer components`: `.surface-glass` dan `.glass-card` — keduanya membaca aturan
+properti yang sama (`background: var(--glass-surface)` + hairline
+`var(--glass-border)` + `border-radius: var(--glass-radius)` 16px + shadow lembut +
+sheen inset 1px di tepi atas), dan **satu-satunya perbedaan keduanya adalah
+`backdrop-filter`**, yang hanya dimiliki `.glass-card` — `.glass-bar` (Header, lebih
+opak, `position: sticky`) — `.glass-page` (dua sapuan radial lebar). Daftar layar yang
+ikut glass ditentukan di satu tempat, `src/app/surfaces.ts` (`GLASS_VIEWS`,
+`isGlassView`, `isGlassShell`), yang dibaca `App.tsx` **dan** dijaga oleh
+`glassContrast.test.ts`. Sidebar, `--control-border`, `--link`, dan `focus.css` tidak
 disentuh. Fallback `prefers-reduced-transparency: reduce` jatuh ke `var(--card)`
 opaque tanpa blur/shadow, jadi sistem yang meminta transparansi dikurangi tetap
-utuh. Opasitas kartu `0,60` (terang) / `0,62` (gelap), bilah header `0,70` /
-`0,60`, dengan `saturate(1.35)`; bukan gradien pada teks atau ikon, dan bukan
+utuh. Opasitas kartu `0,66` (terang) / `0,62` (gelap), bilah header `0,70` /
+`0,66`, dengan `saturate(1.35)`; bukan gradien pada teks atau ikon, dan bukan
 glow. Angka KPI dinaikkan 26/20 → **30/24** mengikuti bobot referensi: DESIGN.md
 §Typography sudah bilang "the numbers are the product".
 
-**Satu perubahan struktur, atas izin pemilik.** Pada dashboard saja, kolom shell
-yang menggulung (`.glass-page`) dan Header menjadi `sticky` di dalamnya, sehingga
-konten benar-benar lewat di bawah bilah kaca — tanpa ini `backdrop-filter` tidak
-punya bahan bias sama sekali. Delapan view lain tetap menggulung di dalam
-tampilan masing-masing dan tetap opaque (terverifikasi di peramban: `position:
-static`, `rgb(255,255,255)`, tanpa kelas glass).
+**Satu perubahan struktur, atas izin pemilik — dan tetap satu.** Hanya pada
+dashboard kolom shell yang menggulung (`.glass-page`) dan Header menjadi `sticky` di
+dalamnya (`isGlassShell`), sehingga konten benar-benar lewat di bawah bilah kaca —
+tanpa ini `backdrop-filter` tidak punya bahan bias sama sekali. `scroll-padding-top:
+112px` menutup cacat keyboard nyata yang dibawanya: tanpanya elemen terfokus
+tertinggal tersembunyi penuh di bawah bilah (clearance terukur −44,5px). Delapan view
+lain yang kini ikut glass **tidak** mengubah struktur gulungnya: masing-masing tetap
+menggulung di dalam tampilannya sendiri dan Header tetap `static` di sana —
+terverifikasi di peramban pada sembilan layar (`position: static`, tanpa kelas
+glass-bar, `backdrop-filter: none` di setiap permukaan).
 
-**Perluasan palet, terbatas.** Dua hue baru — lavender `#cfc4f0` dan mint
-`#bfe6d2` — disahkan pemilik lewat gambar rujukan, **hanya untuk lapisan latar**
-`--glass-page`. Tidak untuk teks, ikon, aksen, atau warna semantik. Tema gelap
+**Perluasan (2026-11-02).** Sembilan view dalam-sesi kini berdiri di atas latar
+`--glass-page` dan memakai kartu `.surface-glass`: terukur per layar pada aplikasi
+berjalan — Dashboard 9 kartu (tetap `.glass-card`, 10 lapisan blur), Risiko 10,
+Portofolio 9, AI Advisor 9, Peringatan 5, Pasar 4, Pengaturan 2, Berita 1, Laporan 1.
+**Nol `backdrop-filter` baru di luar dashboard.** Alasannya keputusan, bukan
+kemalasan: pemilik memilih tidak mengubah struktur gulung, jadi di layar-layar itu
+tidak ada konten yang lewat di bawah permukaan mana pun — menyalin blur akan berarti
+±45 lapisan `backdrop-filter` di atas gradien 2700px tanpa perbedaan yang terbaca
+mata, persis cacat "blur dekoratif" yang dicatat jujur di bilah dashboard. Guard
+menegakkannya: aturan bersama `.surface-glass, .glass-card` tidak boleh memuat
+`backdrop-filter`.
+
+Yang **tidak** ikut glass, dan mengapa: modal (`PositionModal`, dialog rebalance,
+`ConsentGate`) dan drawer (`StockDetailPanel`) karena berada di atas scrim dengan teks
+kecil; dropdown pencarian dan `ViewSkeleton`/`ErrorBoundary` karena status yang harus
+terbaca seketika; kartu dalam `TabSubscription` karena komponen itu dipakai ulang
+SuspensionScreen, layar yang dikecualikan pemilik — mengonversinya akan
+menyelundupkan glass lewat impor bersama; panel `AdvisorChat` karena tepinya
+`--control-border` (batas kontrol, bukan kartu). Empat berkas pertama dijaga
+otomatis lewat `OPAQUE_ONLY_FILES` di `src/app/surfaces.ts`.
+
+**Koreksi kedua pada guard glass.** Perluasan ini menemukan dua kesalahan di
+`src/app/test/glassContrast.test.ts` yang masing-masing sudah saya tulis di sesi
+sebelumnya:
+
+1. **Ambang terlalu longgar untuk modelnya sendiri.** Diukur dari piksel screenshot
+   (bukan model), `--loss` pada kartu α 0,60 di atas sapuan lavender memakai
+   **4,40:1** — di bawah AA untuk angka 18px di Risiko — sementara guard menyebut
+   pasangan yang sama 4,62. Model analitik ini 0,15–0,22 terlalu optimis dibanding
+   render Chrome. Ambang test kini **4,65** dan menanggung galat terukur itu,
+   bukan berdebat dengannya; palet disesuaikan mengikutinya (kartu 0,60 → 0,66,
+   lavender `#cfc4f0` → `#d6cef5` pada α 0,50, bilah gelap 0,60 → 0,66), dipilih
+   dari pencarian pada frontier: wilayah di mana `--loss` lolos 4,65 sambil kaca
+   tetap tembus dan tepi tetap terbaca.
+2. **Satu assertion mengukur pasangan yang salah.** Test "jarak kartu dari latar"
+   membandingkan kartu dengan `--background` — warna di *bawah* gradien, yang tidak
+   dilihat siapa pun di layar glass; kartu justru harus mendekati warna itu. Lebih
+   buruk, pasangan itu **lolos untuk kartu opaque penuh** (ΔE ~3 dari `#f5f7fa`),
+   yaitu kegagalan yang justru ada untuk dicegahnya. Diganti dua pasangan yang
+   berarti: kartu vs tanah lokal di bawahnya (tepi terlihat, ≥ 4) dan kartu vs putih
+   murni (tanah benar-benar tembus, ≥ 2,5). Dibuktikan dengan mutasi:
+   `--glass-surface` ber-alpha 1 kini gagal pada ΔE 0.
+
+**Hairline di atas permukaan glass.** Pemisah baris tabel memakai
+`1px solid var(--border)`, yang dituning untuk kartu putih opaque (ΔE ~12). Di atas
+kartu translucent kompositnya sudah berdekatan: terukur **ΔE 0,94** di Pasar —
+garisnya hilang, tepat di tempat kolom angka paling membutuhkan pemisah. Token baru
+`--surface-hairline` (`rgba(20,36,58,.18)` terang / `rgba(215,225,236,.2)` gelap)
+dipasang pada 16 garis di dalam surface; `--border` **tidak** diubah karena ia tepi
+setiap kontrol di aplikasi, dan mengubahnya akan menggeser tombol di layar yang bukan
+kaca. Garis translusen ini berkomposit terhadap apa pun di bawahnya, jadi tetap
+terlihat di kartu kertas maupun kaca — diprediksi (203,209,214), terukur
+(202,208,214), dan dijaga: ΔE ≥ 8 terhadap setiap warna kartu di dua tema (mutasi
+ke α 0,02 gagal di 1,49). Setelah perbaikan, pemisah baris Pasar terukur **ΔE 9,18**
+(median) pada piksel nyata.
+
+Yang belum terverifikasi oleh mata pada perluasan ini: **baris tabel posisi dan baris
+berita terisi** — akun uji berada pada 402 dan feed IDX tidak terjangkau, jadi kedua
+layar menampilkan state kosong/error (karena itu Berita dan Laporan hanya
+menghasilkan 1 surface terukur masing-masing); konversinya ada di source dan lolos
+tipe. Dan satu temuan **pra-eksisting** yang dilaporkan, tidak diperbaiki: pemisah
+dekoratif `|` di baris meta advisor memakai `--border` di atas chip `--muted`
+(1,15:1). Ia sudah ada sebelum glass (markup sama di `AIAdvisorView` sebelum commit
+glass pertama), duduk di atas chip opaque sehingga glass tidak bisa mengubahnya, dan
+tidak membawa informasi — tapi nyaris tak terlihat, dan itu layak diputuskan
+sengaja.
+
+**Perluasan palet, terbatas.** Dua hue baru — lavender (kini `#d6cef5`, awalnya
+`#cfc4f0`) dan mint `#bfe6d2` — disahkan pemilik lewat gambar rujukan, **hanya untuk
+lapisan latar** `--glass-page`. Tidak untuk teks, ikon, aksen, atau warna semantik.
+Tema gelap
 tetap hue merek (slate + Emerald Teal alpha rendah): latar berwarna di belakang
 angka hijau/merah adalah cara P&L mulai terbaca sebagai dekorasi.
 
 **Batas yang terukur, dan ditegakkan test.** `contrast.test.ts` membandingkan
 heksa token terhadap heksa permukaan; ia **buta** terhadap hasil blend, sehingga
 tetap hijau walaupun composite di bawah AA. Karena itu opacity ditentukan lewat
-komposit dan dijaga `src/app/test/glassContrast.test.ts` (14 assertion: validasi
+komposit dan dijaga `src/app/test/glassContrast.test.ts` (**22 assertion**: validasi
 known-answer matematika test itu sendiri, parsing token kedua blok tema, jumlah
-deklarasi `--control-border`/`--link`, penolakan skin rusak, AA pada 9 pusat kartu
-maupun 98 titik di dua lebar kolom, sebaran ΔE ≥ 2,5, dan AA teks bilah di atas
-latar maupun di atas kartu yang lewat). Nilai terukur, dengan **token warna aplikasi
-apa adanya**:
+deklarasi `--control-border`/`--link`/`--surface-hairline`, penolakan skin rusak,
+AA pada 9 pusat kartu maupun 98 titik di dua lebar kolom, AA teks bilah di atas
+latar maupun di atas kartu yang lewat, tepi kartu vs tanah lokal, tanah yang
+benar-benar tembus, hairline yang bertahan di atas surface, larangan blur pada
+aturan bersama, daftar `GLASS_VIEWS` yang hanya boleh mengklaim view yang
+sungguh memakai surface, dan `OPAQUE_ONLY_FILES` yang harus tetap kertas).
+Nilai terukur model analitik, dengan **token warna aplikasi apa adanya** — ambang
+yang dituntut test adalah **4,65**, bukan 4,5, karena selisih model-vs-render
+terukur 0,15–0,22:
 
 | Permukaan | Terburuk | Pemecatnya |
 |---|---|---|
-| Kartu terang `rgba(255,255,255,0.60)` | **4,62:1** | `--loss` |
-| idem | 4,81 · 5,08 · 6,13 · 8,18 · 14,58 | muted · gain · warning · link · foreground |
-| Bilah terang `rgba(255,255,255,0.70)` | **4,74:1** | `--loss` |
-| Kartu gelap `rgba(20,36,58,0.62)` | **4,89:1** | `--loss` |
-| Bilah gelap `rgba(23,41,63,0.60)` | **4,68:1** | `--loss` |
-| Sebaran ΔE76 antar sembilan kartu | 3,87 (terang) · 3,68 (gelap) | ambang terlihat ~2,3 |
+| Kartu terang `rgba(255,255,255,0.66)` | **4,75:1** | `--loss` |
+| Sapuan seluruh kolom terang (98 titik) | **4,73:1** | `--loss` |
+| Bilah terang `rgba(255,255,255,0.70)` | **4,78:1** | `--loss` |
+| Kartu gelap `rgba(20,36,58,0.62)` | **4,91:1** | `--loss` |
+| Sapuan seluruh kolom gelap | **4,82:1** | `--loss` |
+| Bilah gelap `rgba(23,41,63,0.66)` | **4,67:1** | `--loss` |
+| ΔE tepi kartu vs tanah lokal | 6,00 (terang) · 5,55 (gelap) | ambang test ≥ 4 |
+| ΔE kartu vs putih murni (tembus) | 3,08 (terang) · 84,05 (gelap) | ambang test ≥ 2,5 |
+| ΔE `--surface-hairline` vs kartu | 13,60 (terang) · 16,11 (gelap) | ambang test ≥ 8 |
+| Sebaran ΔE76 antar sembilan kartu | 3,03 (terang) · 4,02 (gelap) | ambang terlihat ~2,3 |
+
+Angka test ini **diverifikasi silang pada piksel screenshot** (bukan hanya model):
+pasangan konten-nyata terburuk per layar terukur 4,52–14,76:1 di tema terang dan
+5,00–11,49:1 di tema gelap. Yang di bawah 4,5 pada pembacaan piksel hanyalah
+glif dekoratif `|` yang pra-eksisting (lihat "belum terverifikasi" di atas).
 
 Percabangan token tinta (`--glass-ink-muted`, `--glass-loss`) yang sempat dibuat
 untuk membenarkan kartu 0,50 **dihapus**: pada 0,60 dengan latar pastel terang,
@@ -622,17 +717,25 @@ gelap lewat di bawah bilah — yaitu kurva berisi data, hal yang sedang tidak bi
 direproduksi di sini. Angka AA di atas tetap aman; klaim "kaca buram" di bilah
 belum boleh dianggap terbukti.
 
-Verifikasi: `tsc` bersih, `vitest` **398/398** (384 + 14 guard glass, termasuk
+Verifikasi: `tsc` bersih, `vitest` **406/406** (384 + 22 guard glass, termasuk enam
 mutasi yang membuktikan guard bisa gagal di kedua tema), `eslint` 0 error,
-`format:check` bersih, `vite build` sukses, `pytest` backend **890 lulus** dan
-`ruff` bersih. Diukur pada aplikasi nyata lewat Playwright/Chrome, screenshot
+`format:check` bersih, `vite build` sukses, `ruff` bersih, `pytest` backend **890
+lulus** dengan satu error teardown di `tests/test_rate_limit.py` pada suite penuh
+(yang lolos 8/8 bila dijalankan sendiri; muncul setelah Docker menaikkan
+`backend-redis-1` dan tetap ter-reproduksi dengan `REDIS_URL` mati, jadi ini
+test bergantung-urutan/lingkungan, bukan akibat perubahan desain — nol berkas
+backend disentuh). Diukur pada aplikasi nyata lewat Playwright/Chrome, screenshot
 tersimpan di 1440×900 dan 390×844, terang dan gelap: 9 kartu `.glass-card`
-berradius **16px**, latar `rgba(255,255,255,0.6)` / `rgba(20,36,58,0.62)`, dua
-radial-gradient terkomputasi, **10 permukaan ber-blur dengan 0 sarang blur** dan
-bilah gulung itu sendiri tidak ber-blur, header `sticky` terkunci di y=0 sementara
-kartu lewat di bawahnya (overlap 29px pada scrollTop 120), `scroll-padding-top:
+berradius **16px** di dashboard dengan latar `rgba(255,255,255,0.66)` /
+`rgba(20,36,58,0.62)`, dua radial-gradient terkomputasi, **10 permukaan ber-blur
+dengan 0 sarang blur** dan bilah gulung itu sendiri tidak ber-blur; plus **41
+permukaan `.surface-glass` di delapan view lain dengan `backdrop-filter: none` pada
+setiap permukaan** dan **0 lapisan blur baru**. Header `sticky` terkunci di y=0
+sementara kartu lewat di bawahnya (overlap 29px pada scrollTop 120) hanya di
+dashboard; delapan view lain terverifikasi `position: static`. `scroll-padding-top:
 112px` terbukti bekerja — tanpanya elemen terfokus tertinggal **tersembunyi penuh**
 di bawah bilah (clearance −44,5px), dengannya browser menggulung hingga elemen
 keluar (+15,0px), **nol teks di bawah 11px**, `scrollWidth` 390 = `clientWidth`
-(tanpa luapan horizontal), dan `Pasar`/`Pengaturan` terbukti tetap `static` +
-`rgb(255,255,255)` + nol kartu glass. Console hanya memuat 402 paywall yang jujur.
+(tanpa luapan horizontal). Pemisah baris tabel Pasar terukur ΔE 9,18 (median) setelah
+`--surface-hairline`, dari 0,94 sebelumnya. Console hanya memuat 402 paywall yang
+jujur.
