@@ -80,40 +80,58 @@
   --sidebar-badge: rgba(255, 255, 255, 0.09);
 
   /* Glass surfaces — the dashboard's documented exception to the restrained
-     paper rule (docs/DESIGN.md, "Pengecualian terdokumentasi: dashboard glassy").
-     Opacity is a contrast result, not a taste call. Measured on the blended
-     card over the STRONGEST point of the page layer beneath it (#c8ced6, where
-     two blobs overlap), 0.80 holds --loss at 4.71:1 and --muted-foreground at
-     4.91:1 — both above AA, with the negative P&L figure the tightest pairing
-     on the screen. Dropping to 0.72 pushes that red under 4.5:1, which is the
-     one failure this glass skin cannot afford to ship silently: the guard tests
-     compare declared token hexes to declared surface hexes, so they stay green
-     while the translucent blend reads below AA. 20% of the page still shows
-     through, which is what makes it glass rather than a flat card. */
-  --glass-surface: rgba(255, 255, 255, 0.8);
+     paper rule (docs/DESIGN.md, "Pengecualian terdokumentasi: dashboard glassy",
+     following the owner's references referensi/contoh-desain-ui.png for light and
+     contoh-desain-ui-2.png for dark).
+     Opacity is a contrast result, not a taste call, and it is now enforced by
+     src/app/test/glassContrast.test.ts rather than claimed here: that test
+     composites the card over the page layer at 98 points across two real column
+     widths and holds every ink at AA in both themes. 0.50 is the clearest card
+     that test still accepts. The binding pair in light is --gain at 4.94:1 (the
+     green figure, not the red — --glass-loss sits at 5.25:1); in dark it is
+     --glass-loss at 5.02:1. saturate(1.35) in the backdrop filter widens the
+     card-to-card colour spread by roughly a third; the ratios above are computed
+     without it, so they are the conservative number.
+     What makes this clarity affordable is the GROUND, not the card: pastel hues
+     kept high in luminance leave the composited surface light enough for dark
+     ink. An earlier pass used dark navy sweeps and concluded that clear glass
+     and AA could not coexist — that conclusion was an artefact of the ground,
+     and of a broken Lab function that reported the spread as invisible. */
+  --glass-surface: rgba(255, 255, 255, 0.5);
   --glass-surface-raised: rgba(255, 255, 255, 0.86);
   --glass-border: rgba(20, 36, 58, 0.16);
   --glass-sheen: rgba(255, 255, 255, 0.55);
   --glass-blur: 14px;
-  /* 10px, not Tailwind's `rounded` (3.5px at this project's 14px root font):
-     a near-square corner fights a sheet surface without going as far as the
-     "excessive rounded cards" DESIGN.md rules out. */
-  --glass-radius: 10px;
+  /* 16px, chosen by the owner between the references' 24px and the 10px first
+     pass. Not Tailwind's `rounded`, which is 3.5px at this project's 14px root
+     font and lives in the utilities layer — it would override this value, so it
+     is not on the card elements. */
+  --glass-radius: 16px;
+  /* Text on glass. Same hue families as --muted-foreground and --loss, taken
+     darker because the surface behind them is genuinely translucent: at 0.50
+     the app's own --loss lands on 4.50:1 — exactly the floor, zero margin —
+     while --glass-loss reads 5.25:1. The fork is what buys the clarity, and it
+     is scoped to glass surfaces and nowhere else. */
+  --glass-ink-muted: #4e5b6b;
+  --glass-loss: #b83030;
   --glass-shadow: 0 12px 32px rgba(20, 36, 58, 0.1);
-  /* What the blur has to work on. --background alone is one flat value, and a
-     backdrop-filter over flat colour refracts nothing — this is the layer that
-     makes the glass read as glass.
-     The three stops sit OVER the content column, not in the page corners: the
-     first two-ellipse version put every blob outside the card grid (measured —
-     the KPI row sat on bare #f5f7fa and all nine cards composited to the same
-     colour), which made the translucency do nothing at all. Ellipses are sized
-     so a blob boundary crosses the KPI row, the chart band and the bottom row
-     separately, giving each card a different backdrop to blur. Brand hues, low
-     alpha: a ground, not artwork. */
+  /* What the blur has to work on, and what makes the clarity affordable: two
+     pastel sweeps, lavender entering from the upper left and mint from the lower
+     right, each wider than the column so they still carry real alpha where the
+     cards are. Two rather than three: fewer paint layers per frame, and a broad
+     sweep produces a larger colour difference between cards than three small
+     ellipses that fade to nothing before reaching the content.
+     Anchoring, stated exactly: background-attachment is `scroll`, so these
+     sweeps are fixed to the visible column box, NOT to a row of content. A card
+     carries a different tint as it scrolls past them; the mint does not travel
+     with the bottom row. The effect is a hue drift across the viewport
+     (measured ΔE 6.5 across the nine cards, ceiling 9.6 anywhere in the box)
+     rather than a lightness gradient.
+     These two hues are new to the product and are licensed for this background
+     layer only — never for text, icons, or accents. */
   --glass-page:
-    radial-gradient(900px 520px at 34% 6%, rgba(52, 74, 100, 0.13), transparent 65%),
-    radial-gradient(760px 460px at 74% 38%, rgba(20, 36, 58, 0.1), transparent 62%),
-    radial-gradient(700px 420px at 26% 86%, rgba(15, 157, 120, 0.09), transparent 62%);
+    radial-gradient(2700px 1350px at 30% 6%, rgba(207, 196, 240, 0.55), transparent 70%),
+    radial-gradient(2440px 1260px at 80% 96%, rgba(191, 230, 210, 0.5), transparent 70%);
 }
 
 /* ─── Dark Mode ──────────────────────────────────────────────────────────── */
@@ -180,20 +198,23 @@
   /* A count badge on the navy surface is neutral ink, not a second accent. */
   --sidebar-badge: rgba(255, 255, 255, 0.09);
 
-  /* Glass surfaces — dark. 0.60 over the strongest blended page (#142d3c,
-     where the navy and teal blobs overlap) leaves --loss at 5.14:1 and
-     --muted-foreground at 6.02:1, so the dark card sits further from the AA
-     floor than the light one and the extra translucency is bought, not given
-     away. */
-  --glass-surface: rgba(20, 36, 58, 0.6);
+  /* Glass surfaces — dark. The dark card stays cloudier than the light one
+     (0.62 against 0.50) because the ground here is dark: clearing it costs
+     luminance instead of buying it. Enforced, not asserted, by
+     src/app/test/glassContrast.test.ts. The two sweeps are brand hues — slate
+     and Emerald Teal at low alpha — not the light theme's pastels: the owner's
+     dark reference is charcoal restraint, and a coloured ground behind green and
+     red financial figures is how a P&L starts to read as decoration. */
+  --glass-surface: rgba(20, 36, 58, 0.62);
   --glass-surface-raised: rgba(23, 41, 63, 0.68);
   --glass-border: rgba(215, 225, 236, 0.14);
   --glass-sheen: rgba(215, 225, 236, 0.22);
+  --glass-ink-muted: #93a6ba;
+  --glass-loss: #e87474;
   --glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
   --glass-page:
-    radial-gradient(900px 520px at 34% 6%, rgba(51, 80, 122, 0.18), transparent 65%),
-    radial-gradient(760px 460px at 74% 38%, rgba(52, 74, 100, 0.16), transparent 62%),
-    radial-gradient(700px 420px at 26% 86%, rgba(15, 157, 120, 0.1), transparent 62%);
+    radial-gradient(2700px 1350px at 30% 6%, rgba(51, 80, 122, 0.35), transparent 70%),
+    radial-gradient(2440px 1260px at 80% 96%, rgba(15, 157, 120, 0.25), transparent 70%);
 }
 
 @theme inline {
@@ -311,6 +332,12 @@
   .glass-page {
     background-color: var(--background);
     background-image: var(--glass-page);
+    /* The sticky bar is 100px on desktop and 92px on a phone, and this element
+       is the scroller. Without scroll padding, Tab moves focus to a control the
+       browser is content to leave painted underneath the bar — a keyboard user
+       sees nothing and does not know they are stuck. Measured as a real defect
+       in the browser, not theorised. */
+    scroll-padding-top: 112px;
   }
 
   .glass-card {
@@ -324,12 +351,20 @@
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   }
 
-  /* The header bar: same glass, raised so the page does not show through the
-     app's one fixed chrome line. Nothing scrolls under it — the scroll
-     container starts below the bar — so the translucency and the hairline do
-     the work here and the blur is kept cheap rather than decorative. */
+  /* The header bar. On the dashboard it is the one chrome the app makes glass,
+     and it is the place the glass actually pays: the dashboard's scroll
+     container is the column itself (see App.tsx), so KPI figures and chart ink
+     scroll *under* this bar and blur(14px) saturate() has real content to
+     refract. Kept at 0.86 — the most opaque glass on the screen — because text
+     here sits over a moving, blurred backdrop rather than a still ground, and a
+     frosted header that loses a point of contrast is a worse trade than a
+     slightly flat one. The bottom hairline is what reads as the sheet's edge. */
   .glass-bar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
     background: var(--glass-surface-raised);
+    border-bottom: 1px solid var(--glass-border);
     backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   }

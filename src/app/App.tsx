@@ -346,7 +346,15 @@ function AppInner() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
-      <div className={`flex-1 flex flex-col overflow-hidden min-w-0${glassy ? ' glass-page' : ''}`}>
+      {/* Glass mode hands the scrolling to this column instead of leaving it to
+          the view: a sticky header only has anything to refract if the content
+          scrolls inside the same container it does. Other views keep their own
+          internal scroller and the opaque chrome they always had. */}
+      <div
+        className={`flex-1 flex flex-col min-w-0 ${
+          glassy ? 'glass-page overflow-y-auto overflow-x-hidden' : 'overflow-hidden'
+        }`}
+      >
         <Header
           title={cfg.title}
           subtitle={cfg.subtitle}
@@ -383,6 +391,7 @@ function AppInner() {
                 alerts={alertList}
                 alertsIsLive={alertsIsLive}
                 onOpenPortfolio={() => setView('portfolio')}
+                glass
               />
             </ErrorBoundary>
           )}

@@ -43,6 +43,13 @@ interface Props {
   alertsIsLive: boolean
   /** The empty-state action: the only honest way off a "no positions" card. */
   onOpenPortfolio?: () => void
+  /**
+   * Glass mode, passed down from App's `glassy`. It does one structural thing:
+   * the view stops owning its own scroll container and lets the shell column
+   * scroll instead, so the sticky glass header has real content flowing under it
+   * — the only place backdrop-filter gets something to refract on this screen.
+   */
+  glass?: boolean
 }
 
 const ALERT_ICONS: Record<string, ElementType> = {
@@ -52,7 +59,7 @@ const ALERT_ICONS: Record<string, ElementType> = {
   rebalance: TrendingUp,
 }
 const ALERT_COLORS: Record<string, string> = {
-  high: 'var(--loss)',
+  high: 'var(--glass-loss)',
   medium: 'var(--warning)',
   low: 'var(--neutral)',
 }
@@ -66,6 +73,7 @@ export function DashboardView({
   alerts,
   alertsIsLive,
   onOpenPortfolio,
+  glass = false,
 }: Props) {
   const { locale } = useApp()
   const { t } = useTranslation(locale)
@@ -184,7 +192,7 @@ export function DashboardView({
       label: t('dash_portfolio_value'),
       value: fmt(portfolioValue),
       sub: `${t('dash_cost_basis')}: ${fmt(costBasis)}`,
-      color: 'var(--muted-foreground)',
+      color: 'var(--glass-ink-muted)',
       lead: true,
     },
     {
@@ -194,7 +202,11 @@ export function DashboardView({
       /* A flat P&L is not a win: zero prints grey and colour is spent only when
          the number actually moved. */
       color:
-        dailyPnL > 0 ? 'var(--gain)' : dailyPnL < 0 ? 'var(--loss)' : 'var(--muted-foreground)',
+        dailyPnL > 0
+          ? 'var(--gain)'
+          : dailyPnL < 0
+            ? 'var(--glass-loss)'
+            : 'var(--glass-ink-muted)',
       signed: dailyPnL === 0 ? undefined : dailyPnL > 0,
     },
     {
@@ -208,8 +220,8 @@ export function DashboardView({
         market.ihsg.changePct > 0
           ? 'var(--gain)'
           : market.ihsg.changePct < 0
-            ? 'var(--loss)'
-            : 'var(--muted-foreground)',
+            ? 'var(--glass-loss)'
+            : 'var(--glass-ink-muted)',
       signed: market.ihsg.changePct === 0 ? undefined : market.ihsg.changePct > 0,
     },
     {
@@ -220,7 +232,7 @@ export function DashboardView({
         : '',
       /* Same zero rule: a gainer sitting exactly flat prints grey, and no
          chevron — flat is neither up nor down. */
-      color: topGainer && topGainer.changePct > 0 ? 'var(--gain)' : 'var(--muted-foreground)',
+      color: topGainer && topGainer.changePct > 0 ? 'var(--gain)' : 'var(--glass-ink-muted)',
       signed: topGainer && topGainer.changePct > 0 ? true : undefined,
     },
   ]
@@ -234,7 +246,7 @@ export function DashboardView({
       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)', marginBottom: 2 }}>
         {t('dash_sector_alloc')}
       </div>
-      <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
+      <div style={{ fontSize: 12, color: 'var(--glass-ink-muted)', marginBottom: 12 }}>
         {isId ? 'Berdasarkan bobot' : 'By weight'}
       </div>
       <div className="flex flex-col gap-2.5">
@@ -248,7 +260,7 @@ export function DashboardView({
                   <span
                     style={{
                       fontSize: 13,
-                      color: i === 0 ? 'var(--foreground)' : 'var(--muted-foreground)',
+                      color: i === 0 ? 'var(--foreground)' : 'var(--glass-ink-muted)',
                     }}
                   >
                     {s.name}
@@ -286,13 +298,21 @@ export function DashboardView({
   )
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-6 [&>*]:shrink-0">
+    <div
+      className={
+        glass
+          ? // The shell column scrolls; this view grows to its content so the
+            // sticky glass bar above has cards passing beneath it.
+            'flex flex-col gap-6 p-6 [&>*]:shrink-0'
+          : 'min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-6 [&>*]:shrink-0'
+      }
+    >
       {/* KPI row. Icon chips are gone: the KPI's ink is the identity, the
           value is the key number, and the label stays quiet above them. */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
           <div key={card.label} className="p-6 glass-card">
-            <div style={{ fontSize: 13, color: 'var(--muted-foreground)', marginBottom: 8 }}>
+            <div style={{ fontSize: 13, color: 'var(--glass-ink-muted)', marginBottom: 8 }}>
               {card.label}
             </div>
             <div
@@ -324,7 +344,7 @@ export function DashboardView({
       {chartData.length === 0 ? (
         <>
           <div className="p-4 glass-card">
-            <div style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
+            <div style={{ fontSize: 13, color: 'var(--glass-ink-muted)' }}>
               {t('dash_no_intraday')}
             </div>
           </div>
@@ -340,7 +360,7 @@ export function DashboardView({
             >
               {t('dash_intraday')}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: 'var(--glass-ink-muted)', marginBottom: 16 }}>
               {t('dash_intraday_sub')}
             </div>
             <ResponsiveContainer width="100%" height={196}>
@@ -350,7 +370,7 @@ export function DashboardView({
                   dataKey="time"
                   tick={{
                     fontSize: 11,
-                    fill: 'var(--muted-foreground)',
+                    fill: 'var(--glass-ink-muted)',
                     fontFamily: 'var(--font-mono)',
                   }}
                   axisLine={false}
@@ -360,7 +380,7 @@ export function DashboardView({
                 <YAxis
                   tick={{
                     fontSize: 11,
-                    fill: 'var(--muted-foreground)',
+                    fill: 'var(--glass-ink-muted)',
                     fontFamily: 'var(--font-mono)',
                   }}
                   axisLine={false}
@@ -444,7 +464,7 @@ export function DashboardView({
                 >
                   {h.symbol}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 1 }}>
+                <div style={{ fontSize: 11, color: 'var(--glass-ink-muted)', marginTop: 1 }}>
                   {h.lots.toLocaleString()} {isId ? 'lot' : 'lots'}
                 </div>
               </div>
@@ -466,8 +486,8 @@ export function DashboardView({
                     fontSize: 11,
                     fontFamily: 'var(--font-mono)',
                     ...(h.pnlPct == null
-                      ? { color: 'var(--muted-foreground)' }
-                      : { color: h.pnlPct >= 0 ? 'var(--gain)' : 'var(--loss)' }),
+                      ? { color: 'var(--glass-ink-muted)' }
+                      : { color: h.pnlPct >= 0 ? 'var(--gain)' : 'var(--glass-loss)' }),
                   }}
                 >
                   {h.pnlPct == null
@@ -481,7 +501,7 @@ export function DashboardView({
             /* Not just a sentence: the next step sits in the frame, so the
                empty card offers a way forward instead of a period. */
             <div style={{ paddingTop: 4 }}>
-              <div style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
+              <div style={{ fontSize: 13, color: 'var(--glass-ink-muted)' }}>
                 {t('dash_empty_position')}
               </div>
               {onOpenPortfolio && (
@@ -535,7 +555,7 @@ export function DashboardView({
               tx.type === 'BUY'
                 ? 'var(--gain)'
                 : tx.type === 'SELL'
-                  ? 'var(--loss)'
+                  ? 'var(--glass-loss)'
                   : 'var(--neutral)'
             const typeLabel = isId
               ? tx.type === 'BUY'
@@ -587,7 +607,7 @@ export function DashboardView({
                   >
                     {fmtIdr(tx.total)}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--glass-ink-muted)' }}>
                     {tx.date.split(' ').slice(0, 3).join(' ')}
                   </div>
                 </div>
@@ -595,7 +615,7 @@ export function DashboardView({
             )
           })}
           {recentTx.length === 0 && (
-            <div style={{ fontSize: 12, color: 'var(--muted-foreground)', paddingTop: 4 }}>
+            <div style={{ fontSize: 12, color: 'var(--glass-ink-muted)', paddingTop: 4 }}>
               {t('port_tx_empty')}
             </div>
           )}
@@ -627,7 +647,7 @@ export function DashboardView({
                 alerts are shaped exactly like real ones. */}
             {alerts.slice(0, 5).map((alert) => {
               const Icon = ALERT_ICONS[alert.type] ?? AlertCircle
-              const color = ALERT_COLORS[alert.severity] ?? 'var(--muted-foreground)'
+              const color = ALERT_COLORS[alert.severity] ?? 'var(--glass-ink-muted)'
               return (
                 <div
                   key={alert.key}
@@ -639,7 +659,7 @@ export function DashboardView({
                     <div style={{ fontSize: 12, color: 'var(--foreground)', lineHeight: 1.45 }}>
                       {isId ? alert.msgId : alert.msgEn}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: 'var(--glass-ink-muted)', marginTop: 2 }}>
                       {alert.timeId || alert.timeEn}
                     </div>
                   </div>
@@ -647,7 +667,7 @@ export function DashboardView({
               )
             })}
             {alerts.length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--muted-foreground)', padding: '8px 2px' }}>
+              <div style={{ fontSize: 12, color: 'var(--glass-ink-muted)', padding: '8px 2px' }}>
                 {isId ? 'Tidak ada peringatan aktif.' : 'No active alerts.'}
               </div>
             )}

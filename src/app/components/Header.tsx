@@ -264,10 +264,10 @@ export function Header({
     <header
       className={glass ? 'glass-bar' : undefined}
       style={{
-        // Inline background would beat the class's translucent one, so it is
-        // simply not written when the glass surface is the one asked for.
-        ...(glass ? null : { background: 'var(--card)' }),
-        borderBottom: '1px solid var(--border)',
+        // Inline declarations beat the .glass-bar class, so the two the glass
+        // owns — the translucent fill and its hairline edge — are simply not
+        // written when the glass chrome is asked for.
+        ...(glass ? null : { background: 'var(--card)', borderBottom: '1px solid var(--border)' }),
         flexShrink: 0,
       }}
       role="banner"
