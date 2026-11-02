@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { GLASS_VIEWS, OPAQUE_ONLY_FILES, SURFACE_CLASS } from '@/app/surfaces'
 
@@ -318,6 +318,24 @@ describe('the glass surface contract', () => {
     expect(lying).toEqual([])
   })
 
+  it('leaves no glassy view unlisted', () => {
+    // The other direction, and the one the spec's mutation actually tests: drop
+    // 'news' from GLASS_VIEWS while NewsView still paints surfaces and the screen
+    // keeps its translucent cards — over an opaque ground, so they read as grey
+    // sheets with nothing behind them. A list that is only checked one way can
+    // drift half-in, and the app would still look intentional while the guard
+    // stayed green.
+    const unlisted: string[] = []
+    for (const [view, file] of Object.entries(VIEW_SOURCE)) {
+      const src = readFileSync(resolve(ROOT, file), 'utf8')
+      const paints = src.includes(SURFACE_CLASS) || src.includes('glass-card')
+      if (paints && !GLASS_VIEWS.includes(view as (typeof GLASS_VIEWS)[number])) {
+        unlisted.push(`${view} paints ${SURFACE_CLASS} but is not in GLASS_VIEWS`)
+      }
+    }
+    expect(unlisted).toEqual([])
+  })
+
   it('keeps dialogs, drawers, skeletons and the error state opaque', () => {
     // These sit over a scrim, or carry text a reader must parse instantly.
     // Asserted rather than trusted, because the cheapest way to "extend the
@@ -335,6 +353,50 @@ describe('the glass surface contract', () => {
       }
     }
     expect(offenders).toEqual([])
+  })
+
+  it('never puts the surface class on a dialog, drawer or scrim layer', () => {
+    /* OPAQUE_ONLY_FILES covers the known files by name. It cannot cover a surface
+       class landing on the dialog *inside* an otherwise-glassy file — the
+       rebalance dialog lives in AllocationPanel, which legitimately converted.
+
+       Window-based rather than a JSX parser, and stated as such: it reads the
+       props around each surface-class use, which is where a dialog's role=,
+       aria-modal= or a drawer's position: 'fixed' would have to sit. That is a
+       heuristic; what it is not is a grep someone has to remember to run. */
+    const files: string[] = []
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = resolve(dir, entry.name)
+        if (entry.isDirectory()) walk(full)
+        else if (entry.name.endsWith('.tsx')) files.push(full)
+      }
+    }
+    walk(resolve(ROOT, 'app'))
+    const markers = ['role="dialog"', 'aria-modal', "position: 'fixed'"]
+    const offenders: string[] = []
+    for (const file of files) {
+      const src = readFileSync(file, 'utf8')
+      let at = src.indexOf(SURFACE_CLASS)
+      while (at !== -1) {
+        const around = src.slice(Math.max(0, at - 500), at + 500)
+        const hit = markers.find((m) => around.includes(m))
+        if (hit) offenders.push(`${file.replace(ROOT, 'src')} paints the surface near ${hit}`)
+        at = src.indexOf(SURFACE_CLASS, at + 1)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it('keeps the search dropdown on the opaque card token', () => {
+    // It is a control, it floats over whatever is beneath it, and its option text
+    // is 11-12px: the one place the app deliberately refuses glass on a screen
+    // that is otherwise glassy. Asserted because it was a decision, not an
+    // oversight — and decisions that are not written down get "cleaned up".
+    const header = readFileSync(resolve(ROOT, 'app/components/Header.tsx'), 'utf8')
+    expect(header).toContain("background: 'var(--card)'")
+    expect(header).not.toContain(SURFACE_CLASS)
+    expect(header).not.toContain('glass-card')
   })
 
   it('declares the surface hairline once per theme', () => {
@@ -377,6 +439,85 @@ describe.each([
       const worst = Math.min(...cards.map((c) => contrast(ink, c)))
       if (worst < AA) failures.push(`--${name} at ${worst.toFixed(2)}:1`)
     }
+    expect(failures).toEqual([])
+  })
+
+  it('holds every ink the dense tables paint on a surface at AA, at their real sizes', () => {
+    /* The plan asked for an explicit assertion on small text inside table rows.
+       Hand-picking one pair would repeat the mistake that hid --loss: the guard
+       only ever tested the colours someone thought to list. So this reads which
+       colours the table sources actually paint with, and which sizes, and holds
+       every colour that sits directly on the surface to normal-text AA — the
+       strictest bar any of those sizes gets to claim.
+
+       Colours written next to a `background` are chip and button ink, tested
+       against their own fill elsewhere, not against the card. */
+    const TABLE_SOURCES = [
+      'app/features/market/MarketsView.tsx',
+      'app/features/reports/AlertsView.tsx',
+      'app/features/reports/ReportsView.tsx',
+      'app/features/risk/RiskView.tsx',
+      'app/features/portfolio/PortfolioView.tsx',
+      'app/features/news/NewsView.tsx',
+      'app/features/settings/tabPrimitives.tsx',
+      'app/features/advisor/signalCard.tsx',
+    ]
+    const onSurface = new Set<string>()
+    const sizes: number[] = []
+    /** The object literal a match sits in, by brace depth — a character window
+     *  was wrong: a comment between `background:` and `color:` pushed an accent
+     *  button's ink out of the window and made it look like surface text. */
+    const enclosingBlock = (src: string, index: number): string => {
+      let depth = 0
+      let start = index
+      for (; start >= 0; start--) {
+        const c = src[start]
+        if (c === '}') depth++
+        else if (c === '{') {
+          if (depth === 0) break
+          depth--
+        }
+      }
+      let d2 = 0
+      let end = index
+      for (; end < src.length; end++) {
+        const c = src[end]
+        if (c === '{') d2++
+        else if (c === '}') {
+          d2--
+          if (d2 === 0) break
+        }
+      }
+      return src.slice(start, end)
+    }
+    for (const file of TABLE_SOURCES) {
+      const src = readFileSync(resolve(ROOT, file), 'utf8')
+      for (const m of src.matchAll(/color: 'var\(--([a-z0-9-]+)\)'/g)) {
+        const block = enclosingBlock(src, m.index ?? 0)
+        if (!/background(Color)?:/.test(block)) onSurface.add(m[1])
+      }
+      for (const m of src.matchAll(/fontSize: (\d+)/g)) sizes.push(Number(m[1]))
+    }
+    // 11px is the app's stated floor; a smaller size in a table would fail here
+    // rather than silently inherit a contrast budget written for larger text.
+    expect(sizes.filter((s) => s < 11)).toEqual([])
+    const failures: string[] = []
+    for (const name of onSurface) {
+      let value: string
+      try {
+        value = token(source, name)
+      } catch {
+        continue // not a colour token in these blocks
+      }
+      const ink = parseColor(value)
+      const worst = Math.min(...cards.map((c) => contrast(ink, c)))
+      if (worst < AA) failures.push(`--${name} at ${worst.toFixed(2)}:1`)
+    }
+    // A guard that quietly stops testing anything is not a guard. The named ink is
+    // the row-label colour the whole question is about: if the scan ever stops
+    // finding it, the scan has broken, not the palette.
+    expect([...onSurface]).toContain('muted-foreground')
+    expect(onSurface.size).toBeGreaterThanOrEqual(3)
     expect(failures).toEqual([])
   })
 

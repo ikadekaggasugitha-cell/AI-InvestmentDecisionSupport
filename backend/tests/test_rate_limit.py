@@ -24,12 +24,19 @@ from api.core.config import get_settings
 
 
 @pytest.fixture
-def limited_client(monkeypatch):
+def limited_client(monkeypatch, mock_redis):
     """An app with a deliberately tiny budget, so the test needs few requests.
 
     The budget is set here rather than by the global setting because the suite runs
     hundreds of requests from one address; a production-sized budget would never be
     reached and the test would pass without exercising anything.
+
+    `mock_redis` is not incidental: these tests hammer `/v1/news`, and that route
+    caches `news:idx:disclosures`. Without the mock the suite writes into the cache
+    the deployed app actually reads — invisible, and it outlasts the run. The
+    autouse `no_live_redis` guard fails the test when that happens, which is only
+    visible once a real Redis is reachable; the fix is to ask for the mock, not to
+    silence the guard.
     """
     monkeypatch.setenv("AUTH_BYPASS", "true")
     monkeypatch.setenv("PAYWALL_ENABLED", "false")
@@ -143,10 +150,14 @@ class TestPerRouteLimitsAreTighter:
 
 
 class TestTheLimiterCanBeTurnedOff:
-    def test_disabling_it_removes_the_refusal(self, monkeypatch):
+    def test_disabling_it_removes_the_refusal(self, monkeypatch, mock_redis):
         """`RATE_LIMIT_ENABLED=false` is what a deployment fronting its own limiter uses.
 
         If the flag stopped working, that deployment would have both limiters.
+
+        Builds its own client, so it needs the Redis mock on its own signature —
+        twelve `/v1/news` requests would otherwise write the disclosures cache
+        through the real path, exactly what the suite's guard is there to catch.
         """
         monkeypatch.setenv("AUTH_BYPASS", "true")
         monkeypatch.setenv("PAYWALL_ENABLED", "false")

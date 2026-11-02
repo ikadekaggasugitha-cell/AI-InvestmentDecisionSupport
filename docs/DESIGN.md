@@ -649,14 +649,19 @@ angka hijau/merah adalah cara P&L mulai terbaca sebagai dekorasi.
 **Batas yang terukur, dan ditegakkan test.** `contrast.test.ts` membandingkan
 heksa token terhadap heksa permukaan; ia **buta** terhadap hasil blend, sehingga
 tetap hijau walaupun composite di bawah AA. Karena itu opacity ditentukan lewat
-komposit dan dijaga `src/app/test/glassContrast.test.ts` (**22 assertion**: validasi
+komposit dan dijaga `src/app/test/glassContrast.test.ts` (**27 assertion**: validasi
 known-answer matematika test itu sendiri, parsing token kedua blok tema, jumlah
 deklarasi `--control-border`/`--link`/`--surface-hairline`, penolakan skin rusak,
 AA pada 9 pusat kartu maupun 98 titik di dua lebar kolom, AA teks bilah di atas
 latar maupun di atas kartu yang lewat, tepi kartu vs tanah lokal, tanah yang
 benar-benar tembus, hairline yang bertahan di atas surface, larangan blur pada
-aturan bersama, daftar `GLASS_VIEWS` yang hanya boleh mengklaim view yang
-sungguh memakai surface, dan `OPAQUE_ONLY_FILES` yang harus tetap kertas).
+aturan bersama, `GLASS_VIEWS` ditegakkan **dua arah** (view hanya boleh masuk
+daftar jika source-nya benar-benar memakai surface, dan source yang memakai
+surface tidak boleh hilang dari daftar), tidak ada surface class pada elemen
+dialog/drawer/scrim, dropdown pencarian tetap `var(--card)`, dan **setiap warna
+yang benar-benar dicetak sumber tabel di atas surface** — dibaca dari source,
+bukan dipilih tangan — lolos AA pada ukuran sebenarnya, dengan lantai 11px.
+`OPAQUE_ONLY_FILES` juga harus tetap kertas).
 Nilai terukur model analitik, dengan **token warna aplikasi apa adanya** — ambang
 yang dituntut test adalah **4,65**, bukan 4,5, karena selisih model-vs-render
 terukur 0,15–0,22:
@@ -717,14 +722,17 @@ gelap lewat di bawah bilah — yaitu kurva berisi data, hal yang sedang tidak bi
 direproduksi di sini. Angka AA di atas tetap aman; klaim "kaca buram" di bilah
 belum boleh dianggap terbukti.
 
-Verifikasi: `tsc` bersih, `vitest` **406/406** (384 + 22 guard glass, termasuk enam
+Verifikasi: `tsc` bersih, `vitest` **411/411** (384 + 27 guard glass, termasuk sembilan
 mutasi yang membuktikan guard bisa gagal di kedua tema), `eslint` 0 error,
 `format:check` bersih, `vite build` sukses, `ruff` bersih, `pytest` backend **890
-lulus** dengan satu error teardown di `tests/test_rate_limit.py` pada suite penuh
-(yang lolos 8/8 bila dijalankan sendiri; muncul setelah Docker menaikkan
-`backend-redis-1` dan tetap ter-reproduksi dengan `REDIS_URL` mati, jadi ini
-test bergantung-urutan/lingkungan, bukan akibat perubahan desain — nol berkas
-backend disentuh). Diukur pada aplikasi nyata lewat Playwright/Chrome, screenshot
+lulus tanpa error**, baik saat Redis hidup maupun saat `REDIS_URL` menunjuk port
+mati. Error teardown yang sempat dilaporkan di `backend/tests/test_rate_limit.py`
+bukanlah bising lingkungan dan tidak dibiarkan: guard suite itu menangkap test
+yang benar-benar menulis `news:idx:disclosures` lewat jalur Redis asli —
+tidak terlihat selama Redis mati (tulisnya gagal diam-diam), dan muncul begitu
+Docker menaikkan server. Perbaikannya ke penyebabnya, `mock_redis` diminta pada
+fixture `limited_client` dan pada test yang membangun client sendiri, bukan
+membungkam guard-nya. Diukur pada aplikasi nyata lewat Playwright/Chrome, screenshot
 tersimpan di 1440×900 dan 390×844, terang dan gelap: 9 kartu `.glass-card`
 berradius **16px** di dashboard dengan latar `rgba(255,255,255,0.66)` /
 `rgba(20,36,58,0.62)`, dua radial-gradient terkomputasi, **10 permukaan ber-blur
@@ -739,6 +747,13 @@ keluar (+15,0px), **nol teks di bawah 11px**, `scrollWidth` 390 = `clientWidth`
 (tanpa luapan horizontal). Pemisah baris tabel Pasar terukur ΔE 9,18 (median) setelah
 `--surface-hairline`, dari 0,94 sebelumnya. Console hanya memuat 402 paywall yang
 jujur.
+
+**Tepi kartu besar, diukur bukan diasumsikan.** Rencana menyiapkan fallback
+`--glass-border-strong` bila `--glass-border` (α 0,16) terlalu lemah untuk kartu
+tabel besar. Tidak diperlukan: pemisah baris Pasar kini terukur ΔE 9,18 dan
+dipastikan mata pada screenshot 1440 maupun 390, tepi kartu tetap terbaca lewat
+ΔE kartu-vs-tanah (≥ 4, ditegakkan test) plus shadow — menambah kekuatan border
+hanya akan mengejar angka yang tidak sedang bermasalah.
 
 Pada 390×844 (drawer navigasi dibuka lewat tombolnya, judul `h1` tiap langkah
 diverifikasi agar angka tidak datang dari layar yang salah): **kesembilan view**
