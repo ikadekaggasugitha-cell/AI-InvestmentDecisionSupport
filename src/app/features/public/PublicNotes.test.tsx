@@ -147,24 +147,33 @@ describe('PublicNotes', () => {
   it('keeps both enter gates standing beside the menu', async () => {
     const user = userEvent.setup()
     const { handlers } = renderNotes()
-    await user.click(screen.getByRole('button', { name: 'Masuk' }))
+    /* The bar, not the page: the footer carries the same two gates now, for the
+       reader who has already scrolled past the bar. */
+    const bar = within(screen.getByRole('banner'))
+    await user.click(bar.getByRole('button', { name: 'Masuk' }))
     expect(handlers.onEnter).toHaveBeenCalledTimes(1)
-    await user.click(screen.getByRole('button', { name: /Buat akun/ }))
+    await user.click(bar.getByRole('button', { name: /Buat akun/ }))
     expect(handlers.onSignUp).toHaveBeenCalledTimes(1)
   })
 
-  it('shares the footer chrome: the disclaimer stays, the contact stays held', () => {
+  it('shares the footer chrome: the disclaimer stays, the contact row is gone', () => {
     const { container } = renderNotes()
-    /* The one-sentence disclaimer is still on the page. This screen joined the
-       app; it did not replace the footer's own statement. */
+    /* The one-sentence disclaimer is still on the page, at the anchor the other
+       screens cross to. This screen joined the app; it did not replace the
+       footer's own statement. */
     expect(container.querySelector('#catatan')).toBeInTheDocument()
-    const held = screen.getByText('Hubungi kami')
-    expect(held.closest('a')).toBeNull()
-    /* In-page anchors point at sections that exist on this page. */
-    for (const anchor of container.querySelectorAll<HTMLAnchorElement>(
-      '.pub-footer-col a[href^="#"]',
-    )) {
-      expect(container.querySelector(anchor.getAttribute('href') as string)).toBeInTheDocument()
+    const footer = within(screen.getByRole('contentinfo'))
+    expect(footer.getByRole('link', { name: 'Fitur' })).toHaveAttribute('href', '/fitur')
+    /* Fitur alone. Catatan is the page the reader stands on and Harga is where
+       the footer's CTA already goes, so neither belongs in the row. */
+    expect(footer.getAllByRole('link')).toHaveLength(2)
+    expect(footer.queryByText('Hubungi kami')).not.toBeInTheDocument()
+    /* The nine sections are reachable from the page's own jump rail, which is
+       where that job belongs: the footer used to repeat the rail as a column.
+       Every rail anchor still lands on a heading that exists on this page. */
+    const rail = within(screen.getByRole('navigation', { name: 'Daftar bagian catatan' }))
+    for (const entry of rail.getAllByRole('link')) {
+      expect(container.querySelector(entry.getAttribute('href') as string)).toBeInTheDocument()
     }
   })
 

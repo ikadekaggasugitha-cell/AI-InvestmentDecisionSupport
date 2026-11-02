@@ -353,17 +353,16 @@ lembar ini saja, dan masing-masing mencantumkan aturan lama yang digantikan.
   (butir "Manfaat masuk kartu" ronde 3 sekarang menyisakan baris nama-saja
   di kartu); band menamai persis yang gerbang refus dan tidak mengklaim
   lain (aturan lama tetap).
-- **Footer navy** memulangkan navigasi bawah: kolom PRODUK/LANGGANAN/
-  BANTUAN dengan jangkar **in-page saja** (`#pilar`, `#harga`, `#catatan`
-  milik band/kartu/disklaimer); "Hubungi kami" ditahan sebagai span
-  `aria-disabled` **tanpa href** sampai kanalnya dinamakan pemilik
-  ([OWNER TO NAME] masih terbuka) — tampil seperti taunan tapi tak bisa
-  diklik, supaya bukan kontrol mati; disklaimer memakai titik antar kalimat
-  (em dash fisik dimutasikan ke kalimat); baris dasar memuat hak cipta,
-  tanggal diperbarui server, dan **jam hidup** Asia/Jakarta berakhir "WIB"
-  (format `en-GB` + `hourCycle: "h23"` — id-ID menulis jam dengan titik,
-  karya menulis dengan kolon; `hour12: false` bisa bocor `24:xx` di
-  tengah malam), berdenyut per detik atas jawaban pemilik.
+- **Footer navy menutup, bukan memetakan** (dibangun ulang 2026-11-02, lihat
+  *Pengecualian terdokumentasi* di bawah): tiga pita dalam satu permukaan navy
+  — kalimat penutup layar + dua gerbang, blok merek + baris tujuan yang benar-
+  benar berbeda tempat, lalu baris meta. Kolom PRODUK/LANGGANAN/BANTUAN milik
+  lama dibuang: sebelas tautan, lima di antaranya menunjuk `#harga` yang sama.
+  "Hubungi kami" tidak lagi dirender sebagai span `aria-disabled` — kanalnya
+  masih [OWNER TO NAME], dan aturan `settings-module-spec` sudah memutuskan:
+  nilai kosong berarti barisnya tidak ada. Disclaimer tetap satu kalimat yang
+  sama di `id="catatan"`; jam Asia/Jakarta kini presisi menit, dan baris meta
+  memuat jam bursa statis, bukan klaim buka/tutup.
 - **Nav topbar adalah jangkar**: FITUR dan CATATAN menunjuk `#pilar` dan
   `#catatan`; label platform + dot + garis pisah + gerbang di kanan;
   jangkar dan labelnya disembunyikan di bawah 840px — logo, Masuk, dan pil
@@ -571,6 +570,66 @@ pola `/fitur`.
   peringatan bundle. Kunjungan browser sungguhan memverifikasi muat langsung +
   refresh `/catatan`, alur burger dari `/` dan dari `/fitur`, overflow 0 di 1440
   dan 390px, dan empat tepi sejajar hero.
+
+## Pengecualian terdokumentasi: footer publik menutup, bukan memetakan (2026-11-02)
+
+Atas permintaan pemilik ("perbaiki footer yang ada pada halaman publik, buat
+lebih baik dan cocok"), lalu diputuskan redesign penuh dengan satu pekerjaan:
+**convert, lalu disclose**. Footer ini dipakai tiga layar, jadi redesign mendarat
+di ketiganya sekaligus; rencana dan keputusan per pertanyaan ada di
+[`tasks/plan-footer-publik.md`](../tasks/plan-footer-publik.md).
+
+- **Yang ditemukan di render, bukan dari asumsi.** Lembar harga mencetak 11
+  tautan footer dan **5 menunjuk `#harga` yang sama** (Mingguan, Bulanan,
+  Tahunan, Bandingkan paket, Pembaruan harga); `/fitur` 5 menunjuk `/#harga`.
+  Kolom bernama BANTUAN dibuka oleh entri mati. Grid `1.5fr 1fr 1fr 1fr`
+  membuat kepala kolom sejajar dengan *atas* logo, sehingga blok merek terbaca
+  sebagai daftar keempat. Di 390px sebelas tautan menumpuk dan disclaimer
+  terdorong ke dasar dinding tautan.
+- **`/fitur` menutup dirinya dua kali.** Band `.pubf-cta` ("Siap mengujinya?")
+  menempel langsung ke footer — `auth.css` sudah menyebutnya "the footer's navy
+  arriving early". Dua blok CTA navy tanpa jahitan, 720px ujung halaman. Band itu
+  **dihapus**; footer bersama yang memiliki gerak penutup, sehingga lembar harga
+  dan `/catatan` mendapat ending yang belum pernah mereka punya.
+- **Kontak dijatuhkan, bukan ditahan.** Pemilik memilih ini. Presedennya sudah
+  ada di spec proyek sendiri: `docs/settings-module-spec.md` memutuskan nilai
+  kosong = baris tidak dirender, karena `wa.me/628...` tak lengkap adalah link
+  mati, dan `docs/status.md` mencatat `contact_support` masih kosong tanpa
+  endpoint. Tiga tes "kontak ditahan" dihapus bersama entri yang dijaganya.
+- **Baris tautan menaati dua aturan.** Tidak pernah menyebut halaman tempat
+  pembaca berdiri (aturan yang sudah ditulis `PublicNavMenu.tsx`), dan tidak
+  pernah mengulang target CTA. Lembar harga → Fitur, Catatan. `/fitur` →
+  Catatan. `/catatan` → Fitur. Kolom CATATAN `/catatan` dibuang karena halaman
+  itu sendiri sudah punya jump rail untuk sembilan bagiannya.
+- **Jam berhenti di menit, dan tidak mengklaim apa pun tentang hari ini.**
+  `isMarketOpen()` di `useLiveMarket.ts` murni jam peramban atas aturan hari
+  kerja + istirahat siang, **tanpa tabel libur bursa** — ia menyebut pasar buka
+  pada ±15 hari libur setahun. Tolerabel di dalam aplikasi; di halaman publik itu
+  klaim baru, dan ADR-0013 ada untuk menghentikannya. Yang dicetak jam bursa
+  statis milik `Sidebar.tsx`, dua bagian supaya baris tidak pernah putus di
+  tengah `13:30-15:50`. Hyphen ASCII, bukan en dash, karena
+  `PublicFeatures.test.tsx` melarang keduanya di seluruh container.
+- **Saklar bahasa pertama di sisi signed-out.** Ketiga layar membawa salinan
+  id/en lengkap dan tidak ada cara menukarnya; `ID / EN` hanya ada di
+  `Header.tsx`. Footer membacanya dari `useApp()` (`toggleLocale` sudah ada,
+  sudah persist ke `localStorage`, sudah menjaga `document.documentElement.lang`),
+  jadi `App.tsx` tidak disentuh — pola yang sama dipakai `Sidebar.tsx`. Diverifikasi
+  di browser sungguhan: klik → `lang="en"`, h1 "Notes", `aria-pressed="true"`.
+- **Tanpa hex baru, tanpa token baru.** Semua warna sudah dipakai footer
+  sebelumnya, sehingga `contrast.test.ts` hijau tanpa perlu ditebak; tidak ada
+  glif piktograf; target sentuh kedua tombol 50px (minimum 44px). Satu
+  breakpoint (`760px`) menggantikan dua milik grid kolom.
+- **Ukuran terukur.** Footer 1440px: 452px → 534px (ia menyerap band CTA dan
+  menambah jam bursa). Ujung halaman `/fitur`: 720px → 534px. Footer 390px:
+  ~740px → 750px — tingginya hampir sama, yang berubah sifatnya: sebelas tautan
+  ditukar satu kalimat penutup, dua gerbang, satu baris mekanika bayar. Overflow
+  horizontal 0 di 320/360/390/680/760/1000/1160/1440.
+- **Uji**: suite penuh **424 tes hijau** (34 berkas), `tsc` bersih, eslint 0
+  error, `prettier` bersih, `vite build` sukses. Assertion lama diubah karena memang
+  tidak lagi benar, bukan untuk melewati: hitungan `Sinyal` 5 → 4, jam timer palsu
+  ke presisi menit, gerbang topbar di-scope ke `banner` (footer kini punya `Masuk`
+  sendiri), dan guard baru bahwa satu footer tidak memuat dua tautan ke tujuan sama.
+  Kontrak `#catatan` tetap lulus tanpa disentuh.
 
 ## Pengecualian terdokumentasi: glass di view dalam-sesi (2026-11-01, diperluas 2026-11-02)
 

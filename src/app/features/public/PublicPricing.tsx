@@ -58,7 +58,7 @@ import { Activity, ArrowRight, ArrowUpRight, Bell, PieChart, ShieldCheck } from 
 import { apiFetch, ENDPOINTS } from '@/app/config/api'
 import type { Locale } from '@/app/i18n/translations'
 import type { PlanKey } from '@/app/planIntent'
-import { PublicFooter, type NavColumn } from '@/app/features/public/PublicFooter'
+import { PublicFooter } from '@/app/features/public/PublicFooter'
 import { PublicNavMenu } from '@/app/features/public/PublicNavMenu'
 import logoUrl from '@/assets/aidss-logo.svg'
 
@@ -168,36 +168,6 @@ const PILLARS = [
 ]
 
 const ICONS = [Activity, Bell, ShieldCheck, PieChart]
-
-/* The footer's link columns: everything anchors either to the pillar band,
-   the cards, or the disclaimer inside this page — pointing at a page that
-   does not exist yet would be a lie in the layout. "Hubungi kami" is held
-   back until the owner names its channel ([OWNER TO NAME] is still open);
-   an anchor without href renders like the rest but goes nowhere. */
-const NAV_COLUMNS: NavColumn[] = [
-  {
-    headId: 'PRODUK',
-    headEn: 'PRODUCT',
-    items: PILLARS.map((pillar) => ({ id: pillar.nameId, en: pillar.nameEn, anchor: '#pilar' })),
-  },
-  {
-    headId: 'LANGGANAN',
-    headEn: 'PLANS',
-    items: [
-      ...PLANS.map((plan) => ({ id: plan.id, en: plan.en, anchor: '#harga' })),
-      { id: 'Bandingkan paket', en: 'Compare plans', anchor: '#harga' },
-    ],
-  },
-  {
-    headId: 'BANTUAN',
-    headEn: 'SUPPORT',
-    items: [
-      { id: 'Hubungi kami', en: 'Contact us', anchor: '', held: true },
-      { id: 'Catatan risiko', en: 'Risk notes', anchor: '/catatan' },
-      { id: 'Pembaruan harga', en: 'Price updates', anchor: '#harga' },
-    ],
-  },
-]
 
 export function PublicPricing({
   locale,
@@ -667,12 +637,32 @@ export function PublicPricing({
         </section>
       </main>
 
-      {/* The navy footer: brand, three link columns, the risk notes, and the
-          bottom line with the live Jakarta clock. Shared with the features
-          screen so the two pages cannot drift apart. */}
+      {/* The navy footer: it closes the page's argument, then states what the
+          product is not. Shared with the other two screens so they cannot drift
+          apart.
+
+          The closing line answers the objection a reader has at exactly this
+          moment, having just looked at three prices: "am I about to be
+          charged". The page already knows the answer is no, and says so.
+          Buat akun is the primary here because the next real step is the form;
+          the other two screens walk to the price instead. The link row is the
+          two screens this page is not, and it carries no contact entry: the
+          channel has never been named. */}
       <PublicFooter
         locale={locale}
-        columns={NAV_COLUMNS}
+        cta={{
+          titleId: 'Tidak ada pembayaran di halaman ini.',
+          titleEn: 'No payment happens on this page.',
+          labelId: 'Buat akun',
+          labelEn: 'Create account',
+          href: '/daftar',
+          onNavigate: onSignUp,
+        }}
+        onEnter={onEnter}
+        links={[
+          { id: 'Fitur', en: 'Features', href: '/fitur', onNavigate: onViewFeatures },
+          { id: 'Catatan', en: 'Notes', href: '/catatan', onNavigate: onViewNotes },
+        ]}
         updatedAt={price.kind === 'ready' ? price.updatedAt : null}
       />
     </div>

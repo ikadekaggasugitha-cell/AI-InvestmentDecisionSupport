@@ -28,7 +28,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import type { Locale } from '@/app/i18n/translations'
-import { PublicFooter, type NavColumn } from '@/app/features/public/PublicFooter'
+import { PublicFooter } from '@/app/features/public/PublicFooter'
 import { PublicNavMenu } from '@/app/features/public/PublicNavMenu'
 import logoUrl from '@/assets/aidss-logo.svg'
 
@@ -100,40 +100,14 @@ function useDemoVideo(videoRef: RefObject<HTMLVideoElement | null>) {
   }, [videoRef])
 }
 
-/* The footer's columns. Everything anchors to this page's four pillars or
-   crosses to the sheet's own targets; "Hubungi kami" stays held here too,
-   the same span without href as the sheet's footer. */
-const FEATURE_COLUMNS: NavColumn[] = [
-  {
-    headId: 'PRODUK',
-    headEn: 'PRODUCT',
-    items: [
-      { id: 'Sinyal', en: 'Signals', anchor: '#sinyal' },
-      { id: 'Peringatan otomatis', en: 'Automatic alerts', anchor: '#peringatan' },
-      { id: 'Panel risiko', en: 'Risk panel', anchor: '#risiko' },
-      { id: 'Optimasi portofolio', en: 'Portfolio optimisation', anchor: '#optimasi' },
-    ],
-  },
-  {
-    headId: 'LANGGANAN',
-    headEn: 'PLANS',
-    items: [
-      { id: 'Mingguan', en: 'Weekly', anchor: '/#harga' },
-      { id: 'Bulanan', en: 'Monthly', anchor: '/#harga' },
-      { id: 'Tahunan', en: 'Annual', anchor: '/#harga' },
-      { id: 'Bandingkan paket', en: 'Compare plans', anchor: '/#harga' },
-    ],
-  },
-  {
-    headId: 'BANTUAN',
-    headEn: 'SUPPORT',
-    items: [
-      { id: 'Hubungi kami', en: 'Contact us', anchor: '', held: true },
-      { id: 'Catatan risiko', en: 'Risk notes', anchor: '/catatan' },
-      { id: 'Pembaruan harga', en: 'Price updates', anchor: '/#harga' },
-    ],
-  },
-]
+/* The footer's closing line, and why this screen's differs from the sheet's.
+   A reader here has just been shown every device the app ships. The thing still
+   unsaid is that those four pillars are one product at one price, which is what
+   the sheet answers. So the footer takes the reader there, and the page's own
+   closing band is gone: it used to sit flush against the footer's navy, two CTAs
+   in a row on the same colour (auth.css called it "the footer's navy arriving
+   early"). The link row holds only Catatan, because Harga is where the CTA
+   already goes and Fitur is where the reader is standing. */
 
 export function PublicFeatures({
   locale,
@@ -927,32 +901,22 @@ export function PublicFeatures({
             </div>
           </div>
         </section>
-
-        {/* The way out: back to the price the whole journey started at. */}
-        <section className="pubf-cta" data-reveal>
-          <div className="pub-container">
-            <h2>{isId ? 'Siap mengujinya?' : 'Ready to weigh it?'}</h2>
-            <a
-              className="pubf-cta-link"
-              href="/#harga"
-              onClick={(e) => {
-                e.preventDefault()
-                onViewPricing()
-              }}
-            >
-              {isId ? 'Lihat harga, masuk ke paket' : 'See the pricing, pick a plan'}
-              <ArrowUpRight size={17} strokeWidth={2.4} aria-hidden="true" />
-            </a>
-            <p className="pubf-cta-note">
-              {isId
-                ? 'Pilihan paket membawa intent ke form daftar; pembayaran dimula dari dalam aplikasi.'
-                : 'A plan pick carries its intent into the signup form; payment begins inside the app.'}
-            </p>
-          </div>
-        </section>
       </main>
 
-      <PublicFooter locale={locale} columns={FEATURE_COLUMNS} updatedAt={null} />
+      <PublicFooter
+        locale={locale}
+        cta={{
+          titleId: 'Keempat pilar itu satu aplikasi, bukan empat langganan.',
+          titleEn: 'Those four pillars are one app, not four subscriptions.',
+          labelId: 'Lihat harga, masuk ke paket',
+          labelEn: 'See the pricing, pick a plan',
+          href: '/#harga',
+          onNavigate: onViewPricing,
+        }}
+        onEnter={onEnter}
+        links={[{ id: 'Catatan', en: 'Notes', href: '/catatan', onNavigate: onViewNotes }]}
+        updatedAt={null}
+      />
     </div>
   )
 }

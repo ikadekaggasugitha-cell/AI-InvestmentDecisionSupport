@@ -204,13 +204,14 @@ describe('PublicPricing', () => {
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
 
-    /* The four facts have three homes since ronde 9: the name-only rows on
-       each card, the pillar band's columns with their sentences, and the
-       footer's product column — 3 + 1 + 1 occurrences each. */
-    expect(screen.getAllByText('Sinyal').length).toBe(5)
-    expect(screen.getAllByText('Peringatan otomatis').length).toBe(5)
-    expect(screen.getAllByText('Panel risiko').length).toBe(5)
-    expect(screen.getAllByText('Optimasi portofolio').length).toBe(5)
+    /* The four facts have two homes since the footer stopped being a sitemap
+       (2026-11-02): the name-only rows on each card and the pillar band's
+       columns with their sentences — 3 + 1 occurrences each. The footer's
+       PRODUK column used to be the fifth, and it pointed all four at #pilar. */
+    expect(screen.getAllByText('Sinyal').length).toBe(4)
+    expect(screen.getAllByText('Peringatan otomatis').length).toBe(4)
+    expect(screen.getAllByText('Panel risiko').length).toBe(4)
+    expect(screen.getAllByText('Optimasi portofolio').length).toBe(4)
     expect(screen.getByText(/lengkap dengan alasannya/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Beli|Bayar/i })).not.toBeInTheDocument()
   })
@@ -231,11 +232,14 @@ describe('PublicPricing', () => {
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
 
-    await user.click(screen.getByRole('button', { name: 'Masuk' }))
+    /* Scoped to the bar because the footer carries the same two gates: a
+       reader who has finished a long page has no topbar on screen anymore. */
+    const bar = within(screen.getByRole('banner'))
+    await user.click(bar.getByRole('button', { name: 'Masuk' }))
     expect(onEnter).toHaveBeenCalledTimes(1)
     expect(onSignUp).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'Buat akun' }))
+    await user.click(bar.getByRole('button', { name: 'Buat akun' }))
     expect(onSignUp).toHaveBeenCalledTimes(1)
     expect(onEnter).toHaveBeenCalledTimes(1)
   })
@@ -281,9 +285,13 @@ describe('PublicPricing', () => {
     expect(screen.getByText('Rp 44,000')).toBeInTheDocument()
     expect(screen.getByText('/ week')).toBeInTheDocument()
     expect(screen.getByText('Equivalent to Rp 21,000 per month')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Choose plan Monthly' })).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Sign in' }),
+    ).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('banner')).getByRole('button', { name: 'Create account' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('FLEXIBLE')).toBeInTheDocument()
     expect(screen.getByText('Best value')).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'Pricing sheet navigation' })).toBeInTheDocument()
@@ -445,45 +453,78 @@ describe('PublicPricing', () => {
     const menu = screen
       .getByRole('button', { name: 'Buka menu navigasi' })
       .closest('.pub-menu') as HTMLElement
-    expect(menu.contains(screen.getByRole('button', { name: 'Masuk' }))).toBe(false)
-    expect(menu.contains(screen.getByRole('button', { name: 'Buat akun' }))).toBe(false)
+    const gates = within(screen.getByRole('banner'))
+    expect(menu.contains(gates.getByRole('button', { name: 'Masuk' }))).toBe(false)
+    expect(menu.contains(gates.getByRole('button', { name: 'Buat akun' }))).toBe(false)
     /* The menu button is the last control inside the bar's container. */
     const bar = menu.closest('.pub-container') as HTMLElement
     expect(bar.lastElementChild).toBe(menu)
   })
 
-  it("closes the page with the navy footer's columns, notes, and bottom line", async () => {
+  it("closes the sheet with the form, then states what the product isn't", async () => {
     respond(200, {
       weekly: 15000,
       monthly: 44000,
       annual: 252000,
       updatedAt: '2026-10-21T16:00:00Z',
     })
+    const onEnter = vi.fn()
+    const onSignUp = vi.fn()
+    const user = userEvent.setup()
     render(
       <PublicPricing
         locale="id"
-        onEnter={vi.fn()}
+        onEnter={onEnter}
         onPickPlan={vi.fn()}
-        onSignUp={vi.fn()}
+        onSignUp={onSignUp}
         onViewFeatures={vi.fn()}
         onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
 
-    expect(screen.getByRole('contentinfo')).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: 'Sinyal' }).length).toBe(1)
-    expect(screen.getByRole('link', { name: 'Catatan risiko' })).toHaveAttribute('href', '/catatan')
-    /* The contact entry waits for the owner's channel: rendered, but an
-       anchor without href — not clickable, not focusable, not a lie. */
-    const held = screen.getByText('Hubungi kami')
-    expect(held.closest('a')).toBeNull()
-    expect(screen.getByText(/© 2026 AIDSS · MCASS/)).toBeInTheDocument()
-    expect(screen.getByText(/Harga diperbarui/)).toBeInTheDocument()
-    expect(screen.getByText(/\d{2}:\d{2}:\d{2} WIB/)).toBeInTheDocument()
+    const footer = within(screen.getByRole('contentinfo'))
+
+    /* The sheet's closing move is the form. The reader has just looked at three
+       prices, and the page answers the objection that follows with the fact the
+       page already holds: nothing here takes money. */
+    expect(
+      footer.getByRole('heading', { name: 'Tidak ada pembayaran di halaman ini.' }),
+    ).toBeInTheDocument()
+    await user.click(footer.getByRole('link', { name: 'Buat akun' }))
+    expect(onSignUp).toHaveBeenCalledTimes(1)
+    await user.click(footer.getByRole('button', { name: 'Masuk' }))
+    expect(onEnter).toHaveBeenCalledTimes(1)
+    expect(footer.getByText(/pembayaran dimulai dari dalam aplikasi/)).toBeInTheDocument()
+
+    /* Two destinations, two different places, neither of them this page. The
+       sitemap this replaced carried eleven links, five of them to #harga. */
+    expect(footer.getByRole('link', { name: 'Fitur' })).toHaveAttribute('href', '/fitur')
+    expect(footer.getByRole('link', { name: 'Catatan' })).toHaveAttribute('href', '/catatan')
+    expect(footer.getAllByRole('link')).toHaveLength(3)
+    /* The defect this replaced was not the link count but the repetition: five
+       of the eleven footer links pointed at #harga. Every link in this footer
+       goes somewhere the others do not. */
+    const hrefs = footer.getAllByRole('link').map((entry) => entry.getAttribute('href'))
+    expect(new Set(hrefs).size).toBe(hrefs.length)
+
+    /* No contact entry at all. It used to be a held span; the owner's settings
+       spec already rules that an empty channel means the row is not rendered. */
+    expect(screen.queryByText('Hubungi kami')).not.toBeInTheDocument()
+
+    expect(footer.getByText(/© 2026 AIDSS · MCASS/)).toBeInTheDocument()
+    expect(footer.getByText(/Harga diperbarui/)).toBeInTheDocument()
+    expect(footer.getByText(/\d{2}:\d{2} WIB/)).toBeInTheDocument()
+    /* The sessions are printed, and the footer never claims the exchange is
+       open right now: there is no holiday table behind that call, and a page
+       whose argument is that it does not overstate must not start one. Word
+       boundaries matter here: "bukan" contains "buka". */
+    expect(footer.getByText('Bursa Senin-Jumat')).toBeInTheDocument()
+    expect(footer.getByText('09:00-12:00 dan 13:30-15:50')).toBeInTheDocument()
+    expect(footer.queryByText(/\b(buka|tutup|live)\b/i)).not.toBeInTheDocument()
   })
 
-  it("ticks the footer's Jakarta clock each second", () => {
+  it("keeps the footer's Jakarta clock to the minute", () => {
     vi.useFakeTimers()
     try {
       vi.setSystemTime(new Date('2026-10-23T10:38:48Z'))
@@ -499,11 +540,18 @@ describe('PublicPricing', () => {
         />,
       )
 
-      expect(screen.getByText('17:38:48 WIB')).toBeInTheDocument()
+      expect(screen.getByText('17:38 WIB')).toBeInTheDocument()
+      /* Eleven seconds later it is still the same minute: seconds in a footer
+         answer no question, and the poll that watches for the roll returns the
+         same string until it happens. */
       act(() => {
-        vi.advanceTimersByTime(1000)
+        vi.advanceTimersByTime(11000)
       })
-      expect(screen.getByText('17:38:49 WIB')).toBeInTheDocument()
+      expect(screen.getByText('17:38 WIB')).toBeInTheDocument()
+      act(() => {
+        vi.advanceTimersByTime(60000)
+      })
+      expect(screen.getByText('17:39 WIB')).toBeInTheDocument()
     } finally {
       vi.useRealTimers()
     }

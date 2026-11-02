@@ -22,7 +22,7 @@
  */
 import type { MouseEvent } from 'react'
 import type { Locale } from '@/app/i18n/translations'
-import { PublicFooter, type NavColumn } from '@/app/features/public/PublicFooter'
+import { PublicFooter } from '@/app/features/public/PublicFooter'
 import { PublicNavMenu } from '@/app/features/public/PublicNavMenu'
 import logoUrl from '@/assets/aidss-logo.svg'
 
@@ -229,38 +229,17 @@ const SECTIONS: NoteSection[] = [
   },
 ]
 
-/* Footer columns. "Catatan risiko" anchors inside this page now, because this
-   page is where the risk note lives; "Hubungi kami" stays held, the same span
-   without an href the other two screens show. */
-const NOTES_COLUMNS: NavColumn[] = [
-  {
-    headId: 'CATATAN',
-    headEn: 'NOTES',
-    items: [
-      { id: 'Bukan penasihat', en: 'Not an adviser', anchor: '#risiko' },
-      { id: 'Probabilitas', en: 'Probabilities', anchor: '#probabilitas' },
-      { id: 'Sumber data', en: 'Data sources', anchor: '#data' },
-      { id: 'Langganan', en: 'Subscription', anchor: '#langganan' },
-    ],
-  },
-  {
-    headId: 'LANGGANAN',
-    headEn: 'PLANS',
-    items: [
-      { id: 'Harga paket', en: 'Plan pricing', anchor: '/#harga' },
-      { id: 'Fitur lengkap', en: 'Full features', anchor: '/fitur' },
-    ],
-  },
-  {
-    headId: 'BANTUAN',
-    headEn: 'SUPPORT',
-    items: [
-      { id: 'Hubungi kami', en: 'Contact us', anchor: '', held: true },
-      { id: 'Pengembalian dana', en: 'Refunds', anchor: '#pengembalian-dana' },
-      { id: 'Data pribadi', en: 'Personal data', anchor: '#privasi' },
-    ],
-  },
-]
+/* The footer's closing line. These notes are forbidden from quoting a price
+   (ADR-0013: the number lives in system_settings and the sheet reads it, so
+   printing it here would create a second fact that could disagree with the
+   first). The footer says exactly that, and then walks the reader to the one
+   page that is allowed to answer it.
+   The link row is Fitur alone: Catatan is where the reader is standing, and
+   Harga is where the CTA already goes. The old CATATAN column is gone because
+   this page already carries a jump rail for its nine sections; a footer that
+   repeats the rail is furniture. "Hubungi kami" is gone too, and for the reason
+   this page already states in its own copy: a number we do not have is not
+   written here. */
 
 export function PublicNotes({
   locale,
@@ -367,7 +346,20 @@ export function PublicNotes({
         </section>
       </main>
 
-      <PublicFooter locale={locale} columns={NOTES_COLUMNS} updatedAt={null} />
+      <PublicFooter
+        locale={locale}
+        cta={{
+          titleId: 'Yang belum dinyatakan catatan ini hanya harganya.',
+          titleEn: 'The one thing these notes do not state is the price.',
+          labelId: 'Lihat harga',
+          labelEn: 'See the pricing',
+          href: '/',
+          onNavigate: onViewPricing,
+        }}
+        onEnter={onEnter}
+        links={[{ id: 'Fitur', en: 'Features', href: '/fitur', onNavigate: onViewFeatures }]}
+        updatedAt={null}
+      />
     </div>
   )
 }

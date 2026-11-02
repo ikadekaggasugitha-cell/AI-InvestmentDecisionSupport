@@ -336,61 +336,58 @@ describe('PublicFeatures', () => {
     const menu = screen
       .getByRole('button', { name: 'Buka menu navigasi' })
       .closest('.pub-menu') as HTMLElement
-    await user.click(screen.getByRole('button', { name: 'Masuk' }))
+    /* Scoped to the bar: the footer carries the same two gates, because the bar
+       is not sticky and a reader at the page foot has no gate on screen. */
+    const bar = within(screen.getByRole('banner'))
+    await user.click(bar.getByRole('button', { name: 'Masuk' }))
     expect(handlers.onEnter).toHaveBeenCalledTimes(1)
-    expect(menu.contains(screen.getByRole('button', { name: 'Masuk' }))).toBe(false)
-    await user.click(screen.getByRole('button', { name: 'Buat akun' }))
+    expect(menu.contains(bar.getByRole('button', { name: 'Masuk' }))).toBe(false)
+    await user.click(bar.getByRole('button', { name: 'Buat akun' }))
     expect(handlers.onSignUp).toHaveBeenCalledTimes(1)
-    expect(menu.contains(screen.getByRole('button', { name: 'Buat akun' }))).toBe(false)
+    expect(menu.contains(bar.getByRole('button', { name: 'Buat akun' }))).toBe(false)
   })
 
   it('keeps both gates where the reader stands: Masuk and Buat akun', async () => {
     const user = userEvent.setup()
     const { handlers } = renderFeatures()
-    await user.click(screen.getByRole('button', { name: 'Masuk' }))
+    const bar = within(screen.getByRole('banner'))
+    await user.click(bar.getByRole('button', { name: 'Masuk' }))
     expect(handlers.onEnter).toHaveBeenCalledTimes(1)
-    await user.click(screen.getByRole('button', { name: 'Buat akun' }))
+    await user.click(bar.getByRole('button', { name: 'Buat akun' }))
     expect(handlers.onSignUp).toHaveBeenCalledTimes(1)
   })
 
   it('closes with the way back to the price the journey started at', async () => {
     const user = userEvent.setup()
     const { handlers } = renderFeatures()
-    expect(screen.getByRole('heading', { name: 'Siap mengujinya?' })).toBeInTheDocument()
-    const cta = screen.getByRole('link', { name: /Lihat harga, masuk ke paket/ })
+    const footer = within(screen.getByRole('contentinfo'))
+    expect(
+      footer.getByRole('heading', {
+        name: 'Keempat pilar itu satu aplikasi, bukan empat langganan.',
+      }),
+    ).toBeInTheDocument()
+    const cta = footer.getByRole('link', { name: /Lihat harga, masuk ke paket/ })
     expect(cta).toHaveAttribute('href', '/#harga')
     await user.click(cta)
     expect(handlers.onViewPricing).toHaveBeenCalledTimes(1)
-    expect(screen.getByText(/pembayaran dimula dari dalam aplikasi/)).toBeInTheDocument()
+    expect(footer.getByText(/pembayaran dimulai dari dalam aplikasi/)).toBeInTheDocument()
   })
 
-  it("anchors the footer's products column to this page and plans to the sheet", () => {
+  it('carries no closing band of its own, because the footer owns the way out', () => {
     const { container } = renderFeatures()
-    const footer = container.querySelector('.pub-footer') as HTMLElement
-    expect(within(footer).getByRole('link', { name: 'Sinyal' })).toHaveAttribute('href', '#sinyal')
-    expect(within(footer).getByRole('link', { name: 'Peringatan otomatis' })).toHaveAttribute(
-      'href',
-      '#peringatan',
-    )
-    expect(within(footer).getByRole('link', { name: 'Panel risiko' })).toHaveAttribute(
-      'href',
-      '#risiko',
-    )
-    expect(within(footer).getByRole('link', { name: 'Optimasi portofolio' })).toHaveAttribute(
-      'href',
-      '#optimasi',
-    )
-    for (const name of ['Mingguan', 'Bulanan', 'Tahunan', 'Bandingkan paket']) {
-      expect(within(footer).getByRole('link', { name })).toHaveAttribute('href', '/#harga')
-    }
+    /* This page used to end in two navy CTAs stacked flush against each other:
+       the band below, then the footer, 720px of page end on one colour. */
+    expect(container.querySelector('.pubf-cta')).toBeNull()
   })
 
-  it('holds the contact entry open until the owner names the channel', () => {
+  it('links only the screen this page is not, and never repeats the CTA', () => {
     const { container } = renderFeatures()
-    const footer = container.querySelector('.pub-footer') as HTMLElement
-    const held = within(footer).getByText('Hubungi kami')
-    expect(held).toHaveAttribute('aria-disabled', 'true')
-    expect(held.closest('a')).toBeNull()
+    const footer = within(screen.getByRole('contentinfo'))
+    expect(footer.getByRole('link', { name: 'Catatan' })).toHaveAttribute('href', '/catatan')
+    /* The CTA plus one destination. No Fitur, because the reader stands on it,
+       and no second Harga, because the CTA already goes there. */
+    expect(footer.getAllByRole('link')).toHaveLength(2)
+    expect(container.textContent).not.toContain('Hubungi kami')
   })
 
   it('keeps the risk notes honest, at the anchor the topbar and footer cross to', () => {
@@ -404,7 +401,7 @@ describe('PublicFeatures', () => {
     const { container } = renderFeatures()
     const footer = container.querySelector('.pub-footer') as HTMLElement
     expect(within(footer).getByText(/© 2026 AIDSS · MCASS/)).toBeInTheDocument()
-    expect(footer.textContent).toMatch(/\d{2}:\d{2}:\d{2} WIB/)
+    expect(footer.textContent).toMatch(/\d{2}:\d{2} WIB/)
     /* The features page shows no price date: the sheet owns that fact. */
     expect(footer.textContent).not.toContain('Harga diperbarui')
   })
