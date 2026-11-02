@@ -110,7 +110,7 @@ const thBase: CSSProperties = {
   padding: '8px 12px',
   textAlign: 'left' as const,
   background: 'var(--muted)',
-  borderBottom: '1px solid var(--border)',
+  borderBottom: '1px solid var(--surface-hairline)',
   userSelect: 'none' as const,
   cursor: 'pointer',
   whiteSpace: 'nowrap' as const,
@@ -195,7 +195,7 @@ const MarketRow = memo(
         onClick={() => onSelect(stock.symbol)}
         style={{
           height: ROW_HEIGHT,
-          borderBottom: '1px solid var(--border)',
+          borderBottom: '1px solid var(--surface-hairline)',
           background: 'transparent',
           cursor: 'pointer',
         }}
@@ -666,11 +666,7 @@ export function MarketsView({
           { label: t('mkt_declining'), value: losers },
           { label: t('mkt_tracked'), value: stocks.length },
         ].map((card) => (
-          <div
-            key={card.label}
-            className="rounded px-4 py-3.5"
-            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-          >
+          <div key={card.label} className="px-4 py-3.5 surface-glass">
             <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{card.label}</div>
             <div
               style={{
@@ -776,10 +772,7 @@ export function MarketsView({
       </div>
 
       {/* Table with virtual rows */}
-      <div
-        className="rounded overflow-hidden"
-        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-      >
+      <div className="overflow-hidden surface-glass">
         <div
           ref={tableContainerRef}
           className="overflow-auto"

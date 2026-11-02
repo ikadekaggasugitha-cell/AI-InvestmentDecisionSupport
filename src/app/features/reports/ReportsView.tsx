@@ -54,7 +54,7 @@ export function ReportsView() {
       <div className="overflow-hidden surface-glass">
         <div
           className="flex items-center justify-between px-5 py-4"
-          style={{ borderBottom: '1px solid var(--border)' }}
+          style={{ borderBottom: '1px solid var(--surface-hairline)' }}
         >
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>

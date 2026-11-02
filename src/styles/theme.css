@@ -116,6 +116,14 @@
      by src/app/test/glassContrast.test.ts. */
   --glass-surface-raised: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(20, 36, 58, 0.16);
+  /* Hairlines drawn ON a glass surface. --border (#dce2ea) was tuned against an
+     opaque white card, where it sits ~12 ΔE from the surface; over a translucent
+     card the composite is already close to it and measured row dividers in Pasar
+     fell to 0.94 ΔE — invisible. A translucent dark line instead composites
+     against whatever the surface happens to be, so it stays visible on paper
+     cards and on glass alike. --border itself is untouched: it is the edge of
+     every control in the app. */
+  --surface-hairline: rgba(20, 36, 58, 0.18);
   --glass-sheen: rgba(255, 255, 255, 0.55);
   --glass-blur: 14px;
   /* 16px, chosen by the owner between the references' 24px and the 10px first
@@ -229,6 +237,7 @@
      analytic model was measured to overstate reality. */
   --glass-surface-raised: rgba(23, 41, 63, 0.66);
   --glass-border: rgba(215, 225, 236, 0.14);
+  --surface-hairline: rgba(215, 225, 236, 0.2);
   --glass-sheen: rgba(215, 225, 236, 0.22);
   --glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
   --glass-page:

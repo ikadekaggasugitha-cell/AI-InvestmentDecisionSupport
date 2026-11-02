@@ -11,7 +11,7 @@ export function Panel({ title, children }: { title: string; children: ReactNode 
         overflow: 'hidden',
       }}
     >
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--surface-hairline)' }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>{title}</span>
       </div>
       <div style={{ padding: '16px 20px' }}>{children}</div>

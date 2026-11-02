@@ -65,7 +65,7 @@ export function EntrySignalCard({ entry, plan, locale = 'id' }: EntrySignalCardP
           className="grid gap-2"
           style={{
             gridTemplateColumns: '1fr 1fr 1fr',
-            borderTop: '1px solid var(--border)',
+            borderTop: '1px solid var(--surface-hairline)',
             paddingTop: 10,
           }}
         >

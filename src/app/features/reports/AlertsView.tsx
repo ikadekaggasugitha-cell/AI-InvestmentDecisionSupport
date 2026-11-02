@@ -118,10 +118,7 @@ export function AlertsView({
       </div>
 
       {visible.length === 0 ? (
-        <div
-          className="rounded flex flex-col items-center justify-center gap-3 py-16"
-          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-        >
+        <div className="flex flex-col items-center justify-center gap-3 py-16 surface-glass">
           <Bell size={32} style={{ color: 'var(--muted-foreground)' }} />
           <div style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>
             {isId ? 'Semua peringatan telah dibaca.' : 'All alerts cleared.'}
@@ -143,11 +140,7 @@ export function AlertsView({
                   // No left accent bar and no tinted icon square: severity is
                   // carried by the tag and the icon colour alone. None of the
                   // twenty-three study screens paints a colour bar down rows.
-                  <div
-                    key={a.key}
-                    className="flex items-start gap-3 rounded px-4 py-3"
-                    style={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-                  >
+                  <div key={a.key} className="flex items-start gap-3 px-4 py-3 surface-glass">
                     <Icon size={15} style={{ color: cfg.color, flexShrink: 0, marginTop: 3 }} />
                     <div className="flex-1 min-w-0">
                       <div style={{ fontSize: 13, color: 'var(--foreground)', lineHeight: 1.5 }}>

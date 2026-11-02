@@ -199,7 +199,7 @@ const StressTestsPanel = memo(function StressTestsPanel({
                       fontWeight: 500,
                       padding: '4px 8px',
                       textAlign: i === 0 ? 'left' : 'right',
-                      borderBottom: '1px solid var(--border)',
+                      borderBottom: '1px solid var(--surface-hairline)',
                     }}
                   >
                     {i === 0 ? t('risk_col_portfolio') : h}
@@ -210,7 +210,7 @@ const StressTestsPanel = memo(function StressTestsPanel({
           </thead>
           <tbody>
             {exposureData.map((row) => (
-              <tr key={row.sector} style={{ borderBottom: '1px solid var(--border)' }}>
+              <tr key={row.sector} style={{ borderBottom: '1px solid var(--surface-hairline)' }}>
                 <td style={{ padding: '7px 8px' }}>
                   <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--foreground)' }}>
                     {row.sector}
@@ -479,7 +479,7 @@ export function RiskView({ market }: Props) {
 
       {/* Stress probability table — uses market.portfolioValue, re-renders on tick */}
       <div className="overflow-hidden surface-glass">
-        <div className="px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="px-5 py-3" style={{ borderBottom: '1px solid var(--surface-hairline)' }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
             {isId ? 'Rincian Probabilitas Skenario' : 'Scenario Probability Detail'}
           </span>
@@ -501,7 +501,7 @@ export function RiskView({ market }: Props) {
                     fontWeight: 500,
                     padding: '7px 16px',
                     textAlign: h === t('risk_col_scenario') ? 'left' : 'right',
-                    borderBottom: '1px solid var(--border)',
+                    borderBottom: '1px solid var(--surface-hairline)',
                   }}
                 >
                   {h}
@@ -513,7 +513,10 @@ export function RiskView({ market }: Props) {
             {stressData.map((row) => {
               const impactIdr = market.portfolioValue * (row.impact / 100)
               return (
-                <tr key={row.scenario} style={{ borderBottom: '1px solid var(--border)' }}>
+                <tr
+                  key={row.scenario}
+                  style={{ borderBottom: '1px solid var(--surface-hairline)' }}
+                >
                   <td style={{ padding: '9px 16px', fontSize: 12, color: 'var(--foreground)' }}>
                     {row.scenario}
                   </td>

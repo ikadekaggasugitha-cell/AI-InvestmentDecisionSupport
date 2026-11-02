@@ -230,7 +230,7 @@ export function SignalCard({
       {isOpen && (
         <div
           className="px-5 pb-5 flex flex-col gap-5"
-          style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}
+          style={{ borderTop: '1px solid var(--surface-hairline)', paddingTop: 16 }}
         >
           {/* Interactive candlestick chart with S/R, entry and stop lines */}
           <div>
@@ -590,7 +590,7 @@ export function SignalCard({
                 <ShapChart shap={rec.shap} isId={isId} />
                 <div
                   className="flex items-center justify-between mt-3 pt-3"
-                  style={{ borderTop: '1px solid var(--border)' }}
+                  style={{ borderTop: '1px solid var(--surface-hairline)' }}
                 >
                   {/* Provenance, built from what the API can actually attest.
                       The response carries `source: "live" | "mock"` and a

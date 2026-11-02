@@ -33,6 +33,8 @@ export const GLASS_VIEWS: readonly ViewType[] = [
   'reports',
   'settings',
   'advisor',
+  'markets',
+  'alerts',
 ]
 
 const GLASS_SHELL_VIEWS: readonly ViewType[] = ['dashboard']

@@ -92,7 +92,7 @@ export function SettingsView({ fx, freshness, auth, onSignedOut }: Props) {
         style={{
           display: 'flex',
           gap: 4,
-          borderBottom: '1px solid var(--border)',
+          borderBottom: '1px solid var(--surface-hairline)',
           overflowX: 'auto',
           scrollbarWidth: 'none',
         }}

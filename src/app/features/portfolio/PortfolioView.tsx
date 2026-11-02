@@ -633,7 +633,7 @@ export function PortfolioView({
       <div className="overflow-hidden surface-glass">
         <div
           className="px-5 py-3 flex items-center justify-between"
-          style={{ borderBottom: '1px solid var(--border)' }}
+          style={{ borderBottom: '1px solid var(--surface-hairline)' }}
         >
           <div>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
@@ -687,7 +687,7 @@ export function PortfolioView({
                       fontWeight: 500,
                       padding: '7px 12px',
                       textAlign: h === t('port_col_symbol') ? 'left' : 'right',
-                      borderBottom: '1px solid var(--border)',
+                      borderBottom: '1px solid var(--surface-hairline)',
                       whiteSpace: 'nowrap',
                     }}
                   >
@@ -698,7 +698,7 @@ export function PortfolioView({
             </thead>
             <tbody>
               {positions.map((p) => (
-                <tr key={p.symbol} style={{ borderBottom: '1px solid var(--border)' }}>
+                <tr key={p.symbol} style={{ borderBottom: '1px solid var(--surface-hairline)' }}>
                   <td style={{ padding: '9px 12px' }}>
                     <div
                       style={{

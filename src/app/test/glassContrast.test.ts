@@ -337,6 +337,17 @@ describe('the glass surface contract', () => {
     expect(offenders).toEqual([])
   })
 
+  it('declares the surface hairline once per theme', () => {
+    // --border was tuned against an opaque white card (~12 ΔE from it). On a
+    // translucent surface the composite sits close to it and measured row
+    // dividers in Pasar fell to 0.94 ΔE, i.e. invisible. --surface-hairline is a
+    // translucent dark instead, so it composites against whatever it is drawn
+    // on. --border itself stays untouched: it is the edge of every control.
+    for (const src of [LIGHT, DARK]) {
+      expect((src.match(/--surface-hairline:/g) ?? []).length).toBe(1)
+    }
+  })
+
   it('keeps blur on the shell-scrolled screen only', () => {
     // .surface-glass must be tint-only: outside the dashboard nothing slides
     // under a card, so every extra backdrop-filter layer is GPU cost with no
@@ -413,6 +424,12 @@ describe.each([
     const grounds = CARD_CENTRES.map(([x, y]) => groundAt(source, x, y, COLUMN.w, COLUMN.h))
     const edges = cards.map((c, i) => deltaE(c, grounds[i]))
     expect(Math.min(...edges)).toBeGreaterThanOrEqual(4)
+  })
+
+  it('keeps a hairline that survives the surface it is drawn on', () => {
+    const hair = parseColor(token(source, 'surface-hairline'))
+    const gaps = cards.map((c) => deltaE(over(hair, c), c))
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(8)
   })
 
   it('proves the ground actually shows through the card', () => {
