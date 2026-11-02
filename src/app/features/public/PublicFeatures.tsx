@@ -39,7 +39,8 @@ export interface PublicFeaturesProps {
   onSignUp: () => void
   /** Back to the price sheet: the logo and the nav's Harga. */
   onViewPricing: () => void
-  /** Cross-page hash: the disclaimer on the price sheet. */
+  /** Cross-page walk to the notes screen (owner, 2026-11-02): it has its own
+   *  URL now, so this is no longer a hash onto the sheet's footer. */
   onViewNotes: () => void
 }
 
@@ -128,7 +129,7 @@ const FEATURE_COLUMNS: NavColumn[] = [
     headEn: 'SUPPORT',
     items: [
       { id: 'Hubungi kami', en: 'Contact us', anchor: '', held: true },
-      { id: 'Catatan risiko', en: 'Risk notes', anchor: '/#catatan' },
+      { id: 'Catatan risiko', en: 'Risk notes', anchor: '/catatan' },
       { id: 'Pembaruan harga', en: 'Price updates', anchor: '/#harga' },
     ],
   },
@@ -192,7 +193,7 @@ export function PublicFeatures({
             ariaLabel={isId ? 'Navigasi layar fitur' : 'Features screen navigation'}
             targets={[
               { href: '/', label: isId ? 'Harga' : 'Pricing', onNavigate: onViewPricing },
-              { href: '/#catatan', label: isId ? 'Catatan' : 'Notes', onNavigate: onViewNotes },
+              { href: '/catatan', label: isId ? 'Catatan' : 'Notes', onNavigate: onViewNotes },
             ]}
           />
         </div>

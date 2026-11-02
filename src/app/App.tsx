@@ -59,6 +59,7 @@ import { useOverlayScrollbars } from '@/app/hooks/useOverlayScrollbars'
 import { AuthScreen } from '@/app/features/identity/AuthScreen'
 import { PublicPricing } from '@/app/features/public/PublicPricing'
 import { PublicFeatures } from '@/app/features/public/PublicFeatures'
+import { PublicNotes } from '@/app/features/public/PublicNotes'
 import { SuspensionScreen } from '@/app/features/identity/SuspensionScreen'
 import { planFromSearch, writePlanIntent } from '@/app/planIntent'
 import { toast } from 'sonner'
@@ -227,7 +228,10 @@ function AppInner() {
     // line writes a client-side intent and walks into the signup form with
     // `?plan=`; the payment itself still starts inside the app (R-26).
     // `/fitur` is the second public surface: the features the sheet's pillar
-    // band compresses, expanded in full.
+    // band compresses, expanded in full. `/catatan` is the third, and the
+    // destination of the sheet's burger "Catatan" (owner, 2026-11-02): it used
+    // to be a jump to the footer's one-sentence disclaimer, which gave a reader
+    // nowhere to explain what the numbers mean.
     if (location.pathname === '/fitur') {
       return (
         <div className={isDark ? 'dark' : ''} style={{ fontFamily: 'var(--font-sans)' }}>
@@ -236,7 +240,20 @@ function AppInner() {
             onEnter={() => navigate('/masuk')}
             onSignUp={() => navigate('/daftar')}
             onViewPricing={() => navigate('/')}
-            onViewNotes={() => navigate('/#catatan')}
+            onViewNotes={() => navigate('/catatan')}
+          />
+        </div>
+      )
+    }
+    if (location.pathname === '/catatan') {
+      return (
+        <div className={isDark ? 'dark' : ''} style={{ fontFamily: 'var(--font-sans)' }}>
+          <PublicNotes
+            locale={locale}
+            onEnter={() => navigate('/masuk')}
+            onSignUp={() => navigate('/daftar')}
+            onViewPricing={() => navigate('/')}
+            onViewFeatures={() => navigate('/fitur')}
           />
         </div>
       )
@@ -281,6 +298,7 @@ function AppInner() {
           onEnter={() => navigate('/masuk')}
           onSignUp={() => navigate('/daftar')}
           onViewFeatures={() => navigate('/fitur')}
+          onViewNotes={() => navigate('/catatan')}
           onPickPlan={(plan) => {
             writePlanIntent(plan)
             navigate(`/daftar?plan=${plan}`)

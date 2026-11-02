@@ -57,6 +57,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
 
@@ -76,6 +77,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 252.000')).toBeInTheDocument())
@@ -93,6 +95,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 528.000')).toBeInTheDocument())
@@ -108,6 +111,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 252.000')).toBeInTheDocument())
@@ -125,6 +129,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
 
@@ -140,6 +145,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
 
@@ -156,6 +162,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
 
@@ -177,6 +184,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
 
@@ -191,6 +199,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
@@ -217,6 +226,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={onSignUp}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
@@ -240,6 +250,7 @@ describe('PublicPricing', () => {
         onPickPlan={onPickPlan}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
@@ -262,6 +273,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
 
@@ -294,6 +306,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
@@ -311,6 +324,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
@@ -338,6 +352,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
@@ -353,6 +368,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
@@ -363,8 +379,9 @@ describe('PublicPricing', () => {
     expect(screen.getByText(/memenuhi aturan yang Anda tetapkan/)).toBeInTheDocument()
   })
 
-  it("sends the topbar's Fitur to the features screen and keeps Catatan in-page", async () => {
+  it("sends the topbar's Fitur and Catatan to their own screens", async () => {
     const onViewFeatures = vi.fn()
+    const onViewNotes = vi.fn()
     const user = userEvent.setup()
     render(
       <PublicPricing
@@ -373,6 +390,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={onViewFeatures}
+        onViewNotes={onViewNotes}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
@@ -391,7 +409,13 @@ describe('PublicPricing', () => {
     await user.click(fitur)
     expect(onViewFeatures).toHaveBeenCalledTimes(1)
 
-    expect(nav.getByRole('link', { name: 'Catatan' })).toHaveAttribute('href', '#catatan')
+    /* Catatan left the page (owner, 2026-11-02): it is a screen with its own
+       URL now, not a jump to the footer's one-sentence disclaimer. The href
+       stays real so the reader can share or middle-click it. */
+    const catatan = nav.getByRole('link', { name: 'Catatan' })
+    expect(catatan).toHaveAttribute('href', '/catatan')
+    await user.click(catatan)
+    expect(onViewNotes).toHaveBeenCalledTimes(1)
     /* The Harga entry is gone (owner, 2026-10-23): the topbar already sits
        on the price section, so that anchor pointed at where the reader is. */
     expect(nav.queryByRole('link', { name: 'Harga' })).not.toBeInTheDocument()
@@ -413,6 +437,7 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
@@ -441,13 +466,14 @@ describe('PublicPricing', () => {
         onPickPlan={vi.fn()}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
 
     expect(screen.getByRole('contentinfo')).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Sinyal' }).length).toBe(1)
-    expect(screen.getByRole('link', { name: 'Catatan risiko' })).toHaveAttribute('href', '#catatan')
+    expect(screen.getByRole('link', { name: 'Catatan risiko' })).toHaveAttribute('href', '/catatan')
     /* The contact entry waits for the owner's channel: rendered, but an
        anchor without href — not clickable, not focusable, not a lie. */
     const held = screen.getByText('Hubungi kami')
@@ -469,6 +495,7 @@ describe('PublicPricing', () => {
           onPickPlan={vi.fn()}
           onSignUp={vi.fn()}
           onViewFeatures={vi.fn()}
+          onViewNotes={vi.fn()}
         />,
       )
 
@@ -492,6 +519,7 @@ describe('PublicPricing', () => {
         onPickPlan={onPickPlan}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())
@@ -513,6 +541,7 @@ describe('PublicPricing', () => {
         onPickPlan={onPickPlan}
         onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
+        onViewNotes={vi.fn()}
       />,
     )
     await waitFor(() => expect(screen.getByText('Rp 15.000')).toBeInTheDocument())

@@ -285,13 +285,13 @@ describe('PublicFeatures', () => {
     expect(handlers.onViewPricing).toHaveBeenCalledTimes(2)
   })
 
-  it("sends the topbar's Catatan across, at the disclaimer's hash", async () => {
+  it("sends the topbar's Catatan across to the notes screen", async () => {
     const user = userEvent.setup()
     const { handlers } = renderFeatures()
     await user.click(screen.getByRole('button', { name: 'Buka menu navigasi' }))
     const nav = within(screen.getByRole('navigation', { name: 'Navigasi layar fitur' }))
     const catatan = nav.getByRole('link', { name: 'Catatan' })
-    expect(catatan).toHaveAttribute('href', '/#catatan')
+    expect(catatan).toHaveAttribute('href', '/catatan')
     await user.click(catatan)
     expect(handlers.onViewNotes).toHaveBeenCalledTimes(1)
   })

@@ -72,6 +72,9 @@ export interface PublicPricingProps {
   /** The features screen: the topbar's Fitur walks there (owner, 2026-10-23).
    *  The sheet keeps #pilar for the footer's products column and deep links. */
   onViewFeatures: () => void
+  /** The notes screen: the topbar's Catatan walks there (owner, 2026-11-02).
+   *  It used to be an in-page jump to the footer's one-sentence disclaimer. */
+  onViewNotes: () => void
   /** A price line was picked: the walk-in to signup carries it along. */
   onPickPlan: (plan: PlanKey) => void
 }
@@ -190,7 +193,7 @@ const NAV_COLUMNS: NavColumn[] = [
     headEn: 'SUPPORT',
     items: [
       { id: 'Hubungi kami', en: 'Contact us', anchor: '', held: true },
-      { id: 'Catatan risiko', en: 'Risk notes', anchor: '#catatan' },
+      { id: 'Catatan risiko', en: 'Risk notes', anchor: '/catatan' },
       { id: 'Pembaruan harga', en: 'Price updates', anchor: '#harga' },
     ],
   },
@@ -201,6 +204,7 @@ export function PublicPricing({
   onEnter,
   onSignUp,
   onViewFeatures,
+  onViewNotes,
   onPickPlan,
 }: PublicPricingProps) {
   const isId = locale === 'id'
@@ -333,7 +337,7 @@ export function PublicPricing({
           neither gate ever hides behind the menu. */}
       <header className="pub-topbar">
         <div className="pub-container">
-          <span className="pub-brand-chip">
+          <span className="pub-brand-chip pub-brand-chip-bare">
             <img src={logoUrl} alt="AIDSS" className="pub-logo" />
           </span>
           <div className="pub-topbar-right">
@@ -360,7 +364,7 @@ export function PublicPricing({
                 label: isId ? 'Fitur' : 'Features',
                 onNavigate: onViewFeatures,
               },
-              { href: '#catatan', label: isId ? 'Catatan' : 'Notes' },
+              { href: '/catatan', label: isId ? 'Catatan' : 'Notes', onNavigate: onViewNotes },
             ]}
           />
         </div>

@@ -510,18 +510,67 @@ publik (kedua layar: lembar harga dan screen fitur):
   permukaan memakai mark ini:
   sidebar app (26px + keterangan "AI Decision Support"), layar Masuk
   (34px di panel navy), topbar lembar harga dan fitur (glyph 24px; 19px di
-  ≤460px, dicangkung dalam chip navy publik `.pub-brand-chip` agar warna
-  putih asli tetap kontras di latar terang — tanpa tint apa pun), footer
-  harga (38px, putih asli di atas navy), footer konsol operator (glyph
-  14px dalam chip navy app `.brand-chip` yang mengikuti tema), dan
-  favicon (`public/favicon.png`: perenderan file asli pada kotak brand
-  navy warna publik, warna glyph asli dipertahankan; pengganti rencana
-  invert yang justru mengubah warna dan oleh sebab itu dicabut).
+  ≤460px; di halaman fitur dicangkung dalam chip navy publik
+  `.pub-brand-chip` agar warna putih asli tetap kontras di latar terang —
+  tanpa tint apa pun; sejak 2026-11-02 lembar harga melepas warna latar
+  chip itu lewat `.pub-brand-chip-bare`, geometri dan posisinya tetap
+  sama), footer harga (38px, putih asli di atas navy), footer konsol
+  operator (glyph 14px dalam chip navy app `.brand-chip` yang mengikuti
+  tema), dan favicon (`public/favicon.png`: perenderan file asli pada
+  kotak brand berlatar putih — arahan pemilik 2026-11-02, sebelumnya navy
+  warna publik; warna glyph asli tetap dipertahankan, tanpa invert).
   Komentar-komentar era "logo belum dinamai, jangan mengarang" di
   Sidebar, auth.css, dan index.html dicabut karena keputusan itu kini
   sah. Front install tidak menyentuh teks salinan lain: disclaimers,
   copyright "© 2026 AIDSS · MCASS", label pengirim chat "AIDSS", dan
   data pemilik rekening tetap teks/data aslinya.
+
+## Pengecualian terdokumentasi: layar Catatan publik `/catatan` (2026-11-02)
+
+Atas permintaan pemilik ("buat halaman untuk Catatan… pastikan yang berada pada
+tombol burger di halaman harga"). Item itu sebelumnya bukan halaman: lompatan
+`href="#catatan"` ke satu kalimat penyangkalan di footer bersama, dan perilakunya
+dipin tes. Yang dibangun adalah layar publik ketiga dengan URL sendiri, mengikuti
+pola `/fitur`.
+
+- **Isi direkomendasikan, bukan dikutip.** `docs/legal-and-consent.md` tidak
+  dipakai sebagai isi: dokumen itu menulis sendiri di baris 22 bahwa pengguna
+  jangan diarahkan kepadanya sebagai syarat layanan, dan alasan drafnya sebagian
+  sudah basi (ia menyebut gerbang pembayaran belum punya kode, sementara
+  `docs/status.md` mencatatnya **Ada**). Aturan dan tiga larangan turunannya
+  (angka harga, kanal kontak, nama algoritma) ada di
+  [ADR-0013](adr/0013-catatan-statis-tanpa-draft-legal.md), dan keempatnya
+  dijaga `PublicNotes.test.tsx`.
+- **Sembilan bagian, masing-masing menunjuk satu fakta di kode**: `risiko`,
+  `probabilitas`, `data`, `contoh`, `langganan`, `pembayaran`,
+  `pengembalian-dana`, `privasi`, `status`. Daftar yang dibuka langganan dibaca
+  dari `dependencies=paid` di `backend/api/main.py`, bukan dari perkiraan.
+- **Menyusul pola yang ada, tidak menciptakan pola baru.** Komponen di
+  `src/app/features/public/PublicNotes.tsx`; salinan inline `isId ? … : …` seperti
+  dua layar publik lain (bukan key `translations.ts`); routing berupa cabang
+  `location.pathname` di blok signed-out `App.tsx`, bukan entri `<Route>`;
+  pengguna yang sudah masuk melihat `/catatan` sebagai shell, sama seperti
+  `/fitur` hari ini.
+- **Footer bersama tidak diubah.** `<p id="catatan">` tetap di
+  `PublicFooter.tsx`; layar baru bergabung, ia tidak menggantikan pernyataan itu.
+  Empat titik masuk pindah bersamaan: burger lembar harga, burger layar fitur, dan
+  item "Catatan risiko" di kedua footer.
+- **Kolom baca 760px di dalam `.pub-container`**, bukan `.pub-container` penuh:
+  1160px meregangkan prosa, dan kolom terpusat membuat tepi kirinya tidak sejajar
+  hero. Sekarang keduanya terukur di x=135 pada 1440px. Tidak ada hex baru, tidak
+  ada token baru, tidak ada glif piktograf; teks terkecil 14px.
+- **Utang yang diakui di halaman itu sendiri.** Bagian `contoh` menyatakan panel
+  berisi contoh membawa label "Data contoh", dan audit hari yang sama menemukan
+  dua pelanggaran dalam harness offline (Alokasi sektor di `DashboardView.tsx`,
+  seluruh panel `RiskView.tsx`). Kalimatnya ditulis supaya pelanggaran disebut
+  cacat, bukan fitur; tercatat sebagai task terbuka di
+  `tasks/todo-catatan.md`.
+- **Uji**: `PublicNotes` 12 tes hijau, `PublicPricing` 22 dan `PublicFeatures` 28
+  tetap hijau dengan assertion anchor lama diubah dengan sengaja; suite penuh 423
+  tes, `tsc` bersih, eslint 0 error, `prettier` bersih, `vite build` sukses tanpa
+  peringatan bundle. Kunjungan browser sungguhan memverifikasi muat langsung +
+  refresh `/catatan`, alur burger dari `/` dan dari `/fitur`, overflow 0 di 1440
+  dan 390px, dan empat tepi sejajar hero.
 
 ## Pengecualian terdokumentasi: glass di view dalam-sesi (2026-11-01, diperluas 2026-11-02)
 
