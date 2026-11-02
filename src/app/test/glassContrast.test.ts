@@ -467,7 +467,14 @@ describe.each([
     const sizes: number[] = []
     /** The object literal a match sits in, by brace depth — a character window
      *  was wrong: a comment between `background:` and `color:` pushed an accent
-     *  button's ink out of the window and made it look like surface text. */
+     *  button's ink out of the window and made it look like surface text.
+     *
+     *  The forward scan has to start from the opening brace, not from the match.
+     *  Counting from inside the block drives the depth to -1 at the first closing
+     *  brace, the `=== 0` exit never fires, and the "block" runs to the end of the
+     *  file — which made every ink look like it had a fill and quietly emptied
+     *  this rule. A mutation caught it; the size assertion at the bottom of the
+     *  test is what keeps it caught. */
     const enclosingBlock = (src: string, index: number): string => {
       let depth = 0
       let start = index
@@ -479,17 +486,17 @@ describe.each([
           depth--
         }
       }
-      let d2 = 0
-      let end = index
+      let open = 0
+      let end = start
       for (; end < src.length; end++) {
         const c = src[end]
-        if (c === '{') d2++
+        if (c === '{') open++
         else if (c === '}') {
-          d2--
-          if (d2 === 0) break
+          open--
+          if (open === 0) break
         }
       }
-      return src.slice(start, end)
+      return src.slice(start, end + 1)
     }
     for (const file of TABLE_SOURCES) {
       const src = readFileSync(resolve(ROOT, file), 'utf8')
@@ -560,7 +567,10 @@ describe.each([
     // the row-label colour the whole question is about: if the scan ever stops
     // finding it, the scan has broken, not the palette.
     expect([...onSurface.keys()]).toContain('--muted-foreground')
-    expect(onSurface.size).toBeGreaterThanOrEqual(3)
+    // The scan must find a real set of inks, not an empty one dressed as a pass.
+    // The rule was silently near-empty once, through a brace-counting bug, and a
+    // pass looked exactly like coverage.
+    expect(onSurface.size).toBeGreaterThanOrEqual(6)
     expect(failures).toEqual([])
   })
 
