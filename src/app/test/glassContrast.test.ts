@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { GLASS_VIEWS, OPAQUE_ONLY_FILES, SURFACE_CLASS } from '@/app/surfaces'
 
 /**
  * The glass blend, enforced rather than commented.
@@ -270,6 +271,74 @@ describe('the checker itself', () => {
     const muted = parseColor(token(broken, 'muted-foreground'))
     const worst = Math.min(...probeColours(broken).map((c) => contrast(muted, c)))
     expect(worst).toBeLessThan(4.5)
+  })
+})
+
+describe('the glass surface contract', () => {
+  /**
+   * Where each screen's card surfaces live. A view is only allowed into
+   * GLASS_VIEWS when its own source paints the shared surface class, so this
+   * map is what makes the list and the code move together instead of drifting.
+   */
+  const VIEW_SOURCE: Record<string, string> = {
+    dashboard: 'app/features/dashboard/DashboardView.tsx',
+    markets: 'app/features/market/MarketsView.tsx',
+    portfolio: 'app/features/portfolio/PortfolioView.tsx',
+    advisor: 'app/features/advisor/AIAdvisorView.tsx',
+    risk: 'app/features/risk/RiskView.tsx',
+    news: 'app/features/news/NewsView.tsx',
+    reports: 'app/features/reports/ReportsView.tsx',
+    alerts: 'app/features/reports/AlertsView.tsx',
+    settings: 'app/features/settings/tabPrimitives.tsx',
+  }
+
+  it('only claims views that actually paint the surface', () => {
+    const lying: string[] = []
+    for (const view of GLASS_VIEWS) {
+      const file = VIEW_SOURCE[view]
+      if (!file) {
+        lying.push(`${view} (no known source file — add it to VIEW_SOURCE)`)
+        continue
+      }
+      const src = readFileSync(resolve(ROOT, file), 'utf8')
+      if (!src.includes(SURFACE_CLASS) && !src.includes('glass-card')) {
+        lying.push(`${view} still uses opaque cards in ${file}`)
+      }
+    }
+    expect(lying).toEqual([])
+  })
+
+  it('keeps dialogs, drawers, skeletons and the error state opaque', () => {
+    // These sit over a scrim, or carry text a reader must parse instantly.
+    // Asserted rather than trusted, because the cheapest way to "extend the
+    // glass" is a global --card change that sweeps them along.
+    const offenders: string[] = []
+    for (const file of OPAQUE_ONLY_FILES) {
+      // Paths in surfaces.ts are relative to src/app; VIEW_SOURCE above is
+      // relative to src. Kept explicit here rather than silently normalised.
+      const src = readFileSync(resolve(ROOT, 'app', file), 'utf8')
+      if (src.includes(SURFACE_CLASS) || src.includes('glass-card')) {
+        offenders.push(`${file} paints a translucent surface`)
+      }
+      if (!src.includes('var(--card)')) {
+        offenders.push(`${file} no longer uses the opaque card token`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
+  it('keeps blur on the shell-scrolled screen only', () => {
+    // .surface-glass must be tint-only: outside the dashboard nothing slides
+    // under a card, so every extra backdrop-filter layer is GPU cost with no
+    // visible difference. Read the rule itself, not a comment claiming it.
+    const rule = css.match(/\.surface-glass,\s*\.glass-card\s*\{[^}]*\}/)
+    expect(rule).not.toBeNull()
+    expect(rule![0]).not.toMatch(/backdrop-filter/)
+    expect(rule![0]).toMatch(/var\(--glass-surface\)/)
+    // And the alpha lives in one rule, so a retune cannot miss a class.
+    const blurRule = css.match(/\.glass-card\s*\{[^}]*backdrop-filter[^}]*\}/)
+    expect(blurRule).not.toBeNull()
+    expect(blurRule![0]).not.toMatch(/--glass-surface:/)
   })
 })
 

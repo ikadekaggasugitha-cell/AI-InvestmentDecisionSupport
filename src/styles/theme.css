@@ -346,6 +346,14 @@
     scroll-padding-top: 112px;
   }
 
+  /* Translucent card surface, declared once for both classes so retuning
+     --glass-* moves the whole app in one place. .surface-glass is tint-only and
+     is what the extended views use, because blur only earns its cost where dark
+     content passes underneath: on those screens the view owns the scroller and
+     nothing slides under a card, so 30+ extra backdrop-filter layers would buy
+     no visible difference. .glass-card adds that blur and stays on the dashboard,
+     where the shell column scrolls beneath a sticky bar. */
+  .surface-glass,
   .glass-card {
     background: var(--glass-surface);
     border: 1px solid var(--glass-border);
@@ -353,6 +361,9 @@
     box-shadow:
       var(--glass-shadow),
       inset 0 1px 0 var(--glass-sheen);
+  }
+
+  .glass-card {
     backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   }
@@ -361,10 +372,11 @@
      and it is the place the glass actually pays: the dashboard's scroll
      container is the column itself (see App.tsx), so KPI figures and chart ink
      scroll *under* this bar and blur(14px) saturate() has real content to
-     refract. Kept at 0.86 — the most opaque glass on the screen — because text
-     here sits over a moving, blurred backdrop rather than a still ground, and a
-     frosted header that loses a point of contrast is a worse trade than a
-     slightly flat one. The bottom hairline is what reads as the sheet's edge. */
+     refract. It is the most opaque glass on the screen (0.70 light / 0.60 dark,
+     measured 4.74:1 and 4.68:1 worst case) because text here sits over a
+     moving, blurred backdrop rather than a still ground — and a frosted header
+     that loses a point of contrast is a worse trade than a slightly flat one.
+     The bottom hairline is what reads as the sheet's edge. */
   .glass-bar {
     position: sticky;
     top: 0;

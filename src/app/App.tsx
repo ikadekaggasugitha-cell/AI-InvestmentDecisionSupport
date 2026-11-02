@@ -4,6 +4,7 @@ import { AppProvider, useApp } from '@/app/context/AppContext'
 import { ErrorBoundary } from '@/app/components/ErrorBoundary'
 import { Sidebar, type ViewType } from '@/app/components/Sidebar'
 import { Header } from '@/app/components/Header'
+import { isGlassShell, isGlassView } from '@/app/surfaces'
 import { ViewSkeleton } from '@/app/components/ViewSkeleton'
 // Views are code-split: each is its own chunk, loaded on first navigation to
 // it. Only the shell (Sidebar/Header) and the initial dashboard cost anything
@@ -316,11 +317,17 @@ function AppInner() {
 
   const cfg = viewTitles[view]
 
-  /* Glass is a dashboard-only contract. The decorative page layer that gives
-     the blur something to refract, and the blurred header bar, are switched on
-     together and only here — the other eight views keep the opaque paper surface
-     and the flat ground they were built and contrast-checked against. */
-  const glassy = view === 'dashboard'
+  /* Two separate questions, answered in one place (src/app/surfaces.ts) so the
+     glass guard and the shell cannot drift apart:
+
+       grounded   — the screen stands on the pastel ground and its cards are
+                    translucent surfaces.
+       glassShell — the screen additionally hands scrolling to this column so the
+                    header can sit sticky over moving content. Only the dashboard
+                    does that, because it is the only place backdrop-filter has
+                    dark content to refract. */
+  const grounded = isGlassView(view)
+  const glassShell = isGlassShell(view)
 
   // The two auth paths are real URLs so they survive a refresh and can be
   // linked to. Both redirect into the shell, because by this point the gate above
@@ -346,13 +353,16 @@ function AppInner() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
-      {/* Glass mode hands the scrolling to this column instead of leaving it to
-          the view: a sticky header only has anything to refract if the content
-          scrolls inside the same container it does. Other views keep their own
-          internal scroller and the opaque chrome they always had. */}
+      {/* Glass screens get the pastel ground. Only the glass-shell screen hands
+          scrolling to this column; the rest keep their own internal scroller and
+          the chrome they were built and contrast-checked against. */}
       <div
         className={`flex-1 flex flex-col min-w-0 ${
-          glassy ? 'glass-page overflow-y-auto overflow-x-hidden' : 'overflow-hidden'
+          glassShell
+            ? 'glass-page overflow-y-auto overflow-x-hidden'
+            : grounded
+              ? 'glass-page overflow-hidden'
+              : 'overflow-hidden'
         }`}
       >
         <Header
@@ -361,7 +371,7 @@ function AppInner() {
           market={market}
           fx={fx}
           isMobile={isMobile}
-          glass={glassy}
+          glass={glassShell}
           onMenuToggle={() => setSidebarOpen(true)}
           onSelectSymbol={selectSymbol}
         />
@@ -391,7 +401,7 @@ function AppInner() {
                 alerts={alertList}
                 alertsIsLive={alertsIsLive}
                 onOpenPortfolio={() => setView('portfolio')}
-                glass
+                glass={glassShell}
               />
             </ErrorBoundary>
           )}
