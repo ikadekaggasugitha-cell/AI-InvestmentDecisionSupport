@@ -739,3 +739,12 @@ keluar (+15,0px), **nol teks di bawah 11px**, `scrollWidth` 390 = `clientWidth`
 (tanpa luapan horizontal). Pemisah baris tabel Pasar terukur ΔE 9,18 (median) setelah
 `--surface-hairline`, dari 0,94 sebelumnya. Console hanya memuat 402 paywall yang
 jujur.
+
+Pada 390×844 (drawer navigasi dibuka lewat tombolnya, judul `h1` tiap langkah
+diverifikasi agar angka tidak datang dari layar yang salah): **kesembilan view**
+menampilkan surface glass dengan tint yang sama (`rgba(255,255,255,0.66)` /
+`rgba(20,36,58,0.62)`), radius **16px**, **0 lapisan blur di luar dashboard**, dan
+`scrollWidth == clientWidth` di semua layar (tanpa luapan horizontal). Catatan
+pra-eksisting yang terlihat di rekaman ini, bukan regresi glass: kolom kanan tabel
+Pasar terpotong di 390 — tabel punya penggulung horizontalnya sendiri, dan itu
+perilaku yang sudah ada sebelum kulit glass.
