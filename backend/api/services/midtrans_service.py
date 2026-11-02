@@ -37,6 +37,29 @@ class SnapSession:
     redirect_url: str
 
 
+def gateway_configured() -> bool:
+    """Whether this install holds Midtrans credentials at all.
+
+    Named rather than inlined twice because two answers to this question would
+    disagree: an admin panel that guessed would advertise a payment button that
+    `create_snap_token` is about to refuse. The panel and the checkout path now
+    ask the same function.
+
+    The value itself is never returned, not even masked or measured. Its length
+    alone would let a caller confirm a guess about the key.
+    """
+    return bool(get_settings().midtrans_server_key)
+
+
+def gateway_environment() -> str:
+    """Which Midtrans site the money would flow toward, in one word.
+
+    Derived from `snap_base_url()`'s own condition rather than read separately,
+    so the panel cannot report sandbox while the checkout opens production.
+    """
+    return "production" if get_settings().midtrans_is_production else "sandbox"
+
+
 def snap_base_url() -> str:
     """Which Midtrans site money flows toward — configuration, not a constant."""
     return (
@@ -67,7 +90,7 @@ async def create_snap_token(
     payment the settlement hook might later refuse context for.
     """
     settings = get_settings()
-    if not settings.midtrans_server_key:
+    if not gateway_configured():
         raise GatewayUnavailable("no server key is configured on this install")
     payload = {
         "transaction_details": {

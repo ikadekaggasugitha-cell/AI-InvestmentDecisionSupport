@@ -100,14 +100,11 @@ function useDemoVideo(videoRef: RefObject<HTMLVideoElement | null>) {
   }, [videoRef])
 }
 
-/* The footer's closing line, and why this screen's differs from the sheet's.
-   A reader here has just been shown every device the app ships. The thing still
-   unsaid is that those four pillars are one product at one price, which is what
-   the sheet answers. So the footer takes the reader there, and the page's own
-   closing band is gone: it used to sit flush against the footer's navy, two CTAs
-   in a row on the same colour (auth.css called it "the footer's navy arriving
-   early"). The link row holds only Catatan, because Harga is where the CTA
-   already goes and Fitur is where the reader is standing. */
+/* The page's own closing CTA band was removed on 2026-11-02, when the shared
+   footer was going to own the way out. The footer no longer carries one (the
+   owner took the call to action and the link row out of it), so this screen now
+   ends on its FAQ band: the way onward is the topbar's gates and the burger.
+   The band stays deleted until the owner decides where this page should end. */
 
 export function PublicFeatures({
   locale,
@@ -903,20 +900,7 @@ export function PublicFeatures({
         </section>
       </main>
 
-      <PublicFooter
-        locale={locale}
-        cta={{
-          titleId: 'Keempat pilar itu satu aplikasi, bukan empat langganan.',
-          titleEn: 'Those four pillars are one app, not four subscriptions.',
-          labelId: 'Lihat harga, masuk ke paket',
-          labelEn: 'See the pricing, pick a plan',
-          href: '/#harga',
-          onNavigate: onViewPricing,
-        }}
-        onEnter={onEnter}
-        links={[{ id: 'Catatan', en: 'Notes', href: '/catatan', onNavigate: onViewNotes }]}
-        updatedAt={null}
-      />
+      <PublicFooter locale={locale} updatedAt={null} />
     </div>
   )
 }

@@ -637,34 +637,10 @@ export function PublicPricing({
         </section>
       </main>
 
-      {/* The navy footer: it closes the page's argument, then states what the
-          product is not. Shared with the other two screens so they cannot drift
-          apart.
-
-          The closing line answers the objection a reader has at exactly this
-          moment, having just looked at three prices: "am I about to be
-          charged". The page already knows the answer is no, and says so.
-          Buat akun is the primary here because the next real step is the form;
-          the other two screens walk to the price instead. The link row is the
-          two screens this page is not, and it carries no contact entry: the
-          channel has never been named. */}
-      <PublicFooter
-        locale={locale}
-        cta={{
-          titleId: 'Tidak ada pembayaran di halaman ini.',
-          titleEn: 'No payment happens on this page.',
-          labelId: 'Buat akun',
-          labelEn: 'Create account',
-          href: '/daftar',
-          onNavigate: onSignUp,
-        }}
-        onEnter={onEnter}
-        links={[
-          { id: 'Fitur', en: 'Features', href: '/fitur', onNavigate: onViewFeatures },
-          { id: 'Catatan', en: 'Notes', href: '/catatan', onNavigate: onViewNotes },
-        ]}
-        updatedAt={price.kind === 'ready' ? price.updatedAt : null}
-      />
+      {/* The navy footer: brand, the risk note, the bottom line. It carries no
+          links and no call to action (owner, 2026-11-02) and is shared by the
+          three public screens so they cannot drift apart. */}
+      <PublicFooter locale={locale} updatedAt={price.kind === 'ready' ? price.updatedAt : null} />
     </div>
   )
 }

@@ -229,17 +229,11 @@ const SECTIONS: NoteSection[] = [
   },
 ]
 
-/* The footer's closing line. These notes are forbidden from quoting a price
-   (ADR-0013: the number lives in system_settings and the sheet reads it, so
-   printing it here would create a second fact that could disagree with the
-   first). The footer says exactly that, and then walks the reader to the one
-   page that is allowed to answer it.
-   The link row is Fitur alone: Catatan is where the reader is standing, and
-   Harga is where the CTA already goes. The old CATATAN column is gone because
-   this page already carries a jump rail for its nine sections; a footer that
-   repeats the rail is furniture. "Hubungi kami" is gone too, and for the reason
-   this page already states in its own copy: a number we do not have is not
-   written here. */
+/* The shared footer carries no links and no call to action (owner,
+   2026-11-02). This screen's own nine sections stay reachable through the jump
+   rail in the body, which is where that job belongs. "Hubungi kami" is absent
+   for the reason this page already states in its own copy: a number we do not
+   have is not written here. */
 
 export function PublicNotes({
   locale,
@@ -346,20 +340,7 @@ export function PublicNotes({
         </section>
       </main>
 
-      <PublicFooter
-        locale={locale}
-        cta={{
-          titleId: 'Yang belum dinyatakan catatan ini hanya harganya.',
-          titleEn: 'The one thing these notes do not state is the price.',
-          labelId: 'Lihat harga',
-          labelEn: 'See the pricing',
-          href: '/',
-          onNavigate: onViewPricing,
-        }}
-        onEnter={onEnter}
-        links={[{ id: 'Fitur', en: 'Features', href: '/fitur', onNavigate: onViewFeatures }]}
-        updatedAt={null}
-      />
+      <PublicFooter locale={locale} updatedAt={null} />
     </div>
   )
 }

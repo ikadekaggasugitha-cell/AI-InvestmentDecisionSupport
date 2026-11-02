@@ -4,23 +4,33 @@ import userEvent from '@testing-library/user-event'
 
 import { PublicFeatures } from '@/app/features/public/PublicFeatures'
 
+/* The shared footer reads the support address from the server, so this screen
+   renders a component that fetches. Mocked here rather than left to reach a
+   backend that may or may not be running while the suite runs; the address's own
+   behaviour is pinned in PublicFooter.test.tsx. */
+vi.mock('@/app/config/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/config/api')>()),
+  apiFetch: vi.fn(),
+}))
+
+import { apiFetch } from '@/app/config/api'
+
 /**
  * The second public surface, reached from the price sheet's "Fitur" link
  * (owner, 2026-10-23). The rules this suite pins:
  *
  *  - Every claim names a view that exists. The inventory is the sidebar's
- *    own vocabulary (Dashboard, Pasar, Portofolio, AI Advisor, Berita,
- *    Laporan, Pengaturan, Peringatan), the four pillars expand the sheet's
- *    band, and the examples reuse wording the app itself shows.
+ *    own vocabulary (Dashboard, Pasar, Portofolio, AI Advisor, Berita, Laporan,
+ *    Pengaturan, Peringatan), the four pillars expand the sheet's band, and the
+ *    examples reuse wording the app itself shows.
  *  - Examples stay labelled. The sample lines the app shows under "Data
  *    contoh" are quoted as samples here too, never as live claims.
  *  - The demo is evidence, not decoration: a real screen recording of the
- *    app (C-5). Its element waits for the visitor (no autoplay attribute);
- *    when motion is allowed the recording starts in view and pauses out of
- *    it, and reduced-motion visitors get the poster and their own play.
+ *    app (C-5). Its element waits for the visitor (no autoplay attribute); when
+ *    motion is allowed the recording starts in view and pauses out of it, and
+ *    reduced-motion visitors get the poster and their own play.
  *  - Navigation walks inside the app: the hrefs stay real (middle-click,
- *    sharing) while clicks go through handlers. "Hubungi kami" stays held
- *    exactly as on the sheet until the owner names its channel.
+ *    sharing) while clicks go through handlers.
  *  - Motion is one-time, small (DIAL MOTION 2 for this screen), and never
  *    arms without IntersectionObserver or under reduced motion.
  */
@@ -42,6 +52,11 @@ function renderFeatures(
 describe('PublicFeatures', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(apiFetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ email: null }),
+    } as unknown as Response)
   })
 
   it("states the screen's job once, in the sheet's type system", () => {
@@ -357,36 +372,21 @@ describe('PublicFeatures', () => {
     expect(handlers.onSignUp).toHaveBeenCalledTimes(1)
   })
 
-  it('closes with the way back to the price the journey started at', async () => {
-    const user = userEvent.setup()
-    const { handlers } = renderFeatures()
-    const footer = within(screen.getByRole('contentinfo'))
-    expect(
-      footer.getByRole('heading', {
-        name: 'Keempat pilar itu satu aplikasi, bukan empat langganan.',
-      }),
-    ).toBeInTheDocument()
-    const cta = footer.getByRole('link', { name: /Lihat harga, masuk ke paket/ })
-    expect(cta).toHaveAttribute('href', '/#harga')
-    await user.click(cta)
-    expect(handlers.onViewPricing).toHaveBeenCalledTimes(1)
-    expect(footer.getByText(/pembayaran dimulai dari dalam aplikasi/)).toBeInTheDocument()
-  })
-
-  it('carries no closing band of its own, because the footer owns the way out', () => {
+  it('ends without a call to action, in its own body or in the footer', () => {
     const { container } = renderFeatures()
-    /* This page used to end in two navy CTAs stacked flush against each other:
-       the band below, then the footer, 720px of page end on one colour. */
+    /* This page used to close with its own navy band ("Siap mengujinya?"),
+       sitting flush against the footer's navy: two CTAs in a row, 720px of page
+       end on one colour. The band came out when the shared footer was given the
+       closing move; the footer then lost it too (owner, 2026-11-02). What is
+       left is the FAQ band, and the way onward is the topbar's gates and the
+       burger, both tested above.
+       The footer also carries no links at all now, so there is nothing here for
+       the reader to follow except what the page itself says. */
     expect(container.querySelector('.pubf-cta')).toBeNull()
-  })
-
-  it('links only the screen this page is not, and never repeats the CTA', () => {
-    const { container } = renderFeatures()
     const footer = within(screen.getByRole('contentinfo'))
-    expect(footer.getByRole('link', { name: 'Catatan' })).toHaveAttribute('href', '/catatan')
-    /* The CTA plus one destination. No Fitur, because the reader stands on it,
-       and no second Harga, because the CTA already goes there. */
-    expect(footer.getAllByRole('link')).toHaveLength(2)
+    expect(footer.queryAllByRole('link')).toHaveLength(0)
+    expect(footer.queryByRole('button', { name: 'Masuk' })).not.toBeInTheDocument()
+    expect(footer.queryByRole('heading')).not.toBeInTheDocument()
     expect(container.textContent).not.toContain('Hubungi kami')
   })
 

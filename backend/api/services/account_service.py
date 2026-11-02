@@ -55,6 +55,13 @@ class Account:
     # carry different doors openers may use; None exactly when blocked_at is.
     blocked_reason: str | None
     created_at: datetime
+    # The account's latest period, whenever it ends. Only `list_accounts` fills
+    # it, because only that query joins subscriptions; every other reader
+    # leaves it None, which is why it defaults rather than being required.
+    # Display only: access is still decided by the entitlement query, and a
+    # second place answering "does this person have access" is a second place
+    # that can disagree with the first.
+    expires_at: datetime | None = None
 
 
 def normalise_email(raw: str) -> str:
@@ -441,24 +448,113 @@ async def suspend_lapsed_accounts() -> list[dict]:
     return [{"id": r["id"], "email": r["email"]} for r in rows]
 
 
-async def list_accounts(limit: int = 100, offset: int = 0) -> list[Account]:
+# The screen's three ways to cut the list. Anything else is the router's 422.
+ACCOUNT_STATES = ("all", "active", "blocked")
+
+
+def _like_pattern(term: str) -> str:
+    """A search term, made into a pattern with its own wildcards disarmed.
+
+    Someone pasting "50%" is asking for a row whose name contains "50%", not for
+    everything that starts with "50". The backslash is Postgres' default escape
+    character for LIKE; it is also what a term can carry itself, so it is escaped
+    first and the `ESCAPE` clause is written out rather than trusted to the
+    default.
+    """
+    escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def _list_accounts_query(
+    limit: int,
+    offset: int,
+    query: str | None = None,
+    state: str = "all",
+) -> tuple[str, list[object]]:
+    """The account list's statement and its parameters, in binding order.
+
+    One builder, because the parameter numbers move with the predicates: `LIMIT`
+    is `$1` when nothing filters and `$3` when both do. Writing those two orders
+    down separately is how a page size ends up bound to a search term.
+
+    `state` is the screen's word for a predicate the database only spells as
+    `blocked_at IS (NOT) NULL`. It deliberately does not reach into
+    `blocked_reason`: which *kind* of closure a row holds is already its own
+    column, and filtering on it here would put a second copy of the decision
+    about what those words mean somewhere other than ADR-0012.
+    """
+    clauses: list[str] = []
+    filters: list[object] = []
+    if state == "blocked":
+        clauses.append("u.blocked_at IS NOT NULL")
+    elif state == "active":
+        clauses.append("u.blocked_at IS NULL")
+    if query:
+        # One parameter named twice, not the value twice: asyncpg binds by
+        # position, and repeating the number keeps the term one argument.
+        filters.append(_like_pattern(query))
+        position = len(filters)
+        clauses.append(
+            f"(u.email ILIKE ${position} ESCAPE '\\'"
+            f" OR u.full_name ILIKE ${position} ESCAPE '\\')"
+        )
+
+    where = f"         WHERE {' AND '.join(clauses)}\n" if clauses else ""
+    params: list[object] = [*filters, max(1, int(limit)), max(0, int(offset))]
+    sql = f"""
+        SELECT u.id, u.email, u.full_name, u.phone_number, u.role,
+               u.blocked_at, u.blocked_reason, u.created_at,
+               s.expires_at
+          FROM users u
+          LEFT JOIN LATERAL (
+                 SELECT max(x.expires_at) AS expires_at
+                   FROM subscriptions x
+                  WHERE x.user_id = u.id
+               ) s ON TRUE
+{where}         ORDER BY u.created_at DESC, u.id
+         LIMIT ${len(filters) + 1} OFFSET ${len(filters) + 2}
+        """
+    return sql, params
+
+
+# The unfiltered form, named so the live-database suite can run this exact
+# statement inside a transaction it controls: `list_accounts` takes its own
+# connection from the pool, and a connection cannot see another one's uncommitted
+# rows. Same reason `admin_analytics_service` names its statement.
+_LIST_ACCOUNTS_SQL, _ = _list_accounts_query(1, 0)
+
+
+async def list_accounts(
+    limit: int = 100,
+    offset: int = 0,
+    query: str | None = None,
+    state: str = "all",
+) -> list[Account]:
     """Accounts newest first, for the admin list.
 
     Paged rather than unpaged: an unpaged list of every account becomes a slow
     query and a large response exactly when the table is most worth looking at.
+
+    `query` matches the email or the name, and `state` cuts the list to open or
+    closed accounts. Both are predicates in this one statement, not a filter
+    applied to a page after it arrives: a page filtered in Python answers "there
+    is nobody here" about a window the operator chose, and that is how an account
+    gets reported missing while it sits on the next page.
+
+    The LATERAL subquery carries each account's own furthest period, so an
+    operator can see who is about to lapse without opening a row. It stays one
+    statement: fetching subscriptions per account in a loop would be one query
+    per row on the screen that is most likely to be wide.
+
+    `max(expires_at)` deliberately ignores whether the period is still running.
+    The list shows when the account's last known period ends; whether that end
+    has passed is a comparison the reader can make against the clock it already
+    has, and folding NOW() in here would make this column a second answer to
+    "does this account have access".
     """
     pool = await get_pool()
-    rows = await pool.fetch(
-        """
-        SELECT id, email, full_name, phone_number, role,
-               blocked_at, blocked_reason, created_at
-        FROM users
-        ORDER BY created_at DESC, id
-        LIMIT $1 OFFSET $2
-        """,
-        limit,
-        offset,
-    )
+    sql, params = _list_accounts_query(limit, offset, query, state)
+    rows = await pool.fetch(sql, *params)
     return [_to_account(r) for r in rows]
 
 
@@ -514,6 +610,9 @@ def _to_account(row) -> Account:
         blocked_at=row["blocked_at"],
         blocked_reason=row.get("blocked_reason"),
         created_at=row["created_at"],
+        # Absent from every query but list_accounts, which is exactly the case
+        # the default exists for.
+        expires_at=row.get("expires_at"),
     )
 
 

@@ -490,19 +490,19 @@
   border-left: 1px solid rgba(47, 49, 51, 0.1);
 }
 
-/* The navy footer. It has one job: close the page's argument, then state what
-   the product is not (owner, 2026-11-02). Three bands, top to bottom: the
-   closing move, the brand with the few destinations that are different places,
-   and the meta line. The sitemap it replaced carried eleven links, five of them
-   to the same anchor.
+/* The navy footer. Brand, the risk note, and the facts under its own line, and
+   nothing else (owner, 2026-11-02). It carried eleven links, five of them to
+   one anchor, and then briefly a closing call to action; both came out, because
+   the page bottom is not where a page finishes its argument. The topbar's
+   gates, the plan cards, and the burger are the ways onward.
 
    Gradient and rings are the reference's lit corner; the ring decorations are
-   pure CSS (no content, above nothing), now sitting under the second rule so
-   they never cross a hairline or stand under the meta text. */
+   pure CSS (no content, above nothing), sitting under the rule so they never
+   cross a hairline or stand under the meta text. */
 .pub-footer {
   position: relative;
   overflow: hidden;
-  padding: 48px 0 28px;
+  padding: 48px 0 32px;
   background: linear-gradient(160deg, var(--public-footer-top) 0%, var(--public-footer) 55%);
   color: var(--public-footer-strong);
 }
@@ -530,117 +530,24 @@
   bottom: -96px;
 }
 
-.pub-footer-cta,
 .pub-footer-rule,
-.pub-footer-disclose,
 .pub-disclaimer,
 .pub-footer-bottom {
   position: relative;
 }
 
-/* One frame for both upper bands: minmax(0, 1fr) auto. This is the whole reason
-   the void disappears. The old 1.5fr 1fr 1fr 1fr gave the brand block a fixed
-   third of the sheet while its three link columns ran far taller beside it, so
-   the column heads aligned with the top of the logo and the masthead read as a
-   fourth list. Content-sized `auto` needs no breakpoint between 760 and 1160. */
-.pub-footer-cta {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 20px 48px;
-  align-items: start;
-}
-
-/* The white is the value the features page's own closing band already printed
-   here before it moved down into the footer; moved, not invented. */
-.pub-footer-cta-title {
-  grid-column: 1;
-  margin: 0;
-  max-width: 24ch;
-  font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.012em;
-  color: #ffffff;
-}
-
-.pub-footer-cta-actions {
-  grid-column: 2;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-/* The primary inverts the card: white paper on navy, the pill the deleted band
-   carried. 44px clears the phone's tap minimum, the rule the hamburger obeys. */
-.pub-footer-cta-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 12px 24px;
-  background: var(--public-card);
-  color: var(--public-navy-deep);
-  border-radius: 999px;
-  font-size: 15px;
-  font-weight: 700;
-  text-decoration: none;
-  transition: background 140ms ease;
-}
-
-.pub-footer-cta-primary:hover {
-  background: var(--public-card-hover);
-}
-
-/* The secondary gate. The topbar carries the same two gates and is not sticky,
-   so a reader who has finished a long page has no gate on screen at all; this
-   band is where they get one back. The border holds 4:1 against both gradient
-   stops, so the control is visible without being the only thing that says it. */
-.pub-footer-cta-ghost {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 12px 22px;
-  background: none;
-  border: 1.5px solid rgba(201, 210, 238, 0.65);
-  border-radius: 999px;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--public-footer-strong);
-  cursor: pointer;
-  transition:
-    border-color 140ms ease,
-    color 140ms ease;
-}
-
-.pub-footer-cta-ghost:hover {
-  border-color: #ffffff;
-  color: #ffffff;
-}
-
-/* How payment actually works, said once, on every screen. The sentence the
-   features page's closing band carried; `dimula` was a typo and is fixed here. */
-.pub-footer-cta-note {
-  grid-column: 1 / -1;
-  margin: 0;
-  max-width: 62ch;
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: var(--public-footer-muted);
-}
-
-/* One rule, between the two bands. The old footer burned two hairlines on 44px
-   of disclaimer text; the meta line now separates by spacing alone. */
+/* One rule between the brand and the note. The footer used to burn two
+   hairlines on 44px of disclaimer text; the meta line separates by spacing. */
 .pub-footer-rule {
   height: 1px;
-  margin: 36px 0 32px;
+  margin: 32px 0 28px;
   background: rgba(201, 210, 238, 0.16);
 }
 
-/* Band 2 aligns to the bottom, not the top: one or two links level with the
-   last line of the tagline read as placed, while the same links beside the logo
-   read as a column with the rest of it missing. */
+/* Brand on the left, the contact address on the right, meeting at the bottom:
+   the address belongs beside who is speaking, not under the legal line. `auto`
+   for the second column means the row collapses to the brand alone when the
+   operator has published no address, with nothing left over looking empty. */
 .pub-footer-disclose {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -673,26 +580,33 @@
   color: var(--public-footer-strong);
 }
 
-/* The row of destinations that are genuinely different places. It never names
-   the screen the reader stands on, and never repeats the CTA's target. */
-.pub-footer-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 28px;
+/* A text link, not a button: the settings spec rules out a coloured control
+   here, and the address is what a visitor reads, so it is the thing shown. */
+.pub-footer-contact {
+  text-align: right;
 }
 
-.pub-footer-links a {
+.pub-footer-contact-label {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--public-footer-muted);
+}
+
+.pub-footer-contact a {
   font-size: 15px;
   color: var(--public-footer-strong);
   text-decoration: none;
 }
 
-.pub-footer-links a:hover {
+.pub-footer-contact a:hover {
   text-decoration: underline;
 }
 
 .pub-disclaimer {
-  margin: 26px 0 0;
+  margin: 0;
   max-width: 760px;
   font-size: 13px;
   line-height: 1.7;
@@ -751,10 +665,8 @@
   color: var(--public-footer-strong);
 }
 
-/* Focus is drawn on the surface rather than removed anywhere near it: a footer
-   link on navy with no ring is a keyboard user's dead end. */
-.pub-footer a:focus-visible,
-.pub-footer-cta-ghost:focus-visible,
+/* Focus is drawn on the surface rather than removed anywhere near it. */
+.pub-footer-contact a:focus-visible,
 .pub-footer-locale:focus-visible {
   outline: 2px solid #ffffff;
   outline-offset: 3px;
@@ -859,41 +771,23 @@
   }
 }
 
-/* The phone: both bands stack, the two gates split the line between them, and
-   the link row wraps. One breakpoint instead of the two the four-column grid
-   needed, because nothing here is a fixed fraction anymore. */
+/* The phone: spacing only, and the two columns of the disclose row stack. */
 @media (max-width: 760px) {
   .pub-footer {
-    padding: 40px 0 24px;
+    padding: 40px 0 26px;
   }
 
-  .pub-footer-cta,
   .pub-footer-disclose {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 20px;
   }
 
-  .pub-footer-cta-title {
-    grid-column: 1;
-    font-size: 22px;
-  }
-
-  .pub-footer-cta-actions {
-    grid-column: 1;
-  }
-
-  .pub-footer-cta-primary,
-  .pub-footer-cta-ghost {
-    flex: 1 1 auto;
-    justify-content: center;
+  .pub-footer-contact {
+    text-align: left;
   }
 
   .pub-footer-rule {
-    margin: 24px 0 22px;
-  }
-
-  .pub-disclaimer {
-    margin-top: 22px;
+    margin: 26px 0 24px;
   }
 
   .pub-footer-bottom {

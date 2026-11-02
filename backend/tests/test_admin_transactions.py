@@ -17,6 +17,8 @@ stays approvable; a `deny` is final for its row.
 """
 
 import asyncio
+import csv
+import io
 import uuid
 from datetime import timedelta
 
@@ -47,8 +49,16 @@ def _declare(client, plan="monthly", note=None):
     return client.post("/v1/payments/manual", json=body)
 
 
-def _queue(client, status="pending"):
-    return client.get(f"/v1/admin/transactions?status={status}")
+def _queue(client, status="pending", **params):
+    query = f"?status={status}" + "".join(f"&{k}={v}" for k, v in params.items())
+    return client.get(f"/v1/admin/transactions{query}")
+
+
+def _queue_rows(client, status="pending", **params):
+    """The page itself. `hasMore` is asserted separately, because the whole
+    point of the envelope is that a page must not be read as a history."""
+    body = _queue(client, status=status, **params).json()
+    return body["transactions"]
 
 
 class TestTheQueue:
@@ -61,7 +71,7 @@ class TestTheQueue:
         make_admin(client, fake_identity)
         login(client, "admin@aidss.id")
 
-        rows = _queue(client).json()
+        rows = _queue_rows(client)
 
         assert rows, "a declared payment is the work"
         row = rows[0]
@@ -85,9 +95,47 @@ class TestTheQueue:
 
         make_admin(client, fake_identity)
         login(client, "admin@aidss.id")
-        rows = _queue(client).json()
+        rows = _queue_rows(client)
 
         assert [r["id"] for r in rows] == [first_id, second_id]
+
+    def test_the_page_says_whether_more_exist(self, client, fake_identity):
+        """A bounded read that does not announce its own bound is a lie by
+        omission: the operator sees 1 row and concludes the queue holds 1.
+
+        The oldest rows are the ones a truncated history drops first, and they
+        are exactly the ones someone auditing a payment will ask about.
+        """
+        for n in range(3):
+            email = f"p{n}@aidss.id"
+            signup(client, email)
+            login(client, email)
+            _declare(client)
+
+        make_admin(client, fake_identity)
+        login(client, "admin@aidss.id")
+
+        page = _queue(client, limit=2).json()
+        assert len(page["transactions"]) == 2
+        assert page["hasMore"] is True
+
+        # The rest of it is reachable, not merely claimed to exist.
+        rest = _queue(client, limit=2, offset=2).json()
+        assert len(rest["transactions"]) == 1
+        assert rest["hasMore"] is False
+        assert [r["id"] for r in page["transactions"]] != [
+            r["id"] for r in rest["transactions"]
+        ]
+
+    def test_an_absurd_page_size_is_refused_not_served(self, client, fake_identity):
+        """The queue's bound is the same one the service already clamps to; a
+        request asking for the whole table should fail loudly rather than make
+        one."""
+        make_admin(client, fake_identity)
+        login(client, "admin@aidss.id")
+
+        assert _queue(client, limit=9999).status_code == 422
+        assert _queue(client, offset=-1).status_code == 422
 
     def test_a_non_admin_reads_nothing_and_decides_nothing(self, client, fake_identity):
         signup(client, "bukanadmin@aidss.id")
@@ -454,3 +502,154 @@ class TestAtomicSettlement:
         retry = client.post(f"/v1/admin/transactions/{transaction_id}/approve")
         assert retry.status_code == 200, retry.text
         assert len(fake_identity.subscriptions) == 1
+
+
+class TestCsvExport:
+    """The queue as a file, and the two ways a file like this goes wrong: it
+    leaks more than the screen shows, or it looks complete when it is not."""
+
+    def _export(self, client, **params):
+        query = "&".join(f"{k}={v}" for k, v in params.items())
+        return client.get(f"/v1/admin/transactions/export{('?' + query) if query else ''}")
+
+    def test_anonymous_cannot_pull_the_ledger(self, client):
+        assert self._export(client).status_code == 401
+
+    def test_a_normal_account_cannot_pull_anothers_details(self, client, fake_identity):
+        signup(client, "pengguna@aidss.id")
+        login(client, "pengguna@aidss.id")
+        assert self._export(client).status_code == 403
+
+    def test_the_file_is_a_download_of_exactly_the_columns_on_screen(
+        self, client, fake_identity
+    ):
+        signup(client, "unduh@aidss.id")
+        login(client, "unduh@aidss.id")
+        _declare(client, note="BCA 999000111")
+        make_admin(client, fake_identity)
+        login(client, "admin@aidss.id")
+
+        resp = self._export(client)
+        assert resp.status_code == 200, resp.text
+        assert resp.headers["content-type"].startswith("text/csv")
+        assert "attachment" in resp.headers["content-disposition"]
+
+        rows = list(csv.reader(io.StringIO(resp.text)))
+        header, body = rows[0], rows[1]
+        # No phone number, no password hash, no block timestamp. The export
+        # carries what the console already shows, and nothing quieter. The
+        # approval moment is in this file, so the queue prints it too; a column
+        # that only exists in the export would be a second ledger nobody reads.
+        assert header == [
+            "invoice_code",
+            "created_at",
+            "status",
+            "plan",
+            "amount",
+            "payment_gateway",
+            "payment_method",
+            "payer_email",
+            "admin_notes",
+            "approved_at",
+            "subscription_id",
+        ]
+        # `updated_at` is not the acceptance date: a denial moves it too, so a
+        # settled row's `updated_at` could be the day someone refused a different
+        # attempt. The file names the moment the money was taken, or nothing.
+        assert "updated_at" not in header
+        assert len(rows) == 2, "one declared payment is one row"
+        # Cells are found by the column that names them, never by position. The
+        # header above is the contract; a bare index would make this test fail
+        # for a reordering that changed nothing an operator reads.
+        cell = {name: header.index(name) for name in header}
+        assert body[cell["payer_email"]] == "unduh@aidss.id"
+        assert body[cell["admin_notes"]] == "BCA 999000111"
+        # Nothing has been approved on this row, so the column is empty rather
+        # than holding the declaration time under the name of the acceptance time.
+        assert body[cell["approved_at"]] == ""
+        assert body[cell["subscription_id"]] == ""
+
+    def test_an_approved_row_exports_the_moment_it_was_approved(
+        self, client, fake_identity
+    ):
+        """The column has to be filled by the thing it names.
+
+        An empty `approved_at` on a settled row would be the file claiming the
+        money was never taken, and a `created_at` copied into it would be the
+        file claiming the declaration was the decision."""
+        signup(client, "lulus@aidss.id")
+        login(client, "lulus@aidss.id")
+        transaction_id = _declare(client, plan="monthly").json()["id"]
+
+        make_admin(client, fake_identity)
+        login(client, "admin@aidss.id")
+        approved = client.post(
+            f"/v1/admin/transactions/{transaction_id}/approve"
+        ).json()
+
+        rows = list(csv.reader(io.StringIO(self._export(client, status="settlement").text)))
+        header, body = rows[0], rows[1]
+        cell = {name: header.index(name) for name in header}
+        assert body[cell["approved_at"]], "a settled row exports the moment it was approved"
+        assert (
+            body[cell["approved_at"]] != body[cell["created_at"]]
+        ), "the acceptance time is not the declaration time"
+        assert body[cell["subscription_id"]] == approved["subscriptionId"]
+
+    def test_a_note_full_of_separators_stays_one_cell(self, client, fake_identity):
+        """A payer's free text must not be able to re-shape the file someone is
+        going to trust and total up."""
+        signup(client, "cerewet@aidss.id")
+        login(client, "cerewet@aidss.id")
+        _declare(client, note='satu,dua "tiga"\nempat')
+        make_admin(client, fake_identity)
+        login(client, "admin@aidss.id")
+
+        rows = list(csv.reader(io.StringIO(self._export(client).text)))
+        assert len(rows) == 2, "the embedded newline stayed inside a quoted cell"
+        # Located by column name: this assertion is about the cell's content
+        # surviving the separators inside it, not about where the column sits.
+        assert rows[1][rows[0].index("admin_notes")] == 'satu,dua "tiga"\nempat'
+
+    def test_a_note_that_starts_like_a_formula_is_neutered(self, client, fake_identity):
+        """`=HYPERLINK(...)` in a cell is code to a spreadsheet. The note is text
+        a payer wrote, so this is a real path from a CSV to the operator's
+        laptop, not a theoretical one."""
+        signup(client, "jahil@aidss.id")
+        login(client, "jahil@aidss.id")
+        _declare(client, note="=cmd|'/c calc'!A1")
+        make_admin(client, fake_identity)
+        login(client, "admin@aidss.id")
+
+        body = self._export(client).text
+        assert '"\'=cmd' in body, "the leading apostrophe is what stops the formula"
+
+    def test_a_cut_off_file_says_so_instead_of_looking_complete(
+        self, client, fake_identity
+    ):
+        """The whole reason this export is bounded and honest about it: a file
+        that silently stops at a cap makes an operator reconcile against nothing
+        and conclude the money is missing."""
+        for n in range(3):
+            email = f"banyak{n}@aidss.id"
+            signup(client, email)
+            login(client, email)
+            _declare(client)
+
+        make_admin(client, fake_identity)
+        login(client, "admin@aidss.id")
+
+        body = self._export(client, limit=2).text
+        assert "# truncated at 2 rows; more exist." in body
+        assert "offset=2" in body
+
+        # And a complete file does not claim to be truncated.
+        whole = self._export(client, limit=10).text
+        assert "# truncated" not in whole
+
+    def test_an_unknown_filter_is_refused_before_anything_is_read(
+        self, client, fake_identity
+    ):
+        make_admin(client, fake_identity)
+        login(client, "admin@aidss.id")
+        assert self._export(client, status="nonsense").status_code == 422

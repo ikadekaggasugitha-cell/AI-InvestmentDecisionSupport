@@ -18,6 +18,7 @@ from api.core.db import get_pool
 from api.services.payment_service.core import (
     _MAX_METHOD_CHARS,
     _MAX_NOTE_CHARS,
+    _MAX_QUEUE_FETCH,
     _OWN_LIST_LIMIT,
     _QUEUE_LIMIT,
     PLAN_DAYS,
@@ -150,31 +151,45 @@ async def list_transactions_for_user(
 
 
 async def list_transactions_for_admin(
-    status: str = "pending", limit: int = _QUEUE_LIMIT
-) -> list[Transaction]:
-    """The work queue, oldest first, with the payer attached.
+    status: str = "pending",
+    limit: int = _QUEUE_LIMIT,
+    offset: int = 0,
+) -> tuple[list[Transaction], bool]:
+    """One page of the work queue, oldest first, and whether rows exist past it.
 
     Oldest first because the queue is order of arrival: a transfer declared
     yesterday at 22:00 sits at the top, not under the week's fresh noise. The
     email travels with the row — without it the operator cannot match the
     transfer to an account at all.
+
+    Paged, and the second return value is why that matters. Before this the query
+    simply stopped at 200 rows, so `status=all` on a growing install answered with
+    a truncated history that looked complete: the oldest rows, which are the ones
+    an auditor asks about, were the first to go silent. One over-fetch answers
+    `hasMore` without a second COUNT, the same way the account list does it.
+
+    `limit` is clamped to `_MAX_QUEUE_FETCH` rather than to the page size, because
+    the same read serves the CSV export as the screen: the caller chooses how much
+    it wants to carry, and this is the ceiling it cannot ask past.
     """
     pool = await get_pool()
+    bounded = max(1, min(int(limit), _MAX_QUEUE_FETCH))
     rows = await pool.fetch(
         """
         SELECT t.id, t.user_id, t.invoice_code, t.amount, t.plan,
                t.payment_gateway, t.payment_method, t.status, t.admin_notes,
-               t.subscription_id, t.created_at, t.updated_at, u.email
+               t.subscription_id, t.created_at, t.updated_at, t.approved_at, u.email
           FROM transactions t
           JOIN users u ON u.id = t.user_id
          WHERE ($1::text IS NULL OR t.status = $1)
          ORDER BY t.created_at
-         LIMIT $2
+         LIMIT $2 OFFSET $3
         """,
         None if status is None else status,
-        max(1, min(int(limit), _QUEUE_LIMIT)),
+        bounded + 1,
+        max(0, int(offset)),
     )
-    return [_to_transaction(r) for r in rows]
+    return [_to_transaction(r) for r in rows[:bounded]], len(rows) > bounded
 
 
 async def approve_transaction(

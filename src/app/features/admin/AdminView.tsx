@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 
-import { ENDPOINTS, apiFetch } from '@/app/config/api'
 import { useApp } from '@/app/context/AppContext'
+import { AdminAccountsView, useAdminAccounts } from '@/app/features/admin/AdminAccountsView'
 import { AdminBankAccountsView } from '@/app/features/admin/AdminBankAccountsView'
+import { AdminContactView } from '@/app/features/admin/AdminContactView'
+import { AdminDashboardView } from '@/app/features/admin/AdminDashboardView'
+import { AdminIntegrationsView } from '@/app/features/admin/AdminIntegrationsView'
 import { AdminPricingView } from '@/app/features/admin/AdminPricingView'
+import { AdminTransactionsView } from '@/app/features/admin/AdminTransactionsView'
 import logoUrl from '@/assets/aidss-logo.svg'
 
 /**
- * Account administration: the list, and blocking or unblocking.
+ * The console's shell: the operator gate, the tab strip, and the footer.
  *
  * Reached at its own URL (`/admin`) rather than from the sidebar. That is a
  * deliberate choice and not an omission: this is an operational tool, not a place
@@ -16,127 +20,22 @@ import logoUrl from '@/assets/aidss-logo.svg'
  * non-admins with 403 regardless — this is about who can *find* the page, not who
  * can use it.
  *
- * Nothing here is invented. Every field on a row comes from the server: there is
- * no plan name, no spend figure, and no "last seen" column, because none of those
- * is recorded anywhere. A column here would be a column of invented data.
+ * The one piece of data the shell owns is the account list's load state, because
+ * that read is also the probe that answers "is this person an operator at all":
+ * the gate screen and the `OPERATOR ACCESS` tag both hang on it. The list itself,
+ * its columns and its row actions live in `AdminAccountsView`, which receives
+ * that state rather than issuing a second read.
  */
 
-interface AdminAccount {
-  id: string
-  email: string
-  full_name: string
-  phone_number: string
-  role: string
-  blocked: boolean
-  blocked_at: string | null
-}
-
-interface AccountsPage {
-  accounts: AdminAccount[]
-  hasMore: boolean
-}
-
-const PAGE_SIZE = 25
-
-type LoadState =
-  | { kind: 'loading' }
-  | { kind: 'ready'; page: AccountsPage; offset: number }
-  | { kind: 'denied' }
-  | { kind: 'error'; message: string }
-
-type AdminTab = 'accounts' | 'pricing' | 'payments'
+type AdminTab =
+  'dashboard' | 'accounts' | 'transactions' | 'pricing' | 'payments' | 'contact' | 'integrations'
 
 export function AdminView() {
   const { locale } = useApp()
   const isId = locale === 'id'
-  const [tab, setTab] = useState<AdminTab>('accounts')
-  const [state, setState] = useState<LoadState>({ kind: 'loading' })
-  // The account being acted on, so exactly one row shows progress and a failure
-  // cannot leave every row looking busy.
-  const [pending, setPending] = useState<string | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
-
-  const load = useCallback(
-    async (offset: number, signal?: AbortSignal) => {
-      setState({ kind: 'loading' })
-      try {
-        const res = await apiFetch(
-          `${ENDPOINTS.adminAccounts}?limit=${PAGE_SIZE}&offset=${offset}`,
-          signal ? { signal } : undefined,
-        )
-        if (res.status === 403) {
-          // Neither an empty list nor a generic failure. The endpoint answered,
-          // and the answer is that this person may not see it, so the page
-          // becomes the gate screen rather than a table with a note inside it.
-          setState({ kind: 'denied' })
-          return
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        setState({ kind: 'ready', page: await res.json(), offset })
-      } catch {
-        if (signal?.aborted) return
-        // "We could not ask" is not "there is nothing". Showing an empty table here
-        // would tell someone whose accounts are all there that they have none.
-        setState({
-          kind: 'error',
-          message: isId
-            ? 'Daftar akun tidak dapat dimuat. Ini bukan berarti tidak ada akun.'
-            : 'The account list could not be loaded. That does not mean there are no accounts.',
-        })
-      }
-    },
-    [isId],
-  )
-
-  useEffect(() => {
-    const controller = new AbortController()
-    void load(0, controller.signal)
-    return () => controller.abort()
-  }, [load])
-
-  const act = useCallback(
-    async (accountId: string, blocked: boolean) => {
-      setPending(accountId)
-      setActionError(null)
-      const offset = state.kind === 'ready' ? state.offset : 0
-      try {
-        const res = await apiFetch(`${ENDPOINTS.adminAccounts}/${accountId}/block`, {
-          method: blocked ? 'DELETE' : 'POST',
-        })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        // Reload rather than patching the row in place. The server decides what
-        // `blocked_at` is, and a locally patched row would be a claim about the
-        // server's answer rather than the answer itself.
-        await load(offset)
-      } catch {
-        setActionError(
-          isId
-            ? 'Aksi gagal. Status akun tidak berubah.'
-            : "The action failed. The account's state is unchanged.",
-        )
-      } finally {
-        setPending(null)
-      }
-    },
-    [isId, load, state],
-  )
-
-  const th = {
-    padding: '10px 12px',
-    textAlign: 'left' as const,
-    fontSize: 12,
-    color: 'var(--muted-foreground)',
-    borderBottom: '1px solid var(--border)',
-    whiteSpace: 'nowrap',
-  }
-  const td = {
-    padding: '14px 12px',
-    fontSize: 13,
-    color: 'var(--foreground)',
-    borderBottom: '1px solid var(--border)',
-  }
-
-  const accounts = state.kind === 'ready' ? state.page.accounts : []
+  const [tab, setTab] = useState<AdminTab>('dashboard')
+  const accounts = useAdminAccounts()
+  const state = accounts.state
 
   return (
     <div className="min-h-0 flex-1" style={{ overflowY: 'auto', padding: 24 }}>
@@ -189,9 +88,11 @@ export function AdminView() {
           <GateSection isId={isId} />
         ) : (
           <>
-            {/* Three tabs, not three routes. /admin is already an operational tool at its
-            own URL with no sidebar entry, so a second URL would add routing and a
-            nav element to solve a problem the page does not have. */}
+            {/* Seven tabs, not seven routes. /admin is already an operational tool at
+            its own URL with no sidebar entry, so a second URL would add routing and a
+            nav element to solve a problem the page does not have. The overview
+            opens because it is the question an operator arrives with; the queue
+            sits second as the daily work. */}
             <div
               role="tablist"
               aria-label={isId ? 'Bagian admin' : 'Admin sections'}
@@ -199,9 +100,16 @@ export function AdminView() {
             >
               {(
                 [
+                  ['dashboard', isId ? 'Ringkasan' : 'Overview'],
                   ['accounts', isId ? 'Akun' : 'Accounts'],
+                  ['transactions', isId ? 'Antrean' : 'Queue'],
                   ['pricing', isId ? 'Harga' : 'Pricing'],
-                  ['payments', isId ? 'Pembayaran' : 'Payments'],
+                  // Was "Pembayaran". Once a real payment queue exists, a tab
+                  // called Payments that opens bank-account settings is not
+                  // merely vague, it points at the wrong thing.
+                  ['payments', isId ? 'Rekening' : 'Destinations'],
+                  ['contact', isId ? 'Kontak' : 'Contact'],
+                  ['integrations', isId ? 'Integrasi' : 'Integrations'],
                 ] as [AdminTab, string][]
               ).map(([id, label]) => (
                 <button
@@ -229,7 +137,19 @@ export function AdminView() {
               ))}
             </div>
 
-            {tab === 'pricing' ? (
+            {tab === 'dashboard' ? (
+              <div id="admin-panel-dashboard" role="tabpanel" aria-labelledby="admin-tab-dashboard">
+                <AdminDashboardView onOpenQueue={() => setTab('transactions')} />
+              </div>
+            ) : tab === 'transactions' ? (
+              <div
+                id="admin-panel-transactions"
+                role="tabpanel"
+                aria-labelledby="admin-tab-transactions"
+              >
+                <AdminTransactionsView />
+              </div>
+            ) : tab === 'pricing' ? (
               <div id="admin-panel-pricing" role="tabpanel" aria-labelledby="admin-tab-pricing">
                 <AdminPricingView />
               </div>
@@ -237,210 +157,23 @@ export function AdminView() {
               <div id="admin-panel-payments" role="tabpanel" aria-labelledby="admin-tab-payments">
                 <AdminBankAccountsView />
               </div>
-            ) : (
-              <div id="admin-panel-accounts" role="tabpanel" aria-labelledby="admin-tab-accounts">
-                <div>
-                  <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
-                    {isId ? 'Kelola Akun' : 'Manage Accounts'}
-                  </h2>
-                  <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 4 }}>
-                    {isId
-                      ? 'Memblokir berlaku pada request berikutnya. Sesi yang sudah terbit tidak dihapus (ADR-0004).'
-                      : "A block takes effect on the account's next request. Existing sessions are not deleted (ADR-0004)."}
-                  </p>
-                </div>
-
-                {actionError && (
-                  <div
-                    role="alert"
-                    style={{
-                      fontSize: 12,
-                      color: 'var(--loss)',
-                      background: 'var(--loss-bg)',
-                      padding: '8px 10px',
-                      borderRadius: 4,
-                    }}
-                  >
-                    {actionError}
-                  </div>
-                )}
-
-                <div
-                  style={{
-                    background: 'var(--card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius)',
-                    overflowX: 'auto',
-                  }}
-                >
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr>
-                        <th style={th}>{isId ? 'Nama' : 'Name'}</th>
-                        <th style={th}>Email</th>
-                        <th style={th}>Role</th>
-                        <th style={th}>{isId ? 'Status' : 'Status'}</th>
-                        <th style={{ ...th, textAlign: 'right' }}>{isId ? 'Aksi' : 'Action'}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {state.kind === 'loading' && (
-                        <tr>
-                          <td colSpan={5} style={{ ...td, color: 'var(--muted-foreground)' }}>
-                            {isId ? 'Memuat…' : 'Loading…'}
-                          </td>
-                        </tr>
-                      )}
-
-                      {state.kind === 'error' && (
-                        <tr>
-                          <td colSpan={5} style={{ ...td, color: 'var(--muted-foreground)' }}>
-                            {state.message}
-                          </td>
-                        </tr>
-                      )}
-
-                      {state.kind === 'ready' && accounts.length === 0 && (
-                        <tr>
-                          <td colSpan={5} style={{ ...td, color: 'var(--muted-foreground)' }}>
-                            {isId ? 'Tidak ada akun.' : 'No accounts.'}
-                          </td>
-                        </tr>
-                      )}
-
-                      {accounts.map((account) => (
-                        <tr key={account.id}>
-                          <td style={td}>{account.full_name}</td>
-                          <td style={{ ...td, color: 'var(--muted-foreground)' }}>
-                            {account.email}
-                          </td>
-                          <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{account.role}</td>
-                          <td style={{ ...td, color: 'var(--muted-foreground)' }}>
-                            {account.blocked
-                              ? isId
-                                ? 'Diblokir'
-                                : 'Blocked'
-                              : isId
-                                ? 'Aktif'
-                                : 'Active'}
-                            {/* The timestamp is real and the server owns it; print it
-                        where the status it explains sits, not as a column of
-                        invented "last seen". */}
-                            {account.blocked && account.blocked_at && (
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  fontFamily: 'var(--font-mono)',
-                                  fontVariantNumeric: 'tabular-nums',
-                                  color: 'var(--muted-foreground)',
-                                  marginTop: 3,
-                                }}
-                              >
-                                {isId ? 'sejak ' : 'since '}
-                                {new Date(account.blocked_at).toLocaleDateString(
-                                  isId ? 'id-ID' : 'en-GB',
-                                  {
-                                    day: 'numeric',
-                                    month: 'short',
-                                    year: 'numeric',
-                                  },
-                                )}
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ ...td, textAlign: 'right' }}>
-                            <button
-                              type="button"
-                              onClick={() => void act(account.id, account.blocked)}
-                              disabled={pending === account.id}
-                              aria-label={
-                                account.blocked
-                                  ? isId
-                                    ? `Buka blokir ${account.email}`
-                                    : `Unblock ${account.email}`
-                                  : isId
-                                    ? `Blokir ${account.email}`
-                                    : `Block ${account.email}`
-                              }
-                              style={{
-                                fontSize: 11,
-                                padding: '4px 8px',
-                                minHeight: 28,
-                                color: account.blocked ? 'var(--foreground)' : 'var(--loss)',
-                                background: 'transparent',
-                                // Same floor as the pagination buttons — a button outline is
-                                // a control boundary, not a row divider.
-                                border: `1px solid ${account.blocked ? 'var(--control-border)' : 'var(--loss)'}`,
-                                borderRadius: 3,
-                                cursor: pending === account.id ? 'default' : 'pointer',
-                                opacity: pending === account.id ? 0.5 : 1,
-                              }}
-                            >
-                              {pending === account.id
-                                ? '…'
-                                : account.blocked
-                                  ? isId
-                                    ? 'Buka blokir'
-                                    : 'Unblock'
-                                  : isId
-                                    ? 'Blokir'
-                                    : 'Block'}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {state.kind === 'ready' && accounts.length > 0 && (
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button
-                      type="button"
-                      onClick={() => void load(Math.max(0, state.offset - PAGE_SIZE))}
-                      disabled={state.offset === 0}
-                      style={{
-                        fontSize: 12,
-                        padding: '5px 10px',
-                        minHeight: 32,
-                        color: 'var(--foreground)',
-                        background: 'transparent',
-                        // --control-border, not --border: ADR-0007 gives interactive
-                        // boundaries a contrast floor, and --border is a divider token that
-                        // sits below it on purpose.
-                        border: '1px solid var(--control-border)',
-                        borderRadius: 3,
-                        cursor: state.offset === 0 ? 'default' : 'pointer',
-                        opacity: state.offset === 0 ? 0.5 : 1,
-                      }}
-                    >
-                      {isId ? 'Sebelumnya' : 'Previous'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void load(state.offset + PAGE_SIZE)}
-                      disabled={!state.page.hasMore}
-                      style={{
-                        fontSize: 12,
-                        padding: '5px 10px',
-                        minHeight: 32,
-                        color: 'var(--foreground)',
-                        background: 'transparent',
-                        border: '1px solid var(--control-border)',
-                        borderRadius: 3,
-                        cursor: state.page.hasMore ? 'pointer' : 'default',
-                        opacity: state.page.hasMore ? 1 : 0.5,
-                      }}
-                    >
-                      {isId ? 'Berikutnya' : 'Next'}
-                    </button>
-                    <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
-                      {state.offset + 1}–{state.offset + accounts.length}
-                    </span>
-                  </div>
-                )}
+            ) : tab === 'contact' ? (
+              <div id="admin-panel-contact" role="tabpanel" aria-labelledby="admin-tab-contact">
+                <AdminContactView />
               </div>
-            )}
+            ) : tab === 'integrations' ? (
+              <div
+                id="admin-panel-integrations"
+                role="tabpanel"
+                aria-labelledby="admin-tab-integrations"
+              >
+                <AdminIntegrationsView />
+              </div>
+            ) : tab === 'accounts' ? (
+              <div id="admin-panel-accounts" role="tabpanel" aria-labelledby="admin-tab-accounts">
+                <AdminAccountsView accounts={accounts} />
+              </div>
+            ) : null}
           </>
         )}
 

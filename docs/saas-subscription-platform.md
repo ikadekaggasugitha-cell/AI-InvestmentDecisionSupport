@@ -353,6 +353,24 @@ Panel admin diletakkan pada **route/portal terpisah** dari antarmuka dashboard p
 
 ### 5.1 Modul-Modul di Admin Panel
 
+> **Sudah dibangun, dengan tiga butir yang tidak bisa dibangun seperti tertulis di
+> bawah.** Konsolnya ada di `/admin` sebagai satu URL dengan tab, bukan route per
+> modul — keputusan yang tercatat di `AdminView.tsx` dan dipin tesnya. Tabel akun
+> kini memuat No WA, tanggal berakhir, dan status tiga keadaan, serta bisa dicari
+> dan disaring status di server. Yang masih **tidak** ada di tabel itu adalah
+> kolom "Paket": `subscriptions` tidak menyimpan paket (ADR-0002), dan grant
+> manual menghasilkan periode tanpa paket sama sekali. Butir blueprint
+> yang tidak ada dan alasannya: (1) **pratinjau bukti transfer** — `proof_image_url`
+> sengaja tidak pernah diisi, buktinya teks di `admin_notes`
+> ([ADR-0011](adr/0011-satu-penulis-subscriptions.md)); (2) **notifikasi saat
+> approve** — tidak ada jalur email maupun WhatsApp di kode ini, jadi approve
+> menulis akses dan tidak mengirim apa pun; (3) **pengaturan kunci API** —
+> kredensial tinggal di lingkungan deployment dan `get_settings()` dibaca sekali
+> saat import, jadi formulir apa pun akan tampak menyimpan tanpa mengubah apa
+> pun; yang ada adalah panel status hanya-baca untuk Midtrans saja, karena SMTP
+> dan WhatsApp tidak punya field maupun transport. Keadaan sebenarnya ada di
+> `docs/status.md`.
+
 ```
 Admin Portal (/admin)
 ├── 1. Dashboard Eksekutif (/admin)
@@ -401,14 +419,16 @@ Admin Portal (/admin)
 ### 6.3 Endpoint Admin Portal (Protected `role: admin`)
 | Method | Endpoint | Deskripsi | Akses |
 | :--- | :--- | :--- | :--- |
-| `GET`  | `/v1/admin/analytics/overview` | Metrik MRR, total pendapatan, subscriber aktif | Admin |
-| `GET`  | `/v1/admin/transactions/pending` | Daftar transaksi manual yang butuh approval | Admin |
-| `POST` | `/v1/admin/transactions/{id}/approve` | Setujui transfer manual & aktifkan masa langganan | Admin |
-| `POST` | `/v1/admin/transactions/{id}/reject` | Tolak transfer manual disertai catatan alasan | Admin |
-| `GET`  | `/v1/admin/users` | Daftar seluruh user + filter status & pencarian | Admin |
-| `POST` | `/v1/admin/users/{id}/grant-subscription` | Membuat Subscription baru (perpanjangan) | Admin |
+| `GET`  | `/v1/admin/analytics/overview` | Metrik MRR, total pendapatan, subscriber aktif. **Sudah ada** | Admin |
+| `GET`  | `/v1/admin/transactions` | Antrean dengan bukti per baris; berpaginasi lewat `limit`/`offset` dan menjawab `hasMore`. **Sudah ada** | Admin |
+| `GET`  | `/v1/admin/transactions/export` | Baris yang sama sebagai CSV, dibatasi dan menyatakan dirinya kalau terpotong. **Sudah ada** | Admin |
+| `POST` | `/v1/admin/transactions/{id}/approve` | Setujui transfer manual & aktifkan masa langganan. **Sudah ada** | Admin |
+| `POST` | `/v1/admin/transactions/{id}/deny` | Tolak transfer manual disertai catatan alasan. **Sudah ada** | Admin |
+| `GET`  | `/v1/admin/accounts` | Daftar seluruh user + filter status & pencarian. **Sudah ada**, termasuk keduanya: `q` cocok dengan email atau nama, `state` memotong pada `blocked_at`. Dua-duanya predikat di dalam statement, bukan saringan atas satu halaman | Admin |
+| `POST` | `/v1/admin/accounts/{id}/grant-subscription` | Membuat Subscription baru (perpanjangan). **Sudah ada**, di path `/v1/admin/accounts/{id}/subscription` | Admin |
 | `PUT`  | `/v1/admin/settings/pricing` | Perbarui nominal harga bulanan & tahunan. **Sudah ada** | Admin |
-| `PUT`  | `/v1/admin/settings/bank-accounts` | Perbarui daftar rekening bank transfer manual | Admin |
+| `PUT`  | `/v1/admin/settings/bank-accounts` | Perbarui daftar rekening bank transfer manual. **Sudah ada** | Admin |
+| `GET`  | `/v1/admin/settings/integrations` | Status gateway Midtrans, hanya-baca, tanpa nilai kunci. **Sudah ada** | Admin |
 
 ---
 

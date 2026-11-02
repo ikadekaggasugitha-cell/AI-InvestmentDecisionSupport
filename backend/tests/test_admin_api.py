@@ -33,12 +33,12 @@ def client(monkeypatch, mock_redis):
     get_settings.cache_clear()
 
 
-def signup(client, email):
+def signup(client, email, full_name="Nama Uji"):
     resp = client.post(
         "/v1/auth/signup",
         json={
             "email": email,
-            "full_name": "Nama Uji",
+            "full_name": full_name,
             "phone_number": "081234567890",
             "password": "s3cret-pass",
         },
@@ -203,6 +203,19 @@ class TestBlockingOverHttp:
         assert resp.json()["detail"] == "An administrator cannot block their own account."
 
 
+def client_get_accounts(client, params=""):
+    """One read of the account list that refuses to fail quietly.
+
+    The assertion lives here because a filter test that got a 422 or a 500 would
+    otherwise read as "the filter returned nothing", which is the one wrong
+    answer a test about filters must not be able to give.
+    """
+    query = f"?{params}" if params else ""
+    resp = client.get(f"/v1/admin/accounts{query}")
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
 class TestListingShape:
     def test_the_list_reports_whether_more_exist(self, client, fake_identity):
         """Without hasMore the caller cannot tell "that is everyone" from "that is
@@ -219,7 +232,9 @@ class TestListingShape:
 
         everything = client.get("/v1/admin/accounts?limit=200").json()
         assert everything["hasMore"] is False
-        assert len(everything["accounts"]) == len(everything["accounts"])
+        # The count is compared against something that is not itself: a page that
+        # is not truncated has to have brought back every account there is.
+        assert len(everything["accounts"]) == len(fake_identity.users)
 
     def test_the_list_shows_block_state(self, client, fake_identity):
         make_admin(client, fake_identity)
@@ -235,6 +250,185 @@ class TestListingShape:
         """An unbounded limit would let one request ask for the whole table."""
         make_admin(client, fake_identity)
         assert client.get("/v1/admin/accounts?limit=5000").status_code == 422
+
+    def test_the_list_carries_the_reason_that_decides_the_door(self, client, fake_identity):
+        """`blocked_reason` is not decoration: 'admin' reopens only here, while
+        'subscription_expired' reopens on payment. An operator who cannot see
+        which one a row holds cannot know whether the button in front of them is
+        the right action (ADR-0012)."""
+        make_admin(client, fake_identity)
+        target = signup(client, "target@aidss.id")
+        login(client, "admin@aidss.id")
+        client.post(f"/v1/admin/accounts/{target}/block", json={"reason": "penyalahgunaan"})
+
+        row = next(
+            a for a in client.get("/v1/admin/accounts").json()["accounts"] if a["id"] == target
+        )
+        assert row["blocked"] is True
+        assert row["blocked_reason"] == "admin"
+
+    def test_the_list_reports_the_period_the_grant_endpoint_wrote(self, client, fake_identity):
+        """One fact, two ends of it.
+
+        The expiry column is only honest if it is the same period the grant
+        endpoint just minted, so this drives the write through the API and reads
+        the answer back off the list rather than seeding the fake by hand.
+        """
+        make_admin(client, fake_identity)
+        target = signup(client, "target@aidss.id")
+        login(client, "admin@aidss.id")
+
+        # No period yet: the column is absent, not zero and not a guess.
+        before = next(
+            a for a in client.get("/v1/admin/accounts").json()["accounts"] if a["id"] == target
+        )
+        assert before["subscriptionExpiresAt"] is None
+
+        granted = client.post(
+            f"/v1/admin/accounts/{target}/subscription",
+            json={"days": 30, "reason": "uji coba untuk pemilik"},
+        )
+        assert granted.status_code == 200, granted.text
+
+        after = next(
+            a for a in client.get("/v1/admin/accounts").json()["accounts"] if a["id"] == target
+        )
+        assert after["subscriptionExpiresAt"] == granted.json()["expiresAt"]
+
+    def test_the_list_reports_the_furthest_period_not_the_last_one(self, client, fake_identity):
+        """Two periods on one account: the list shows the later end.
+
+        `subscriptions` is one row per purchase and never mutated, so an account
+        that renewed early holds two periods. Showing the first would understate
+        the access the account actually has.
+        """
+        make_admin(client, fake_identity)
+        target = signup(client, "target@aidss.id")
+        login(client, "admin@aidss.id")
+
+        first = client.post(f"/v1/admin/accounts/{target}/subscription", json={"days": 7})
+        second = client.post(f"/v1/admin/accounts/{target}/subscription", json={"days": 30})
+        assert second.json()["expiresAt"] > first.json()["expiresAt"]
+
+        after = next(
+            a for a in client.get("/v1/admin/accounts").json()["accounts"] if a["id"] == target
+        )
+        assert after["subscriptionExpiresAt"] == second.json()["expiresAt"]
+
+
+class TestSearchingAndFilteringTheList:
+    """The two controls §5.1 asks the account table to have.
+
+    Both are tested for the failure that matters on a list of hundreds of
+    accounts: a filter that silently does nothing reports "nobody matches" about
+    a window, and an operator stops looking for an account that is there.
+    """
+
+    def _emails(self, client, params=""):
+        return [a["email"] for a in client_get_accounts(client, params)["accounts"]]
+
+    def test_a_term_finds_the_email_it_is_inside(self, client, fake_identity):
+        make_admin(client, fake_identity)
+        signup(client, "budi.santoso@aidss.id")
+        signup(client, "siti@aidss.id")
+        login(client, "admin@aidss.id")
+
+        found = self._emails(client, "q=budi")
+        assert found == ["budi.santoso@aidss.id"]
+
+    def test_a_term_finds_the_name_too(self, client, fake_identity):
+        """Operators are handed a name on a support ticket, not an address."""
+        make_admin(client, fake_identity)
+        signup(client, "x1@aidss.id", full_name="Rina Wibowo")
+        signup(client, "x2@aidss.id", full_name="Budi Santoso")
+        login(client, "admin@aidss.id")
+
+        found = self._emails(client, "q=wibowo")
+        assert found == ["x1@aidss.id"]
+
+    def test_the_match_ignores_case(self, client, fake_identity):
+        make_admin(client, fake_identity)
+        signup(client, "Budi.S@aidss.id")
+        login(client, "admin@aidss.id")
+
+        assert self._emails(client, "q=BUDI.S") == self._emails(client, "q=budi.s")
+
+    def test_a_term_with_a_wildcard_is_not_a_wildcard(self, client, fake_identity):
+        """"50%" is a string people put in names, and searching for it must not
+        return every account whose name starts with 50."""
+        make_admin(client, fake_identity)
+        signup(client, "promo@aidss.id", full_name="Diskon 50% Hari Ini")
+        signup(client, "other@aidss.id", full_name="Diskon 500 Hari Ini")
+        login(client, "admin@aidss.id")
+
+        found = client_get_accounts(client, "q=50%25")
+        names = [a["full_name"] for a in found["accounts"]]
+        assert names == ["Diskon 50% Hari Ini"]
+
+    def test_an_empty_term_is_no_filter_at_all(self, client, fake_identity):
+        make_admin(client, fake_identity)
+        signup(client, "siapa@aidss.id")
+        login(client, "admin@aidss.id")
+
+        everyone = len(client_get_accounts(client)["accounts"])
+        assert len(client_get_accounts(client, "q=")["accounts"]) == everyone
+        assert len(client_get_accounts(client, "q=%20")["accounts"]) == everyone
+
+    def test_the_state_filter_keeps_closed_accounts_out(self, client, fake_identity):
+        make_admin(client, fake_identity)
+        blocked = signup(client, "tertutup@aidss.id")
+        signup(client, "terbuka@aidss.id")
+        login(client, "admin@aidss.id")
+        client.post(f"/v1/admin/accounts/{blocked}/block")
+
+        active = self._emails(client, "state=active")
+        assert "tertutup@aidss.id" not in active
+        assert "terbuka@aidss.id" in active
+
+        closed = self._emails(client, "state=blocked")
+        assert closed == ["tertutup@aidss.id"]
+
+    def test_an_unknown_state_is_refused_not_answered_with_everyone(
+        self, client, fake_identity
+    ):
+        """A filter word nobody recognised, treated as no filter, would show an
+        operator the whole list under a heading that says otherwise."""
+        make_admin(client, fake_identity)
+        login(client, "admin@aidss.id")
+
+        assert client.get("/v1/admin/accounts?state=locken").status_code == 422
+
+    def test_search_and_state_and_page_work_together(self, client, fake_identity):
+        make_admin(client, fake_identity)
+        for name in ("satu", "dua", "tiga"):
+            signup(client, f"cari-{name}@aidss.id")
+        login(client, "admin@aidss.id")
+
+        first = client_get_accounts(client, "q=cari&limit=2&offset=0")
+        assert len(first["accounts"]) == 2
+        assert first["hasMore"] is True
+
+        second = client_get_accounts(client, "q=cari&limit=2&offset=2")
+        assert len(second["accounts"]) == 1
+        assert second["hasMore"] is False
+        # The two pages are disjoint: an offset that ignored the filter would
+        # answer from the unfiltered list and repeat or drop rows.
+        overlap = set(a["id"] for a in first["accounts"]) & set(
+            a["id"] for a in second["accounts"]
+        )
+        assert overlap == set()
+
+    def test_a_filter_that_matches_nothing_says_so_without_looking_like_an_error(
+        self, client, fake_identity
+    ):
+        make_admin(client, fake_identity)
+        signup(client, "ada@aidss.id")
+        login(client, "admin@aidss.id")
+
+        body = client_get_accounts(client, "q=tidakadayangcocok")
+        assert body["accounts"] == []
+        assert body["hasMore"] is False
+
 
 class TestBlockingTakesEffectImmediately:
     """CONTEXT.md rule 8: disabling access is the Account's business, and it takes

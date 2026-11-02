@@ -1,17 +1,17 @@
 """
-Reading and writing the price, and the payment destinations.
+Reading and writing the price, the payment destinations, and the contact address.
 
-`system_settings` holds the price and nothing else writes it, which is the point:
-the value used to exist in a document, so nothing could read it programmatically
-and nobody could change it without editing prose. There is one function that
-writes and one that reads, here, rather than SQL in two routers — the same rule
-`accounts.py` follows for `blocked_at`, because two writers means an update that
-cannot be reconciled with the other one.
+`system_settings` holds these values and nothing else writes them, which is the
+point: the values used to exist in a document, so nothing could read them
+programmatically and nobody could change them without editing prose. There is one
+function that writes and one that reads per key, here, rather than SQL in two
+routers — the same rule `accounts.py` follows for `blocked_at`, because two
+writers means an update that cannot be reconciled with the other one.
 
 Validation lives here, not in the routers. A router checks the shape of the
 request (is this an integer?), and that is a different job from deciding what is
-a sane amount of money. Putting the bounds in both places guarantees the two
-disagree eventually.
+a sane amount of money or a deliverable address. Putting the bounds in both
+places guarantees the two disagree eventually.
 """
 
 import json
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 PRICING_KEY = "pricing"
 BANK_ACCOUNTS_KEY = "bank_accounts"
+CONTACT_SUPPORT_KEY = "contact_support"
 
 # Rupiah. Cheap enough that the ceiling is not a product decision and generous
 # enough that a mistyped number cannot put a zero in front of a real subscriber:
@@ -41,6 +42,12 @@ MAX_BANK_ACCOUNTS = 20
 BANK_NAME_MAX = 60
 HOLDER_NAME_MAX = 100
 ACCOUNT_NUMBER_MAX = 30
+
+# The published support address. RFC 5321 caps a reverse-path at 254 characters
+# and the local part at 64, so anything longer is a paste accident rather than an
+# address somebody can be told to write to.
+EMAIL_MAX = 254
+EMAIL_LOCAL_MAX = 64
 
 
 class PriceOutOfRange(ValueError):
@@ -99,6 +106,20 @@ class BankAccountsUnavailable(RuntimeError):
     Same reasoning as `PricingUnavailable`: the row is installed state, so noise
     inside it is a broken write, not a new fact about where to send money.
     """
+
+
+class ContactInvalid(ValueError):
+    """An address that could not be delivered to, published as fact.
+
+    Refused on write because the footer turns this value into a `mailto:` link:
+    a string that is not an address is a control that sends mail nowhere, and
+    `docs/settings-module-spec.md` R-26 already rules that a half-written contact
+    row is not rendered at all.
+    """
+
+
+class ContactUnavailable(RuntimeError):
+    """The `contact_support` row exists but does not hold a usable address."""
 
 
 def _json_value(value) -> dict:
@@ -321,4 +342,102 @@ async def write_bank_accounts(entries) -> list[BankAccountEntry]:
         ),
     )
     logger.info("settings: bank_accounts set (%d destinations)", len(cleaned))
+    return cleaned
+
+
+# ── Kontak bantuan ───────────────────────────────────────────────────────────
+
+# Local part: what RFC 5321 lets through unquoted. Domain: letters, digits, dot
+# and hyphen, with the label structure checked separately below rather than
+# crammed into one pattern that nobody can read.
+_EMAIL_RE = re.compile(
+    rf"^(?P<local>[A-Za-z0-9._%+\-]{{1,{EMAIL_LOCAL_MAX}}})"
+    rf"@(?P<domain>[A-Za-z0-9.\-]{{1,253}})$"
+)
+
+
+def _clean_email(raw) -> str:
+    """The published address, cleaned, or a refusal saying what is wrong.
+
+    Empty in, empty out: clearing the address is a state the operator chooses, and
+    the form names it rather than letting the field look untouched. Everything
+    else has to survive being pasted into a mail client.
+    """
+    if not isinstance(raw, str):
+        raise ContactInvalid("email must be a string")
+    text = " ".join(raw.split())
+    if not text:
+        return ""
+    if text.lower().startswith("mailto:"):
+        raise ContactInvalid("write the address itself, without a mailto: prefix")
+    if len(text) > EMAIL_MAX:
+        raise ContactInvalid(f"email is longer than {EMAIL_MAX} characters")
+    match = _EMAIL_RE.fullmatch(text)
+    if not match:
+        raise ContactInvalid(f"{text!r} is not a single email address")
+    domain = match.group("domain")
+    labels = domain.split(".")
+    if len(labels) < 2 or domain.startswith(".") or domain.endswith("."):
+        raise ContactInvalid(f"{domain!r} is not a domain an address can end in")
+    if any(label.startswith("-") or label.endswith("-") for label in labels):
+        raise ContactInvalid(f"{domain!r} has a label that starts or ends with a hyphen")
+    if not all(labels[1:]):
+        raise ContactInvalid(f"{domain!r} has an empty label")
+    return text
+
+
+async def read_contact_support() -> tuple[str, str | None]:
+    """The published support address, or `("", None)` when none was ever set.
+
+    A missing row is a state, not an error, exactly as with the destinations: an
+    install the operator has not configured yet must answer "belum ada" so the
+    footer can render no contact row at all, rather than 503 or an empty link.
+    """
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """
+        SELECT value, updated_at
+          FROM system_settings
+         WHERE key = $1
+        """,
+        CONTACT_SUPPORT_KEY,
+    )
+    if row is None:
+        return "", None
+    try:
+        value = _json_value(row["value"])
+        email = _clean_email(value["email"])
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise ContactUnavailable(
+            f"'{CONTACT_SUPPORT_KEY}' does not hold a usable address: {exc}"
+        ) from exc
+
+    updated = row["updated_at"]
+    return email, updated.isoformat() if updated else None
+
+
+async def write_contact_support(email: str) -> str:
+    """Publish `email`, or clear the address when it is empty.
+
+    One upsert, the same shape as the other two keys, so a reader cannot catch a
+    half-applied change. Clearing writes an empty string rather than deleting the
+    row: one write path, and `updated_at` still says when the operator last
+    decided.
+    """
+    cleaned = _clean_email(email)
+    pool = await get_pool()
+    await pool.fetchrow(
+        """
+        INSERT INTO system_settings (key, value, updated_at)
+        VALUES ($1, jsonb_build_object('email', $2::text), NOW())
+        ON CONFLICT (key) DO UPDATE
+            SET value = EXCLUDED.value,
+                updated_at = EXCLUDED.updated_at
+        """,
+        CONTACT_SUPPORT_KEY,
+        cleaned,
+    )
+    logger.info(
+        "settings: contact_support %s", cleaned if cleaned else "cleared"
+    )
     return cleaned

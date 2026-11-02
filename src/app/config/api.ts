@@ -128,12 +128,43 @@ export const ENDPOINTS = {
    * someone who has not signed up yet still needs the destination.
    */
   bankAccounts: `${API_BASE}/v1/subscriptions/bank-accounts`,
+  /**
+   * The support address the public footer publishes. Public with the price and
+   * the destinations: the footer stands on signed-out screens, and answers
+   * `"email": null` until an operator writes one — no address, no contact row.
+   */
+  contact: `${API_BASE}/v1/subscriptions/contact`,
   /** Admin account list. Block/unblock: POST then DELETE on `${adminAccounts}/{id}/block`. */
   adminAccounts: `${API_BASE}/v1/admin/accounts`,
   /** Admin-only. Writes both prices in one request; a partial body is refused. */
   adminPricing: `${API_BASE}/v1/admin/settings/pricing`,
   /** Admin-only. Replaces the transfer destinations; the server refuses an empty list. */
   adminBankAccounts: `${API_BASE}/v1/admin/settings/bank-accounts`,
+  /** Admin-only. Publishes the support address; an empty string clears it. */
+  adminContact: `${API_BASE}/v1/admin/settings/contact`,
+  /** Admin-only. The console's overview figures: money settled, subscribers
+   * held and lapsed, and the queue's two working sets. */
+  adminOverview: `${API_BASE}/v1/admin/analytics/overview`,
+  /**
+   * Admin-only, and read-only. Which payment gateway this install is wired to.
+   * No key material is ever returned, and there is no write path: credentials
+   * live in the deployment's environment, and `get_settings()` is read once at
+   * import, so a form could not make a change take effect anyway.
+   */
+  adminIntegrations: `${API_BASE}/v1/admin/settings/integrations`,
+  /**
+   * Admin-only. The payment queue. `?status=` selects the working set —
+   * `pending` is the work, `expire` is the backlog that is still money, and the
+   * rest is history. Adjudication lives on the row: `POST {adminTransactions}/
+   * {id}/approve` and `.../deny`.
+   */
+  adminTransactions: `${API_BASE}/v1/admin/transactions`,
+  /**
+   * Admin-only. The same rows as a CSV. Bounded at 5.000, and the file itself
+   * says so when it had to stop: a ledger that looks complete but does not is
+   * worse than no ledger, because someone will reconcile against it.
+   */
+  adminTransactionsExport: `${API_BASE}/v1/admin/transactions/export`,
   /** Claude-powered Q&A, server-sent events */
   advisorChat: `${API_BASE}/v1/advisor/chat`,
 

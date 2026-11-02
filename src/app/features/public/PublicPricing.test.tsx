@@ -461,22 +461,19 @@ describe('PublicPricing', () => {
     expect(bar.lastElementChild).toBe(menu)
   })
 
-  it("closes the sheet with the form, then states what the product isn't", async () => {
+  it('closes the sheet with brand, the risk note, and the bottom line, and nothing else', async () => {
     respond(200, {
       weekly: 15000,
       monthly: 44000,
       annual: 252000,
       updatedAt: '2026-10-21T16:00:00Z',
     })
-    const onEnter = vi.fn()
-    const onSignUp = vi.fn()
-    const user = userEvent.setup()
-    render(
+    const { container } = render(
       <PublicPricing
         locale="id"
-        onEnter={onEnter}
+        onEnter={vi.fn()}
         onPickPlan={vi.fn()}
-        onSignUp={onSignUp}
+        onSignUp={vi.fn()}
         onViewFeatures={vi.fn()}
         onViewNotes={vi.fn()}
       />,
@@ -485,34 +482,35 @@ describe('PublicPricing', () => {
 
     const footer = within(screen.getByRole('contentinfo'))
 
-    /* The sheet's closing move is the form. The reader has just looked at three
-       prices, and the page answers the objection that follows with the fact the
-       page already holds: nothing here takes money. */
-    expect(
-      footer.getByRole('heading', { name: 'Tidak ada pembayaran di halaman ini.' }),
-    ).toBeInTheDocument()
-    await user.click(footer.getByRole('link', { name: 'Buat akun' }))
-    expect(onSignUp).toHaveBeenCalledTimes(1)
-    await user.click(footer.getByRole('button', { name: 'Masuk' }))
-    expect(onEnter).toHaveBeenCalledTimes(1)
-    expect(footer.getByText(/pembayaran dimulai dari dalam aplikasi/)).toBeInTheDocument()
-
-    /* Two destinations, two different places, neither of them this page. The
-       sitemap this replaced carried eleven links, five of them to #harga. */
-    expect(footer.getByRole('link', { name: 'Fitur' })).toHaveAttribute('href', '/fitur')
-    expect(footer.getByRole('link', { name: 'Catatan' })).toHaveAttribute('href', '/catatan')
-    expect(footer.getAllByRole('link')).toHaveLength(3)
-    /* The defect this replaced was not the link count but the repetition: five
-       of the eleven footer links pointed at #harga. Every link in this footer
-       goes somewhere the others do not. */
-    const hrefs = footer.getAllByRole('link').map((entry) => entry.getAttribute('href'))
-    expect(new Set(hrefs).size).toBe(hrefs.length)
-
-    /* No contact entry at all. It used to be a held span; the owner's settings
+    /* No call to action and no links (owner, 2026-11-02). This footer once
+       carried eleven links, five of them to #harga, then briefly a closing band
+       with Buat akun and Masuk. Both are gone: the page bottom is not where the
+       page finishes its argument, and the gates live in the topbar and the plan
+       cards, which have their own tests. */
+    expect(footer.queryAllByRole('link')).toHaveLength(0)
+    expect(footer.queryByRole('heading')).not.toBeInTheDocument()
+    expect(footer.queryByRole('button', { name: 'Masuk' })).not.toBeInTheDocument()
+    expect(footer.queryByText('Buat akun')).not.toBeInTheDocument()
+    expect(footer.queryByText('Fitur')).not.toBeInTheDocument()
+    expect(footer.queryByText('Catatan')).not.toBeInTheDocument()
+    /* No contact entry either. It used to be a held span; the owner's settings
        spec already rules that an empty channel means the row is not rendered. */
-    expect(screen.queryByText('Hubungi kami')).not.toBeInTheDocument()
+    expect(footer.queryByText('Hubungi kami')).not.toBeInTheDocument()
 
+    /* What it does carry: who is speaking, what the product is not, and the
+       facts under its own line. */
+    expect(footer.getByRole('img', { name: 'AIDSS' })).toBeInTheDocument()
+    expect(footer.getByText('Trading Intelligence Platform')).toBeInTheDocument()
+    expect(footer.getByText(/Pendukung keputusan investasi harian/)).toBeInTheDocument()
+    expect(container.querySelector('#catatan')).toBeInTheDocument()
+    expect(footer.getByText(/alat bantu keputusan, bukan penasihat investasi/)).toBeInTheDocument()
     expect(footer.getByText(/© 2026 AIDSS · MCASS/)).toBeInTheDocument()
+    /* The footer's only control is the language switch. */
+    expect(footer.getAllByRole('button')).toHaveLength(1)
+    expect(footer.getByRole('button', { name: 'Switch to English' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
     expect(footer.getByText(/Harga diperbarui/)).toBeInTheDocument()
     expect(footer.getByText(/\d{2}:\d{2} WIB/)).toBeInTheDocument()
     /* The sessions are printed, and the footer never claims the exchange is

@@ -25,6 +25,7 @@ Two rules worth stating, because both are easy to get wrong:
 
 import logging
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -53,6 +54,12 @@ class AdminAccountResponse(BaseModel):
     # endpoint's unblock reopens the first — so an administrator reading the list
     # sees the same fact the access check will act on, not a paraphrase of it.
     blocked_reason: str | None = None
+    # When the account's furthest known period ends, if it ever had one. Not an
+    # access verdict: an expiry in the past is a date, and the entitlement check
+    # is still the only thing that decides whether data flows. There is no plan
+    # beside it because `subscriptions` stores no plan (ADR-0002), and inventing
+    # a column for one would be inventing a fact.
+    subscriptionExpiresAt: str | None = None
 
 
 class AccountListResponse(BaseModel):
@@ -85,6 +92,9 @@ def _to_response(account: Account) -> AdminAccountResponse:
         blocked=account.blocked_at is not None,
         blocked_at=account.blocked_at.isoformat() if account.blocked_at else None,
         blocked_reason=account.blocked_reason,
+        subscriptionExpiresAt=(
+            account.expires_at.isoformat() if account.expires_at else None
+        ),
     )
 
 
@@ -94,15 +104,33 @@ def _to_response(account: Account) -> AdminAccountResponse:
     summary="List accounts",
     description=(
         "Newest first. Paged, because an unpaged list of every account is a slow "
-        "query exactly when the table is most worth looking at."
+        "query exactly when the table is most worth looking at.\n\n"
+        "`q` matches the email or the name, `state` keeps open (`active`) or "
+        "closed (`blocked`) accounts. Both are applied in the database, before "
+        "the page is cut: filtering a page afterwards would answer \"nobody "
+        "matches\" about the twenty-five rows this page happens to hold, and an "
+        "account on the next page would read as absent.\n\n"
+        "`state` is about whether an account is closed at all. Which *kind* of "
+        "closure it is stays a column (`blockedReason`), not a filter, because "
+        "the two kinds already differ in what may open them again."
     ),
 )
 async def admin_list_accounts(
     admin: AdminUser,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    q: str | None = Query(default=None, max_length=100),
+    state: Literal["all", "active", "blocked"] = Query(default="all"),
 ) -> AccountListResponse:
-    accounts = await list_accounts(limit=limit + 1, offset=offset)
+    # An empty search term is no filter. Passing it through would ask the
+    # database for rows whose name contains "", which is everyone, and the
+    # operator would read the result as a search that found the whole list.
+    accounts = await list_accounts(
+        limit=limit + 1,
+        offset=offset,
+        query=q.strip() if q and q.strip() else None,
+        state=state,
+    )
     # One over-fetch is how hasMore is answered without a second COUNT query.
     has_more = len(accounts) > limit
     return AccountListResponse(

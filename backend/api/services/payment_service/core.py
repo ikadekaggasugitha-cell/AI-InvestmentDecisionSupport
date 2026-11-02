@@ -50,6 +50,13 @@ _MAX_METHOD_CHARS = 50
 _QUEUE_LIMIT = 200
 _OWN_LIST_LIMIT = 50
 
+# The most any one admin read may pull, whatever the caller asked for. The queue
+# page is far smaller; this is the ceiling behind the CSV export, where an
+# operator legitimately wants a season of history in one file. Kept as one
+# number in one place so a request cannot ask for the whole table and make the
+# database build a response nobody reads.
+_MAX_QUEUE_FETCH = 5000
+
 
 class ManualPaymentInvalid(ValueError):
     """A declaration that cannot go into the queue as asked."""
@@ -103,12 +110,17 @@ class Transaction:
     subscription_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime | None
+    # When the money was accepted. Written by both the manual approve and the
+    # gateway settlement, so it is the one timestamp that means the same thing on
+    # every settled row — unlike `updated_at`, which also moves when a row is
+    # denied.
+    approved_at: datetime | None = None
     email: str | None = None  # the admin queue's row carries the payer
 
 
 _TX_COLUMNS = """
         id, user_id, invoice_code, amount, plan, payment_gateway, payment_method,
-        status, admin_notes, subscription_id, created_at, updated_at
+        status, admin_notes, subscription_id, created_at, updated_at, approved_at
 """
 
 
@@ -142,5 +154,6 @@ def _to_transaction(row) -> Transaction:
         ),
         created_at=row["created_at"],
         updated_at=row.get("updated_at"),
+        approved_at=row.get("approved_at"),
         email=row.get("email"),
     )

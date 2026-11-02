@@ -6,6 +6,17 @@ import userEvent from '@testing-library/user-event'
 
 import { PublicNotes } from '@/app/features/public/PublicNotes'
 
+/* The shared footer reads the support address from the server, so this screen
+   renders a component that fetches. Mocked rather than left to reach a backend
+   that may or may not be running; the address's own behaviour is pinned in
+   PublicFooter.test.tsx. */
+vi.mock('@/app/config/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/config/api')>()),
+  apiFetch: vi.fn(),
+}))
+
+import { apiFetch } from '@/app/config/api'
+
 /**
  * The third public surface (owner, 2026-11-02): the screen the price sheet's
  * burger "Catatan" now leads to. The rules this suite pins:
@@ -53,6 +64,11 @@ const SECTIONS = [
 describe('PublicNotes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(apiFetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ email: null }),
+    } as unknown as Response)
   })
 
   it('states what it is, and what it is not', () => {
@@ -156,17 +172,17 @@ describe('PublicNotes', () => {
     expect(handlers.onSignUp).toHaveBeenCalledTimes(1)
   })
 
-  it('shares the footer chrome: the disclaimer stays, the contact row is gone', () => {
+  it('shares the footer chrome: the disclaimer stays, the footer carries no links', () => {
     const { container } = renderNotes()
     /* The one-sentence disclaimer is still on the page, at the anchor the other
        screens cross to. This screen joined the app; it did not replace the
        footer's own statement. */
     expect(container.querySelector('#catatan')).toBeInTheDocument()
     const footer = within(screen.getByRole('contentinfo'))
-    expect(footer.getByRole('link', { name: 'Fitur' })).toHaveAttribute('href', '/fitur')
-    /* Fitur alone. Catatan is the page the reader stands on and Harga is where
-       the footer's CTA already goes, so neither belongs in the row. */
-    expect(footer.getAllByRole('link')).toHaveLength(2)
+    /* No links and no call to action, on any of the three public screens
+       (owner, 2026-11-02). "Hubungi kami" is absent for the same reason this
+       page states in its own copy: no channel has ever been named. */
+    expect(footer.queryAllByRole('link')).toHaveLength(0)
     expect(footer.queryByText('Hubungi kami')).not.toBeInTheDocument()
     /* The nine sections are reachable from the page's own jump rail, which is
        where that job belongs: the footer used to repeat the rail as a column.

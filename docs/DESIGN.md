@@ -353,16 +353,19 @@ lembar ini saja, dan masing-masing mencantumkan aturan lama yang digantikan.
   (butir "Manfaat masuk kartu" ronde 3 sekarang menyisakan baris nama-saja
   di kartu); band menamai persis yang gerbang refus dan tidak mengklaim
   lain (aturan lama tetap).
-- **Footer navy menutup, bukan memetakan** (dibangun ulang 2026-11-02, lihat
-  *Pengecualian terdokumentasi* di bawah): tiga pita dalam satu permukaan navy
-  — kalimat penutup layar + dua gerbang, blok merek + baris tujuan yang benar-
-  benar berbeda tempat, lalu baris meta. Kolom PRODUK/LANGGANAN/BANTUAN milik
-  lama dibuang: sebelas tautan, lima di antaranya menunjuk `#harga` yang sama.
-  "Hubungi kami" tidak lagi dirender sebagai span `aria-disabled` — kanalnya
-  masih [OWNER TO NAME], dan aturan `settings-module-spec` sudah memutuskan:
-  nilai kosong berarti barisnya tidak ada. Disclaimer tetap satu kalimat yang
-  sama di `id="catatan"`; jam Asia/Jakarta kini presisi menit, dan baris meta
-  memuat jam bursa statis, bukan klaim buka/tutup.
+- **Footer navy menyatakan, tidak menavigasi** (dibangun ulang 2026-11-02,
+  lihat *Pengecualian terdokumentasi* di bawah): blok merek, baris kontak, kalimat
+  risiko di `id="catatan"`, dan baris bawah. Tidak membawa call to action dan
+  tidak membawa sitemap — kolom PRODUK/LANGGANAN/BANTUAN milik lama dibuang
+  (sebelas tautan, lima menunjuk `#harga` yang sama), dan band penutup yang sempat
+  dipasang di atasnya ikut dibuang atas keputusan pemilik. Satu-satunya tautan di
+  dalamnya adalah alamat bantuan, dan ia ada **hanya kalau** operator menulisnya
+  di `/admin`: `system_settings.contact_support` dibaca lewat
+  `GET /v1/subscriptions/contact`, dan jawaban kosong berarti barisnya tidak
+  dirender, bukan menjadi `mailto:` yang tidak ke mana-mana. Tidak ada alamat yang
+  diketik di kode, dan tidak ada span `aria-disabled` lagi. Jam Asia/Jakarta
+  presisi menit; baris bawah memuat saklar ID/EN dan jam bursa statis, bukan klaim
+  buka/tutup.
 - **Nav topbar adalah jangkar**: FITUR dan CATATAN menunjuk `#pilar` dan
   `#catatan`; label platform + dot + garis pisah + gerbang di kanan;
   jangkar dan labelnya disembunyikan di bawah 840px — logo, Masuk, dan pil
@@ -571,65 +574,163 @@ pola `/fitur`.
   refresh `/catatan`, alur burger dari `/` dan dari `/fitur`, overflow 0 di 1440
   dan 390px, dan empat tepi sejajar hero.
 
-## Pengecualian terdokumentasi: footer publik menutup, bukan memetakan (2026-11-02)
+## Pengecualian terdokumentasi: footer publik tidak menavigasi dan tidak menutup (2026-11-02)
 
 Atas permintaan pemilik ("perbaiki footer yang ada pada halaman publik, buat
-lebih baik dan cocok"), lalu diputuskan redesign penuh dengan satu pekerjaan:
-**convert, lalu disclose**. Footer ini dipakai tiga layar, jadi redesign mendarat
-di ketiganya sekaligus; rencana dan keputusan per pertanyaan ada di
+lebih baik dan cocok"). Rencana awalnya, diputuskan lewat interview, adalah
+**convert lalu disclose**; itu dibangun, dilihat pemilik di browser, lalu
+**dibatalkan**: "seharusnya pada footer tidak ada: buat akun, Masuk … juga tidak
+ada Fitur dan Catatan." Yang berdiri sekarang adalah footer tanpa satu pun
+tautan dan tanpa call to action. Rencana lengkap, termasuk keputusan yang
+kemudian dibatalkan, ada di
 [`tasks/plan-footer-publik.md`](../tasks/plan-footer-publik.md).
 
-- **Yang ditemukan di render, bukan dari asumsi.** Lembar harga mencetak 11
-  tautan footer dan **5 menunjuk `#harga` yang sama** (Mingguan, Bulanan,
-  Tahunan, Bandingkan paket, Pembaruan harga); `/fitur` 5 menunjuk `/#harga`.
-  Kolom bernama BANTUAN dibuka oleh entri mati. Grid `1.5fr 1fr 1fr 1fr`
-  membuat kepala kolom sejajar dengan *atas* logo, sehingga blok merek terbaca
-  sebagai daftar keempat. Di 390px sebelas tautan menumpuk dan disclaimer
-  terdorong ke dasar dinding tautan.
-- **`/fitur` menutup dirinya dua kali.** Band `.pubf-cta` ("Siap mengujinya?")
-  menempel langsung ke footer — `auth.css` sudah menyebutnya "the footer's navy
-  arriving early". Dua blok CTA navy tanpa jahitan, 720px ujung halaman. Band itu
-  **dihapus**; footer bersama yang memiliki gerak penutup, sehingga lembar harga
-  dan `/catatan` mendapat ending yang belum pernah mereka punya.
-- **Kontak dijatuhkan, bukan ditahan.** Pemilik memilih ini. Presedennya sudah
-  ada di spec proyek sendiri: `docs/settings-module-spec.md` memutuskan nilai
-  kosong = baris tidak dirender, karena `wa.me/628...` tak lengkap adalah link
-  mati, dan `docs/status.md` mencatat `contact_support` masih kosong tanpa
-  endpoint. Tiga tes "kontak ditahan" dihapus bersama entri yang dijaganya.
-- **Baris tautan menaati dua aturan.** Tidak pernah menyebut halaman tempat
-  pembaca berdiri (aturan yang sudah ditulis `PublicNavMenu.tsx`), dan tidak
-  pernah mengulang target CTA. Lembar harga → Fitur, Catatan. `/fitur` →
-  Catatan. `/catatan` → Fitur. Kolom CATATAN `/catatan` dibuang karena halaman
-  itu sendiri sudah punya jump rail untuk sembilan bagiannya.
+- **Yang ditemukan di render, bukan dari asumsi, dan tetap benar.** Lembar harga
+  mencetak 11 tautan footer dan **5 menunjuk `#harga` yang sama** (Mingguan,
+  Bulanan, Tahunan, Bandingkan paket, Pembaruan harga); `/fitur` 5 menunjuk
+  `/#harga`. Kolom bernama BANTUAN dibuka oleh entri mati. Grid
+  `1.5fr 1fr 1fr 1fr` membuat kepala kolom sejajar dengan *atas* logo, sehingga
+  blok merek terbaca sebagai daftar keempat. Di 390px sebelas tautan menumpuk dan
+  disclaimer terdorong ke dasar dinding tautan.
+- **Yang jadi: merek, pernyataan risiko, baris bawah.** Tidak ada tautan, tidak
+  ada heading, satu kontrol (saklar bahasa). Cara melanjutkan hidup di tempat
+  yang memang tugasnya: gerbang topbar, kartu paket, dan burger — semuanya punya
+  tes sendiri. Ini jawaban yang lebih jujur daripada sitemap maupun CTA kedua,
+  karena keduanya mengulang apa yang sudah dikatakan halaman itu.
+- **`/fitur` kini berakhir tanpa CTA sama sekali.** Band `.pubf-cta` miliknya
+  ("Siap mengujinya?") dihapus pada ronde pertama, ketika footer akan memegang
+  gerak penutup; footer lalu kehilangan gerak itu juga. Band tersebut **tidak
+  dikembalikan** sampai pemilik memutuskan halaman itu harus berakhir di mana —
+  dicatat sebagai pertanyaan terbuka, bukan lupa.
+- **Kontak dijatuhkan, lalu dipasang lagi dari sumber yang benar.** Ronde dua
+  membuang entri itu sama sekali, dan alasannya tetap benar untuk kode: tidak ada
+  seorang pun yang pernah menamai kanalnya. Ronde tiga pemilik meminta "Hubungi
+  Kami serta Email" dan **memutuskan alamat itu miliknya, bukan milik kode** — ia
+  tinggal di `system_settings.contact_support`, ditulis di tab keempat `/admin`, dan
+  dibaca footer lewat endpoint publik. Presedennya sudah ada dua: harga
+  ([ADR-0010](adr/0010-harga-di-system-settings.md)) dan rekening tujuan.
+  Yang tidak berubah adalah larangannya: `docs/settings-module-spec.md` §4 sudah
+  menulis aturan mainnya — nilai kosong berarti baris tidak dirender, karena
+  `wa.me/628...` yang tidak lengkap adalah link mati. Service menolak string yang
+  bukan satu alamat, jadi tautan yang sampai ke pembaca selalu bisa dikirimi surat.
+  Tiga tes "kontak ditahan" tetap terhapus; yang berdiri sekarang adalah
+  `PublicFooter.test.tsx` yang menuntut barisnya **hilang** saat server menjawab
+  null, dan penjaga bahwa sumber komponen itu tidak memuat alamat apa pun.
 - **Jam berhenti di menit, dan tidak mengklaim apa pun tentang hari ini.**
   `isMarketOpen()` di `useLiveMarket.ts` murni jam peramban atas aturan hari
   kerja + istirahat siang, **tanpa tabel libur bursa** — ia menyebut pasar buka
   pada ±15 hari libur setahun. Tolerabel di dalam aplikasi; di halaman publik itu
   klaim baru, dan ADR-0013 ada untuk menghentikannya. Yang dicetak jam bursa
-  statis milik `Sidebar.tsx`, dua bagian supaya baris tidak pernah putus di
-  tengah `13:30-15:50`. Hyphen ASCII, bukan en dash, karena
-  `PublicFeatures.test.tsx` melarang keduanya di seluruh container.
-- **Saklar bahasa pertama di sisi signed-out.** Ketiga layar membawa salinan
-  id/en lengkap dan tidak ada cara menukarnya; `ID / EN` hanya ada di
-  `Header.tsx`. Footer membacanya dari `useApp()` (`toggleLocale` sudah ada,
-  sudah persist ke `localStorage`, sudah menjaga `document.documentElement.lang`),
-  jadi `App.tsx` tidak disentuh — pola yang sama dipakai `Sidebar.tsx`. Diverifikasi
-  di browser sungguhan: klik → `lang="en"`, h1 "Notes", `aria-pressed="true"`.
+  statis milik `Sidebar.tsx`, dua bagian supaya baris tidak pernah putus di tengah
+  `13:30-15:50`. Hyphen ASCII, bukan en dash, karena `PublicFeatures.test.tsx`
+  melarang keduanya di seluruh container.
+- **Saklar bahasa pertama di sisi signed-out, dan ia tinggal di footer.** Ketiga
+  layar membawa salinan id/en lengkap dan tidak ada cara menukarnya; `ID / EN`
+  hanya ada di `Header.tsx`. Footer membacanya dari `useApp()` (`toggleLocale`
+  sudah ada, sudah persist ke `localStorage`, sudah menjaga
+  `document.documentElement.lang`), jadi `App.tsx` tidak disentuh — pola yang
+  sama dipakai `Sidebar.tsx`. Diverifikasi di browser sungguhan: klik →
+  `lang="en"`, h1 "Notes", `aria-pressed="true"`. Ia satu-satunya kontrol yang
+  tersisa di footer, jadi ia satu-satunya yang punya cincin fokus.
 - **Tanpa hex baru, tanpa token baru.** Semua warna sudah dipakai footer
   sebelumnya, sehingga `contrast.test.ts` hijau tanpa perlu ditebak; tidak ada
-  glif piktograf; target sentuh kedua tombol 50px (minimum 44px). Satu
-  breakpoint (`760px`) menggantikan dua milik grid kolom.
-- **Ukuran terukur.** Footer 1440px: 452px → 534px (ia menyerap band CTA dan
-  menambah jam bursa). Ujung halaman `/fitur`: 720px → 534px. Footer 390px:
-  ~740px → 750px — tingginya hampir sama, yang berubah sifatnya: sebelas tautan
-  ditukar satu kalimat penutup, dua gerbang, satu baris mekanika bayar. Overflow
-  horizontal 0 di 320/360/390/680/760/1000/1160/1440.
-- **Uji**: suite penuh **424 tes hijau** (34 berkas), `tsc` bersih, eslint 0
-  error, `prettier` bersih, `vite build` sukses. Assertion lama diubah karena memang
-  tidak lagi benar, bukan untuk melewati: hitungan `Sinyal` 5 → 4, jam timer palsu
-  ke presisi menit, gerbang topbar di-scope ke `banner` (footer kini punya `Masuk`
-  sendiri), dan guard baru bahwa satu footer tidak memuat dua tautan ke tujuan sama.
-  Kontrak `#catatan` tetap lulus tanpa disentuh.
+  glif piktograf. Tidak ada lagi grid di footer, jadi satu breakpoint (`760px`)
+  hanya mengatur spasi.
+- **Ukuran terukur.** Footer 1440px: 452px → **376px**. Footer 390px: ~740px →
+  **516px**. Ujung halaman `/fitur`, yang dulu band CTA + footer = 720px, sekarang
+  376px. Tautan footer: 11 → **0**. Overflow horizontal 0 di 320/360/390/1440.
+- **Uji**: **445 tes hijau** (36 berkas), `tsc` bersih, eslint 0 error,
+  `prettier` bersih. Assertion lama diubah karena memang tidak lagi benar, bukan
+  untuk melewati: hitungan `Sinyal` 5 → 4, jam timer palsu ke presisi menit, dan
+  tes footer kini justru **menuntut ketiadaan** — nol tautan navigasi, nol heading,
+  tidak ada `Masuk`/`Buat akun`/`Fitur`/`Catatan` di dalam `contentinfo`. Kontrak
+  `#catatan` di `App.test.tsx`, `PublicFeatures.test.tsx`, dan
+  `PublicNotes.test.tsx` tetap lulus tanpa disentuh. Ronde tiga menambah
+  `PublicFooter.test.tsx` (12) dan `AdminContactView.test.tsx` (11), plus mock
+  `apiFetch` di dua suite halaman yang kini ikut merender footer.
+
+## Konsol operator: tujuh tab, satu URL, tanpa angka karangan (2 November 2026)
+
+Atas permintaan pemilik ("buat Admin Panel lengkap"). Yang ternyata paling
+bukan desain melainkan lubang: `GET /v1/admin/transactions`, `.../approve`, dan
+`.../deny` sudah selesai dan sudah diuji, dan **tidak ada satu layar pun yang
+memanggilnya**. Uang masuk, operator seharusnya memutuskan, dan tidak ada tempat
+untuk melakukannya. Jadi urutan pengerjaan mengikuti fakta itu, bukan urutan
+blueprint; rencananya di [`tasks/plan-admin-panel.md`](../tasks/plan-admin-panel.md).
+
+- **Satu URL dengan tab, bukan route per modul.** Keputusan lama (`AdminView.tsx`
+  dan dipin `AdminView.test.tsx`) dipertahankan dan dipegang sampai tujuh tab.
+  Blueprint §5 meminta sidebar sendiri di `/admin/users`; itu tidak diambil
+  karena layar ini alat operasional tanpa entry navigasi, dan route kedua akan
+  menambah routing untuk masalah yang tidak ada.
+- **Tidak ada pustaka grafik.** Ringkasan adalah angka, bukan garis. Chart di atas
+  segelintir baris settlement adalah dekorasi, dan dial ENERGY 1 di atas bilang
+  tidak boleh ada yang mencoba terkesan. Angka mono dengan
+  `fontVariantNumeric: tabular-nums`, sama seperti footer dan lembar harga.
+- **Setiap kolom harus menelusuri kolom database yang ada.** Ini aturan lama
+  (`AdminView.tsx` baris 20-23) dan kini diuji dari dua sisi: tes frontend
+  menuntut daftar header persis, dan tes database sungguhan menjalankan
+  statement-nya. Kolom "Paket" **tidak** dibuat: `subscriptions` menyimpan
+  `user_id` dan `expires_at` saja ([ADR-0002](adr/0002-ganti-owner-sub-dengan-user-id-uuid.md)),
+  dan grant manual menghasilkan periode tanpa paket — menampilkannya di bawah
+  kepala "Paket" akan membaca fakta lain sebagai fakta ini.
+- **Yang sudah dikirim server tapi dibuang layar, sekarang ditampilkan.**
+  `blocked_reason` sudah lama ada di `AdminAccountResponse`; konsol hanya
+  mencetak "Diblokir". Dua jenis penutupan punya pintu buka yang berbeda
+  ([ADR-0012](adr/0012-alasan-pada-blokir.md)), jadi status kini tiga keadaan.
+- **Dialog menyebut akibatnya, tombolnya tidak berbohong.** Setujui berkata
+  settlement + masa aktif dalam satu transaksi database dan panjangnya dari
+  paket di baris, bukan dari angka operator. Tolak mewajibkan alasan: field kosong
+  tidak pernah dikirim ke jaringan, dan server tetap yang memutuskan apa yang
+  dihitung sebagai alasan. Kegagalan apa pun disertai "Transaksi tidak berubah",
+  karena itu janji endpoint-nya dan operator yang menduga approve setengah jalan
+  lebih buruk daripada yang tahu tidak.
+- **Rupiah persis, bukan ringkas.** `fmtIdr` mencetak "Rp 44Rb"; mencocokkan
+  transfer bank dengan angka yang dibulatkan adalah cara baris yang salah
+  disetujui. Layar uang memakai `toLocaleString('id-ID')` penuh.
+- **Tiga keadaan yang tidak boleh disamakan**: nol (fakta tentang usaha), 403
+  (bukan peran Anda), dan gagal baca (kita tidak tahu). Ringkasan dan integrasi
+  sama-sama menolak menampilkan nol ketika jawabannya "tidak dapat dibaca" —
+  garis datar membuat operator berhenti melihat.
+- **Kosong yang terpotong menyatakan dirinya.** Ekspor CSV dibatasi dan baris
+  terakhir berkasnya menulis batas itu beserta offset berikutnya; berkas yang
+  tampak lengkap padahal terpenggal lebih buruk dari tidak ada berkas, karena
+  seseorang akan merekonsiliasi terhadapnya. Setiap sel dikutip dan nilai yang
+  diawali `= + - @` diberi apostrof — `admin_notes` adalah teks bebas dari
+  pembayar, dan spreadsheet mengeksekusi formula.
+- **Hanya-baca untuk kredensial, dan hanya yang ada.** Panel integrasi memakai
+  predikat yang sama dengan jalur checkout (`gateway_configured()` /
+  `gateway_environment()`), supaya keduanya tidak bisa berbeda jawaban. Tidak ada
+  kolom input: `get_settings()` di-cache saat import, jadi formulir apa pun akan
+  tampak menyimpan tanpa mengubah apa pun — itu bohong, bukan fitur separuh
+  jadi. SMTP dan WhatsApp tidak ditampilkan karena keduanya memang tidak ada.
+- **Tiga butir blueprint tidak dibangun dan dikatakan kenapa**: pratinjau bukti
+  transfer (`proof_image_url` sengaja kosong, [ADR-0011](adr/0011-satu-penulis-subscriptions.md)),
+  notifikasi saat approve (tidak ada transport email/WA), dan pengaturan kunci.
+  Ditulis di §5.1 dokumen itu sendiri, bukan didiamkan.
+- **Modal mengikuti idiom yang sudah dipakai aplikasi, bukan shadcn.** Tidak ada
+  satu pun file di `src/app/features/` mengimpor `components/ui/dialog`;
+  `PositionModal.tsx` sudah mengerjakan focus-in, Escape, dan focus-return dengan
+  tangan. Jadi satu `AdminModal.tsx` untuk tiga dialog konsol, bukan idiom kedua.
+- **SQL-nya dijalankan di Postgres sungguhan.** Fake pool mencocokkan teks query
+  dan menjawab dalam Python, jadi ia tidak bisa menangkap query yang bukan
+  Postgres sah — `LEFT JOIN LATERAL`, `FILTER (WHERE…)`, `AT TIME ZONE` semuanya
+  baru terbukti di `backend/tests/test_admin_live_sql.py`, dalam transaksi yang
+  di-rollback sehingga database pengembang tidak berubah. Pelajaran ini sudah
+  pernah dibayar sekali (`test_bank_accounts.py`, jsonb sebagai teks).
+- **Satu predikat, satu tempat.** Denominator MRR dibangun dari `PLAN_DAYS`,
+  bukan diketik ulang; kalau dua-duanya berbeda, lajur bulanan salah tanpa ada
+  yang notice. Percobaan pertama bagian ini mengetiknya dan komentarnya bilang
+  sebaliknya — dikoreksi sebelum jadi kebiasaan.
+- **Uji**: **485 tes frontend hijau** (38 berkas) dan **957 backend** dengan
+  coverage 70%, `tsc` bersih, eslint 0 error, `ruff` bersih, `prettier` bersih,
+  `vite build` sukses. Kedua endpoint baru menjawab **401** untuk anonim dan
+  route-nya terlihat di `/openapi.json`; diverifikasi lewat HTTP pada proses yang
+  berjalan. **Yang belum**: layar konsol belum dilewati di browser sebagai
+  operator yang benar-benar masuk — `ADMIN_EMAIL` kosong dan tidak ada sesi admin
+  yang bisa saya buat tanpa kredensial pemilik, dan membuat akun admin atau
+  mengeset ulang sandi demi kenyamanan verifikasi adalah efek samping yang bukan
+  saya ambil.
 
 ## Pengecualian terdokumentasi: glass di view dalam-sesi (2026-11-01, diperluas 2026-11-02)
 

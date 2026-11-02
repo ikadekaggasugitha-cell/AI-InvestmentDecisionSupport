@@ -1,4 +1,12 @@
-# Implementation Plan: Footer publik menutup, bukan memetakan (2 November 2026)
+# Implementation Plan: Footer publik berhenti menjadi sitemap (2 November 2026)
+
+> **Ronde dua membatalkan sebagian ronde satu.** Pemilik melihat hasil di browser
+> lalu memerintahkan: tidak ada `Buat akun`, tidak ada `Masuk`, tidak ada kalimat
+> penutup, tidak ada `Fitur`/`Catatan`. Bagian "Bentuk baru" di bawah adalah
+> ronde satu dan **tidak lagi menggambarkan kode**; bagian
+> "Pembatalan ronde dua" adalah keadaan sekarang. Yang bertahan dari ronde satu:
+> kontak dijatuhkan, jam presisi menit + jam bursa statis, saklar bahasa,
+> `1.5fr 1fr 1fr 1fr` dibuang, dan temuan di bawah tetap benar.
 
 ## Gambaran
 
@@ -121,6 +129,68 @@ hampir sama karena yang dibuang (sebelas tautan) digantikan oleh yang dipasang
 (satu kalimat penutup, dua tombol, satu baris mekanika bayar, jam bursa). Dua
 perkiraan di atas yang salah dan sudah dikoreksi, bukan dibuang diam-diam.
 
+## Pembatalan ronde dua (keputusan pemilik terakhir)
+
+Yang berdiri sekarang, dan ini yang ada di kode:
+
+```text
+[ merek: marka + eyebrow + tagline ]
+─────────────────────────────  satu hairline
+[ kalimat risiko di id="catatan" ]
+
+© 2026 AIDSS · MCASS   [ID / EN]     Harga diperbarui … · 22:55 WIB · Bursa …
+```
+
+- **Nol tautan, nol heading, satu kontrol.** `PublicFooterProps` kembali menjadi
+  `{ locale, updatedAt }`; `FooterCta` dan `FooterLink` dihapus.
+- **Cara melanjutkan ada di tempat yang memang tugasnya**: gerbang topbar, kartu
+  paket, burger — semuanya sudah punya tes sendiri.
+- **Tiga tes footer kini menuntut ketiadaan**, bukan kehadiran: `queryAllByRole
+  ('link')` panjangnya 0, tidak ada heading di dalam `contentinfo`, tidak ada
+  `Masuk`/`Buat akun`/`Fitur`/`Catatan`, dan tepat satu tombol.
+- **Ukuran**: footer 1440px 452px → **376px**; 390px ~740px → **516px**; tautan
+  11 → **0**. Tidak ada grid tersisa, jadi breakpoint `760px` hanya mengatur spasi.
+- **Pertanyaan terbuka, sengaja tidak dijawab**: `/fitur` berakhir tanpa CTA sama
+  sekali, karena band `.pubf-cta` miliknya dihapus pada ronde satu dengan alasan
+  "footer yang memegang gerak penutup" — dan footer lalu kehilangan gerak itu.
+  Band itu tidak dipasang kembali tanpa keputusan pemilik; halaman itu sekarang
+  berhenti di band FAQ.
+
+## Ronde tiga: kontak dipasang lagi, dari server (pemilik, 2 November 2026)
+
+Permintaan: "pada footer tambahkan Hubungi Kami serta Email yang mana bisa saya
+input melalui halaman Admin". Yang diputuskan pemilik bukan sekadar "tampilkan
+alamat" — ia meminta **kanal input**, jadi alamatnya miliknya, bukan milik kode.
+
+- **Bentuknya persis dua fitur yang sudah ada.** `system_settings.contact_support`
+  sebagai satu-satunya tempat nilai ditulis (`ADR-0010` untuk harga, dan
+  `bank_accounts` untuk rekening), satu pembaca publik
+  `GET /v1/subscriptions/contact`, satu penulis admin
+  `GET`/`PUT /v1/admin/settings/contact`, dan satu form sebagai tab keempat
+  `/admin`. Tidak ada ADR baru: `docs/adr/README.md` menyaring hanya keputusan yang
+  sulit dibalik dan lahir dari trade-off sungguhan, dan ini mengulang pola yang
+  sudah punya ADR — cukup satu baris di `docs/status.md`.
+- **Publik, bukan ber-sesi, dan itu disengaja.** Footer berdiri di layar
+  signed-out; alamat yang hanya bisa dibaca setelah masuk bukan alamat bantuan bagi
+  orang yang belum memutuskan. Endpoint ini menambah satu string dan satu
+  timestamp, tidak lebih.
+- **Kosong berarti tidak ada baris.** `docs/settings-module-spec.md` §4 sudah
+  menuliskan aturannya sebelum fitur ini ada: nilai kosong = baris tidak dirender,
+  karena `mailto:` tanpa alamat adalah kontrol mati. Service menjawab
+  `"email": null`, hook mengembalikan `null`, komponen me-render nol elemen. Tidak
+  ada `aria-disabled` lagi di footer mana pun.
+- **Validasi di service, bukan di router.** Satu alamat, tanpa prefix `mailto:`,
+  tanpa spasi dalam, domain berlabel, maksimum 254 karakter (local 64). Ditolak =
+  422 dan nilai lama tidak berubah. Dibaca ulang juga divalidasi: baris yang
+  diedit tangan tidak boleh diterbitkan sebagai alamat.
+- **Menghapus adalah tindakan yang dinamai.** Beda dari rekening tujuan (daftar
+  kosong ditolak, karena menyimpannya = menghapus semua rekening tanpa pilihan),
+  satu kotak kosong adalah satu-satunya cara menurunkan alamat dari halaman. Jadi
+  tombolnya berubah menjadi **"Hapus dari footer"** saat field dibersihkan di atas
+  alamat yang sedang berlaku, bukan diam-diam bertuliskan "Simpan".
+- **Tidak ada tombol "verifikasi"**. Tidak ada yang memeriksa deliverability;
+  kontrol yang mengimplikasikan server sudah mengeceknya adalah bohong.
+
 ## Berkas yang disentuh
 
 | Berkas | Perubahan |
@@ -130,6 +200,28 @@ perkiraan di atas yang salah dan sudah dikoreksi, bukan dibuang diam-diam.
 | `src/app/features/public/PublicPricing.tsx` | `NAV_COLUMNS` dihapus, prop baru |
 | `src/app/features/public/PublicNotes.tsx` | `NOTES_COLUMNS` dihapus, prop baru |
 | `src/styles/auth.css` | blok footer diganti; aturan `.pubf-cta*` pindah ke dalamnya |
+
+Tabel di atas ronde satu dan dua. Yang ditambahkan ronde tiga:
+
+| Berkas | Perubahan |
+| --- | --- |
+| `backend/api/services/system_settings_service.py` | `contact_support`: baca, tulis, validasi alamat |
+| `backend/api/routers/contact.py` | **baru** — `GET /v1/subscriptions/contact` (publik) |
+| `backend/api/routers/admin/contact.py` | **baru** — `GET`/`PUT /v1/admin/settings/contact` |
+| `backend/api/main.py`, `backend/api/routers/admin/__init__.py` | kedua router dipasang |
+| `backend/tests/conftest.py` | fake pool mengenal bentuk `{"email": ...}` |
+| `backend/tests/test_contact.py` | **baru** — service + kedua endpoint lewat HTTP |
+| `src/app/config/api.ts` | `contact`, `adminContact` |
+| `src/app/features/public/useSupportContact.ts` | **baru** — satu baca; semua kegagalan jadi `null` |
+| `src/app/features/public/PublicFooter.tsx` | baris kontak, hanya saat ada alamat |
+| `src/app/features/admin/AdminContactView.tsx` (+ tes) | **baru** — tab keempat `/admin` |
+| `src/app/features/public/PublicFooter.test.tsx` | **baru** — 12 tes footer, termasuk larangan mengarang alamat |
+| `src/app/features/public/Public{Features,Notes}.test.tsx` | mock `apiFetch`, karena keduanya kini merender komponen yang meng-fetch |
+
+Tidak ada migrasi baru: `system_settings` sudah ada, dan `contact_support` sengaja
+**tidak** di-seed — install yang belum dikonfigurasi harus menjawab "belum ada",
+bukan mengirim baris yang tidak bisa dibaca siapa pun. Itu justru yang dijaga
+`test_system_settings_schema.py` (seed tetap `{"pricing"}`).
 
 `App.tsx` **tidak** disentuh: footer membaca `toggleLocale` dari `useApp()`,
 pola yang sudah dipakai `Sidebar.tsx`. `locale` tetap prop, karena tiga tes
@@ -150,5 +242,9 @@ Yang berubah karena memang tidak lagi benar:
   tombol `Masuk` dan `getByRole` melempar kalau ganda.
 - Kontrak `#catatan` di kedua halaman tetap lulus tanpa diubah.
 
-Guard baru: satu footer tidak memuat jangkar yang sama dua kali, dan baris
-tautan setiap layar tidak memuat route-nya sendiri maupun target CTA-nya.
+Guard yang berdiri sesudah ronde tiga: tes footer menuntut **ketiadaan** (nol
+tautan navigasi, nol heading, tidak ada `Masuk`/`Buat akun`/`Fitur`/`Catatan`),
+dan `PublicFooter.test.tsx` menjaga dua hal sekaligus — baris kontak hilang saat
+server menjawab null, dan sumber komponen tidak memuat satu pun alamat email
+(meniru penjaga `PublicNotes.test.tsx`, dengan alasan yang sama: yang layak
+ diperiksa adalah bahwa tidak ada yang dikarang).

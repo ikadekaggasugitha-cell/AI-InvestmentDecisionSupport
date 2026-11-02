@@ -23,7 +23,7 @@ from api.core.auth import get_current_user, require_entitlement
 from api.core.config import get_settings
 from api.core.rate_limit_middleware import rate_limit_middleware
 from api.routers import (
-    admin, advisor, alerts, auth, broksum, market_ws, news, payments,
+    admin, advisor, alerts, auth, broksum, contact, market_ws, news, payments,
     payments_gateway, portfolio, pricing, reports, risk, signals, subscription,
     symbols, technicals,
 )
@@ -322,10 +322,13 @@ Set `AUTH_BYPASS=true` in `.env` for development.
     # Including it WITHOUT `protected` is that design visible, not an
     # oversight.
     app.include_router(payments_gateway.router)
-    # Public, and the only unauthenticated data endpoint here. The price has to be
-    # readable before anyone can decide to subscribe; it exposes two numbers and
+    # Public, and the unauthenticated data endpoints here. The price and the
+    # transfer destinations have to be readable before anyone can decide to
+    # subscribe; the support address is read by the footer on the same
+    # signed-out screens. Together they expose numbers, one account string and
     # nothing else.
     app.include_router(pricing.router)
+    app.include_router(contact.router)
     app.include_router(news.router, dependencies=protected)
 
     # ── Prometheus metrics (Phase 8) ──────────────────────────────────────────

@@ -1,5 +1,5 @@
 """
-The admin surface: one router, five domains.
+The admin surface: one router, eight domains.
 
 Why a script and an endpoint both exist: `db/promote_admin.py` creates the first
 administrator because a brand-new install has nobody to promote. Once one exists,
@@ -13,12 +13,24 @@ The endpoints split by what they administer; the composite keeps the single
 
 from fastapi import APIRouter
 
-from api.routers.admin import accounts, bank_accounts, pricing, subscriptions, transactions
+from api.routers.admin import (
+    accounts,
+    analytics,
+    bank_accounts,
+    contact,
+    integrations,
+    pricing,
+    subscriptions,
+    transactions,
+)
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 router.include_router(accounts.router)
 router.include_router(subscriptions.router)
 router.include_router(pricing.router)
 router.include_router(bank_accounts.router)
+router.include_router(contact.router)
+router.include_router(analytics.router)
+router.include_router(integrations.router)
 router.include_router(transactions.router)
 

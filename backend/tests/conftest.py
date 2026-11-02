@@ -38,6 +38,7 @@ os.environ.setdefault("RATE_LIMIT_ENABLED", "true")
 os.environ.setdefault("RATE_LIMIT_TEST_BUDGET", "1000000/minute")
 
 import asyncio
+import re
 
 import pytest
 import pytest_asyncio
@@ -48,6 +49,36 @@ from httpx import AsyncClient, ASGITransport
 
 from api.core import db as db_module
 from api.core import redis_client as redis_module
+# The fake queue aggregates need the same period lengths the real overview query
+# normalises by, so the two cannot quietly disagree inside the suite.
+from api.services.payment_service.core import PLAN_DAYS
+
+
+def _ilike(value: object, pattern: str) -> bool:
+    """Postgres `ILIKE … ESCAPE '\\'` for the one shape the account list builds.
+
+    `%` as the only wildcard and `\\` as its escape, which is exactly what
+    `_like_pattern` emits. A general LIKE engine would be a second thing to keep
+    correct, and the fake's job here is to refuse a query it cannot interpret.
+    """
+    if value is None:
+        return False
+    text = str(value)
+    built: list[str] = []
+    index = 0
+    while index < len(pattern):
+        char = pattern[index]
+        if char == "\\" and index + 1 < len(pattern):
+            built.append(re.escape(pattern[index + 1]))
+            index += 2
+            continue
+        if char == "%":
+            built.append(".*")
+            index += 1
+            continue
+        built.append(re.escape(char))
+        index += 1
+    return re.fullmatch("".join(built), text, re.IGNORECASE | re.DOTALL) is not None
 
 
 ENV = {
@@ -475,9 +506,12 @@ class _IdentityPool:
             # bank_accounts upsert passes the whole JSON payload as $2 instead,
             # as text — the way asyncpg carries jsonb params — so the parse is
             # the fake doing what Postgres does when the value is read back as
-            # jsonb.
+            # jsonb. contact_support passes a bare string, which must not be fed
+            # to json.loads the way the account list is.
             if args[0] == "pricing":
                 value = {"weekly": args[1], "monthly": args[2], "annual": args[3]}
+            elif args[0] == "contact_support":
+                value = {"email": args[1]}
             else:
                 payload = args[1]
                 if isinstance(payload, str):
@@ -573,6 +607,58 @@ class _IdentityPool:
                             ("id", "email", "full_name", "phone_number", "role",
                              "blocked_at", "blocked_reason", "created_at")}
             return None
+        if "AS revenue_today" in query:
+            # admin_analytics_service.read_overview: nine aggregates over the
+            # transaction and subscription tables.
+            #
+            # Matched BEFORE the `FROM subscriptions` branches below, because the
+            # overview statement mentions that table inside two scalar subqueries
+            # and would otherwise be answered by the wrong one.
+            #
+            # The predicates are copied from the SQL deliberately, so a change to
+            # one without the other shows up as a failing comparison rather than
+            # hiding in a query no test runs. This is not the guarantee that the
+            # SQL is valid Postgres: that is what the live-database class in
+            # tests/test_admin_analytics.py is for.
+            now = self._now.now(self._tz.utc)
+            window_start = now - self._timedelta(days=30)
+
+            def _wib_date(value):
+                return (value + self._timedelta(hours=7)).date()
+
+            settled = [
+                r for r in self.transactions.values()
+                if r["status"] == "settlement" and r.get("approved_at") is not None
+            ]
+            in_window = [r for r in settled if r["approved_at"] >= window_start]
+            ends: dict[str, list] = {}
+            for sub in self.subscriptions:
+                ends.setdefault(str(sub["user_id"]), []).append(sub["expires_at"])
+            return {
+                "revenue_today": sum(
+                    int(r["amount"])
+                    for r in settled
+                    if _wib_date(r["approved_at"]) == _wib_date(now)
+                ),
+                "revenue_last_30_days": sum(int(r["amount"]) for r in in_window),
+                "revenue_total": sum(int(r["amount"]) for r in settled),
+                "mrr_run_rate": round(sum(
+                    int(r["amount"]) * 30.0 / PLAN_DAYS[r["plan"]] for r in in_window
+                )),
+                "settled_last_30_days": len(in_window),
+                "pending_queue": sum(
+                    1 for r in self.transactions.values() if r["status"] == "pending"
+                ),
+                "expired_queue": sum(
+                    1 for r in self.transactions.values() if r["status"] == "expire"
+                ),
+                "active_subscribers": sum(
+                    1 for ids in ends.values() if any(e > now for e in ids)
+                ),
+                "churned_subscribers": sum(
+                    1 for ids in ends.values() if max(ids) <= now
+                ),
+            }
         if "FROM subscriptions" in query and "ORDER BY expires_at DESC" in query:
             # subscription router: the longest unexpired period. ORDER BY honoured
             # here because which row comes back is the whole point of the query.
@@ -776,6 +862,9 @@ class _IdentityPool:
         if "JOIN users u" in query:
             # The admin queue: the payment row with its payer attached, oldest
             # first (order of arrival). $1 the status filter, or None for all.
+            # $2 the limit and $3 the offset, honoured here rather than ignored:
+            # the page and its `hasMore` are the service's own logic, and a fake
+            # that returned everything would let a broken window pass.
             wanted = None if args[0] is None else str(args[0])
             rows = []
             for r in self.transactions.values():
@@ -788,7 +877,9 @@ class _IdentityPool:
                         break
                 rows.append(out)
             rows.sort(key=lambda r: r["created_at"])
-            return rows
+            start = int(args[2]) if len(args) > 2 else 0
+            stop = start + int(args[1]) if len(args) > 1 else len(rows)
+            return rows[start:stop]
         if "UPDATE users u SET" in query:
             # The suspension beat: accounts.suspend_lapsed_accounts. Selection
             # and write are one statement on the real database, so the fake
@@ -823,14 +914,49 @@ class _IdentityPool:
                 lapsed.append({"id": row["id"], "email": row["email"]})
             return lapsed
         if "FROM users" in query:
-            # Newest first, matching the endpoint's ORDER BY. The fake does not
-            # implement LIMIT/OFFSET: paging is FastAPI's job and is tested against
-            # the response shape, not against this stand-in.
+            # The admin account list: newest first, matching the endpoint's
+            # ORDER BY, with its filters applied here rather than waved through.
+            # A fake that answered every row whatever the query asked would let a
+            # WHERE clause that never matches pass every test in the file, which
+            # is the failure this suite has been bitten by before.
+            expected_args = 3 if "ILIKE" in query else 2
+            if len(args) != expected_args:
+                raise AssertionError(
+                    f"account list expected {expected_args} parameters, got "
+                    f"{len(args)}: {query!r}"
+                )
             rows = sorted(self.users.values(),
                           key=lambda r: r["created_at"], reverse=True)
-            return [{k: r[k] for k in
-                     ("id", "email", "full_name", "phone_number", "role",
-                      "blocked_at", "blocked_reason", "created_at")} for r in rows]
+            if "u.blocked_at IS NOT NULL" in query:
+                rows = [r for r in rows if r["blocked_at"] is not None]
+            elif "u.blocked_at IS NULL" in query:
+                rows = [r for r in rows if r["blocked_at"] is None]
+            elif "blocked_at IS" in query:
+                # A blocked-at predicate the fake does not know: refusing beats
+                # returning the unfiltered list under a filter's name.
+                raise AssertionError(f"unknown blocked_at predicate: {query!r}")
+            if "ILIKE" in query:
+                pattern = str(args[0])
+                rows = [
+                    r
+                    for r in rows
+                    if _ilike(r["email"], pattern) or _ilike(r["full_name"], pattern)
+                ]
+            # The real statement carries the period through a LEFT JOIN LATERAL,
+            # so the fake resolves the same key the same way.
+            out = []
+            for r in rows:
+                row = {k: r[k] for k in
+                       ("id", "email", "full_name", "phone_number", "role",
+                        "blocked_at", "blocked_reason", "created_at")}
+                ends = [s["expires_at"] for s in self.subscriptions
+                        if str(s["user_id"]) == str(r["id"])]
+                row["expires_at"] = max(ends) if ends else None
+                out.append(row)
+            # LIMIT and OFFSET are the last two parameters in every combination
+            # of predicates, which is the one thing the builder guarantees.
+            limit, offset = int(args[-2]), int(args[-1])
+            return out[offset:offset + limit]
         raise AssertionError(f"unexpected identity fetch: {query!r}")
 
     # -- sessions + entitlement
@@ -1029,5 +1155,6 @@ def fake_identity():
          patch("api.services.payment_service.manual.get_pool", _get_pool), \
          patch("api.services.payment_service.gateway.get_pool", _get_pool), \
          patch("api.routers.subscription.get_pool", _get_pool), \
-         patch("api.services.system_settings_service.get_pool", _get_pool):
+         patch("api.services.system_settings_service.get_pool", _get_pool), \
+         patch("api.services.admin_analytics_service.get_pool", _get_pool):
         yield pool
