@@ -162,5 +162,16 @@ celery_app.conf.update(
             "task": "workers.payment_worker.suspend_lapsed_subscriptions",
             "schedule": crontab(minute="5"),
         },
+        # Deliver the emails the admin queue owes whoever it just approved or
+        # refused. Every two minutes on odd minutes: the message is "your payment
+        # was accepted", so waiting ten minutes for it costs the reader more than
+        # the send costs the server, and odd minutes keep it out of the minute-0
+        # group. On an install with no SMTP configured nothing is ever queued, so
+        # this beat is an indexed lookup that returns empty — the obligation and
+        # the ability to meet it are decided together, in the approve transaction.
+        "drain-notification-outbox": {
+            "task": "workers.payment_worker.drain_notification_outbox",
+            "schedule": crontab(minute="1-59/2"),
+        },
     },
 )

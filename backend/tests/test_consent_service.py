@@ -114,7 +114,19 @@ def real_pool(monkeypatch):
 
 @pytest.fixture
 async def account_id(real_pool):
-    """A real account row, since consent references one with a foreign key."""
+    """A real account row, since consent references one with a foreign key.
+
+    And removed again afterwards. This fixture used to insert and leave, which
+    added five `consent-*@test.invalid` rows to the developer's database on every
+    run of the suite — 487 of them before anyone counted, 99% of the `users`
+    table. Deleting the account is the whole cleanup: `consent_acceptances.user_id`
+    is `ON DELETE CASCADE`, the same path
+    `test_deleting_the_account_deletes_its_consent` asserts on, so the teardown
+    does not depend on a second mechanism staying in sync.
+
+    The one test that deletes the account itself is unaffected: a `DELETE` whose
+    row is already gone removes nothing and does not raise.
+    """
     pool = await get_pool()
     new_id = uuid.uuid4()
     await pool.execute(
@@ -126,7 +138,8 @@ async def account_id(real_pool):
         str(new_id),
         f"consent-{new_id}@test.invalid",
     )
-    return new_id
+    yield new_id
+    await pool.execute("DELETE FROM users WHERE id = $1", str(new_id))
 
 
 class TestRecording:

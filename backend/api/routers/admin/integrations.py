@@ -28,6 +28,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from api.core.auth import AdminUser
+from api.services.email_transport import email_status
 from api.services.midtrans_service import gateway_configured, gateway_environment
 
 logger = logging.getLogger(__name__)
@@ -36,35 +37,48 @@ router = APIRouter(tags=["admin"])
 
 
 class IntegrationsResponse(BaseModel):
-    """Derived facts about the one integration this code reads.
+    """Derived facts about the two integrations this code reads.
 
     `midtransEnvironment` is `sandbox` or `production`: which site the money
     would flow toward. It is shown because an install pointed at the wrong one
     looks exactly like a working payment page while booking nothing.
+
+    `emailMissing` names the *settings* that stand between this install and a
+    sent confirmation — `SMTP_HOST`, `SMTP_MAIL_FROM`, `NOTIFICATIONS_ENABLED` —
+    so an operator reading "not configured" has something to act on instead of
+    three files to guess at. It is a list of setting names, never of values: the
+    password is not returned, not masked, not truncated, not as a length, and the
+    host is not either, because which provider an install uses is itself
+    information about it.
     """
 
     midtransConfigured: bool
     midtransEnvironment: str
+    emailConfigured: bool
+    emailMissing: list[str] = []
 
 
 @router.get(
     "/settings/integrations",
     response_model=IntegrationsResponse,
-    summary="Which payment gateway this install is wired to",
+    summary="Which integrations this install is wired to",
     description=(
-        "Read-only, and only about Midtrans — the single integration whose\n"
-        "credentials this codebase reads.\n\n"
-        "No secret crosses this boundary. The endpoint reports whether a key\n"
-        "exists and which site it points at, never the key, a fragment of it, or\n"
-        "how long it is.\n\n"
-        "Changing a key means editing the deployment's environment and\n"
+        "Read-only, and only about what this codebase actually reads: the\n"
+        "Midtrans gateway and the SMTP settings behind the notification outbox.\n\n"
+        "No secret crosses this boundary. The endpoint reports whether each\n"
+        "integration is configured and, for email, which setting names are\n"
+        "missing — never a value, a fragment, a length, or the host itself.\n\n"
+        "Changing either means editing the deployment's environment and\n"
         "restarting: Settings is read once and cached, so a form that appeared to\n"
         "save would be a lie about what it did."
     ),
     responses={403: {"description": "Administrator access required"}},
 )
 async def admin_integrations(admin: AdminUser) -> IntegrationsResponse:
+    mail = email_status()
     return IntegrationsResponse(
         midtransConfigured=gateway_configured(),
         midtransEnvironment=gateway_environment(),
+        emailConfigured=mail.configured,
+        emailMissing=list(mail.missing),
     )

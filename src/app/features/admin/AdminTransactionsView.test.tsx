@@ -15,8 +15,9 @@ import { AdminTransactionsView } from '@/app/features/admin/AdminTransactionsVie
  *
  * Two absences are asserted too, because they are the decisions this screen
  * exists to keep: no control claims a receipt was opened (there is no stored
- * file, ADR-0011), and none claims a notification was sent (there is no email
- * or WhatsApp transport).
+ * file, ADR-0011), and none claims a message was delivered — approving queues a
+ * confirmation when this install can send email, and only the worker knows
+ * whether it went out.
  */
 vi.mock('@/app/config/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/app/config/api')>()),
@@ -368,12 +369,22 @@ describe('what this screen is not allowed to claim', () => {
     expect(screen.queryByRole('button', { name: /bukti|preview|zoom|perbesar/i })).toBeNull()
   })
 
-  it('never says a notification was sent, because there is no transport', async () => {
-    const text = document.body.textContent ?? ''
+  it('describes the mail as queued, never as already delivered', async () => {
+    /* The rule this file was written to hold did not disappear when an email
+       transport arrived; it moved. Approving now queues a message, and the queue
+       must not say the payer was told — that is the worker's answer, in a table
+       this screen does not read. And WhatsApp still is not a channel this install
+       has, so naming one here would be inventing it. */
     render(<AdminTransactionsView />)
     await screen.findByText('AID-20261102-7731')
+    const text = document.body.textContent ?? ''
 
-    expect(text).not.toMatch(/notifikasi|dikirim ke pembeli|emailed|whatsapp/i)
+    expect(text).not.toMatch(/telah dikirim|sudah dikirim|notifikasi terkirim|emailed/i)
+    expect(text).not.toMatch(/whatsapp/i)
+    // It is allowed to say the honest conditional thing, and point at where the
+    // answer actually lives.
+    expect(text).toMatch(/mengantrekan/)
+    expect(text).toMatch(/Integrasi/)
   })
 })
 

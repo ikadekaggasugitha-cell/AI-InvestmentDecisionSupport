@@ -12,14 +12,20 @@ import { ENDPOINTS, apiFetch } from '@/app/config/api'
  * saved credentials and changed nothing would be worse than no form at all, so
  * there is no input field here and the screen says why.
  *
- * Only Midtrans is listed, because only Midtrans exists: `Settings` has no SMTP
- * field and no WhatsApp gateway, and no transport for either is in this codebase.
- * Showing them as "not configured" would imply the app has a place to put them.
+ * Listed here are the integrations this code actually reads: the Midtrans gateway
+ * and the SMTP settings behind the notification outbox. WhatsApp is not listed,
+ * because `Settings` has no field for it and no transport exists — showing it as
+ * "not configured" would imply the app has a place to put one.
  */
 
 interface IntegrationState {
   midtransConfigured: boolean
   midtransEnvironment: string
+  emailConfigured: boolean
+  /** Setting NAMES that stand between this install and a sent confirmation.
+   *  Never values, and never the host: which provider an install uses is itself
+   *  information about it. */
+  emailMissing: string[]
 }
 
 type LoadState =
@@ -143,6 +149,22 @@ export function AdminIntegrationsView() {
             integrations.midtransEnvironment === 'production'
               ? 'Transaksi nyata.'
               : 'Halaman sandbox; tidak ada uang sungguhan yang bergerak.'
+          }
+        />
+        {/* Email is the second integration, and the one the operator cannot infer
+            from the queue: approving a transfer queues a confirmation only when
+            this install can send it, so "not configured" here means the payer
+            learns nothing and nobody is at fault for that. */}
+        <Row
+          label="Email"
+          value={
+            integrations.emailConfigured ? 'Terkirim bila ada yang diantrekan' : 'Belum terpasang'
+          }
+          tone={integrations.emailConfigured ? 'ok' : 'off'}
+          note={
+            integrations.emailConfigured
+              ? 'Transfer yang disetujui atau ditolak diantrekan sebagai pesan dan dikirim worker.'
+              : `Antrean tidak menulis pesan. Yang belum diisi: ${integrations.emailMissing.join(', ') || 'tidak ada'}.`
           }
         />
       </div>

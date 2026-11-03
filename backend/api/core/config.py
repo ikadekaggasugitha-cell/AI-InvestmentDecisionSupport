@@ -107,6 +107,25 @@ class Settings(BaseSettings):
     midtrans_server_key: str = ""
     midtrans_is_production: bool = False
 
+    # Outbound email. Empty host and empty sender are the honest default, and
+    # NOTIFICATIONS_ENABLED is off, so a fresh install queues what it owes and
+    # sends nothing. The flag is separate from the host on purpose: mail to a
+    # customer cannot be unsent, and a developer who copies a staging `.env`
+    # locally should not find themselves sending real invoices to real payers.
+    # `api/services/email_transport.py` reads all of this through one predicate
+    # (`email_configured()`), which the approve path, the worker and the admin
+    # panel all call, so no two of them can disagree about whether mail goes out.
+    notifications_enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_mail_from: str = ""
+    # STARTTLS on a plain port is the normal case (587); 465 implicit-TLS is
+    # handled by the transport choosing the class from the port, not by a second
+    # flag that could disagree with the first.
+    smtp_use_tls: bool = True
+
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 

@@ -30,13 +30,20 @@ function respond(body: unknown, status = 200) {
   } as unknown as Response)
 }
 
+/** The two mail states, so every fixture spells out which one it is describing. */
+const MAIL_ON = { emailConfigured: true, emailMissing: [] }
+const MAIL_OFF = {
+  emailConfigured: false,
+  emailMissing: ['NOTIFICATIONS_ENABLED', 'SMTP_HOST', 'SMTP_MAIL_FROM'],
+}
+
 describe('AdminIntegrationsView', () => {
   beforeEach(() => {
     mocked.mockReset()
   })
 
   it('reports the gateway as wired and names the site it would reach', async () => {
-    respond({ midtransConfigured: true, midtransEnvironment: 'production' })
+    respond({ midtransConfigured: true, midtransEnvironment: 'production', ...MAIL_ON })
     render(<AdminIntegrationsView />)
 
     expect(await screen.findByText('Terpasang')).toBeInTheDocument()
@@ -45,7 +52,7 @@ describe('AdminIntegrationsView', () => {
   })
 
   it('says an unwired install cannot take money, instead of looking ready', async () => {
-    respond({ midtransConfigured: false, midtransEnvironment: 'sandbox' })
+    respond({ midtransConfigured: false, midtransEnvironment: 'sandbox', ...MAIL_OFF })
     render(<AdminIntegrationsView />)
 
     expect(await screen.findByText('Belum dikonfigurasi')).toBeInTheDocument()
@@ -53,7 +60,7 @@ describe('AdminIntegrationsView', () => {
   })
 
   it('offers no field anywhere to type a credential', async () => {
-    respond({ midtransConfigured: true, midtransEnvironment: 'sandbox' })
+    respond({ midtransConfigured: true, midtransEnvironment: 'sandbox', ...MAIL_ON })
     const { container } = render(<AdminIntegrationsView />)
     await screen.findByText('Terpasang')
 
@@ -64,28 +71,46 @@ describe('AdminIntegrationsView', () => {
   })
 
   it('names no integration the code does not read', async () => {
-    respond({ midtransConfigured: true, midtransEnvironment: 'sandbox' })
+    respond({ midtransConfigured: true, midtransEnvironment: 'sandbox', ...MAIL_ON })
     render(<AdminIntegrationsView />)
     await screen.findByText('Terpasang')
 
     const text = document.body.textContent ?? ''
-    // There is no SMTP transport and no WhatsApp gateway in this codebase.
-    // Listing either "as off" would imply a place to put it.
-    expect(text).not.toMatch(/smtp/i)
+    // WhatsApp still has no field in Settings and no transport, so a row for it
+    // would imply a place to put a key. Email left this list the moment the
+    // outbox arrived — which is why the assertion names one channel and not two.
     expect(text).not.toMatch(/whatsapp/i)
+    expect(screen.getByText('Email')).toBeInTheDocument()
   })
 
-  it('renders only the two facts the server sends, and nothing that could hold a key', async () => {
+  it('tells the operator which setting is missing rather than only saying no', async () => {
+    // "Not configured" alone sends somebody to three files to guess at. The
+    // server returns setting NAMES, never values, and the screen shows them.
+    respond({ midtransConfigured: true, midtransEnvironment: 'sandbox', ...MAIL_OFF })
+    render(<AdminIntegrationsView />)
+    await screen.findByText('Belum terpasang')
+
+    expect(screen.getByText(/NOTIFICATIONS_ENABLED/)).toBeInTheDocument()
+    expect(screen.getByText(/SMTP_HOST/)).toBeInTheDocument()
+  })
+
+  it('renders only the facts the server sends, and nothing that could hold a secret', async () => {
     // The guarantee that no key material crosses the wire is the endpoint's, and
     // it is tested there. What this screen can prove is narrower and still worth
-    // pinning: it renders exactly the two fields it was given, so there is no
-    // third slot waiting to display a secret.
-    respond({ midtransConfigured: true, midtransEnvironment: 'sandbox' })
+    // pinning: it renders the fields it was given and no slot beside them, and a
+    // value that leaked through would show up as text on the page.
+    respond({
+      midtransConfigured: true,
+      midtransEnvironment: 'sandbox',
+      emailConfigured: true,
+      emailMissing: [],
+    })
     render(<AdminIntegrationsView />)
     await screen.findByText('Terpasang')
 
     expect(screen.getByText('Midtrans')).toBeInTheDocument()
     expect(screen.getByText('Site yang dituju')).toBeInTheDocument()
+    expect(screen.getByText('Email')).toBeInTheDocument()
     // Exact matches: the note under each value repeats the word "sandbox", and a
     // regex here would count the explanation as a second field.
     expect(screen.getByText('Terpasang')).toBeInTheDocument()
@@ -109,7 +134,7 @@ describe('AdminIntegrationsView', () => {
     render(<AdminIntegrationsView />)
     await screen.findByRole('alert')
 
-    respond({ midtransConfigured: true, midtransEnvironment: 'sandbox' })
+    respond({ midtransConfigured: true, midtransEnvironment: 'sandbox', ...MAIL_ON })
     await user.click(screen.getByRole('button', { name: 'Coba lagi' }))
 
     await waitFor(() => expect(screen.getByText('Terpasang')).toBeInTheDocument())

@@ -128,3 +128,56 @@ def suspend_lapsed_subscriptions(self) -> dict:
     except Exception as exc:  # noqa: BLE001 — heartbeat must never fail the task
         logger.debug("payment_worker: heartbeat write skipped — %s", exc)
     return result
+
+
+async def _drain_outbox() -> dict:
+    """Send what the outbox is owed, through the service that owns it.
+
+    The worker is a clock again, not a second opinion: `notification_service`
+    holds the claim, the send and the state transition, so the beat cannot invent
+    a different meaning for `sent`. On an install with no mail configured the
+    claim returns nothing — approve only queues when `email_configured()` is
+    true — so this is a cheap no-op rather than a table of failures.
+    """
+    from api.core.db import close_pool
+    from api.services.notification_service import drain_once
+
+    try:
+        counts = await drain_once()
+        return {"status": "ok", **counts}
+    finally:
+        try:
+            await close_pool()
+        except Exception:  # noqa: BLE001 — a half-open pool must not fail the task
+            pass
+
+
+@celery_app.task(
+    name="workers.payment_worker.drain_notification_outbox",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=120,
+    acks_late=True,
+)
+def drain_notification_outbox(self) -> dict:
+    """Deliver queued confirmations. Every two minutes, on odd minutes.
+
+    Two because the message is 'your payment was accepted' and its value decays
+    fast; odd minutes because the market-hours jobs already own minute 0, and
+    this one would rather not join them.
+    """
+    result = asyncio.run(_drain_outbox())
+    try:
+        from api.core.redis_client import record_run
+
+        asyncio.run(record_run(
+            "drain-outbox",
+            status=result.get("status", "ok"),
+            detail={
+                "sent": result.get("sent"),
+                "failed": result.get("failed"),
+            },
+        ))
+    except Exception as exc:  # noqa: BLE001 — heartbeat must never fail the task
+        logger.debug("payment_worker: heartbeat write skipped — %s", exc)
+    return result

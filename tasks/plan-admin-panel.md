@@ -190,11 +190,109 @@ menangkapnya:
   indeksnya lewat `header.index("nama_kolom")`; hal yang sama diterapkan di
   `AdminAccountsView.test.tsx` lewat `columnIndex('Berakhir')`.
 
+## Irisan ketiga: jalur email, dengan antrean di depannya
+
+Pemilik memilih **email dulu** dan bentuk **outbox**. Yang membuat butir §5.1 ini
+bisa dibangun tanpa membalik keputusan yang sudah tercatat adalah satu
+perbedaan: antrean tidak lagi berkata "tidak ada notifikasi", ia berkata
+"pesannya diantrekan, dan yang tahu sudah keluar atau belum hanyalah worker".
+
+### Bentuknya, dan kenapa bukan alternatifnya
+
+**Baris pesan ditulis di dalam transaksi approve.** Ini seluruh alasan tabelnya
+ada. Mengirim dari dalam transaksi berarti menahan lock database melewati
+round trip jaringan ke pihak ketiga — provider yang lambat berubah jadi pool
+habis. Mengirim sesudah commit berarti proses yang mati di antaranya
+menghilangkan pesan **tanpa jejak**: operator melihat tabel kosong dan
+menyimpulkan tidak ada yang perlu dikirim, padahal ada. Satu baris membuat
+kewajiban itu bertahan dari crash.
+
+**Teks yang dirender disimpan, bukan disusun ulang saat kirim.** Barisnya adalah
+rekaman apa yang sebenarnya dikatakan ke alamat itu. Merender dari template
+terbaru ketika worker sempatinya akan membuat satu baris berarti berbeda di waktu
+berbeda — bentuk sumber kedua yang schema ini hindari di tempat lain.
+
+**At-least-once, bukan exactly-once.** Proses yang mati antara kirim sukses dan
+mark `sent` membuat pesan dikirim ulang. Untuk konfirmasi pembayaran itu arah
+yang benar: duplikat itu tidak nyaman, pesan yang hilang membuat pembayar tidak
+tahu ia sudah punya akses dan tidak ada yang bisa menunjukkan sesuatu pernah
+diwajibkan. Exactly-once butuh pengiriman yang transactional dengan barisnya, dan
+server SMTP tidak ikut transaksi Postgres.
+
+**Satu predikat, tiga pemakai.** `email_configured()` dibaca jalur approve, worker,
+dan panel Integrasi — bentuk yang sama yang sudah dipakai
+`gateway_configured()` untuk Midtrans. Kalau panel menebak sendiri, ia bisa
+mengiklankan jalur yang sedang menolak mengirim.
+
+**Default mati.** `NOTIFICATIONS_ENABLED=false`. Email ke pelanggan tidak bisa
+ditarik, dan developer yang menyalin `.env` staging ke laptopnya tidak boleh
+menemukan dirinya mengirim invoice sungguhan ke orang sungguhan. Flag ini sengaja
+terpisah dari `SMTP_HOST` karena keduanya fakta berbeda: sebuah instalasi bisa
+punya host dan tetap memilih tidak mengirim.
+
+### Yang ditemukan sebelum sempat rusak di produksi
+
+- **`str(timedelta)` bukan interval.** `_CLAIM_SQL` dan `_MARK_FAILED_SQL`
+  mengirim `str(_CLAIM_WINDOW)` ke parameter `$n::interval`. asyncpg meminta
+  objek `timedelta` dan menjawab `DataError: 'str' object has no attribute
+  'days'`. Fake pool menerima string dengan senang, jadi worker akan gagal di
+  setiap beat di produksi sementara suite tetap hijau. Inilah tepatnya yang
+  `backend/tests/test_admin_live_sql.py` ada untuk menangkapnya, dan ia menangkap.
+- **`mark_failed` menulis `status='failed'` pada kegagalan pertama.** Itu
+  membuat `_MAX_ATTEMPTS` dan backoff eksponensial di bawahnya jadi kode mati, dan
+  mengubah satu gangguan provider sepuluh menit jadi pesan yang tidak pernah
+  terkirim lagi. Diperbaiki jadi `CASE WHEN attempts >= $3 THEN 'failed' ELSE
+  'pending' END` — satu statement, karena transisi dan backoff harus bergerak
+  bersama.
+- **`.replace(",", ".")` pada literal yang bersebelahan.** Di `_approved_body`,
+  `.replace` yang ditempel di satu baris f-string menempel ke **seluruh rangkaian
+  literal** yang bersisian, termasuk baris nomor faktur. Angka rupiah memang benar
+  (`Rp 44.000`), tapi kode faktur yang mengandung koma akan ikut berubah diam-diam.
+  Diganti `_rupiah()` sebagai helper, dengan tes yang mengirim kode
+  `INV,WITH,COMMAS` dan menegaskan komanya masih ada.
+- **Penjaga `.env.example` bekerja.** `tests/test_env_template.py` menuntut setiap
+  field `Settings` terdokumentasi; tujuh field email baru membuat tes itu gagal
+  dan tujuh tes lain jadi `skip`. Skip itu bukan hijau — itu field yang belum
+  ditulis. Sekarang ketiganya ada di template dan 93 tes template lolos tanpa skip.
+
+### Yang sengaja belum dibangun
+
+Template HTML invoice §7.2 (logo, multipart alternative, keputusan tampilan) —
+ yang terkirim sekarang teks biasa berisi nomor faktur, nominal, paket, dan
+tanggal berakhir, dan itu pesan yang lengkap. Pengingat perpanjangan H-3.
+WhatsApp, termasuk normalisasi `users.phone_number` ke E.164 yang dibutuhkannya.
+
+**Diverifikasi di browser untuk jalur email**, dengan akun sementara pola yang sama
+(`zz-mail-*`, dihapus lagi setelahnya) dan instance backend kedua di port 8022
+yang dimatikan sesudahnya — supaya proses pemilik di 8020 tidak dipakai untuk
+menguji konfigurasi email. Yang terbukti, dua-duanya:
+
+- **Install tanpa email (8020, `NOTIFICATIONS_ENABLED=false`).** Approve satu
+  transfer menjawab `settlement` dan mencetak langganan, dan `notification_outbox`
+  tetap **0 baris**. Panel Integrasi mencetak "Email / Belum terpasang / Yang
+  belum diisi: NOTIFICATIONS_ENABLED, SMTP_HOST, SMTP_MAIL_FROM" dengan **nol
+  kolom input** di seluruh tab. Antrean tidak lagi mengklaim apa pun tentang
+  notifikasi yang terkirim.
+- **Install dengan email (8022, host menunjuk port 2525 yang tidak ada
+  servernya).** `/v1/admin/settings/integrations` menjawab
+  `emailConfigured: true, emailMissing: []`; approve satu transfer menulis tepat
+  **satu** baris `payment_approved` dengan alamat pembayar dan subjek yang
+  menyebut paketnya. Lalu `drain_once()` diarahkan ke server yang menolak
+  koneksi: `{claimed: 1, sent: 0, failed: 1}` — barisnya **tetap `pending`**,
+  `attempts` naik, `next_attempt_at` bergeser ke depan, dan `last_error` berisi
+  "could not reach 127.0.0.1: [Errno 61] Connection refused". Tidak ada jalur di
+  mana kegagalan kirim menyamar jadi `sent`.
+- **Jendela klaim bekerja di arah yang benar.** Drain kedua sebelum jendela
+  backoff habis menjawab `{claimed: 0}` — baris yang sedang dipegang tidak diambil
+  dua kali.
+- **Cascade pada data nyata.** Menghapus 2 akun verifikasi membawa baris outboxnya
+  bersama: `notification_outbox` kembali ke 0 tanpa satu DELETE pun ke tabel itu.
+
 ## Uji
 
-504 tes frontend (39 berkas) dan 970 backend hijau; `tsc`, `eslint`, `ruff`,
+505 tes frontend (39 berkas) dan 1004 backend hijau; `tsc`, `eslint`, `ruff`,
 `prettier`, `vite build` bersih; `test_docs_status.py` 20 lolos. Coverage backend
-70,5%.
+70,46%. `test_env_template.py` 93 lolos tanpa skip.
 
 **Diverifikasi di browser** pada `http://localhost:5173/admin`, sebagai operator
 sungguhan, di 1440 dan 390. Caranya: akun sementara dibuat lewat `POST
@@ -237,12 +335,36 @@ kedua itu macet sebelum POST login sempat diteruskan.
 
 ## Pertanyaan yang tersisa
 
-- **Sampah tes di database pengembangan**: 470+ user `*@test.invalid`. Bukan
-  dibuat oleh pekerjaan ini — suite menulisnya setiap `pytest` jalan, yang
-  sendiri layak jadi keputusan tersendiri. Tidak disentuh oleh pembersihan
-  verifikasi ini karena menghapus jejak tes yang sah bukan bagian tugasnya.
-- **Indeks `pg_trgm` untuk pencarian.** `ILIKE '%…%'` seq-scan; pada ratusan baris
-  ini milidetik. Ukur dulu, baru migrasi, dan itu keputusan tersendiri.
+- **Indeks `pg_trgm` untuk pencarian — sudah diukur, jawabannya jangan.**
+  `EXPLAIN (ANALYZE, BUFFERS)` atas statement daftar akun yang sebenarnya
+  (`_list_accounts_query` dikirim lewat asyncpg ke database pengembang, 492 baris
+  `users`): seq scan, **0,63 ms** dengan `q=nama`, **0,08 ms** dengan `q` +
+  `state`, **0,98 ms** tanpa filter. Sebuah indeks trigram menambah migrasi dan
+  satu hal yang harus dijaga benar, untuk angka yang sudah di bawah satu
+  milidetik. Yang mengubah jawaban ini adalah pertumbuhan, bukan perasaan: kalau
+  `users` sudah puluhan ribu baris dan plan masih seq scan, migrasinya satu file.
+- **Sampah tes di database pengembangan — sudah dibereskan, dan penyebabnya
+  ditutup di sumbernya.** Diukur lebih dulu: dari 492 user, **487** adalah
+  `consent-*@test.invalid` (99%), dan yang menunjuk ke mereka hanya
+  `consent_acceptances` (**640** baris, `ON DELETE CASCADE`); `sessions`,
+  `subscriptions`, `portfolios`, `transactions` semuanya **0**.
+  Yang tumbuh itu bukan sampah yang tak terhindarkan: fixture `account_id` di
+  `backend/tests/test_consent_service.py` menulis user sungguhan dan tidak pernah
+  menghapusnya — lima baris baru setiap kali suite jalan. Diperbaiki di sana
+  (fixture jadi `yield` lalu `DELETE FROM users`; cascade menangani baris
+  consentnya), diverifikasi dengan menjalankan modul itu dan menghitung ulang:
+  **487 sebelum, 487 sesudah**, sebelumnya akan jadi 492. Baru kemudian 487
+  baris lama dihapus lewat skrip scoped dengan dry-run dan pemeriksaan ulang
+  blast radius pada saat penghapusan, bukan mengandalkan pengukuran tadi.
+  Hasil: `users` 492 → 5, `consent_acceptances` 686 → 46, **970 tes tetap lolos**.
+  Yang tersisa lima akun yang memang dipakai layar ini (`operator@local.invalid`,
+  `payer-e2e@aidss.id` dengan satu baris settlement, `admin-e2e@aidss.id`, dan dua
+  akun inspeksi UI). Dua akun inspeksi itu juga artefak tes, tapi tidak cocok
+  polanya dengan yang diukur dan disetujui, jadi tidak ikut dihapus — scope
+  pembersihan tidak boleh melebar diam-diam setelah melihat angka.
+- **Satu `@local.invalid` tersisa dan itu benar**: `operator@local.invalid`
+  (admin, dibuat 2026-10-04). Nol baris `zz-*` milik verifikasi ini yang
+  bertahan — pembersihannya sudah diverifikasi, bukan diasumsikan.
 - **`/fitur` berakhir tanpa CTA** — pertanyaan terbuka dari sesi footer publik,
   masih belum dijawab.
 

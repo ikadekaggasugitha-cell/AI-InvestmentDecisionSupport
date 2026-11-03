@@ -363,12 +363,17 @@ Panel admin diletakkan pada **route/portal terpisah** dari antarmuka dashboard p
 > yang tidak ada dan alasannya: (1) **pratinjau bukti transfer** — `proof_image_url`
 > sengaja tidak pernah diisi, buktinya teks di `admin_notes`
 > ([ADR-0011](adr/0011-satu-penulis-subscriptions.md)); (2) **notifikasi saat
-> approve** — tidak ada jalur email maupun WhatsApp di kode ini, jadi approve
-> menulis akses dan tidak mengirim apa pun; (3) **pengaturan kunci API** —
+> approve** — jalur **email sudah ada** lewat `notification_outbox`
+> (`backend/api/services/notification_service.py`, §7.1), dan approve menulis
+> pesannya di dalam transaksi yang sama dengan keputusannya; **WhatsApp belum**,
+> karena tidak ada field di `Settings`, tidak ada transport, dan nomor di
+> `users.phone_number` disimpan dalam bentuk yang diketik orang saat daftar,
+> bukan E.164. Install yang tidak menyalakan `NOTIFICATIONS_ENABLED` tetap
+> mengirim nol pesan, dan konsol mengatakannya; (3) **pengaturan kunci API** —
 > kredensial tinggal di lingkungan deployment dan `get_settings()` dibaca sekali
 > saat import, jadi formulir apa pun akan tampak menyimpan tanpa mengubah apa
-> pun; yang ada adalah panel status hanya-baca untuk Midtrans saja, karena SMTP
-> dan WhatsApp tidak punya field maupun transport. Keadaan sebenarnya ada di
+> pun; yang ada adalah panel status hanya-baca untuk Midtrans dan jalur email,
+> karena WhatsApp tidak punya field maupun transport. Keadaan sebenarnya ada di
 > `docs/status.md`.
 
 ```
@@ -440,11 +445,20 @@ Sistem memanfaatkan scheduler **Celery Beat** yang sudah ada di proyek untuk men
 
 Tidak ada task kedaluwarsa langganan, dan ini disengaja. Masa aktif dibaca dari `expires_at`, jadi tidak ada yang perlu ditandai — task `check_and_expire_subscriptions` yang pernah direncanakan di sini **dibatalkan** (_ADR-0002_). Kalau akses dihitung dari kolom status, task inilah yang akan menulis status basi, dan pembayaran yang masukabutuh satu hari sebelum jadwal berjalan akan salah ditandai.
 
-Yang tetap perlu task hanyalah pengiriman notifikasi, dan itu Fase 2:
+Yang tetap perlu task hanyalah pengiriman notifikasi, dan **satu di antaranya
+sudah berjalan**: `drain-notification-outbox` (`workers.payment_worker.py`) tiap
+dua menit pada menit ganjil, mengirim baris yang diantrekan approve/deny di luar
+transaksi database mana pun. Yang masih belum adalah pengingat perpanjangan H-3 —
+task-nya butuh transport yang sama, dan belum ada yang menulis angkanya:
 
 ```python
 beat_schedule = {
-    # Pengingat perpanjangan H-3
+    # Sudah berjalan: kirim apa yang diantrekan antrean pembayaran.
+    "drain-notification-outbox": {
+        "task": "workers.payment_worker.drain_notification_outbox",
+        "schedule": crontab(minute="1-59/2"),
+    },
+    # Belum ada: Pengingat perpanjangan H-3
     "send-renewal-reminders-daily": {
         "task": "workers.subscription_worker.send_renewal_reminders",
         "schedule": crontab(hour=9, minute=0),

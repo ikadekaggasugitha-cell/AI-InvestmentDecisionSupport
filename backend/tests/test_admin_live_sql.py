@@ -449,6 +449,296 @@ class TestAccountListStatement:
         assert {str(r["id"]) for r in first}.isdisjoint({str(r["id"]) for r in second})
 
 
+class TestNotificationOutboxStatement:
+    """The outbox's SQL, on a real server.
+
+    Every guarantee this table carries is a database feature, not Python: the
+    unique key that stops a second welcome mail, the CHECK that keeps the
+    vocabulary closed, the cascade that follows an account away, and the
+    `FOR UPDATE SKIP LOCKED` claim that lets two workers drain one queue. A fake
+    answering these queries in Python would only be proving the fake agrees with
+    the service about a shape neither of them enforced.
+    """
+
+    async def _seed_user(self, conn, tag: str) -> str:
+        return str(
+            await conn.fetchval(
+                "INSERT INTO users (email, password_hash, full_name, phone_number, role)"
+                " VALUES ($1, '!test', 'Kabar Uji', '081234567898', 'user') RETURNING id",
+                f"{tag}.{STAMP}@aidss.invalid",
+            )
+        )
+
+    async def _enqueue(self, conn, user_id, source_id, event="payment_approved"):
+        from api.services.notification_service import _ENQUEUE_SQL
+
+        return await conn.fetchrow(
+            _ENQUEUE_SQL,
+            user_id,
+            event,
+            f"{event[:12]}-{STAMP}@example.test",
+            "Subjek",
+            "Isi pesan",
+            source_id,
+        )
+
+    async def test_one_source_one_message_however_often_it_is_offered(self, real_conn):
+        """The idempotency key, which is the whole reason a repeat approve is safe.
+
+        `approve_transaction` answers a second press with the period it already
+        minted. Without this key the same press would also queue a second
+        confirmation, and the payer would reasonably wonder which one is real.
+        """
+        pool = await real_conn()
+        conn = await pool.acquire()
+        try:
+            async def body(conn):
+                user_id = await self._seed_user(conn, "idem")
+                source = str((await conn.fetchval("SELECT gen_random_uuid()")))
+                first = await self._enqueue(conn, user_id, source)
+                second = await self._enqueue(conn, user_id, source)
+                count = await conn.fetchval(
+                    "SELECT count(*) FROM notification_outbox WHERE source_id = $1", source
+                )
+                # A different event on the same source is a different message,
+                # and must still be allowed — the key is the pair, not the row.
+                third = await self._enqueue(conn, user_id, source, event="payment_denied")
+                return first, second, count, third
+
+            first, second, count, third = await _read_then_rollback(conn, body)
+        finally:
+            await pool.release(conn)
+
+        assert first is not None
+        assert second is None, "the same message offered twice yields no second row"
+        assert int(count) == 1
+        assert third is not None
+
+    async def test_the_vocabulary_and_the_references_are_enforced_here(self, real_conn):
+        """Not by a comment and not by the service: by the table.
+
+        Each of these is a shape a future caller could invent — an event nobody
+        defined, a channel the transport cannot send, an address belonging to no
+        account — and the database has to be the one that says no.
+        """
+        import asyncpg
+
+        pool = await real_conn()
+        conn = await pool.acquire()
+        try:
+            async def body(conn):
+                user_id = await self._seed_user(conn, "checks")
+                source = str((await conn.fetchval("SELECT gen_random_uuid()")))
+                ghost_id = str((await conn.fetchval("SELECT gen_random_uuid()")))
+                raised: dict[str, str] = {}
+
+                # Each refusal is tried in its own savepoint. Inside one
+                # transaction, the first error aborts everything after it, so a
+                # sequence of expected failures would report the first one and
+                # then InFailedSQLTransactionError for the rest — which would look
+                # like the other constraints do not exist.
+                async def expect(kind, label, awaitable):
+                    try:
+                        async with conn.transaction():
+                            await awaitable()
+                    except kind as exc:
+                        raised[label] = str(exc)
+
+                await expect(
+                    asyncpg.CheckViolationError,
+                    "bad_event",
+                    lambda: self._enqueue(conn, user_id, source, event="invoice_printed"),
+                )
+                await expect(
+                    asyncpg.CheckViolationError,
+                    "bad_channel",
+                    lambda: conn.execute(
+                        "INSERT INTO notification_outbox (user_id, event, channel,"
+                        " recipient, subject, body_text)"
+                        " VALUES ($1, 'payment_approved', 'whatsapp', 'x', 's', 'b')",
+                        user_id,
+                    ),
+                )
+                await expect(
+                    asyncpg.CheckViolationError,
+                    "bad_status",
+                    lambda: conn.execute(
+                        "INSERT INTO notification_outbox (user_id, event, recipient,"
+                        " subject, body_text, status)"
+                        " VALUES ($1, 'payment_approved', 'x', 's', 'b', 'queued')",
+                        user_id,
+                    ),
+                )
+                await expect(
+                    asyncpg.ForeignKeyViolationError,
+                    "ghost_user",
+                    # The id is minted here rather than inside the lambda: `await`
+                    # in a lambda is a syntax error, and the value is not what the
+                    # test is about.
+                    lambda: self._enqueue(conn, ghost_id, source),
+                )
+
+                return raised
+
+            raised = await _read_then_rollback(conn, body)
+        finally:
+            await pool.release(conn)
+
+        assert set(raised) == {"bad_event", "bad_channel", "bad_status", "ghost_user"}, (
+            "a CHECK or a foreign key that does not fire is a rule that only "
+            "exists in the comment above it"
+        )
+
+    async def test_an_account_that_goes_away_takes_its_queued_mail_with_it(
+        self, real_conn
+    ):
+        """Cascade, because a row addressed to nobody is work with no target.
+
+        The consent suite relies on this too: deleting an account must not leave
+        the outbox holding a message for a person who no longer exists.
+        """
+        pool = await real_conn()
+        conn = await pool.acquire()
+        try:
+            async def body(conn):
+                user_id = await self._seed_user(conn, "cascade")
+                source = str((await conn.fetchval("SELECT gen_random_uuid()")))
+                await self._enqueue(conn, user_id, source)
+                before = await conn.fetchval(
+                    "SELECT count(*) FROM notification_outbox WHERE user_id = $1", user_id
+                )
+                await conn.execute("DELETE FROM users WHERE id = $1", user_id)
+                after = await conn.fetchval(
+                    "SELECT count(*) FROM notification_outbox WHERE user_id = $1", user_id
+                )
+                return before, after
+
+            before, after = await _read_then_rollback(conn, body)
+        finally:
+            await pool.release(conn)
+
+        assert int(before) == 1
+        assert int(after) == 0
+
+    async def test_the_claim_holds_a_row_back_rather_than_offering_it_twice(
+        self, real_conn
+    ):
+        """`FOR UPDATE SKIP LOCKED`, and the window that follows it.
+
+        The claim bumps `attempts` and pushes `next_attempt_at` past the send
+        window in the same statement. Without that, a second worker — or the same
+        beat two minutes later while a slow server is still being talked to —
+        would claim the row again and send the message twice.
+
+        Three rows, three different jobs: one due now, one due later, and one that
+        is claimed second to carry the retry ladder. `next_attempt_at` is set
+        explicitly rather than left at its default, because every statement in
+        this transaction shares one `NOW()` and an `ORDER BY` on identical values
+        would pick rows at random — a test that passes on the ordering Postgres
+        happened to choose today is not a test.
+        """
+        from datetime import timedelta
+
+        from api.services.notification_service import (
+            _CLAIM_SQL,
+            _MAX_ATTEMPTS,
+            _MARK_FAILED_SQL,
+            _MARK_SENT_SQL,
+        )
+
+        base = datetime.now(timezone.utc)
+
+        pool = await real_conn()
+        conn = await pool.acquire()
+        try:
+            async def body(conn):
+                user_id = await self._seed_user(conn, "claim")
+                ids = {}
+                for name, minutes in (("first", -5), ("later", 30), ("second", -3)):
+                    source = str(await conn.fetchval("SELECT gen_random_uuid()"))
+                    row = await self._enqueue(conn, user_id, source)
+                    ids[name] = str(row["id"])
+                    await conn.execute(
+                        "UPDATE notification_outbox SET next_attempt_at = $2"
+                        " WHERE id = $1",
+                        ids[name],
+                        base + timedelta(minutes=minutes),
+                    )
+
+                # One row per beat, oldest due first.
+                claimed_first = await conn.fetch(_CLAIM_SQL, 1, timedelta(minutes=2))
+                # The same beat again: `first` is now held back by its own window,
+                # so the worker takes `second`, and never `later`, which is not due.
+                claimed_second = await conn.fetch(_CLAIM_SQL, 1, timedelta(minutes=2))
+                claimed_third = await conn.fetch(_CLAIM_SQL, 5, timedelta(minutes=2))
+
+                await conn.execute(_MARK_SENT_SQL, ids["first"])
+                # fetchrow, not fetchval: two columns are asked for, and fetchval
+                # would hand back only the first one as a bare string.
+                sent_status = await conn.fetchrow(
+                    "SELECT status, attempts FROM notification_outbox WHERE id = $1",
+                    ids["first"],
+                )
+
+                # The retry ladder on the second row, driven the way the service
+                # drives it: the threshold is always the same, and what changes is
+                # how many attempts the row has already spent. Both halves matter —
+                # a statement that simply wrote 'failed' would pass only the second
+                # one, and a statement that never wrote it would pass only the first.
+                await conn.execute(
+                    _MARK_FAILED_SQL,
+                    ids["second"],
+                    "relay refused",
+                    _MAX_ATTEMPTS,
+                    timedelta(minutes=5),
+                )
+                after_one = await conn.fetchval(
+                    "SELECT status FROM notification_outbox WHERE id = $1", ids["second"]
+                )
+                # Spend the rest of the budget, as five claimed attempts would.
+                await conn.execute(
+                    "UPDATE notification_outbox SET attempts = $2 WHERE id = $1",
+                    ids["second"],
+                    _MAX_ATTEMPTS,
+                )
+                await conn.execute(
+                    _MARK_FAILED_SQL,
+                    ids["second"],
+                    "relay refused",
+                    _MAX_ATTEMPTS,
+                    timedelta(minutes=5),
+                )
+                after_last = await conn.fetchrow(
+                    "SELECT status, last_error, next_attempt_at > NOW() AS waiting"
+                    " FROM notification_outbox WHERE id = $1",
+                    ids["second"],
+                )
+                return (
+                    [str(r["id"]) for r in claimed_first],
+                    [str(r["id"]) for r in claimed_second],
+                    [str(r["id"]) for r in claimed_third],
+                    sent_status,
+                    after_one,
+                    after_last,
+                )
+
+            got_first, got_second, got_third, sent, after_one, after_last = (
+                await _read_then_rollback(conn, body)
+            )
+        finally:
+            await pool.release(conn)
+
+        assert len(got_first) == 1 and len(got_second) == 1
+        assert got_first[0] != got_second[0], "two beats must not take the same row"
+        assert got_third == [], "the not-yet-due row is not work, and the rest are held"
+        assert sent["status"] == "sent"
+        assert sent["attempts"] == 1
+        assert after_one == "pending", "a first failure must stay retryable"
+        assert after_last["status"] == "failed", "the last attempt ends the row"
+        assert after_last["last_error"] == "relay refused"
+        assert after_last["waiting"] is True, "a failed row is given a backoff, not a retry now"
+
+
 class TestTheServiceOnARealDatabase:
     async def test_the_service_returns_ints_the_response_model_can_carry(self, real_conn):
         """`read_overview` through the service, so the casts (`::bigint` over a

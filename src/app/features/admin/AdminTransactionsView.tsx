@@ -172,8 +172,9 @@ export function AdminTransactionsView() {
         <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 4 }}>
           Transfer yang dideklarasikan orang, dan baris gateway. Menyetujui menulis status
           <em> settlement</em> dan masa aktifnya dalam satu transaksi database; menolak meninggalkan
-          uangnya utuh dan mencatat alasannya. Tidak ada notifikasi yang dikirim, karena instalasi
-          ini tidak punya jalur email atau WhatsApp.
+          uangnya utuh dan mencatat alasannya. Kalau instalasi ini punya jalur email, keputusan itu
+          juga mengantrekan surat untuk pembayar — layar ini tidak pernah mengatakan pesannya sudah
+          terkirim, dan status jalurnya ada di tab Integrasi.
         </p>
       </div>
 

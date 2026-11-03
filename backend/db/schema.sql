@@ -214,6 +214,68 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions (user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions (status);
 
+-- ── Notification outbox ─────────────────────────────────────────────────────
+-- One row per message the system owes somebody. Written in the same database
+-- transaction as the fact that creates it, and drained by a worker afterwards.
+--
+-- This table exists because of the failure the alternative has. Calling an SMTP
+-- server inside approve would hold a database transaction open across a network
+-- round trip to a third party, and calling it after the commit would lose the
+-- message silently if the process died in between — the payer would never learn
+-- they have access, and nobody could tell that a message was ever owed. A row
+-- here makes "we owe this person an email" a fact that survives the crash.
+--
+-- The rendered text is stored, not looked up at send time. The row is the record
+-- of what was actually said to that address; rendering it from the current
+-- template when the worker gets to it would let one row mean different things at
+-- different times, which is the second-source shape this schema avoids elsewhere.
+--
+-- `recipient` is copied at enqueue rather than read from `users` at send: a
+-- person who changes their email after paying should be told at the address the
+-- payment was confirmed to, and the row should be able to say where it went.
+--
+-- uq_notification_outbox_source is the idempotency key, for the same reason
+-- transactions has one: a repeated approve answers with the period it already
+-- minted, and it must not mint a second welcome message beside it. NULL source
+-- rows stay repeatable so a future event with no source row is not blocked.
+-- Mirrors db/migrations/0015_notification_outbox.sql.
+CREATE TABLE IF NOT EXISTS notification_outbox (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id           UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    -- What happened, from a closed list. Adding a kind of message is a code
+    -- change, not a string somebody types into an admin screen.
+    event             VARCHAR(50) NOT NULL
+                          CHECK (event IN ('payment_approved', 'payment_denied')),
+    -- Only email today, and the CHECK says so rather than a comment hoping so.
+    -- WhatsApp needs an E.164 number, and `users.phone_number` is stored in
+    -- whatever shape the person typed at signup.
+    channel           VARCHAR(20) NOT NULL DEFAULT 'email'
+                          CHECK (channel IN ('email')),
+    recipient         TEXT NOT NULL,
+    subject           TEXT NOT NULL,
+    body_text         TEXT NOT NULL,
+    -- The row this message is about, when there is one. Also the idempotency
+    -- half of the unique key below.
+    source_id         UUID,
+    status            VARCHAR(20) NOT NULL DEFAULT 'pending'
+                          CHECK (status IN ('pending', 'sent', 'failed')),
+    attempts          INT NOT NULL DEFAULT 0,
+    last_error        TEXT,
+    -- When the next attempt may run. A message that failed four seconds ago is
+    -- not ready to be retried; without this column the worker would hammer a
+    -- server that is refusing it.
+    next_attempt_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    sent_at           TIMESTAMPTZ,
+    CONSTRAINT uq_notification_outbox_source UNIQUE (source_id, event, channel)
+);
+
+-- The worker's own query: pending rows that are due, oldest first. Partial, so
+-- it stays small whatever the table grows to — sent rows are history, not work.
+CREATE INDEX IF NOT EXISTS idx_notification_outbox_due
+    ON notification_outbox (next_attempt_at)
+    WHERE status = 'pending';
+
 -- ── System settings ─────────────────────────────────────────────────────────
 -- The price lives here and nowhere else. It was previously written in a
 -- document, which is why docs/status.md could say "harga tidak ada sumbernya":

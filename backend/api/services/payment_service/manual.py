@@ -38,9 +38,25 @@ from api.services.subscription_service import (
     SubscriptionPeriod,
     grant,
 )
+from api.services.email_transport import email_configured
+from api.services.notification_service import enqueue_approved, enqueue_denied
 from api.services.system_settings_service import PricingUnavailable, read_pricing
 
 logger = logging.getLogger(__name__)
+
+
+async def _recipient_email(conn, user_id) -> str:
+    """The address the account is reached at, read on the caller's connection.
+
+    Read inside the transaction rather than passed in from the queue read: the
+    address that gets the confirmation should be the one the database held at the
+    moment the payment was accepted, not the one a page fetched minutes earlier
+    and may have since paged past.
+    """
+    row = await conn.fetchrow("SELECT email FROM users WHERE id = $1", str(user_id))
+    return row["email"] if row is not None else ""
+
+
 def manual_deadline(created_at: datetime, ttl_seconds: int) -> datetime:
     """When the queue stops offering a pending declaration.
 
@@ -266,6 +282,23 @@ async def approve_transaction(
                 transaction_id=row["id"],
                 conn=conn,
             )
+            # The confirmation is queued beside the settlement, on the same
+            # connection, so the obligation commits or rolls back with the access
+            # it describes. Gated on `email_configured()` rather than always
+            # written: an install that cannot send mail would otherwise fill the
+            # outbox with rows that fail every attempt, and the console's claim
+            # that approving here tells nobody would stop being true.
+            if email_configured():
+                await enqueue_approved(
+                    conn,
+                    user_id=row["user_id"],
+                    recipient=await _recipient_email(conn, row["user_id"]),
+                    transaction_id=row["id"],
+                    invoice_code=row["invoice_code"],
+                    amount=int(row["amount"]),
+                    plan=row["plan"],
+                    expires_at=period.expires_at,
+                )
             settled = _to_transaction(
                 await conn.fetchrow(
                     "SELECT"""
@@ -342,6 +375,16 @@ async def deny_transaction(
                     # row as it stands — the denial did not change.
                     return tx
                 raise TransactionNotDeniable(tx.status)
+            if email_configured():
+                await enqueue_denied(
+                    conn,
+                    user_id=row["user_id"],
+                    recipient=await _recipient_email(conn, row["user_id"]),
+                    transaction_id=row["id"],
+                    invoice_code=row["invoice_code"],
+                    amount=int(row["amount"]),
+                    reason=text,
+                )
             return _to_transaction(row)
 
 

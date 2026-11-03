@@ -20,15 +20,24 @@ from api.core.config import get_settings
 from tests.test_admin_api import login, make_admin, signup
 
 FAKE_KEY = "dGVzdC1zZXJ2ZXIta2V5LTEyMzQ1Njc4OTByb3RhdGUt"
+FAKE_SMTP_PASSWORD = "jangan-pernah-keluar-di-layar-ini"
+FAKE_SMTP_HOST = "smtp.internal.example.test"
 _ENDPOINT = "/v1/admin/settings/integrations"
 
 
-def _app(monkeypatch, server_key: str, is_production: bool = False) -> TestClient:
-    """A client built with the gateway in a chosen state.
+def _app(
+    monkeypatch,
+    server_key: str,
+    is_production: bool = False,
+    mail: dict[str, str] | None = None,
+) -> TestClient:
+    """A client built with the gateway and the mail transport in a chosen state.
 
     The key is set per test rather than globally because the honest answer to
     "is this install wired for payments" has two sides, and a fixture that only
-    ever produced one of them would leave the other untested.
+    ever produced one of them would leave the other untested. `mail` does the same
+    for email: an install that can send and one that cannot look the same screen
+    apart from two words.
     """
     monkeypatch.setenv("AUTH_BYPASS", "false")
     monkeypatch.setenv("PAYWALL_ENABLED", "false")
@@ -36,6 +45,15 @@ def _app(monkeypatch, server_key: str, is_production: bool = False) -> TestClien
     monkeypatch.setenv("METRICS_ENABLED", "false")
     monkeypatch.setenv("MIDTRANS_SERVER_KEY", server_key)
     monkeypatch.setenv("MIDTRANS_IS_PRODUCTION", "true" if is_production else "false")
+    for key, value in {
+        "NOTIFICATIONS_ENABLED": "false",
+        "SMTP_HOST": "",
+        "SMTP_USERNAME": "",
+        "SMTP_PASSWORD": "",
+        "SMTP_MAIL_FROM": "",
+        **(mail or {}),
+    }.items():
+        monkeypatch.setenv(key, value)
     get_settings.cache_clear()
     from api.main import create_app
 
@@ -72,6 +90,8 @@ class TestWhatItReports:
         assert client.get(_ENDPOINT).json() == {
             "midtransConfigured": True,
             "midtransEnvironment": "sandbox",
+            "emailConfigured": False,
+            "emailMissing": ["NOTIFICATIONS_ENABLED", "SMTP_HOST", "SMTP_MAIL_FROM"],
         }
 
     def test_an_install_with_no_credentials_says_so_rather_than_looking_ready(
@@ -86,7 +106,34 @@ class TestWhatItReports:
         assert bare.get(_ENDPOINT).json() == {
             "midtransConfigured": False,
             "midtransEnvironment": "sandbox",
+            "emailConfigured": False,
+            "emailMissing": ["NOTIFICATIONS_ENABLED", "SMTP_HOST", "SMTP_MAIL_FROM"],
         }
+
+    def test_a_wired_mail_transport_reads_as_wired(self, monkeypatch, mock_redis, fake_identity):
+        """The other half of the same sentence.
+
+        An install that *can* send a confirmation must not still read as one that
+        cannot: the queue's copy about notifications hangs on this answer, and an
+        operator who has just configured SMTP should see it change.
+        """
+        wired = _app(
+            monkeypatch,
+            FAKE_KEY,
+            mail={
+                "NOTIFICATIONS_ENABLED": "true",
+                "SMTP_HOST": FAKE_SMTP_HOST,
+                "SMTP_MAIL_FROM": "billing@example.test",
+                "SMTP_USERNAME": "relay-user",
+                "SMTP_PASSWORD": FAKE_SMTP_PASSWORD,
+            },
+        )
+        make_admin(wired, fake_identity)
+        login(wired, "admin@aidss.id")
+
+        body = wired.get(_ENDPOINT).json()
+        assert body["emailConfigured"] is True
+        assert body["emailMissing"] == []
 
     def test_the_production_flag_moves_the_answer(self, monkeypatch, mock_redis, fake_identity):
         """Sandbox and production look identical once a page works. The panel has
@@ -118,34 +165,71 @@ class TestWhatItReports:
         get_settings.cache_clear()
         assert midtrans.gateway_configured() is False
 
-    def test_no_response_body_carries_key_material(self, client, fake_identity):
+    def test_no_response_body_carries_key_material(self, monkeypatch, mock_redis, fake_identity):
         """Not the value, not a prefix, not a length.
 
         A length alone would let a caller confirm a guess about the key, so the
-        response is deliberately two fields and neither can hold a string.
+        response is deliberately a handful of booleans and setting names.
+        Coverage now spans both secrets: the gateway key and the SMTP password,
+        which is newer than the guard and would be exactly the thing to slip past
+        it.
+        """
+        wired = _app(
+            monkeypatch,
+            FAKE_KEY,
+            mail={
+                "NOTIFICATIONS_ENABLED": "true",
+                "SMTP_HOST": FAKE_SMTP_HOST,
+                "SMTP_MAIL_FROM": "billing@example.test",
+                "SMTP_USERNAME": "relay-user",
+                "SMTP_PASSWORD": FAKE_SMTP_PASSWORD,
+            },
+        )
+        make_admin(wired, fake_identity)
+        login(wired, "admin@aidss.id")
+
+        resp = wired.get(_ENDPOINT)
+        for secret in (FAKE_KEY, FAKE_KEY[:8], FAKE_SMTP_PASSWORD, FAKE_SMTP_HOST):
+            assert secret not in resp.text, f"{secret!r} leaked out of the panel"
+        # Every string the panel returns is a one-word site name. A key, a host or
+        # a password would all be longer than this, so the shape itself says no
+        # secret is riding along in a field somebody added later.
+        strings = [v for v in resp.json().values() if isinstance(v, str)]
+        assert strings == ["sandbox"], "only the site name is allowed to be text"
+        assert all(len(s) < 24 for s in strings)
+
+
+class TestItOnlyNamesWhatExists:
+    def test_whatsapp_is_not_listed_as_off(self, client, fake_identity):
+        """`Settings` has no field for it and no transport exists.
+
+        A row saying "not configured" would imply the app has a place to put a
+        WhatsApp key, which is a claim about the code that the code does not
+        support. Email left this category when the outbox arrived — which is why
+        this test now says WhatsApp and not "SMTP and WhatsApp".
         """
         make_admin(client, fake_identity)
         login(client, "admin@aidss.id")
 
-        resp = client.get(_ENDPOINT)
-        assert FAKE_KEY not in resp.text
-        assert FAKE_KEY[:8] not in resp.text
-        assert all(len(str(v)) < 24 for v in resp.json().values())
+        body = client.get(_ENDPOINT).json()
+        assert set(body) == {
+            "midtransConfigured",
+            "midtransEnvironment",
+            "emailConfigured",
+            "emailMissing",
+        }
+        assert "whatsapp" not in str(body).lower()
 
+    def test_email_is_listed_because_a_transport_now_exists(self, client, fake_identity):
+        """The reverse half, so the previous test cannot pass by omission.
 
-class TestItOnlyNamesWhatExists:
-    def test_smtp_and_whatsapp_are_not_listed_as_off(self, client, fake_identity):
-        """`Settings` has no field for either and no transport exists. A row
-        saying "not configured" would imply the app has a place to put them,
-        which is a claim about the code that the code does not support."""
+        If the panel quietly dropped email again, an operator would conclude the
+        install cannot send mail while `notification_service` is queuing it.
+        """
         make_admin(client, fake_identity)
         login(client, "admin@aidss.id")
 
-        body = client.get(_ENDPOINT).json()
-        assert set(body) == {"midtransConfigured", "midtransEnvironment"}
-        text = str(body).lower()
-        assert "smtp" not in text
-        assert "whatsapp" not in text
+        assert "emailConfigured" in client.get(_ENDPOINT).json()
 
     def test_it_offers_no_way_to_write_a_key(self, client, fake_identity):
         """Read-only is the decision, not an unfinished edit."""
