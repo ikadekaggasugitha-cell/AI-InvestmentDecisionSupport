@@ -37,6 +37,7 @@ const PENDING = {
   paymentMethod: 'bank_transfer',
   status: 'pending',
   notes: 'Sudah transfer ke BCA, jam 21.40.',
+  destination: null,
   payerEmail: 'pembayar@aidss.id',
   createdAt: '2026-11-01T14:40:00+00:00',
   updatedAt: '2026-11-01T14:40:00+00:00',
@@ -203,6 +204,27 @@ describe('the queue as the server holds it', () => {
     expect(screen.getAllByText(/disetujui/)).toHaveLength(1)
   })
 
+  it('says which account the payer named, and stays silent on rows that never said', async () => {
+    /* The point of the column: two pending rows for the same plan and the same
+       amount are otherwise indistinguishable to whoever matches the money. A row
+       written before migration 0016 has no destination, and printing a dash there
+       would be the screen inventing a claim the payer never made. */
+    mocked.mockResolvedValue(
+      page([
+        { ...PENDING, destination: 'CIMB Niaga 5012345678901 a.n. PT AIDSS JAYA' },
+        { ...SETTLED, destination: null },
+      ]),
+    )
+    render(<AdminTransactionsView />)
+
+    await screen.findByText('AID-20261102-7731')
+    expect(screen.getByText('ke CIMB Niaga 5012345678901 a.n. PT AIDSS JAYA')).toBeInTheDocument()
+    // Exactly one row named a destination. The settled fixture predates the
+    // column and gets no line, not even a placeholder one.
+    expect(screen.getAllByText(/^ke /)).toHaveLength(1)
+    expect(screen.getByText('AID-20261101-1201')).toBeInTheDocument()
+  })
+
   it('separates "there is nothing" from "we could not ask"', async () => {
     mocked.mockResolvedValue(page([]))
     const { unmount } = render(<AdminTransactionsView />)
@@ -322,6 +344,31 @@ describe('denying', () => {
     await waitFor(() => expect(callsTo('/deny', 'POST').length).toBeGreaterThan(0))
     const body = JSON.parse(String(callsTo('/deny', 'POST')[0][1]?.body))
     expect(body).toEqual({ reason: 'Nomor rekening tidak cocok.' })
+
+    /* A refusal is a decision, and until this the only sign it had happened was
+       the row leaving the list — which looks exactly like a reload. Approve got a
+       banner; deny got silence. */
+    const banner = await screen.findByRole('status')
+    expect(banner).toHaveTextContent(/Ditolak: AID-20261102-7731/)
+    expect(banner).toHaveTextContent(/Alasan tercatat di barisnya/)
+  })
+
+  it('says the refusal was recorded, never that the payer was told', async () => {
+    // Whether a queued email went out is the worker's answer. A banner claiming
+    // the payer had been informed would be this screen speaking for a table it
+    // does not read.
+    const user = userEvent.setup()
+    serve([PENDING], () => ok({ ...PENDING, status: 'deny' }))
+    render(<AdminTransactionsView />)
+
+    await screen.findByText('AID-20261102-7731')
+    await user.click(screen.getByRole('button', { name: /Tolak AID-20261102-7731/ }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText(/^Alasan$/), 'Nomor rekening tidak cocok.')
+    await user.click(within(dialog).getByRole('button', { name: /Tolak dengan alasan ini/ }))
+
+    const banner = await screen.findByRole('status')
+    expect(banner.textContent).not.toMatch(/dikirim|notifikasi|email|surat|diberitahu/i)
   })
 
   it('a 409 on a settled row says denial would revoke access, and changes nothing', async () => {

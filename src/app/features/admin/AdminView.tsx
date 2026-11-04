@@ -2,6 +2,8 @@ import { useState } from 'react'
 
 import { useApp } from '@/app/context/AppContext'
 import { AdminAccountsView, useAdminAccounts } from '@/app/features/admin/AdminAccountsView'
+import { AdminPaymentChannelsView } from '@/app/features/admin/AdminPaymentChannelsView'
+import { AdminSmtpView } from '@/app/features/admin/AdminSmtpView'
 import { AdminBankAccountsView } from '@/app/features/admin/AdminBankAccountsView'
 import { AdminContactView } from '@/app/features/admin/AdminContactView'
 import { AdminDashboardView } from '@/app/features/admin/AdminDashboardView'
@@ -96,7 +98,16 @@ export function AdminView() {
             <div
               role="tablist"
               aria-label={isId ? 'Bagian admin' : 'Admin sections'}
-              style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)' }}
+              style={{
+                display: 'flex',
+                gap: 4,
+                borderBottom: '1px solid var(--border)',
+                // Seven tabs are wider than a phone. Without wrapping the strip
+                // scrolls inside itself and the last two sections are simply not
+                // there — the operator cannot reach what they cannot see, and a
+                // tab strip is not somewhere a reader expects to scroll.
+                flexWrap: 'wrap',
+              }}
             >
               {(
                 [
@@ -155,7 +166,13 @@ export function AdminView() {
               </div>
             ) : tab === 'payments' ? (
               <div id="admin-panel-payments" role="tabpanel" aria-labelledby="admin-tab-payments">
-                <AdminBankAccountsView />
+                {/* Both halves answer one operator question, "how does a customer
+                    pay me", and they are kept in one place so the two lists a
+                    payment screen reads cannot be maintained apart by accident. */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+                  <AdminBankAccountsView />
+                  <AdminPaymentChannelsView />
+                </div>
               </div>
             ) : tab === 'contact' ? (
               <div id="admin-panel-contact" role="tabpanel" aria-labelledby="admin-tab-contact">
@@ -168,6 +185,13 @@ export function AdminView() {
                 aria-labelledby="admin-tab-integrations"
               >
                 <AdminIntegrationsView />
+                {/* The editor sits under the status it explains, in the same tab:
+                    "what is wired up" and "what do I change" are one question to
+                    an operator, and answering them two tabs apart is how the two
+                    end up describing different installs. */}
+                <div style={{ marginTop: 24 }}>
+                  <AdminSmtpView />
+                </div>
               </div>
             ) : tab === 'accounts' ? (
               <div id="admin-panel-accounts" role="tabpanel" aria-labelledby="admin-tab-accounts">

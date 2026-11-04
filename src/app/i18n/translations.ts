@@ -230,7 +230,7 @@ const translations = {
     auth_have_account: 'Sudah punya akun?',
     auth_error_generic: 'Permintaan gagal. Coba lagi.',
     auth_beta_note:
-      'Pembayaran dibuka setelah masuk: Midtrans (kartu, QRIS, e-wallet) atau transfer manual.',
+      'Pembayaran dibuka setelah masuk: bayar online (kartu, QRIS, e-wallet) atau transfer manual.',
     consent_title: 'Penjelasan Kepatuhan OJK',
     consent_body:
       'Skor, probabilitas, dan rekomendasi di aplikasi ini dihasilkan model AI dari data pasar. Semuanya disajikan untuk keperluan edukasi dan referensi analitis.',
@@ -481,7 +481,7 @@ const translations = {
     auth_have_account: 'Already have an account?',
     auth_error_generic: 'That request failed. Try again.',
     auth_beta_note:
-      'Payments open after you sign in: Midtrans (card, QRIS, e-wallet) or manual bank transfer.',
+      'Payments open after you sign in: pay online (card, QRIS, e-wallet) or transfer manually.',
     consent_title: 'OJK compliance notice',
     consent_body:
       'The scores, probabilities and recommendations in this app come from an AI model reading market data. They are for education and analytical reference.',

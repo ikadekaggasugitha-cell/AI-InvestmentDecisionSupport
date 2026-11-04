@@ -115,6 +115,13 @@ class Settings(BaseSettings):
     # `api/services/email_transport.py` reads all of this through one predicate
     # (`email_configured()`), which the approve path, the worker and the admin
     # panel all call, so no two of them can disagree about whether mail goes out.
+    #
+    # These are the FALLBACKS, not the whole answer. An operator can store any
+    # field of this block in `system_settings` under `smtp`, and
+    # `email_transport.mail_config()` resolves it row-over-environment at send
+    # time. `get_settings()` is cached at import, so a mailer that read only this
+    # block would ignore the console's email editor entirely and the form would
+    # appear to save while nothing about a send changed.
     notifications_enabled: bool = False
     smtp_host: str = ""
     smtp_port: int = 587

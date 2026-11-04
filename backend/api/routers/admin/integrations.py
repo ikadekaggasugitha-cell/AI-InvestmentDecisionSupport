@@ -56,6 +56,11 @@ class IntegrationsResponse(BaseModel):
     midtransEnvironment: str
     emailConfigured: bool
     emailMissing: list[str] = []
+    # A boolean and not a word. The guard on this endpoint is that no string but
+    # the site name leaves it, because a status screen has no business repeating
+    # a hostname, and "does the stored row answer for email, or does the
+    # deployment's environment still do it?" is a yes-or-no question.
+    emailSenderStored: bool = False
 
 
 @router.get(
@@ -68,17 +73,21 @@ class IntegrationsResponse(BaseModel):
         "No secret crosses this boundary. The endpoint reports whether each\n"
         "integration is configured and, for email, which setting names are\n"
         "missing — never a value, a fragment, a length, or the host itself.\n\n"
-        "Changing either means editing the deployment's environment and\n"
-        "restarting: Settings is read once and cached, so a form that appeared to\n"
-        "save would be a lie about what it did."
+        "Changing the gateway keys still means editing the deployment's\n"
+        "environment and restarting: Settings is read once and cached, so a form\n"
+        "that appeared to save them would be a lie about what it did. Email is\n"
+        "the exception, and it is written behind a different door\n"
+        "(`/v1/admin/settings/smtp`) precisely because an editor has to return the\n"
+        "host and username it is showing. This one stays a status read."
     ),
     responses={403: {"description": "Administrator access required"}},
 )
 async def admin_integrations(admin: AdminUser) -> IntegrationsResponse:
-    mail = email_status()
+    mail = await email_status()
     return IntegrationsResponse(
         midtransConfigured=gateway_configured(),
         midtransEnvironment=gateway_environment(),
         emailConfigured=mail.configured,
         emailMissing=list(mail.missing),
+        emailSenderStored=mail.from_database,
     )

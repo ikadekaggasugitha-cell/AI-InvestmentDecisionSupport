@@ -40,6 +40,11 @@ class AdminTransactionResponse(BaseModel):
     status: str
     notes: str | None = None
     payerEmail: str | None = None
+    # The destination a declared transfer says it went to, as the server composed
+    # it. The CSV does not carry it: the export's columns are the blueprint's
+    # eleven, and adding one is a change to that document rather than to this
+    # response. The screen shows what the file leaves out.
+    destination: str | None = None
     createdAt: str
     updatedAt: str | None = None
     # When the money was accepted, for the rows where it was. The export carries
@@ -177,6 +182,7 @@ def _tx_to_response(tx, ttl_seconds: int) -> AdminTransactionResponse:
         status=tx.status,
         notes=tx.admin_notes,
         payerEmail=tx.email,
+        destination=tx.destination,
         createdAt=tx.created_at.isoformat(),
         updatedAt=tx.updated_at.isoformat() if tx.updated_at else None,
         approvedAt=tx.approved_at.isoformat() if tx.approved_at else None,

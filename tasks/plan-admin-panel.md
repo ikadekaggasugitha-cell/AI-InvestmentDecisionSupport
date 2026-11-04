@@ -288,6 +288,39 @@ menguji konfigurasi email. Yang terbukti, dua-duanya:
 - **Cascade pada data nyata.** Menghapus 2 akun verifikasi membawa baris outboxnya
   bersama: `notification_outbox` kembali ke 0 tanpa satu DELETE pun ke tabel itu.
 
+## Temuan agen browser, dan yang diperbaiki
+
+Verifikasi `/admin` dijalankan lewat subagent browser di dua lebar (1440 dan 390),
+seluruh tujuh tab, dengan akun operator sementara. Empat temuan diverifikasi di
+kode lebih dulu sebelum dipercaya — dan keempatnya nyata:
+
+1. **`Ringkasan` mengklaim "Sembilan angka" sementara yang tampil 6 kartu.**
+   Endpoint memang menjawab sembilan field, tapi enam jadi kartu, dua masuk ke
+   strip antrean, dan satu bersembunyi di dalam rumus MRR. Kalimat itu mengundang
+   pembaca menghitung enam dan menyimpulkan panelnya kehilangan tiga. Diganti jadi
+   "Satu pertanyaan ke server untuk angka-angka di bawah" — tanpa klaim jumlah.
+2. **Tolak tidak memberi konfirmasi apa pun; Setujui memberi banner.** Asimetri
+   nyata: `usePaymentQueue.deny()` memanggil `setResult(null)` dan tidak pernah
+   mengisi hasil, jadi satu-satunya tanda sebuah penolakan terjadi adalah baris
+   yang menghilang — yang tampak persis seperti halaman yang memuat ulang.
+   `result` sekarang `QueueOutcome` (approved | denied), banner penolakan menyebut
+   nomor faktur dan bahwa alasannya tercatat, dan **tidak** mengklaim pembayar
+   sudah diberitahu — itu jawaban worker, bukan layar ini. Dua tes baru menjaganya.
+3. **Wrapper tabel yang menggulir tidak bisa diakses keyboard.** Di 390px lima
+   kolom dari tujuh ada di luar layar, dan `overflowX: 'auto'` tanpa `tabIndex`
+   berarti region itu tidak bisa difokuskan — jadi tidak bisa digulir tanpa mouse
+   atau jempol. Kedua wrapper (akun dan antrean) sekarang `role="region"` +
+   `aria-label` + `tabIndex={0}`.
+4. **Tab strip menyembunyikan `Kontak` dan `Integrasi` di 390px.** Tujuh tab lebih
+   lebar dari ponsel dan stripnya menggulir di dalam dirinya sendiri tanpa isyarat.
+   Ditambah `flexWrap: 'wrap'` — ketujuh tab sekarang terlihat, bukan digulir.
+
+Yang dicatat tapi **tidak** diubah: Rekening tujuan kosong di database pengembang
+(`Belum ada rekening tujuan`) sementara baris settlement lama menyebut
+`BCA 777000111` — itu keadaan data, bukan cacat layar, dan mengisi rekening adalah
+keputusan pemilik. `402` pada `/v1/portfolio/positions` yang ikut terpicu selama
+`/admin` terbuka juga keadaan lama: shell aplikasi mengambil posisi di setiap route.
+
 ## Uji
 
 505 tes frontend (39 berkas) dan 1004 backend hijau; `tsc`, `eslint`, `ruff`,
@@ -368,3 +401,105 @@ kedua itu macet sebelum POST login sempat diteruskan.
 - **`/fitur` berakhir tanpa CTA** — pertanyaan terbuka dari sesi footer publik,
   masih belum dijawab.
 
+---
+
+## Increment 2026-11-09 — pembayaran: rekening, kanal, SMTP, dan layar `/bayar`
+
+Empat permintaan pemilik, dan tiga di antaranya menyentuh kode yang sudah ada tapi
+berbentuk salah. Rencananya dieksekusi per irisan; yang tercatat di sini adalah
+keputusan dan konsekuensi yang pemilik terima, bukan ringkasan diff.
+
+- **Rekening jadi pilihan dari daftar bank, bukan teks bebas, dan tiap baris punya
+  "tampilkan ke user".** Sebelumnya setiap baris yang disimpan langsung publik.
+  Sekarang endpoint publik mengirim yang ditampilkan saja — baris yang disembunyikan
+  tidak dikirim dengan flag untuk diabaikan browser. Bentuk baris bertambah
+  (`code`, `enabled`) dan **baris lama tanpa keduanya tetap terbaca** dengan default
+  `code="other"`, `enabled=true`: kalau tidak, memasang fitur ini akan mematikan
+  halaman pembayaran instalasi yang sedang bekerja. Daftarnya disajikan server
+  (`GET /v1/admin/settings/bank-options`) supaya form tidak menyimpan salinan kedua.
+  Kodenya kunci internal, **bukan** kode clearing — tidak ada satu pun angka bank
+  yang ditulis dari ingatan.
+- **Kanal bayar online kini dipilih operator, dan halaman gateway dibatasi.**
+  Yang dulu ada dua daftar yang bisa berbeda (di `core.py` dan di `constants.ts`)
+  dan satu salinan ketiga di bundle frontend; tinggal satu registry
+  (`backend/api/services/channel_registry.py`) dan salinan frontend **dihapus**.
+  `enabled_payments` dikirim ke Snap hanya bila operator pernah memilih —
+  "belum pernah ditulis" dibaca `None`, bukan kosong, karena kalau tidak, deploy
+  ini akan diam-diam menghapus metode bayar yang sedang jalan.
+- **Satu koreksi hasil verifikasi, bukan asumsi.** Draft rencana menuliskan kode
+  Mandiri sebagai `mandiri_va`. Dokumentasi Snap Midtrans menunjukkan `bank_transfer`
+  adalah alias yang mengembang ke `permata_va, bca_va, bni_va, bri_va, echannel` —
+  Mandiri adalah **`echannel`**. Kalau tebakan itu ikut dikirim, Virtual Account
+  Mandiri hilang dari halaman bayar **tanpa satu pun error**. Dipatok di
+  `backend/tests/test_payment_channels.py` karena kegagalan jenis ini tidak bersuara.
+- **Kolom `transactions.destination`** (migrasi `0016`) — hasil dari pertanyaan yang
+  belum pernah diajukan ke user: transfer ke rekening *yang mana*. Disimpan sebagai
+  snapshot yang server susun, bukan referensi, supaya rekening yang nanti diubah
+  atau dipensiunkan tidak menulis ulang klaim payer. **Tidak ikut diekspor CSV**:
+  sebelas kolom keluaran itu milik blueprint, dan menambah kolom adalah perubahan
+  dokumen, bukan perubahan respons.
+- **SMTP bisa disunting dan benar-benar dibaca.** Pemilik memilih "semua field
+  SMTP bisa disunting", dan itu **membalikkan keputusan yang tercatat sebelumnya**.
+  Konsekuensi yang diterima dan tidak bisa dimitigasi: **password SMTP plaintext di
+  jsonb** — ada di setiap backup basis data dan terbaca oleh akun mana pun dengan
+  hak baca Postgres. Mitigasi yang dipasang: tidak ada endpoint yang mengembalikan
+  nilainya (hanya `hasPassword`), tidak masuk log, `repr` dataclass dibuang, dan
+  PUT tanpa password mempertahankan yang tersimpan. Ditulis di
+  [ADR-0014](../docs/adr/0014-smtp-di-database.md).
+  **Tanpa perubahan pada transport, fitur ini akan lebih buruk daripada tidak ada**:
+  `get_settings()` di-cache saat import, jadi formulir yang menulis ke DB sementara
+  mailer membaca `Settings` akan tampak menyimpan dan tidak mengubah apa pun.
+  `mail_config()` sekarang satu-satunya pembaca, dan ia membaca barisnya saat
+  mengirim — ada tes yang membuktikannya berubah **tanpa restart**
+  (`backend/tests/test_smtp_settings.py`).
+- **Editor email adalah pintu terpisah dari panel Integrasi**, dan alasannya
+  tercatat di docstring `backend/api/routers/admin/smtp.py`: panel itu dijaga tes
+  yang menolak teks apa pun selain nama site. Memakai pintu yang sama akan
+  menghancurkan penjaga yang baru saja diperkuat untuk password SMTP.
+- **`/bayar` adalah layar bayar, dan gate-nya sesi — bukan entitlement.** Ini
+  jebakan termahal di increment ini: `require_entitlement` menolak akun tanpa
+  langganan aktif, sementara akun yang **baru habis langganannya** justru yang
+  paling perlu membayar. Layar bayar yang ter-gate entitlement akan mengunci tepat
+  orang yang ingin dibukanya. `subscription_expired` membuka `/bayar`; ban `'admin'`
+  tidak ([ADR-0012](../docs/adr/0012-alasan-pada-blokir.md)).
+- **Dua form di Tab 2 Settings pindah, tidak disalin.** Dua form yang menulis fakta
+  yang sama adalah dua tempat yang bisa berbeda jawaban. Tesnya ikut pindah
+  (`src/app/features/payment/PayView.test.tsx`), bukan dihapus;
+  `src/app/features/settings/SettingsViewGateway.test.tsx` sekarang menegakkan sisi
+  negatifnya: Tab 2 tidak punya form bayar sendiri dan tidak POST ke
+  `/v1/payments/manual`.
+- **User tidak membaca nama gateway di layar kita, dan itu dijaga tes**
+  (`src/app/test/noGatewayBrand.test.ts`). **Yang tidak bisa dijanjikan**: halaman
+  yang terbuka setelah memilih bayar online adalah halaman milik gateway, dan kata
+  itu ada di sana. Batasan itu tertulis di `docs/status.md`, bukan ditutup-tutupi.
+- **Satu butir rencana yang saya ikut dengan tulisan yang lebih spesifik di rencana
+  yang sama, dan itu perlu dibaca sebagai keputusan, bukan kelalaian.** Bagian
+  service menulis "list kanal yang diizinkan, **minimal satu**"; bagian endpoint
+  menulis "An empty list is accepted here and means no online payment at all — a
+  deliberate act". Yang saya bangun mengikuti yang kedua: `write_payment_channels([])`
+  sah, dan checkout menjawab 503 berkalimat alih-alih membuka halaman tanpa batas.
+  Alasannya bukan selera: daftar rekening tujuan memang harus ditolak kalau kosong
+  (mengosongkannya berarti tidak ada alamat transfer sama sekali), tetapi daftar
+  kanal yang kosong berarti "instalasi ini hanya menerima transfer" — keadaan yang
+  koheren dan memang diinginkan operator. Menolak keduanya dengan aturan yang sama
+  akan memakai satu alasan untuk dua fakta yang berbeda. Ditutup dari dua sisi:
+  `test_an_empty_list_is_a_choice_and_reads_as_one`,
+  `test_everything_switched_off_refuses_instead_of_opening_the_world`, dan
+  `test_switching_everything_off_is_written_and_reads_back`.
+- **Daftar kanal yang diizinkan menguasai kedua pintu, bukan satu.** Yang pertama
+  saya bangun hanya membatasi `POST /v1/payments/checkout`; deklarasi manual masih
+  menerima metode apa pun yang ada di registry. Itu belum jawaban yang diminta:
+  mematikan VA BCA menyisakan jalan kedua untuk membayar lewat VA BCA, dan antrean
+  akan terisi baris yang mengklaim metode yang instalasi itu tolak. Sekarang
+  `backend/api/services/payment_service/manual.py` juga memeriksa daftar itu —
+  dengan dua pengecualian yang justru intinya: `bank_transfer` tidak ikut aturan
+  (ia tidak punya kode gateway dan tidak ada di daftar itu untuk dimatikan), dan
+  baris yang belum pernah ditulis tidak membatasi apa pun di kedua pintu.
+  Mutation-tested: menghapus pemeriksaan itu membuat
+  `test_a_channel_the_operator_switched_off_cannot_be_declared_as_used` gagal.
+- **Satu keputusan teknis yang muncul di tengah jalan dan perlu dibaca:** kolom
+  `destination` butuh migrasi, dan `db/schema.sql` serta
+  `docs/saas-subscription-platform.md` harus ikut — `test_docs_status.py`
+  membandingkan DDL blueprint dengan schema apa adanya, dan migrasi yang tidak
+  muncul di schema.sql tidak akan pernah sampai ke stack yang dibangun ulang
+  (ADR-0001).

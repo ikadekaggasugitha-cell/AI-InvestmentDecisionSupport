@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from api.core.auth import AdminUser
+from api.services.bank_registry import options as bank_options
 from api.services.system_settings_service import (
     BankAccountInvalid,
     BankAccountsUnavailable,
@@ -30,6 +31,13 @@ class AdminBankAccountRequest(BaseModel):
     bank: str
     accountNumber: str
     holderName: str
+    # Which entry in `bank_registry` this row is. Sent and read back, because the
+    # form renders it as a select and a row that cannot re-select its own bank is
+    # a row that loses its bank on the next save.
+    code: str = "other"
+    # Whether the paying public sees this destination. Defaulted to shown so a
+    # row written before the field existed keeps behaving as it did.
+    enabled: bool = True
 
 
 class AdminBankAccountsRequest(BaseModel):
@@ -81,6 +89,8 @@ async def admin_get_bank_accounts(admin: AdminUser) -> AdminBankAccountsResponse
                 bank=e.bank,
                 accountNumber=e.account_number,
                 holderName=e.holder_name,
+                code=e.code,
+                enabled=e.enabled,
             )
             for e in entries
         ],
@@ -122,6 +132,8 @@ async def admin_set_bank_accounts(
             "bank": a.bank,
             "account_number": a.accountNumber,
             "holder_name": a.holderName,
+            "code": a.code,
+            "enabled": a.enabled,
         }
         for a in body.accounts
     ]
@@ -147,7 +159,46 @@ async def admin_set_bank_accounts(
                 bank=e.bank,
                 accountNumber=e.account_number,
                 holderName=e.holder_name,
+                code=e.code,
+                enabled=e.enabled,
             )
             for e in stored
         ]
+    )
+
+
+# ── The bank list the form selects from ─────────────────────────────────────
+
+class BankOptionResponse(BaseModel):
+    """One choice in the bank dropdown.
+
+    Served instead of hardcoded in the frontend. A list copied to the browser is
+    a list that eventually disagrees with the one the server validates against,
+    and the disagreement surfaces as an operator unable to save a bank the other
+    half has never heard of.
+    """
+
+    code: str
+    name: str
+
+
+class BankOptionsResponse(BaseModel):
+    options: list[BankOptionResponse]
+
+
+@router.get(
+    "/settings/bank-options",
+    response_model=BankOptionsResponse,
+    summary="The banks a destination can be set to",
+    description=(
+        "Read-only, administrator-gated, and the only place the list lives.\n\n"
+        "These are internal keys and display names. They are not bank clearing\n"
+        "codes: nothing here is usable for routing money, and none was written\n"
+        "from memory of one."
+    ),
+    responses={403: {"description": "Administrator access required"}},
+)
+async def admin_bank_options(admin: AdminUser) -> BankOptionsResponse:
+    return BankOptionsResponse(
+        options=[BankOptionResponse(code=o.code, name=o.name) for o in bank_options()]
     )

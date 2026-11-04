@@ -56,13 +56,17 @@ def snap(monkeypatch):
     """
     calls: list[dict] = []
 
-    async def _mint(*, order_id, gross_amount, email=None, expiry_minutes):
+    async def _mint(*, order_id, gross_amount, email=None, expiry_minutes, enabled_payments=None):
         calls.append(
             {
                 "order_id": order_id,
                 "gross_amount": gross_amount,
                 "email": email,
                 "expiry_minutes": expiry_minutes,
+                # Recorded, because what the page will offer is the whole point of
+                # the setting, and a stub that dropped it would let a bug send the
+                # wrong list while every assertion still passed.
+                "enabled_payments": enabled_payments,
             }
         )
         return SnapSession(
@@ -84,6 +88,17 @@ def _checkout(client, plan="monthly", extra=None):
     if extra:
         body.update(extra)
     return client.post("/v1/payments/checkout", json=body)
+
+
+def _restrict(channels):
+    """The operator's choice, written through the setting's own writer.
+
+    Not a monkeypatch: the point of these tests is what the service does with a
+    real stored list, including the difference between an empty one and none.
+    """
+    from api.services.system_settings_service import write_payment_channels
+
+    return write_payment_channels(channels)
 
 
 def _signature(order_id, status_code, gross_amount, key=SERVER_KEY):
@@ -182,7 +197,7 @@ class TestCheckout:
         signup(client, "ditolak@aidss.id")
         login(client, "ditolak@aidss.id")
 
-        async def _unreachable(*, order_id, gross_amount, email=None, expiry_minutes):
+        async def _unreachable(*, order_id, gross_amount, email=None, expiry_minutes, enabled_payments=None):
             raise GatewayUnavailable("the gateway could not be reached")
 
         monkeypatch.setattr("api.services.payment_service.gateway.create_snap_token", _unreachable)
@@ -239,6 +254,182 @@ class TestCheckout:
         assert call["gross_amount"] == 15000
         row = fake_identity.transactions[resp.json()["id"]]
         assert row["plan"] == "weekly"
+
+
+class TestCheckoutChannel:
+    """The channel the payer picks, and what the gateway is told about it.
+
+    Four states the code has to keep apart, because collapsing any two of them
+    is how an install loses a way to pay without anyone choosing it:
+
+      nothing stored          -> no `enabled_payments` in the request at all
+      a list, no pick         -> that list, as gateway codes
+      a list, one pick        -> exactly that one code
+      an empty list           -> refuse rather than open an unrestricted page
+    """
+
+    async def test_an_install_that_never_chose_sends_no_enabled_payments(
+        self, client, snap, monkeypatch
+    ):
+        """The behaviour-before state, pinned.
+
+        Every install running today is in it. If "unset" sent an empty list or
+        the whole registry, deploying this feature would narrow or reshape a
+        payment page nobody asked to change.
+        """
+        _with_key(monkeypatch)
+        signup(client, "belum-dipilih@aidss.id")
+        login(client, "belum-dipilih@aidss.id")
+
+        assert _checkout(client).status_code == 200
+        [call] = snap
+        assert call["enabled_payments"] is None
+
+    async def test_a_stored_list_reaches_the_gateway_as_gateway_codes(
+        self, client, snap, monkeypatch
+    ):
+        """Our keys in, Snap's codes out, and nothing else.
+
+        The order is the operator's order, and the mapping is the registry's:
+        Mandiri leaving as `echannel` is the case that proves this is a mapping
+        and not a pass-through, because a passthrough would send `va_mandiri`
+        and the method would vanish from the page with no error to read.
+        """
+        _with_key(monkeypatch)
+        signup(client, "daftar@aidss.id")
+        login(client, "daftar@aidss.id")
+        await _restrict(["va_mandiri", "qris", "gopay"])
+
+        assert _checkout(client).status_code == 200
+        [call] = snap
+        assert call["enabled_payments"] == ["echannel", "qris", "gopay"]
+
+    async def test_a_picked_channel_sends_one_code_and_names_the_ledger_row(
+        self, client, snap, monkeypatch, fake_identity
+    ):
+        _with_key(monkeypatch)
+        signup(client, "pilih@aidss.id")
+        login(client, "pilih@aidss.id")
+        await _restrict(["qris", "va_bca"])
+
+        resp = _checkout(client, extra={"channel": "qris"})
+
+        assert resp.status_code == 200, resp.text
+        [call] = snap
+        assert call["enabled_payments"] == ["qris"]
+        # The queue used to read 'midtrans' on every gateway row and could not
+        # say how the money was paid. Now it can.
+        assert fake_identity.transactions[resp.json()["id"]]["payment_method"] == "qris"
+
+    async def test_a_channel_the_operator_did_not_enable_is_refused(
+        self, client, snap, monkeypatch, fake_identity
+    ):
+        """The list is a permission, not a suggestion.
+
+        Without this check a payer could name any registry key and get the
+        method that was just switched off — the same reason the body cannot
+        carry an amount.
+        """
+        _with_key(monkeypatch)
+        signup(client, "dimatikan@aidss.id")
+        login(client, "dimatikan@aidss.id")
+        await _restrict(["qris"])
+
+        resp = _checkout(client, extra={"channel": "va_bca"})
+
+        assert resp.status_code == 422, resp.text
+        assert "not enabled" in resp.json()["detail"]
+        assert snap == []
+        assert fake_identity.transactions == {}
+
+    async def test_a_key_that_is_not_a_channel_is_refused(
+        self, client, snap, monkeypatch
+    ):
+        _with_key(monkeypatch)
+        signup(client, "asing@aidss.id")
+        login(client, "asing@aidss.id")
+
+        resp = _checkout(client, extra={"channel": "bitcoin"})
+
+        assert resp.status_code == 422, resp.text
+        assert snap == []
+
+    async def test_the_gateway_code_is_not_what_the_body_must_name(
+        self, client, snap, monkeypatch
+    ):
+        """A payer supplying `bca_va` gets a refusal, not a working payment.
+
+        The distinction is the guard: if a Snap code were accepted the body
+        would be deciding what the payment page offers, which is the thing
+        `extra="forbid"` already refuses for the amount.
+        """
+        _with_key(monkeypatch)
+        signup(client, "kodegateway@aidss.id")
+        login(client, "kodegateway@aidss.id")
+
+        resp = _checkout(client, extra={"channel": "bca_va"})
+
+        assert resp.status_code == 422, resp.text
+        assert snap == []
+
+    async def test_declaring_bank_transfer_through_the_gateway_is_refused(
+        self, client, snap, monkeypatch
+    ):
+        """`bank_transfer` means two different things and only one of them is ours.
+
+        In Snap it is an alias for every virtual account; here it is a payer who
+        moved money themselves. Sending it outward would silently widen the page
+        to methods the operator never picked, so a declare-only key has no code
+        and no checkout.
+        """
+        _with_key(monkeypatch)
+        signup(client, "alias@aidss.id")
+        login(client, "alias@aidss.id")
+
+        resp = _checkout(client, extra={"channel": "bank_transfer"})
+
+        assert resp.status_code == 422, resp.text
+        assert snap == []
+
+    async def test_everything_switched_off_refuses_instead_of_opening_the_world(
+        self, client, snap, monkeypatch, fake_identity
+    ):
+        """An empty list is a decision, and the answer is a sentence.
+
+        Opening a page with no restriction would be the opposite of what the
+        operator chose, and it would look like the button working.
+        """
+        _with_key(monkeypatch)
+        signup(client, "semua-mati@aidss.id")
+        login(client, "semua-mati@aidss.id")
+        await _restrict([])
+
+        resp = _checkout(client)
+
+        assert resp.status_code == 503, resp.text
+        assert "dimatikan" in resp.json()["detail"]
+        assert snap == []
+        assert fake_identity.transactions == {}
+
+    async def test_a_picked_channel_is_refused_before_the_page_is_even_consulted(
+        self, client, snap, monkeypatch
+    ):
+        """Both refusals are true here; the cheaper one is stated first.
+
+        With everything switched off, "QRIS is not enabled on this install" and
+        "online payment is off" are equally correct. The check that costs no
+        gateway call runs first, and the sentence the payer reads names the
+        thing they actually got wrong.
+        """
+        _with_key(monkeypatch)
+        signup(client, "mati-dipilih@aidss.id")
+        login(client, "mati-dipilih@aidss.id")
+        await _restrict([])
+
+        resp = _checkout(client, extra={"channel": "qris"})
+
+        assert resp.status_code == 422, resp.text
+        assert snap == []
 
 
 class TestWebhook:

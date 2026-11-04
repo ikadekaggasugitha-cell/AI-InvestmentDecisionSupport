@@ -3,7 +3,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ENDPOINTS, apiFetch } from '@/app/config/api'
 
 /**
- * The console's overview: nine figures, no chart.
+ * The console's overview: nine figures from one query, no chart.
+ *
+ * Nine is what the endpoint answers with; the screen shows six of them as cards,
+ * two in the queue strip below, and one inside the run-rate's own formula. The
+ * sub-heading used to lead with "sembilan angka", which invited a reader to count
+ * six and conclude the panel was missing three.
  *
  * Deliberately not a recharts surface. A line chart over a handful of settled
  * payments is decoration, and `docs/DESIGN.md` sets this product's ENERGY at 1:
@@ -200,8 +205,8 @@ export function AdminDashboardView({ onOpenQueue }: { onOpenQueue: () => void })
       <div>
         <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Ringkasan</h2>
         <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 4 }}>
-          Sembilan angka, satu pertanyaan ke server. Uang yang dihitung adalah baris berstatus
-          settlement saja — transfer yang belum diputuskan bukan pendapatan.
+          Satu pertanyaan ke server untuk angka-angka di bawah. Uang yang dihitung adalah baris
+          berstatus settlement saja — transfer yang belum diputuskan bukan pendapatan.
         </p>
       </div>
 

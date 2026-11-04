@@ -75,6 +75,7 @@ async def create_snap_token(
     gross_amount: int,
     email: str | None = None,
     expiry_minutes: int,
+    enabled_payments: list[str] | None = None,
 ) -> SnapSession:
     """Open one Snap checkout page for `order_id` at the given total.
 
@@ -88,6 +89,17 @@ async def create_snap_token(
     `expiry_minutes` carries the same window the queue gives a manual
     declaration: a page that outlives the ledger's pending row would applaud a
     payment the settlement hook might later refuse context for.
+
+    `enabled_payments` restricts the page to the gateway codes given. Left as
+    None the request says nothing about methods and the gateway's own dashboard
+    decides, which is exactly how every install behaved before this parameter
+    existed — the caller passes None when the operator has not chosen, so
+    turning on this feature cannot quietly narrow a working payment page.
+
+    One documented behaviour is worth knowing because it changes what the payer
+    sees: with a single code, Snap skips its method list and goes straight into
+    that method's flow. That is the desired shape when someone picked QRIS, and
+    it is why the caller sends one code rather than a pre-filtered list.
     """
     settings = get_settings()
     if not gateway_configured():
@@ -100,6 +112,8 @@ async def create_snap_token(
         "expiry": {"unit": "minutes", "duration": int(expiry_minutes)},
         "credit_card": {"secure": True},
     }
+    if enabled_payments:
+        payload["enabled_payments"] = list(enabled_payments)
     if email:
         payload["customer_details"] = {"email": email}
     basic = base64.b64encode(f"{settings.midtrans_server_key}:".encode()).decode()

@@ -19,6 +19,7 @@ Kolom Status membedakan **diterima** dari **diterapkan**. Keduanya tidak sama, d
 | [0011](0011-satu-penulis-subscriptions.md) | Satu penulis `subscriptions`, idempoten di baris Transaction | Ya | Ya, lewat migrasi `0012_transactions_plan.sql`. `grant()` dipakai endpoint admin dan approve pembayaran; handler webhook yang memakainya belum ada |
 | [0012](0012-alasan-pada-blokir.md) | Blokir membawa alasannya: pembayaran membuka hanya `'subscription_expired'`, ban `'admin'` hanya endpoint admin | Ya | Ya, lewat migrasi `0013_subscription_suspension.sql` dan beat `suspend-lapsed-subscriptions` |
 | [0013](0013-catatan-statis-tanpa-draft-legal.md) | Layar Catatan hanya memuat klaim yang terbukti di kode; dokumen legal yang masih draf tidak dipublikasikan | Ya | Ya, lewat `src/app/features/public/PublicNotes.tsx` dan penjaganya |
+| [0014](0014-smtp-di-database.md) | Konfigurasi email tinggal di `system_settings`, **termasuk passwordnya yang plaintext**, dan transport membacanya saat mengirim | Ya, atas pilihan pemilik | Ya, lewat key `smtp` dan `backend/api/routers/admin/smtp.py`. Membalikkan bagian dari keputusan "kredensial tinggal di `.env`" — hanya untuk email; kunci gateway tetap pada aturan lama |
 
 Nomor 0003 sengaja dilewati. Slot itu dipesan untuk keputusan penundaan penagihan, dan akan diisi ketika batas Fase 2 benar-benar digambar — menulisnya sekarang akan mencatat batasan yang belum ada. Angka pada label di tabel selalu sama dengan angka pada nama filenya, jadi membacanya tidak perlu menebak.
 

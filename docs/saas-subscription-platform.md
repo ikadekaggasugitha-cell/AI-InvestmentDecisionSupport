@@ -125,6 +125,7 @@ erDiagram
         varchar payment_gateway "midtrans | manual"
         varchar payment_method "qris | va_bca | va_mandiri | bank_transfer"
         varchar status "pending | awaiting_verification | settlement | rejected | expire | deny | cancel"
+        varchar destination "snapshot rekening tujuan yang dinyatakan"
         varchar midtrans_transaction_id
         varchar proof_image_url
         uuid approved_by FK
@@ -233,6 +234,12 @@ CREATE TABLE IF NOT EXISTS transactions (
                                 CHECK (plan IN ('weekly', 'monthly', 'annual')),
     status                  VARCHAR(30) NOT NULL DEFAULT 'pending'
                                 CHECK (status IN ('pending', 'settlement', 'expire', 'deny', 'cancel')),
+    -- Rekening tujuan yang dinyatakan dipakai transfer, sebagai snapshot yang
+    -- server susun saat deklarasi (`CIMB Niaga 5012... a.n. PT AIDSS`). Bukan
+    -- referensi, karena rekening yang nanti diubah atau dipensiunkan operator tidak
+    -- boleh menulis ulang klaim payer. NULL pada baris gateway dan pada baris sebelum
+    -- migrasi 0016. Mirip `0016_transaction_destination.sql`.
+    destination             VARCHAR(240) CHECK (destination IS NULL OR char_length(destination) <= 240),
     midtrans_transaction_id VARCHAR(100),
     proof_image_url         TEXT,
     approved_by             UUID REFERENCES users(id),
@@ -370,10 +377,16 @@ Panel admin diletakkan pada **route/portal terpisah** dari antarmuka dashboard p
 > `users.phone_number` disimpan dalam bentuk yang diketik orang saat daftar,
 > bukan E.164. Install yang tidak menyalakan `NOTIFICATIONS_ENABLED` tetap
 > mengirim nol pesan, dan konsol mengatakannya; (3) **pengaturan kunci API** —
-> kredensial tinggal di lingkungan deployment dan `get_settings()` dibaca sekali
-> saat import, jadi formulir apa pun akan tampak menyimpan tanpa mengubah apa
-> pun; yang ada adalah panel status hanya-baca untuk Midtrans dan jalur email,
-> karena WhatsApp tidak punya field maupun transport. Keadaan sebenarnya ada di
+> sekarang **sebagian dibangun**, dan pembagiannya bukan sembarang. SMTP **bisa
+> disunting** (`backend/api/routers/admin/smtp.py`, formnya
+> `src/app/features/admin/AdminSmtpView.tsx`) karena transport membaca barisnya di
+> `system_settings` saat mengirim, bukan `Settings` yang di-cache saat import —
+> kalau tidak, formulirnya akan tampak menyimpan dan tidak mengubah apa pun
+> ([ADR-0014](adr/0014-smtp-di-database.md)). Kredensial Midtrans **tidak**, dan
+> panel status hanya-bacanya tinggal di pintu lain karena sebuah editor harus
+> mengembalikan host dan username yang sedang ia tampilkan, sementara penjaga panel
+> status menolak teks apa pun selain nama site. WhatsApp masih tidak punya field
+> maupun transport. Keadaan sebenarnya ada di
 > `docs/status.md`.
 
 ```
@@ -395,9 +408,12 @@ Admin Portal (/admin)
 │   ├── Fitur Nonaktifkan / Blokir Akun
 │   └── Reset Password Pengguna
 └── 4. Pengaturan Sistem (/admin/settings)
-    ├── Pengaturan Harga Paket (Bulanan & Tahunan)
-    ├── Manajemen Rekening Bank Manual (Tambah/Edit No Rekening & Atas Nama)
-    └── Pengaturan Kunci API (Midtrans, Gateway WhatsApp, SMTP Email)
+    ├── Pengaturan Harga Paket (Mingguan, Bulanan & Tahunan)
+    ├── Manajemen Rekening Bank Manual (Tambah/Edit No Rekening & Atas Nama;
+    │   bank dipilih dari daftar baku, tiap baris punya "tampilkan ke user")
+    ├── Kanal Pembayaran Online (metode apa yang boleh muncul di /bayar)
+    ├── Penyunting SMTP Email (host, port, username, password, alamat pengirim)
+    └── Status Kunci API hanya-baca (Midtrans; WhatsApp tidak punya field)
 ```
 
 ---
@@ -410,7 +426,10 @@ Admin Portal (/admin)
 | `POST` | `/v1/auth/signup` | Registrasi Akun. Di Fase 1 tanpa pembayaran | Publik |
 | `POST` | `/v1/auth/login` | Login Email & Password, mereturn JWT + Role + Sub Status | Publik |
 | `POST` | `/v1/auth/refresh` | Refresh JWT Token | Authenticated |
-| `GET`  | `/v1/subscriptions/pricing` | Ambil harga. **Sudah ada**; daftar rekening tujuan belum | Publik |
+| `GET`  | `/v1/subscriptions/pricing` | Ambil harga. **Sudah ada** | Publik |
+| `GET`  | `/v1/subscriptions/bank-accounts` | Rekening tujuan yang **ditampilkan** operator; yang disembunyikan tidak dikirim sama sekali. **Sudah ada** | Publik |
+| `GET`  | `/v1/subscriptions/payment-channels` | Kanal bayar online yang instalasi ini tawarkan, kunci + label saja — kode gateway tidak menyeberang. **Sudah ada** | Publik |
+| `GET`  | `/v1/subscriptions/contact` | Alamat bantuan di footer publik. **Sudah ada** | Publik |
 | `POST` | `/v1/payments/midtrans/webhook` | Webhook HTTP POST dari Midtrans | Server-to-Server |
 | `POST` | `/v1/payments/manual/upload-proof` | Upload berkas bukti transfer manual | Authenticated/Public |
 
@@ -432,8 +451,11 @@ Admin Portal (/admin)
 | `GET`  | `/v1/admin/accounts` | Daftar seluruh user + filter status & pencarian. **Sudah ada**, termasuk keduanya: `q` cocok dengan email atau nama, `state` memotong pada `blocked_at`. Dua-duanya predikat di dalam statement, bukan saringan atas satu halaman | Admin |
 | `POST` | `/v1/admin/accounts/{id}/grant-subscription` | Membuat Subscription baru (perpanjangan). **Sudah ada**, di path `/v1/admin/accounts/{id}/subscription` | Admin |
 | `PUT`  | `/v1/admin/settings/pricing` | Perbarui nominal harga bulanan & tahunan. **Sudah ada** | Admin |
-| `PUT`  | `/v1/admin/settings/bank-accounts` | Perbarui daftar rekening bank transfer manual. **Sudah ada** | Admin |
-| `GET`  | `/v1/admin/settings/integrations` | Status gateway Midtrans, hanya-baca, tanpa nilai kunci. **Sudah ada** | Admin |
+| `PUT`  | `/v1/admin/settings/bank-accounts` | Perbarui daftar rekening bank transfer manual, beserta `code` bank dan flag tampil per baris. **Sudah ada** | Admin |
+| `GET`  | `/v1/admin/settings/bank-options` | Daftar bank baku yang form pakai, supaya tidak jadi salinan kedua dari daftar yang server validasi. **Sudah ada** | Admin |
+| `GET`/`PUT` | `/v1/admin/settings/payment-channels` | Kanal apa yang boleh muncul di layar bayar; satu-satunya tempat kode gateway terlihat. **Sudah ada** | Admin |
+| `GET`/`PUT` | `/v1/admin/settings/smtp` | Konfigurasi email yang berlaku; `GET` tidak pernah mengembalikan password, hanya `hasPassword`. **Sudah ada** ([ADR-0014](adr/0014-smtp-di-database.md)) | Admin |
+| `GET`  | `/v1/admin/settings/integrations` | Status gateway Midtrans dan status email, hanya-baca, tanpa nilai kunci maupun host. **Sudah ada** | Admin |
 
 ---
 
@@ -469,6 +491,18 @@ beat_schedule = {
 Zona waktu mengikuti konvensi yang sudah ada di `backend/workers/celery_app.py`: jam dalam WIB, dengan `enable_utc=True`.
 
 ### 7.2 Template Pesan Notifikasi Otomatis (Email + WhatsApp)
+
+> **Yang dibangun: email teks polos, dan pengirimnya adalah konfigurasi operator.**
+> Transportnya `backend/api/services/email_transport.py`, antreannya
+> `backend/api/services/notification_service.py`. Alamat `From` yang terbaca di
+> header pesan bukan nilai build-time: ia dijawab baris `smtp` di
+> `system_settings` bila operator menulisnya di `/admin`, dan oleh lingkungan
+> deployment bila tidak — per field, bukan per baris, dan dibaca saat mengirim
+> ([ADR-0014](adr/0014-smtp-di-database.md)). Template HTML invoice di bawah ini
+> **belum** dibangun; yang dikirim adalah teks polos yang menyebut nomor invoice,
+> nominal, paket, dan tanggal akses berakhir — pesan yang lengkap pada dirinya
+> sendiri. WhatsApp belum sama sekali: tidak ada field di `Settings` dan tidak ada
+> transport untuknya.
 
 #### Template 1: Pembayaran Berhasil & Akun Aktif
 * **Email:** HTML Invoice formal berlogo AIDSS, rincian paket, tanggal kedaluwarsa, dan tautan akses dashboard.

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { render, screen, within, waitFor, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { SettingsView } from '@/app/features/settings/SettingsView'
 import { AppProvider } from '@/app/context/AppContext'
 import { SIMULATED_FRESHNESS } from '@/app/features/market/useLiveMarket'
@@ -53,6 +54,11 @@ const declareState = {
 }
 const declared: unknown[] = []
 
+/** Every URL the tab asked for. The two checks below are about requests the tab
+ *  must *not* make now that payment lives on another screen, and a mock with no
+ *  record of what it was called with cannot prove a negative. */
+const asked: string[] = []
+
 // Only the transport is faked; the real error classification stays real.
 vi.mock('@/app/config/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/app/config/api')>()),
@@ -65,6 +71,7 @@ vi.mock('@/app/config/api', async (importOriginal) => ({
     bankAccounts: '/v1/subscriptions/bank-accounts',
   },
   apiFetch: vi.fn(async (url: string, init?: RequestInit) => {
+    asked.push(String(url))
     if (url.includes('/v1/subscriptions/pricing')) {
       if (priceState.throws) throw new Error('offline')
       return {
@@ -156,15 +163,19 @@ function fx(overrides: Partial<ExchangeRateData> = {}): ExchangeRateData {
 
 function renderSettings(props: Partial<Parameters<typeof SettingsView>[0]> = {}) {
   return render(
-    <AppProvider>
-      <SettingsView
-        fx={fx()}
-        freshness={SIMULATED_FRESHNESS}
-        auth={auth()}
-        onSignedOut={() => {}}
-        {...props}
-      />
-    </AppProvider>,
+    // The billing tab links to `/bayar`, so it navigates. A Router is what a real
+    // app supplies; without one the tab's own render fails.
+    <MemoryRouter>
+      <AppProvider>
+        <SettingsView
+          fx={fx()}
+          freshness={SIMULATED_FRESHNESS}
+          auth={auth()}
+          onSignedOut={() => {}}
+          {...props}
+        />
+      </AppProvider>
+    </MemoryRouter>,
   )
 }
 
@@ -715,6 +726,7 @@ describe('SettingsView — the declared manual transfer (Tab 2, pembayaran)', ()
   }
 
   beforeEach(() => {
+    asked.length = 0
     payState.rows = []
     payState.status = 200
     payState.throws = false
@@ -759,71 +771,51 @@ describe('SettingsView — the declared manual transfer (Tab 2, pembayaran)', ()
     expect(screen.getByText(/nominal tidak cocok/)).toBeInTheDocument()
   })
 
-  it('reads the destination account from the server, never from a constant', async () => {
+  it('asks the server for no destination list, because it publishes none', async () => {
+    /* Reading the destinations was the payment screen's job the moment the form
+       moved. The tab still shows a destination the server recorded on a row, which
+       is the read it owns; it does not fetch the list to render a picker. */
     banksState.accounts = [
       { bank: 'BNI', accountNumber: '9876543210', holderName: 'PT AIDSS JAYA' },
     ]
     const user = userEvent.setup()
     renderSettings()
     await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
+    await screen.findByRole('button', { name: /^Bayar$/ })
 
-    expect(await screen.findByText(/BNI · 9876543210 · a\.n PT AIDSS JAYA/)).toBeInTheDocument()
+    expect(asked.filter((url) => url.includes('bank-accounts'))).toHaveLength(0)
   })
 
-  it('when the server has written no destination, the tab says so instead of showing digits', async () => {
-    banksState.accounts = []
+  it('the door opens whether or not the install has destinations published', async () => {
+    /* An empty destination list is a fact about the transfer path, not about this
+       tab. It used to be rendered here as "belum ada rekening tujuan"; the payer
+     is now told that on the screen where the choice is made. */
+    for (const accounts of [[], [{ bank: 'BNI', accountNumber: '1', holderName: 'X' }]]) {
+      banksState.accounts = accounts
+      const user = userEvent.setup()
+      renderSettings()
+      await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
+      expect(await screen.findByRole('button', { name: /^Bayar$/ })).toBeEnabled()
+      cleanup()
+    }
+  })
+
+  it('posts no declaration of its own', async () => {
+    /* The act moved to `/bayar`, together with the assertions on its body —
+       plan, method, note, destination — which live in
+       `src/app/features/payment/PayView.test.tsx`. What belongs here is the
+       negative: this tab must not be a second writer of the same fact. */
     const user = userEvent.setup()
     renderSettings()
     await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
+    await screen.findByRole('button', { name: /^Bayar$/ })
+    await user.click(screen.getByRole('button', { name: /^Bayar$/ }))
 
-    expect(await screen.findByText(/Belum ada rekening tujuan/)).toBeInTheDocument()
+    expect(declared).toHaveLength(0)
+    expect(asked.filter((url) => url.includes('/v1/payments/manual'))).toHaveLength(0)
   })
 
-  it('declares the transfer to the server and then shows what the re-read holds', async () => {
-    const user = userEvent.setup()
-    renderSettings()
-    await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
-    await screen.findByText(/Rekening tujuan/)
-
-    // Both payment cards carry plan radios now; this declaration posts
-    // through the manual form, so the radio is reached by the form's own
-    // name rather than a label two cards share.
-    const manualAnnual = screen
-      .getAllByLabelText('Tahunan')
-      .find((el) => (el as HTMLInputElement).name === 'payment-plan')
-    expect(manualAnnual).toBeDefined()
-    await user.click(manualAnnual as HTMLElement)
-    await user.type(screen.getByLabelText(/Catatan untuk admin/), 'BCA 555222333')
-    declareState.afterBody = [PENDING]
-    await user.click(screen.getByRole('button', { name: /Saya sudah transfer/i }))
-
-    expect(declared).toHaveLength(1)
-    expect(declared[0]).toEqual({
-      plan: 'annual',
-      payment_method: 'bank_transfer',
-      note: 'BCA 555222333',
-    })
-    // The review state, from what the server now holds — not a locally
-    // invented row.
-    expect(await screen.findByText('Transfer sedang diperiksa')).toBeInTheDocument()
-    expect(screen.getByLabelText(/Catatan untuk admin/)).toHaveValue('')
-  })
-
-  it('a refused declaration is said out loud, not swallowed', async () => {
-    declareState.accepted = false
-    const user = userEvent.setup()
-    renderSettings()
-    await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
-    await screen.findByText(/Rekening tujuan/)
-
-    await user.click(screen.getByRole('button', { name: /Saya sudah transfer/i }))
-
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
-    expect(screen.getByRole('alert').textContent).toMatch(/ditolak server/i)
-    expect(screen.queryByText('Transfer sedang diperiksa')).not.toBeInTheDocument()
-  })
-
-  it('the tab still loads and speaks when the payment history cannot be read', async () => {
+  it('the tab still shows its own state when the payment history cannot be read', async () => {
     // An account with no subscription and an unreachable history read must not
     // lose its page: money state failing is not the tab's failure mode.
     payState.throws = true
@@ -832,6 +824,8 @@ describe('SettingsView — the declared manual transfer (Tab 2, pembayaran)', ()
     await user.click(screen.getByRole('tab', { name: 'Langganan & Tagihan' }))
 
     expect(await screen.findByText(/Belum ada langganan/i)).toBeInTheDocument()
-    expect(screen.getByText(/Rekening tujuan/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Bayar$/ })).toBeEnabled()
+    // And the failure is named, not left as two empty lists.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Riwayat pembayaran/i)
   })
 })

@@ -891,8 +891,8 @@ export function PublicFeatures({
                 </summary>
                 <p>
                   {isId
-                    ? 'Pilihan paket membawa Anda ke form daftar, dan pembayaran dimulai dari dalam aplikasi, di menu Langganan & Tagihan. Semua paket mencakup keempat pilar, dan harga dalam Rupiah sudah termasuk pajak.'
-                    : 'Picking a plan carries you into the signup form, and payment begins inside the app, under Subscription & Billing. Every plan includes the four pillars, and prices in Rupiah already include tax.'}
+                    ? 'Pilihan paket membawa Anda ke form daftar, dan pembayaran dimulai di dalam aplikasi, pada layar bayar setelah Anda masuk. Semua paket mencakup keempat pilar, dan harga dalam Rupiah sudah termasuk pajak.'
+                    : 'Picking a plan carries you into the signup form, and payment begins inside the app, on the payment screen once you have signed in. Every plan includes the four pillars, and prices in Rupiah already include tax.'}
                 </p>
               </details>
             </div>

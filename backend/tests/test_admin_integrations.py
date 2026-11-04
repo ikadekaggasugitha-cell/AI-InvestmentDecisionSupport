@@ -92,6 +92,9 @@ class TestWhatItReports:
             "midtransEnvironment": "sandbox",
             "emailConfigured": False,
             "emailMissing": ["NOTIFICATIONS_ENABLED", "SMTP_HOST", "SMTP_MAIL_FROM"],
+            # Nothing has been written to `system_settings`, so the deployment's
+            # environment is what answers for email.
+            "emailSenderStored": False,
         }
 
     def test_an_install_with_no_credentials_says_so_rather_than_looking_ready(
@@ -108,7 +111,40 @@ class TestWhatItReports:
             "midtransEnvironment": "sandbox",
             "emailConfigured": False,
             "emailMissing": ["NOTIFICATIONS_ENABLED", "SMTP_HOST", "SMTP_MAIL_FROM"],
+            "emailSenderStored": False,
         }
+
+    def test_the_panel_moves_when_the_operator_writes_the_row(
+        self, client, fake_identity
+    ):
+        """One predicate, and the editor is allowed to move it.
+
+        The email editor stores a configuration the environment never had. If the
+        panel kept reading `Settings` directly it would go on saying "belum
+        terpasang" beside a form that had just been filled, and the two readers of
+        one question would disagree in front of the operator.
+        """
+        import asyncio
+
+        from api.services.system_settings_service import write_smtp
+
+        make_admin(client, fake_identity)
+        assert client.get(_ENDPOINT).json()["emailSenderStored"] is False
+
+        asyncio.run(
+            write_smtp(
+                {
+                    "host": "smtp.example.test",
+                    "fromAddress": "billing@example.test",
+                    "enabled": True,
+                }
+            )
+        )
+
+        body = client.get(_ENDPOINT).json()
+        assert body["emailSenderStored"] is True
+        assert body["emailConfigured"] is True
+        assert body["emailMissing"] == []
 
     def test_a_wired_mail_transport_reads_as_wired(self, monkeypatch, mock_redis, fake_identity):
         """The other half of the same sentence.
@@ -217,6 +253,7 @@ class TestItOnlyNamesWhatExists:
             "midtransEnvironment",
             "emailConfigured",
             "emailMissing",
+            "emailSenderStored",
         }
         assert "whatsapp" not in str(body).lower()
 

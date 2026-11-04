@@ -33,6 +33,7 @@ from datetime import datetime, timedelta
 from api.services.email_transport import (
     EmailSendFailed,
     EmailUnavailable,
+    mail_config,
     send_mail,
 )
 
@@ -323,12 +324,19 @@ async def drain_once(limit: int = 20) -> dict[str, int]:
     The counts are the operator-facing part of this function: a beat that
     silently did nothing and a beat that silently failed are the same row in the
     log unless the numbers say otherwise.
+
+    The email configuration is read once, at the top of the beat. That is not a
+    cache in the sense the admin form has to worry about — the next beat reads it
+    again, so a host an operator saves takes effect without a restart — and it is
+    not per row either, because a beat that re-read the row between two sends
+    could deliver one message from the old server and the next from the new one.
     """
+    config = await mail_config()
     rows = await claim_due(limit)
     sent = failed = 0
     for row in rows:
         try:
-            send_mail(row.recipient, row.subject, row.body_text)
+            send_mail(row.recipient, row.subject, row.body_text, config=config)
         except (EmailSendFailed, EmailUnavailable) as exc:
             failed += 1
             await mark_failed(row.id, str(exc), row.attempts)

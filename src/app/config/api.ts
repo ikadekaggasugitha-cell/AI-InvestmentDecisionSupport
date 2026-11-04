@@ -129,6 +129,13 @@ export const ENDPOINTS = {
    */
   bankAccounts: `${API_BASE}/v1/subscriptions/bank-accounts`,
   /**
+   * Which ways to pay online this install offers. Public with the price and the
+   * destinations, and carrying keys and labels only: the gateway's own codes
+   * never reach the browser, so a payment request cannot name a method the
+   * operator did not switch on.
+   */
+  paymentChannels: `${API_BASE}/v1/subscriptions/payment-channels`,
+  /**
    * The support address the public footer publishes. Public with the price and
    * the destinations: the footer stands on signed-out screens, and answers
    * `"email": null` until an operator writes one — no address, no contact row.
@@ -140,8 +147,27 @@ export const ENDPOINTS = {
   adminPricing: `${API_BASE}/v1/admin/settings/pricing`,
   /** Admin-only. Replaces the transfer destinations; the server refuses an empty list. */
   adminBankAccounts: `${API_BASE}/v1/admin/settings/bank-accounts`,
+  /**
+   * Admin-only, read-only. The banks a destination can be set to. Served rather
+   * than copied into the frontend, so the list the form offers and the list the
+   * server validates against cannot drift apart.
+   */
+  adminBankOptions: `${API_BASE}/v1/admin/settings/bank-options`,
+  /**
+   * Admin-only. Replaces the enabled online payment channels. An empty list is
+   * accepted here and means no online payment, unlike the destination list, so
+   * the form has to say what saving nothing would do.
+   */
+  adminPaymentChannels: `${API_BASE}/v1/admin/settings/payment-channels`,
   /** Admin-only. Publishes the support address; an empty string clears it. */
   adminContact: `${API_BASE}/v1/admin/settings/contact`,
+  /**
+   * Admin-only, and writable. The email configuration this install sends with.
+   * A separate door from `adminIntegrations`, which stays a status read that
+   * returns no text but a site name; an editor has to return the host and the
+   * username it is showing. Never the password, in any shape.
+   */
+  adminSmtp: `${API_BASE}/v1/admin/settings/smtp`,
   /** Admin-only. The console's overview figures: money settled, subscribers
    * held and lapsed, and the queue's two working sets. */
   adminOverview: `${API_BASE}/v1/admin/analytics/overview`,

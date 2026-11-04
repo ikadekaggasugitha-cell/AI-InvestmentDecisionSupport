@@ -496,34 +496,55 @@ class _IdentityPool:
 
     # -- accounts
 
+    @staticmethod
+    def _json_arg(payload):
+        """A jsonb parameter as the structure it holds.
+
+        asyncpg sends JSONB to the driver as text when no global codec is set, and
+        none is set, so a service that passed a `json.dumps(...)` string arrives
+        here as a string while a service that passed a dict arrives as a dict. The
+        real database turns both into the same stored value; this does the same,
+        so the fake cannot be the reason a test disagrees with production about
+        which one a caller used.
+        """
+        if isinstance(payload, str):
+            import json
+
+            return json.loads(payload)
+        return payload
+
     async def fetchrow(self, query, *args):
         self._guard()
         if "FROM system_settings" in query:
             row = self.settings.get(args[0])
             return None if row is None else dict(row)
         if "INSERT INTO system_settings" in query:
-            # settings.write_pricing: key, weekly, monthly, annual. The
-            # bank_accounts upsert passes the whole JSON payload as $2 instead,
-            # as text — the way asyncpg carries jsonb params — so the parse is
-            # the fake doing what Postgres does when the value is read back as
-            # jsonb. contact_support passes a bare string, which must not be fed
-            # to json.loads the way the account list is.
-            if args[0] == "pricing":
+            # One branch per key, and an unknown key is an error rather than a
+            # guess. This used to fall through to "it must be the bank list",
+            # which would have wrapped a later setting as `{"accounts": ...}`
+            # and let every test read a shape no live row has ever had.
+            #
+            # The bank_accounts and smtp upserts pass their JSON payload as $2 as
+            # text — the way asyncpg carries jsonb params — so parsing here is the
+            # fake doing what Postgres does when the value is read back as jsonb.
+            key = args[0]
+            if key == "pricing":
                 value = {"weekly": args[1], "monthly": args[2], "annual": args[3]}
-            elif args[0] == "contact_support":
+            elif key == "contact_support":
                 value = {"email": args[1]}
+            elif key == "bank_accounts":
+                value = {"accounts": self._json_arg(args[1])}
+            elif key == "payment_channels":
+                value = {"channels": self._json_arg(args[1])}
+            elif key == "smtp":
+                value = self._json_arg(args[1])
             else:
-                payload = args[1]
-                if isinstance(payload, str):
-                    import json
-
-                    payload = json.loads(payload)
-                value = {"accounts": payload}
-            self.settings[args[0]] = {
+                raise AssertionError(f"unexpected system_settings key {key!r}")
+            self.settings[key] = {
                 "value": value,
                 "updated_at": self._now.now(self._tz.utc),
             }
-            return {"updated_at": self.settings[args[0]]["updated_at"]}
+            return {"updated_at": self.settings[key]["updated_at"]}
         if "INSERT INTO users" in query:
             email = args[0].lower()
             if email in self.users:
@@ -687,9 +708,16 @@ class _IdentityPool:
             # that is how the fake tells the two apart.
             now = self._now.now(self._tz.utc)
             if "'midtrans'" in query:
-                # payments.open_gateway: $1 user, $2 code, $3 amount, $4 plan.
-                # The page already existed when this row was written; the
-                # buyer declared nothing, so the notes stay empty.
+                # payments.open_gateway: $1 user, $2 code, $3 amount, $4 plan,
+                # $5 the channel the payer picked. The page already existed when
+                # this row was written; the buyer declared nothing, so the notes
+                # stay empty.
+                #
+                # $5 is read rather than hardcoded. This branch used to write
+                # "midtrans" into payment_method no matter what the statement
+                # carried, which is the exact shape of trap where a test suite
+                # goes green while the ledger records nothing about how the money
+                # was paid.
                 row = {
                     "id": self._uuid.uuid4(),
                     "user_id": args[0],
@@ -697,7 +725,11 @@ class _IdentityPool:
                     "amount": args[2],
                     "plan": args[3],
                     "payment_gateway": "midtrans",
-                    "payment_method": "midtrans",
+                    "payment_method": args[4],
+                    # A gateway row has no destination: the payer chose a method,
+                    # and the gateway chose the account. The column stays NULL the
+                    # way the statement leaves it.
+                    "destination": None,
                     "admin_notes": None,
                     "approved_by": None,
                     "approved_at": None,
@@ -708,7 +740,8 @@ class _IdentityPool:
                 }
             else:
                 # payments.open_manual: $1 user, $2 code, $3 amount, $4 method,
-                # $5 note, $6 plan.
+                # $5 note, $6 plan, $7 the destination snapshot the service
+                # composed from the published list.
                 row = {
                     "id": self._uuid.uuid4(),
                     "user_id": args[0],
@@ -717,6 +750,7 @@ class _IdentityPool:
                     "plan": args[5],
                     "payment_gateway": "manual",
                     "payment_method": args[3],
+                    "destination": args[6] if len(args) > 6 else None,
                     "admin_notes": args[4],
                     "approved_by": None,
                     "approved_at": None,

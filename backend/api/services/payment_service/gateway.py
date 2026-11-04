@@ -14,7 +14,13 @@ import asyncpg
 
 from api.core.config import get_settings
 from api.core.db import get_pool
-from api.services.midtrans_service import GatewayUnavailable, create_snap_token
+from api.services.midtrans_service import (
+    GatewayUnavailable,
+    create_snap_token,
+    gateway_configured,
+)
+from api.services.channel_registry import is_known as is_known_channel, snap_code, snap_codes
+from api.services.system_settings_service import read_payment_channels
 from api.services.payment_service.core import (
     PLAN_DAYS,
     PLAN_NAMES,
@@ -54,6 +60,7 @@ async def open_gateway_transaction(
     *,
     plan: str,
     email: str | None = None,
+    channel: str | None = None,
 ) -> tuple[Transaction, str]:
     """Open a Midtrans checkout: one pending row, and the page that serves it.
 
@@ -67,16 +74,63 @@ async def open_gateway_transaction(
     still race ahead, it is answered 404, and Midtrans' retries wait for the
     row.
 
-    The plan check comes first so a bad body costs no gateway call at all.
+    The plan check comes first so a bad body costs no gateway call at all, and
+    the channel check comes before it for the same reason: a body naming a
+    method this install does not offer should not reach the gateway either.
+
+    `channel` is our key (`qris`, `va_bca`, ...) and it is what the ledger
+    records, so the queue can show which method was actually chosen instead of
+    the word 'midtrans' on every gateway row. Rows written before it was sent
+    keep 'midtrans', and the queue renders both.
     """
+    enabled, _channels_updated = await read_payment_channels()
+
+    resolved = (channel or "").strip() or None
+    if resolved is not None:
+        if not is_known_channel(resolved):
+            raise ManualPaymentInvalid(f"unknown payment channel {channel!r}")
+        code = snap_code(resolved)
+        if code is None:
+            # `bank_transfer` is a real declaration value and has no place in a
+            # Snap request. Refusing beats sending a code that would mean
+            # something else to the gateway.
+            raise ManualPaymentInvalid(
+                f"{resolved!r} is not a channel that can be paid through the gateway"
+            )
+        if enabled is not None and resolved not in enabled:
+            raise ManualPaymentInvalid(
+                f"{resolved!r} is not enabled on this install"
+            )
+
     if plan not in PLAN_NAMES:
         raise ManualPaymentInvalid(f"plan must be one of {PLAN_NAMES}, got {plan!r}")
 
     settings = get_settings()
-    if not settings.midtrans_server_key:
+    if not gateway_configured():
         raise GatewayCheckoutUnavailable(
             "Gateway pembayaran belum diaktifkan di server ini."
         )
+
+    # What the page will offer. Three distinct states, and collapsing them is
+    # how an install loses a payment method without anyone choosing to:
+    #
+    #   enabled is None  -> the operator never chose. Send nothing, and the
+    #                       gateway's own dashboard decides, as it always did.
+    #   enabled is []    -> the operator turned online payment off on purpose.
+    #                       Refuse, rather than opening an unrestricted page.
+    #   enabled has keys -> restrict to those, unless a single channel was
+    #                       picked, in which case that one.
+    if enabled is not None and not enabled:
+        raise GatewayCheckoutUnavailable(
+            "Pembayaran online sedang dimatikan di instalasi ini."
+        )
+    if resolved is not None:
+        enabled_payments: list[str] | None = [snap_code(resolved)]
+    elif enabled is None:
+        enabled_payments = None
+    else:
+        enabled_payments = snap_codes(enabled)
+
     pricing = await read_pricing()
     amount = _plan_amount(plan, pricing)
 
@@ -90,6 +144,7 @@ async def open_gateway_transaction(
                 gross_amount=amount,
                 email=email,
                 expiry_minutes=ttl_minutes,
+                enabled_payments=enabled_payments,
             )
         except GatewayUnavailable as exc:
             raise GatewayCheckoutUnavailable(
@@ -101,13 +156,16 @@ async def open_gateway_transaction(
                 INSERT INTO transactions
                     (user_id, invoice_code, amount, payment_gateway,
                      payment_method, status, admin_notes, plan)
-                VALUES ($1, $2, $3, 'midtrans', 'midtrans', 'pending', NULL, $4)
+                VALUES ($1, $2, $3, 'midtrans', $5, 'pending', NULL, $4)
                 RETURNING"""
                 + _TX_COLUMNS,
                 str(account_id),
                 code,
                 amount,
                 plan,
+                # The chosen channel, or the word the ledger has always used when
+                # the gateway picked the method itself.
+                resolved or "midtrans",
             )
         except asyncpg.UniqueViolationError:
             continue

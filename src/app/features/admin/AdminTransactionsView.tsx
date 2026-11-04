@@ -276,9 +276,16 @@ export function AdminTransactionsView() {
             borderRadius: 4,
           }}
         >
-          {queue.result.expiresAt
-            ? `Disetujui. Masa aktif berlaku sampai ${formatDate(queue.result.expiresAt)}.`
-            : 'Disetujui.'}
+          {queue.result.kind === 'approved'
+            ? queue.result.expiresAt
+              ? `Disetujui. Masa aktif berlaku sampai ${formatDate(queue.result.expiresAt)}.`
+              : 'Disetujui.'
+            : /* The refusal is as much a decision as an approval, and before this
+                 the only sign it had happened was a row quietly leaving the list —
+                 which looks exactly like a reload. It names the invoice and the
+                 reason that was written, and stops there: no claim about what the
+                 payer was told. */
+              `Ditolak: ${queue.result.invoiceCode}. Alasan tercatat di barisnya.`}
         </div>
       )}
 
@@ -303,11 +310,17 @@ export function AdminTransactionsView() {
       )}
 
       <div
+        role="region"
+        aria-label="Tabel antrean, dapat digulir ke samping"
+        tabIndex={0}
         style={{
           background: 'var(--card)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius)',
           overflowX: 'auto',
+          // Nine columns do not fit a phone. A scrollable region that cannot take
+          // focus cannot be scrolled without a mouse or a thumb, so the
+          // right-hand columns are unreachable for a keyboard operator.
         }}
       >
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -387,6 +400,31 @@ export function AdminTransactionsView() {
                           hitung ulang
                         </button>
                       </div>
+                    </div>
+                  )}
+                  {/* Which published account the payer named, before the note.
+                      Two pending rows for the same plan and the same amount are
+                      indistinguishable without it, and matching the money is the
+                      whole job of this screen. Rows written before migration 0016
+                      have nothing here, and say nothing rather than "-". */}
+                  {row.destination && (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        maxWidth: 320,
+                        // Wrapping, not nowrap. This line is a bank name, thirteen
+                        // digits and a holder name in a monospace face; on one line it
+                        // is wider than the column, and the table pushed the reject
+                        // button off the visible area to make room for it.
+                        whiteSpace: 'normal',
+                        overflowWrap: 'anywhere',
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                        fontFamily: 'var(--font-mono)',
+                        color: 'var(--foreground)',
+                      }}
+                    >
+                      ke {row.destination}
                     </div>
                   )}
                   {/* Evidence, as text. This is all the install keeps. */}

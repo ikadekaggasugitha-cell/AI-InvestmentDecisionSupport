@@ -28,6 +28,7 @@ from api.services.payment_service.core import (
     TransactionNotDeniable,
     DenyRequiresReason,
     ManualPaymentInvalid,
+    _MAX_DESTINATION_CHARS,
     _new_invoice_code,
     _plan_amount,
     _to_transaction,
@@ -38,9 +39,16 @@ from api.services.subscription_service import (
     SubscriptionPeriod,
     grant,
 )
+from api.services.channel_registry import is_known as is_known_channel, snap_code
 from api.services.email_transport import email_configured
 from api.services.notification_service import enqueue_approved, enqueue_denied
-from api.services.system_settings_service import PricingUnavailable, read_pricing
+from api.services.system_settings_service import (
+    BankAccountsUnavailable,
+    PricingUnavailable,
+    read_bank_accounts,
+    read_payment_channels as read_payment_channels_state,
+    read_pricing,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,12 +86,18 @@ async def open_manual_transaction(
     plan: str,
     payment_method: str,
     note: str | None = None,
+    destination_account: str | None = None,
 ) -> Transaction:
     """Record a declaration that money has been transferred.
 
     The plan and the destination method are validated; the amount is not
     accepted from the caller at all — it is the server's price for the plan at
     this moment, so a forged body cannot open the queue with a cheaper claim.
+
+    The method is checked twice: it has to be a channel this code knows, and a
+    gateway channel additionally has to be one this install offers. `note` and
+    `destination_account` are the payer's own record of the transfer, and the
+    destination is resolved against the accounts the operator displays.
 
     No Subscription is written here, and none should be: nothing has been
     received, and a written period cannot be honestly taken back.
@@ -97,9 +111,55 @@ async def open_manual_transaction(
         raise ManualPaymentInvalid(
             f"payment_method is longer than {_MAX_METHOD_CHARS} characters"
         )
+    # Named in the registry or not stored at all. Until now any non-empty string
+    # was accepted, so the queue could be handed a "method" no payment path has
+    # ever offered, shown to the operator matching the transfer as if it were a
+    # fact about how the money moved.
+    if not is_known_channel(method):
+        raise ManualPaymentInvalid(f"payment_method {method!r} is not a known channel")
+
+    # A channel the operator switched off cannot be declared as used.
+    #
+    # Only for the channels that are the gateway's: `bank_transfer` has no gateway
+    # code and no place in that list, so refusing it here would break the transfer
+    # path on an install that has correctly enabled nothing online. And a list
+    # nobody ever wrote reads as no restriction, exactly as the checkout does —
+    # otherwise switching on this feature would invalidate declarations that were
+    # fine yesterday.
+    if snap_code(method) is not None:
+        enabled = (await read_payment_channels_state())[0]
+        if enabled is not None and method not in enabled:
+            raise ManualPaymentInvalid(
+                f"{method!r} is not offered on this install, so a transfer cannot be "
+                "declared against it"
+            )
     note = (note or "").strip()
     if len(note) > _MAX_NOTE_CHARS:
         raise ManualPaymentInvalid(f"note is longer than {_MAX_NOTE_CHARS} characters")
+
+    # Which published destination the payer says they used. Validated against the
+    # list the operator shows and stored as a snapshot this service composes —
+    # never as the caller's own text, which would let a declaration describe an
+    # account this install never published, or rewrite one after the fact.
+    destination = None
+    wanted = (destination_account or "").strip()
+    if wanted:
+        try:
+            entries, _updated = await read_bank_accounts()
+        except BankAccountsUnavailable as exc:
+            raise ManualPaymentInvalid(
+                "the destination list is unreadable, so no account can be named"
+            ) from exc
+        shown = {e.account_number: e for e in entries if e.enabled}
+        entry = shown.get(wanted)
+        if entry is None:
+            raise ManualPaymentInvalid(
+                f"{destination_account!r} is not a destination this server publishes"
+            )
+        destination = (
+            f"{entry.bank} {entry.account_number} a.n. {entry.holder_name}"
+            [:_MAX_DESTINATION_CHARS]
+        )
 
     try:
         pricing = await read_pricing()
@@ -117,8 +177,8 @@ async def open_manual_transaction(
                 """
                 INSERT INTO transactions
                     (user_id, invoice_code, amount, payment_gateway,
-                     payment_method, status, admin_notes, plan)
-                VALUES ($1, $2, $3, 'manual', $4, 'pending', $5, $6)
+                     payment_method, status, admin_notes, plan, destination)
+                VALUES ($1, $2, $3, 'manual', $4, 'pending', $5, $6, $7)
                 RETURNING"""
                 + _TX_COLUMNS,
                 str(account_id),
@@ -127,6 +187,7 @@ async def open_manual_transaction(
                 method,
                 note or None,
                 plan,
+                destination,
             )
         except asyncpg.UniqueViolationError:
             continue
@@ -194,7 +255,8 @@ async def list_transactions_for_admin(
         """
         SELECT t.id, t.user_id, t.invoice_code, t.amount, t.plan,
                t.payment_gateway, t.payment_method, t.status, t.admin_notes,
-               t.subscription_id, t.created_at, t.updated_at, t.approved_at, u.email
+               t.subscription_id, t.created_at, t.updated_at, t.approved_at,
+               t.destination, u.email
           FROM transactions t
           JOIN users u ON u.id = t.user_id
          WHERE ($1::text IS NULL OR t.status = $1)
@@ -288,7 +350,7 @@ async def approve_transaction(
             # written: an install that cannot send mail would otherwise fill the
             # outbox with rows that fail every attempt, and the console's claim
             # that approving here tells nobody would stop being true.
-            if email_configured():
+            if await email_configured(conn):
                 await enqueue_approved(
                     conn,
                     user_id=row["user_id"],
@@ -375,7 +437,7 @@ async def deny_transaction(
                     # row as it stands — the denial did not change.
                     return tx
                 raise TransactionNotDeniable(tx.status)
-            if email_configured():
+            if await email_configured(conn):
                 await enqueue_denied(
                     conn,
                     user_id=row["user_id"],

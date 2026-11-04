@@ -53,6 +53,14 @@ class ManualPaymentRequest(BaseModel):
     payment_method: str = Field(
         description="Yang dipakai mentransfer: qris, va_bca, va_mandiri, atau bank_transfer"
     )
+    # Which published account the money went to, named by its number. The server
+    # resolves it against the list it publishes and composes what the queue shows;
+    # the caller cannot supply the label, only point at one of the destinations
+    # this install chose to display.
+    destination_account: str | None = Field(
+        default=None,
+        description="Nomor rekening tujuan yang dipilih dari daftar server.",
+    )
     note: str | None = Field(
         None,
         max_length=500,
@@ -74,6 +82,7 @@ class PaymentResponse(BaseModel):
     plan: str
     paymentGateway: str
     paymentMethod: str
+    destination: str | None = None
     status: str
     notes: str | None = None
     createdAt: str
@@ -89,6 +98,7 @@ def _to_response(tx: Transaction, ttl_seconds: int) -> PaymentResponse:
         plan=tx.plan,
         paymentGateway=tx.payment_gateway,
         paymentMethod=tx.payment_method,
+        destination=tx.destination,
         status=tx.status,
         notes=tx.admin_notes,
         createdAt=tx.created_at.isoformat(),
@@ -124,6 +134,7 @@ async def declare_manual_payment(
             plan=body.plan,
             payment_method=body.payment_method,
             note=body.note,
+            destination_account=body.destination_account,
         )
     except ManualPaymentInvalid as exc:
         raise HTTPException(

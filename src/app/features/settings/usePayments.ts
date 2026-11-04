@@ -18,6 +18,9 @@ export interface PaymentRow {
   plan: string
   paymentGateway: string
   paymentMethod: string
+  /** Where a declared transfer says it went, as the server composed it. Null on
+   *  a gateway row and on rows written before the column existed. */
+  destination?: string | null
   status: string
   notes?: string | null
   createdAt: string
@@ -29,6 +32,8 @@ export interface DeclareInput {
   plan: string
   payment_method: string
   note?: string | null
+  /** The destination picked from the server's own list, by account number. */
+  destination_account?: string | null
 }
 
 /**
@@ -120,22 +125,29 @@ export function usePayments() {
   const resetDeclareError = useCallback(() => setDeclareError(null), [])
 
   /**
-   * Ask the server to open a Midtrans page. Returns the page or null; the
+   * Ask the server to open an online payment page. Returns the page or null; the
    * error names went with the cause the way `declareError` does —
-   * `unavailable` for an install with no gateway wired (503), `network`
-   * for the transport, `no-page` when the server answered its own missing
-   * page. The re-read happens before returning: the pending row is on the
-   * server by then, so an open tab never looks at nothing.
+   * `unavailable` for an install with no gateway wired, or with online payment
+   * switched off (503), `network` for the transport, `no-page` when the server
+   * answered its own missing page. The re-read happens before returning: the
+   * pending row is on the server by then, so an open tab never looks at nothing.
+   *
+   * `channel` is our key from the list the server publishes (`qris`, `va_bca`
+   * ...), never a gateway code, and leaving it out means "let the page offer
+   * whatever this install allows".
    */
   const checkout = useCallback(
-    async (plan: 'weekly' | 'monthly' | 'annual'): Promise<CheckoutPage | null> => {
+    async (
+      plan: 'weekly' | 'monthly' | 'annual',
+      channel?: string | null,
+    ): Promise<CheckoutPage | null> => {
       setCheckoutBusy(true)
       setCheckoutError(null)
       try {
         const res = await apiFetch(ENDPOINTS.paymentsCheckout, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan }),
+          body: JSON.stringify(channel ? { plan, channel } : { plan }),
         })
         if (!res.ok) {
           setCheckoutError(res.status === 503 ? 'unavailable' : String(res.status))

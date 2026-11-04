@@ -46,6 +46,12 @@ def _new_invoice_code() -> str:
 PAYMENT_METHODS = ("qris", "va_bca", "va_mandiri", "bank_transfer")
 
 _MAX_NOTE_CHARS = 500
+
+# Matches the column migration 0016 adds. The value is composed by this service
+# from fields the destination form already bounds, so the ceiling is here to keep
+# a row from outgrowing the queue's rendering of it, not because a real
+# destination is anywhere near this long.
+_MAX_DESTINATION_CHARS = 240
 _MAX_METHOD_CHARS = 50
 _QUEUE_LIMIT = 200
 _OWN_LIST_LIMIT = 50
@@ -116,11 +122,16 @@ class Transaction:
     # denied.
     approved_at: datetime | None = None
     email: str | None = None  # the admin queue's row carries the payer
+    # The destination a declared transfer says it went to, as the server composed
+    # it at declaration time. None on gateway rows, where the payer chose a method
+    # rather than an account, and on rows written before migration 0016.
+    destination: str | None = None
 
 
 _TX_COLUMNS = """
         id, user_id, invoice_code, amount, plan, payment_gateway, payment_method,
-        status, admin_notes, subscription_id, created_at, updated_at, approved_at
+        status, admin_notes, subscription_id, created_at, updated_at, approved_at,
+        destination
 """
 
 
@@ -156,4 +167,5 @@ def _to_transaction(row) -> Transaction:
         updated_at=row.get("updated_at"),
         approved_at=row.get("approved_at"),
         email=row.get("email"),
+        destination=row.get("destination"),
     )

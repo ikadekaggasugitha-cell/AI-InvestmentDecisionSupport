@@ -3,14 +3,20 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ENDPOINTS, apiFetch } from '@/app/config/api'
 
 /**
- * Which payment gateway this install is wired to. Read-only, on purpose.
+ * Which integrations this install is wired to. Read-only, on purpose.
  *
- * The keys stay in the deployment's environment. Writing them to
+ * The gateway keys stay in the deployment's environment. Writing them to
  * `system_settings` would store a secret as plaintext jsonb, carry it into every
  * backup, need masking on every read path, and still not take effect without a
  * restart — `get_settings()` is cached at import. A form that looked like it
  * saved credentials and changed nothing would be worse than no form at all, so
  * there is no input field here and the screen says why.
+ *
+ * Email left that rule when the operator asked to set the sending address from
+ * the console: `AdminSmtpView` next door writes those fields, and the transport
+ * reads the stored row at send time. This component still reads only status, and
+ * the split is not cosmetic — the test below this file's guard asserts that no
+ * host, username or credential can come out of *this* endpoint.
  *
  * Listed here are the integrations this code actually reads: the Midtrans gateway
  * and the SMTP settings behind the notification outbox. WhatsApp is not listed,
@@ -26,6 +32,11 @@ interface IntegrationState {
    *  Never values, and never the host: which provider an install uses is itself
    *  information about it. */
   emailMissing: string[]
+  // A boolean rather than a word, and that is not a style choice: this
+  // endpoint's guard asserts that no string comes out of it except the site
+  // name, because a status screen has no business repeating a host. "Is the
+  // sender the operator's own, or the deployment's?" is a yes-or-no question.
+  emailSenderStored: boolean
 }
 
 type LoadState =
@@ -112,9 +123,10 @@ export function AdminIntegrationsView() {
         <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Integrasi</h3>
         <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
           Hanya integrasi yang kode ini baca yang tampil di sini. Tidak ada kolom untuk mengetik
-          kunci: kredensial tinggal di lingkungan deployment, dan mengubahnya berarti menyunting
-          berkas lingkungan lalu memulai ulang proses — nilainya dibaca sekali saat aplikasi naik,
-          jadi formulir yang tampak menyimpan tidak akan mengubah apa pun.
+          kunci Midtrans: kredensial gateway tinggal di lingkungan deployment dan nilainya dibaca
+          sekali saat aplikasi naik, jadi formulir yang tampak menyimpan tidak akan mengubah apa
+          pun. Email berbeda — alamat pengirimnya disunting di bagian berikutnya, dan berlaku pada
+          pengiriman berikutnya tanpa memulai ulang.
         </p>
       </div>
 
@@ -172,6 +184,23 @@ export function AdminIntegrationsView() {
       <p style={{ fontSize: 11, color: 'var(--muted-foreground)', margin: 0 }}>
         Nilai kunci tidak pernah dikirim ke layar ini, bahkan sebagian.
       </p>
+      {/* Where mail actually goes is the second question, and the first one's
+          answer does not settle it: an install can be "configured" and still be
+          sending from an address nobody chose. */}
+      <div>
+        <Row
+          label="Alamat pengirim kini"
+          value={
+            integrations.emailSenderStored ? 'Tersimpan di basis data' : 'Lingkungan deployment'
+          }
+          tone={integrations.emailSenderStored ? 'ok' : 'off'}
+          note={
+            integrations.emailSenderStored
+              ? 'Ditulis operator lewat layar ini; lingkungan tidak lagi menjawabnya.'
+              : 'Masih datang dari lingkungan deployment. Sunting di bawah untuk memindahkannya.'
+          }
+        />
+      </div>
     </div>
   )
 }

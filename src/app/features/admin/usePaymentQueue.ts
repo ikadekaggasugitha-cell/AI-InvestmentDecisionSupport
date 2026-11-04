@@ -71,6 +71,9 @@ export interface AdminQueueRow {
   paymentMethod: string
   status: string
   notes: string | null
+  /** The destination a declared transfer says it went to, as the server composed
+   *  it. What separates two pending rows that otherwise read identically. */
+  destination: string | null
   payerEmail: string | null
   createdAt: string
   updatedAt: string | null
@@ -86,6 +89,23 @@ export interface GrantedPeriod {
   subscriptionId: string
   expiresAt: string
 }
+
+/**
+ * What an adjudication just did, in the operator's terms.
+ *
+ * Both halves of the decision carry an outcome, and the queue used to say so for
+ * only one of them: approving raised a banner naming the date the access ends,
+ * denying raised nothing at all. The operator was left reading a row that simply
+ * disappeared, which looks identical to a page that reloaded. A refusal is as
+ * much a state change as an approval — it writes `deny` and records the reason on
+ * the row — so it gets its own sentence.
+ *
+ * Neither variant claims the payer was told. Whether a queued email went out is
+ * the worker's answer, not this screen's.
+ */
+export type QueueOutcome =
+  | { kind: 'approved'; invoiceCode: string; expiresAt: string }
+  | { kind: 'denied'; invoiceCode: string; reason: string }
 
 /**
  * Why an adjudication did not happen, in the causes the UI can name.
@@ -132,7 +152,7 @@ export function usePaymentQueue(status: QueueStatus, offset = 0) {
   // Exactly one row may be busy: an operator who clicks twice on two rows must
   // not see both looking like they are working.
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [result, setResult] = useState<GrantedPeriod | null>(null)
+  const [result, setResult] = useState<QueueOutcome | null>(null)
   const [failure, setFailure] = useState<{
     failure: QueueActionFailure
     detail: string | null
@@ -140,6 +160,14 @@ export function usePaymentQueue(status: QueueStatus, offset = 0) {
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const inFlight = useRef<AbortController | null>(null)
+  // Mirrors `rows` so an action can name the invoice it decided without `rows`
+  // becoming a dependency of the callback. The banner appears after a re-read,
+  // by which time the row may have left this filter — the invoice code has to be
+  // taken before the read, not after.
+  const rowsRef = useRef<AdminQueueRow[] | null>(null)
+
+  const invoiceOf = (id: string): string =>
+    (rowsRef.current ?? []).find((r) => r.id === id)?.invoiceCode ?? ''
 
   /**
    * `quiet` keeps the current rows on screen while the fresh list is fetched —
@@ -165,6 +193,7 @@ export function usePaymentQueue(status: QueueStatus, offset = 0) {
         }
         if (controller.signal.aborted) return true
         setRows(Array.isArray(body.transactions) ? body.transactions : [])
+        rowsRef.current = Array.isArray(body.transactions) ? body.transactions : []
         setHasMore(body.hasMore === true)
         setError(null)
         return true
@@ -214,7 +243,11 @@ export function usePaymentQueue(status: QueueStatus, offset = 0) {
           subscriptionId: body.subscriptionId ?? '',
           expiresAt: body.subscriptionExpiresAt ?? '',
         }
-        setResult(granted)
+        setResult({
+          kind: 'approved',
+          invoiceCode: invoiceOf(id),
+          expiresAt: granted.expiresAt,
+        })
         await read(true)
         return { ok: true, granted }
       } catch {
@@ -244,7 +277,11 @@ export function usePaymentQueue(status: QueueStatus, offset = 0) {
           await read(true)
           return failed
         }
+        // Taken before the re-read, because the re-read is what removes this row
+        // from the pending filter — afterwards there would be no invoice to name.
+        const invoiceCode = invoiceOf(id)
         await read(true)
+        setResult({ kind: 'denied', invoiceCode, reason })
         return { ok: true }
       } catch {
         setFailure({ failure: 'network', detail: null })

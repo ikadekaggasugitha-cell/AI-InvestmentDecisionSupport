@@ -40,17 +40,26 @@ router = APIRouter(prefix="/v1/payments", tags=["payments"])
 
 
 class CheckoutRequest(BaseModel):
-    """The ask: which length the money is for, and nothing else.
+    """The ask: which length the money is for, and how it will be paid.
 
     `extra="forbid"` for the same reason the manual declaration carries it —
     the total is a server fact, and a body proposing `amount` is proposing to
     price its own checkout. A refused field says refused; an ignored one reads
     as accepted.
+
+    `channel` is our key (`qris`, `va_bca`, ...), never a gateway code: what the
+    caller may choose is a list this server publishes, and the mapping to what
+    the gateway is told happens in the service. A body that could name gateway
+    codes directly would be a way to decide what the payment page offers.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    plan: str = Field(description="'monthly' atau 'annual'")
+    plan: str = Field(description="'weekly', 'monthly' atau 'annual'")
+    channel: str | None = Field(
+        default=None,
+        description="Kanal yang dipilih payer, dari daftar yang server publish.",
+    )
 
 
 class GatewayCheckoutResponse(PaymentResponse):
@@ -147,6 +156,7 @@ async def checkout(body: CheckoutRequest, user: CurrentUser) -> GatewayCheckoutR
             user.user_id,
             plan=body.plan,
             email=user.email,
+            channel=body.channel,
         )
     except money.ManualPaymentInvalid as exc:
         raise HTTPException(

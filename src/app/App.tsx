@@ -43,6 +43,11 @@ const AlertsView = lazy(() =>
 const AdminView = lazy(() =>
   import('@/app/features/admin/AdminView').then((m) => ({ default: m.AdminView })),
 )
+// Lazy for the same reason as the console: this is the screen with the money
+// forms in it, and a person who never needs to pay should not download it.
+const PayView = lazy(() =>
+  import('@/app/features/payment/PayView').then((m) => ({ default: m.PayView })),
+)
 import { useLiveMarket } from '@/app/features/market/useLiveMarket'
 import { useExchangeRate } from '@/app/features/market/useExchangeRate'
 import { useNews } from '@/app/features/news/useNews'
@@ -291,6 +296,12 @@ function AppInner() {
         </div>
       )
     }
+    if (location.pathname === '/bayar') {
+      // A visitor cannot pay, but the question is worth keeping: the intent they
+      // arrived with is still there, so signing in lands them back on the screen
+      // they were looking for rather than on the dashboard.
+      return <Navigate to="/masuk" replace state={{ from: '/bayar' }} />
+    }
     return (
       <div className={isDark ? 'dark' : ''} style={{ fontFamily: 'var(--font-sans)' }}>
         <PublicPricing
@@ -312,8 +323,35 @@ function AppInner() {
   // data route refuses this account server-side. The screen carries the billing
   // pane itself for a lapse, and a refusal with no payment path for a ban.
   // Signed-in, not signed-out — the session is valid; only the data is closed.
+  /* A closed account with a reason. `/bayar` is the one screen this does not
+   * replace when the reason is a lapsed subscription: the account whose access
+   * just ran out is precisely the person the payment screen is for, and ADR-0012
+   * says payment is what opens `'subscription_expired'`. An administrator ban
+   * still gets no payment path, because money does not reverse that decision.
+   *
+   * This is also why the screen is gated on the session and never on the
+   * entitlement: `require_entitlement` refuses an account with no active
+   * subscription, and gating the pay screen that way would lock out exactly the
+   * people it exists to serve.
+   */
   const suspensionReason = auth.account?.blockedReason
   if (suspensionReason) {
+    if (suspensionReason === 'subscription_expired' && location.pathname === '/bayar') {
+      return (
+        <div className={isDark ? 'dark' : ''} style={{ fontFamily: 'var(--font-sans)' }}>
+          <Suspense fallback={<ViewSkeleton />}>
+            <ErrorBoundary key="bayar" locale={locale}>
+              <PayView
+                locale={locale}
+                initialPlan={planFromSearch(location.search)}
+                onBack={() => navigate('/', { replace: true })}
+                onOpenBilling={() => navigate('/', { replace: true })}
+              />
+            </ErrorBoundary>
+          </Suspense>
+        </div>
+      )
+    }
     return (
       <div className={isDark ? 'dark' : ''} style={{ fontFamily: 'var(--font-sans)' }}>
         <SuspensionScreen reason={suspensionReason} onRefresh={() => auth.refresh()} />
@@ -534,6 +572,21 @@ function AppInner() {
     </div>
   )
 
+  const payPage = (
+    <div className={isDark ? 'dark' : ''} style={{ fontFamily: 'var(--font-sans)' }}>
+      <Suspense fallback={<ViewSkeleton />}>
+        <ErrorBoundary key="bayar" locale={locale}>
+          <PayView
+            locale={locale}
+            initialPlan={planFromSearch(location.search)}
+            onBack={() => navigate('/', { replace: true })}
+            onOpenBilling={() => navigate('/', { replace: true })}
+          />
+        </ErrorBoundary>
+      </Suspense>
+    </div>
+  )
+
   return (
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
@@ -545,6 +598,10 @@ function AppInner() {
       <Route path="/daftar" element={<Navigate to="/" replace />} />
       <Route path="/harga" element={<Navigate to="/" replace />} />
       <Route path="/admin" element={adminPage} />
+      {/* `/bayar` is a real URL for the same reason `/masuk` is: it survives a
+          refresh, it can be linked from the price sheet, and the person halfway
+          through paying does not lose the screen to a reload. */}
+      <Route path="/bayar" element={payPage} />
       <Route path="*" element={shell} />
     </Routes>
   )

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { AppProvider } from '@/app/context/AppContext'
 import { apiFetch } from '@/app/config/api'
 import { SuspensionScreen } from '@/app/features/identity/SuspensionScreen'
@@ -99,9 +100,13 @@ vi.mock('@/app/config/api', async (importOriginal) => ({
 function renderScreen(reason: 'admin' | 'subscription_expired', onRefresh?: () => Promise<void>) {
   const refresh = onRefresh ?? vi.fn(() => Promise.resolve())
   render(
-    <AppProvider>
-      <SuspensionScreen reason={reason} onRefresh={refresh} />
-    </AppProvider>,
+    // The lapsed screen carries the billing pane, and that pane links to
+    // `/bayar` — so it needs the Router a real app would give it.
+    <MemoryRouter>
+      <AppProvider>
+        <SuspensionScreen reason={reason} onRefresh={refresh} />
+      </AppProvider>
+    </MemoryRouter>,
   )
   return refresh
 }
@@ -130,21 +135,24 @@ describe('the suspension screen', () => {
       expect(await screen.findByText(/Masa aktif langganan Anda sudah lewat/)).toBeTruthy()
     })
 
-    it('renders what paying needs, from the server', async () => {
+    it('prices the plan from the server, not from a constant', async () => {
       renderScreen('subscription_expired')
-      // The price and the destination account are on the screen, read from the
-      // same endpoints the settings tab would read.
       expect(await screen.findByText('Rp 15.000')).toBeTruthy()
-      expect(await screen.findByText(/BCA · 999000111 · a.n Pemilik/)).toBeTruthy()
     })
 
-    it('the declaration form is live, not decorative', async () => {
+    it('opens a door to the payment screen rather than running its own form', async () => {
+      /* The lapsed account is exactly the person `/bayar` is for, so the screen
+         that replaces the app must reach it. The declaration form itself moved:
+         two forms writing one fact is the defect, and its assertions now live in
+         `src/app/features/payment/PayView.test.tsx`. */
       const user = userEvent.setup()
       renderScreen('subscription_expired')
-      await screen.findByText('Isi pembayaran transfer manual')
-      await user.click(screen.getByRole('button', { name: 'Saya sudah transfer' }))
-      await waitFor(() => expect(declared.length).toBe(1))
-      expect(declared[0]).toMatchObject({ plan: 'monthly', payment_method: 'bank_transfer' })
+
+      await user.click(await screen.findByRole('button', { name: /^Bayar$/ }))
+
+      expect(declared).toHaveLength(0)
+      expect(screen.queryByText(/Isi pembayaran transfer manual/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Rekening tujuan/)).not.toBeInTheDocument()
     })
 
     it('the status check is a real round trip to /v1/auth/me', async () => {

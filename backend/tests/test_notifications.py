@@ -31,6 +31,7 @@ from api.services.email_transport import (
     EmailUnavailable,
     email_configured,
     email_status,
+    mail_config,
     send_mail,
 )
 from api.services.notification_service import _approved_body, _denied_body, _rupiah
@@ -64,6 +65,18 @@ def _mail_on(monkeypatch, **overrides) -> None:
     for key, value in {**MAIL_ENV, **overrides}.items():
         monkeypatch.setenv(key, str(value))
     get_settings.cache_clear()
+
+
+async def _live_config():
+    """The configuration the transport would use, through the transport's own
+    reader.
+
+    These tests hand `send_mail` a config rather than letting it fetch one, so the
+    config has to come from `mail_config()` — a test that built `MailConfig` by
+    hand would be proving the transport against an object nothing in production
+    produces, and would not notice the row-vs-environment resolution breaking.
+    """
+    return await mail_config()
 
 
 class _RecordingSMTP:
@@ -107,7 +120,7 @@ class _RefusingSMTP(_RecordingSMTP):
 
 
 class TestThePredicate:
-    def test_a_fresh_install_sends_nothing(self, monkeypatch):
+    async def test_a_fresh_install_sends_nothing(self, monkeypatch):
         """The default is off, and that must be a fact a test holds.
 
         Mail to a customer cannot be unsent. An install that inherits a host from
@@ -117,17 +130,19 @@ class TestThePredicate:
             monkeypatch.delenv(key, raising=False)
         get_settings.cache_clear()
 
-        assert email_configured() is False
+        assert await email_configured() is False
 
-    def test_all_three_present_means_mail_goes_out(self, monkeypatch):
+    async def test_all_three_present_means_mail_goes_out(self, monkeypatch):
         _mail_on(monkeypatch)
-        assert email_configured() is True
-        assert email_status().missing == ()
+        assert await email_configured() is True
+        assert (await email_status()).missing == ()
 
     @pytest.mark.parametrize(
         "absent", ["NOTIFICATIONS_ENABLED", "SMTP_HOST", "SMTP_MAIL_FROM"]
     )
-    def test_removing_any_one_of_the_three_stops_the_mail(self, monkeypatch, absent):
+    async def test_removing_any_one_of_the_three_stops_the_mail(
+        self, monkeypatch, absent
+    ):
         """All three are load-bearing, and each fails in its own way.
 
         A boolean is set to `false` rather than to the empty string, which
@@ -140,26 +155,28 @@ class TestThePredicate:
             monkeypatch.setenv(key, value)
         get_settings.cache_clear()
 
-        assert email_configured() is False, f"{absent} alone should be enough to stop mail"
+        assert await email_configured() is False, (
+            f"{absent} alone should be enough to stop mail"
+        )
 
-    def test_it_names_what_is_missing_rather_than_saying_no(self, monkeypatch):
+    async def test_it_names_what_is_missing_rather_than_saying_no(self, monkeypatch):
         """An operator told only "not configured" has three files to guess at."""
         monkeypatch.setenv("NOTIFICATIONS_ENABLED", "false")
         monkeypatch.setenv("SMTP_HOST", "smtp.example.test")
         monkeypatch.setenv("SMTP_MAIL_FROM", "")
         get_settings.cache_clear()
 
-        status = email_status()
+        status = await email_status()
         assert status.configured is False
         assert set(status.missing) == {"NOTIFICATIONS_ENABLED", "SMTP_MAIL_FROM"}
 
-    def test_whitespace_is_not_a_host(self, monkeypatch):
+    async def test_whitespace_is_not_a_host(self, monkeypatch):
         _mail_on(monkeypatch, SMTP_HOST="   ")
-        assert email_configured() is False
+        assert await email_configured() is False
 
 
 class TestTheTransport:
-    def test_an_unconfigured_install_refuses_instead_of_looking_like_a_send(
+    async def test_an_unconfigured_install_refuses_instead_of_looking_like_a_send(
         self, monkeypatch
     ):
         for key in MAIL_ENV:
@@ -167,14 +184,21 @@ class TestTheTransport:
         get_settings.cache_clear()
 
         with pytest.raises(EmailUnavailable):
-            send_mail("seseorang@example.test", "Hal", "Isi")
+            send_mail(
+                "seseorang@example.test", "Hal", "Isi", config=await _live_config()
+            )
 
-    def test_the_message_carries_the_addresses_and_the_body(self, monkeypatch):
+    async def test_the_message_carries_the_addresses_and_the_body(self, monkeypatch):
         _mail_on(monkeypatch)
         _RecordingSMTP.instances = []
         monkeypatch.setattr(smtplib, "SMTP", _RecordingSMTP)
 
-        send_mail("pembayar@example.test", "Pembayaran diterima", "Isi pesan")
+        send_mail(
+            "pembayar@example.test",
+            "Pembayaran diterima",
+            "Isi pesan",
+            config=await _live_config(),
+        )
 
         client = _RecordingSMTP.instances[-1]
         message = client.sent[0]
@@ -186,12 +210,12 @@ class TestTheTransport:
         assert message["Subject"] == "Pembayaran diterima"
         assert "Isi pesan" in message.get_content()
 
-    def test_starttls_runs_before_login_on_a_plain_port(self, monkeypatch):
+    async def test_starttls_runs_before_login_on_a_plain_port(self, monkeypatch):
         _mail_on(monkeypatch, SMTP_PORT=587, SMTP_USERNAME="relay-user")
         _RecordingSMTP.instances = []
         monkeypatch.setattr(smtplib, "SMTP", _RecordingSMTP)
 
-        send_mail("a@example.test", "s", "b")
+        send_mail("a@example.test", "s", "b", config=await _live_config())
 
         # Order is the security property here. Authenticating over a plain
         # connection would put the password on the wire in clear text.
@@ -202,30 +226,30 @@ class TestTheTransport:
             "quit",
         ]
 
-    def test_no_login_when_the_install_has_no_credentials(self, monkeypatch):
+    async def test_no_login_when_the_install_has_no_credentials(self, monkeypatch):
         """A relay that trusts the network is a real deployment."""
         _mail_on(monkeypatch, SMTP_USERNAME="", SMTP_PASSWORD="")
         _RecordingSMTP.instances = []
         monkeypatch.setattr(smtplib, "SMTP", _RecordingSMTP)
 
-        send_mail("a@example.test", "s", "b")
+        send_mail("a@example.test", "s", "b", config=await _live_config())
 
         assert "login:relay-user" not in _RecordingSMTP.instances[-1].calls
 
-    def test_port_465_uses_implicit_tls_and_never_calls_starttls(self, monkeypatch):
+    async def test_port_465_uses_implicit_tls_and_never_calls_starttls(self, monkeypatch):
         """STARTTLS on 465 fails, because that port is already encrypted."""
         _mail_on(monkeypatch, SMTP_PORT=465)
         _RecordingSMTP.instances = []
         monkeypatch.setattr(smtplib, "SMTP_SSL", _RecordingSMTP)
         monkeypatch.setattr(smtplib, "SMTP", _RecordingSMTP)
 
-        send_mail("a@example.test", "s", "b")
+        send_mail("a@example.test", "s", "b", config=await _live_config())
 
         client = _RecordingSMTP.instances[-1]
         assert client.port == 465
         assert "starttls" not in client.calls
 
-    def test_a_server_that_refuses_raises_rather_than_returning_quietly(
+    async def test_a_server_that_refuses_raises_rather_than_returning_quietly(
         self, monkeypatch
     ):
         """The single most expensive failure this module could have.
@@ -238,24 +262,24 @@ class TestTheTransport:
         monkeypatch.setattr(smtplib, "SMTP", _RefusingSMTP)
 
         with pytest.raises(EmailSendFailed):
-            send_mail("a@example.test", "s", "b")
+            send_mail("a@example.test", "s", "b", config=await _live_config())
 
-    def test_the_connection_has_a_timeout(self, monkeypatch):
+    async def test_the_connection_has_a_timeout(self, monkeypatch):
         """No timeout means a silent provider holds the worker forever."""
         _mail_on(monkeypatch)
         _RecordingSMTP.instances = []
         monkeypatch.setattr(smtplib, "SMTP", _RecordingSMTP)
 
-        send_mail("a@example.test", "s", "b")
+        send_mail("a@example.test", "s", "b", config=await _live_config())
 
         assert _RecordingSMTP.instances[-1].timeout is not None
 
-    def test_the_password_never_reaches_the_message(self, monkeypatch):
+    async def test_the_password_never_reaches_the_message(self, monkeypatch):
         _mail_on(monkeypatch, SMTP_PASSWORD="rahasia-kunci-smtp")
         _RecordingSMTP.instances = []
         monkeypatch.setattr(smtplib, "SMTP", _RecordingSMTP)
 
-        send_mail("a@example.test", "s", "b")
+        send_mail("a@example.test", "s", "b", config=await _live_config())
 
         client = _RecordingSMTP.instances[-1]
         message = str(client.sent[0])

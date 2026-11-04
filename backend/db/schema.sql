@@ -201,6 +201,12 @@ CREATE TABLE IF NOT EXISTS transactions (
                                 CHECK (plan IN ('weekly', 'monthly', 'annual')),
     status                  VARCHAR(30) NOT NULL DEFAULT 'pending'
                                 CHECK (status IN ('pending', 'settlement', 'expire', 'deny', 'cancel')),
+    -- Which published destination a declared transfer says it went to, as a
+    -- snapshot composed by the server at declaration: `CIMB Niaga 5012... a.n.
+    -- PT AIDSS`. Not a reference, because an account the operator later edits or
+    -- retires must not rewrite what the payer claimed. NULL on gateway rows and
+    -- on rows written before migration 0016. Mirrors that file.
+    destination             VARCHAR(240) CHECK (destination IS NULL OR char_length(destination) <= 240),
     midtrans_transaction_id VARCHAR(100),
     proof_image_url         TEXT,
     approved_by             UUID REFERENCES users(id),

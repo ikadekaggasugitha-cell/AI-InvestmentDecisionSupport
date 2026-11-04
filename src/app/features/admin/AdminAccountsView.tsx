@@ -366,11 +366,19 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
       </div>
 
       <div
+        role="region"
+        aria-label={
+          isId ? 'Tabel akun, dapat digulir ke samping' : 'Account table, scrolls sideways'
+        }
+        tabIndex={0}
         style={{
           background: 'var(--card)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius)',
           overflowX: 'auto',
+          // Seven columns do not fit a phone. A scrollable region that cannot
+          // take focus cannot be scrolled without a mouse or a thumb, so the
+          // right-hand columns become unreachable for a keyboard operator.
         }}
       >
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

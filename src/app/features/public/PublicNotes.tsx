@@ -157,19 +157,25 @@ const SECTIONS: NoteSection[] = [
     titleId: 'Cara membayar dan apa yang terjadi setelahnya',
     titleEn: 'How payment works, and what happens after',
     bodyId:
-      'Uang berpindah di luar aplikasi. Anda transfer ke rekening yang tampil di Pengaturan, lalu ' +
-      'menyatakan transfernya dari dalam aplikasi dengan nomor dan nama pengirim. Administrator ' +
-      'mencocokkannya dengan mutasi, dan akses menyala setelah pembayaran diperiksa. Tidak ada tombol ' +
-      'perpanjang atau upgrade: memperpanjang berarti menyatakan transfer baru. Gerbang pembayaran ' +
-      'daring hanya aktif bila server dipasang dengan kunci gerbang; tanpa itu aplikasi menjawab ' +
-      'bahwa pembayaran daring belum aktif di server ini dan jalur transfer manual tetap berjalan.',
+      'Dua cara membayar, dan keduanya dimulai di layar bayar setelah Anda masuk. Online: ' +
+      'Anda pilih metodenya, halaman bayar dibuka di tab lain, dan akses menyala begitu gerbang ' +
+      'mengabari server ini. Transfer: uang berpindah di luar aplikasi — Anda kirim ke salah satu ' +
+      'rekening yang tampil di layar itu (Anda memilih yang mana, nomornya terlihat), lalu menyatakan ' +
+      'transfernya dengan nomor dan nama pengirim. Administrator mencocokkannya dengan mutasi, dan ' +
+      'akses menyala setelah pembayaran diperiksa. Tidak ada tombol perpanjang atau upgrade: ' +
+      'memperpanjang berarti membayar lagi. Pembayaran online hanya aktif bila server dipasang ' +
+      'dengan kunci gerbang dan metode yang diizinkan operator; tanpa itu aplikasi menjawab bahwa ' +
+      'pembayaran online belum aktif di server ini dan jalur transfer tetap berjalan.',
     bodyEn:
-      'Money moves outside the application. You transfer to the account shown in Settings, then declare ' +
-      'the transfer from inside the app with the number and the name of the sender. An administrator matches it ' +
-      'against the bank statement, and access turns on once the payment is checked. There is no renew ' +
-      'or upgrade button: renewing means declaring a new transfer. The online payment gateway is live ' +
-      'only where the server was installed with a gateway key; without one the app says online payment ' +
-      'is not active on this server, and the manual transfer path keeps working.',
+      'Two ways to pay, and both start on the payment screen after you sign in. Online: you pick a ' +
+      'method, the payment page opens in another tab, and access turns on once the gateway tells this ' +
+      'server. Transfer: the money moves outside the application — you send it to one of the accounts ' +
+      'shown on that screen (you choose which, the number is visible), then declare it with the ' +
+      'reference number and the sender name. An administrator matches it against the bank statement, ' +
+      'and access turns on once the payment is checked. There is no renew or upgrade button: renewing ' +
+      'means paying again. Online payment is live only where the server was installed with a gateway ' +
+      'key and the operator has allowed the method; without that the app says online payment is not ' +
+      'active on this server, and the transfer path keeps working.',
   },
   {
     id: 'pengembalian-dana',
