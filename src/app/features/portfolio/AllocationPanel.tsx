@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Scale, FlaskConical, ArrowRight, X } from 'lucide-react'
 import { usePortfolioOptimisation } from '@/app/features/portfolio/usePortfolioOptimisation'
 import type { PortfolioHolding } from '@/app/features/portfolio/usePortfolio'
+import { overlayScrim } from '@/app/components/ui/surfaceStyles'
 
 /**
  * Recommended allocation against what is actually held.
@@ -284,7 +285,7 @@ export function AllocationPanel({ holdings, prices, locale = 'id' }: AllocationP
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.5)',
+            background: overlayScrim,
             zIndex: 50,
             display: 'flex',
             alignItems: 'center',

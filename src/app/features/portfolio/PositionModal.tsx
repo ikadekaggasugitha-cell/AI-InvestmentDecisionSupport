@@ -3,6 +3,7 @@ import { X, Plus, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 import type { PortfolioHolding } from '@/app/features/portfolio/usePortfolio'
 import { useUniverse } from '@/app/features/market/useUniverse'
 import { LOT_MAX, PRICE_MAX } from '@/app/constants'
+import { modalScrim, modalPanelShadow } from '@/app/components/ui/surfaceStyles'
 
 export type ModalMode = 'add' | 'edit' | 'delete'
 
@@ -146,7 +147,7 @@ export function PositionModal({
         position: 'fixed',
         inset: 0,
         zIndex: 50,
-        background: 'rgba(0,0,0,0.6)',
+        background: modalScrim,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -168,7 +169,7 @@ export function PositionModal({
           borderRadius: 10,
           width: 420,
           maxWidth: 'calc(100vw - 32px)',
-          boxShadow: '0 16px 40px rgba(9,16,26,0.28)',
+          boxShadow: modalPanelShadow,
           overflow: 'hidden',
         }}
       >
@@ -310,7 +311,7 @@ export function PositionModal({
                       pointerEvents: 'none',
                     }}
                   >
-                    {symbol} — {universe.bySymbol[symbol]?.name ?? ''}
+                    {symbol} · {universe.bySymbol[symbol]?.name ?? ''}
                   </div>
                 )}
               </div>

@@ -39,8 +39,8 @@ export function ViewError({ message, failure, onRetry, locale = 'id' }: Props) {
           <p style={{ fontSize: 12, color: 'var(--muted-foreground)', lineHeight: 1.6 }}>
             {locked
               ? isId
-                ? 'Langganan belum aktif, jadi data ini tidak dikirim. Server berjalan baik — ini bukan masalah koneksi.'
-                : 'The subscription is not active, so this data is not served. The server is healthy — this is not a connection problem.'
+                ? 'Langganan belum aktif, jadi data ini tidak dikirim. Server berjalan baik, ini bukan masalah koneksi.'
+                : 'The subscription is not active, so this data is not served. The server is healthy. This is not a connection problem.'
               : (message ??
                 (isId
                   ? 'Terjadi kesalahan saat mengambil data. Periksa koneksi dan coba lagi.'

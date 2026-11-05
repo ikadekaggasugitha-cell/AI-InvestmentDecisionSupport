@@ -127,8 +127,8 @@ export function TabSubscription({ id }: { id: boolean }) {
         : 'Awaiting review'
       : status === 'expire'
         ? id
-          ? 'Kedaluwarsa antrian — masih bisa disetujui'
-          : 'Aged out of the queue — still approvable'
+          ? 'Kedaluwarsa antrian, masih bisa disetujui'
+          : 'Aged out of the queue, still approvable'
         : status === 'deny'
           ? id
             ? 'Ditolak'
@@ -154,8 +154,8 @@ export function TabSubscription({ id }: { id: boolean }) {
         <div className="setting-row" style={{ paddingBottom: 12 }}>
           <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
             {id
-              ? 'Harga tidak dapat dimuat. Tidak ditampilkan sebagai nol — nol bukan harga yang ditetapkan.'
-              : 'The price could not be loaded. Not shown as zero — zero is not a price anyone set.'}
+              ? 'Harga tidak dapat dimuat. Tidak ditampilkan sebagai nol, karena nol bukan harga yang ditetapkan.'
+              : 'The price could not be loaded. Not shown as zero, because zero is not a price anyone set.'}
           </span>
         </div>
       ) : (
@@ -263,8 +263,8 @@ export function TabSubscription({ id }: { id: boolean }) {
                 }}
               >
                 {id
-                  ? 'Akses datanya belum aktif sampai admin memeriksa pembayaran ini — tidak ada yang menyala otomatis dari baris ini.'
-                  : 'Data access stays inactive until an administrator reviews this payment — nothing turns on by itself.'}
+                  ? 'Akses datanya belum aktif sampai admin memeriksa pembayaran ini, tidak ada yang menyala otomatis dari baris ini.'
+                  : 'Data access stays inactive until an administrator reviews this payment, and nothing turns on by itself.'}
               </p>
               {waiting.map((row) => (
                 <div

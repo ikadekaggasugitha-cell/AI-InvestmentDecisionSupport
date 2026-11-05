@@ -7,6 +7,10 @@ overrides it.
 This file transcribes the owner's answers. All identity fields are named by the
 owner; no agent-invented value is present.
 
+> **Canonical location:** this design system now lives at `docs/adr/design.md`
+> (it used to be `docs/DESIGN.md`). In-code comments that still say `docs/DESIGN.md`
+> point here.
+
 ## Identity
 
 - **Product name:** AIDSS, AI Investment Decision Support System.
@@ -128,6 +132,73 @@ two portals share one ground.
 - Ensure accessible contrast; never rely on color alone to convey financial outcomes.
 - Avoid excessive rounded cards, ornamental gradients, glowing effects, and
   unnecessary animation.
+
+## Glass UI modern + Mode Gelap (dark)
+
+The in-session product runs on a restrained paper surface. Glass is applied as a
+bounded accent, not a character trait: it marks the screens where the reader works
+with live data, and it stays off the chrome, the console, and anything a reader has
+to parse instantly. This section is the scannable spec. The measured history, the
+test-enforced contrast numbers, and the honest open items live in the ledger at
+`## Pengecualian terdokumentasi: glass di view dalam-sesi` near the end of this file.
+Read the two together; this section never restates a number the ledger already proves.
+
+**One principle.** Glass is dose-limited. `backdrop-filter` blur is paid for only
+where dark content actually passes underneath, which today is the dashboard alone.
+Everywhere else the translucent surface is tint-only, no blur. There is no gradient
+on text or icons and no glow. `--sidebar`, `--control-border`, `--link`, and
+`focus.css` are not touched by the glass system.
+
+**Per-module surface matrix.** Single source of truth is `src/app/surfaces.ts`
+(`GLASS_VIEWS`, `GLASS_SHELL_VIEWS`, `OPAQUE_ONLY_FILES`), enforced two directions by
+`src/app/test/glassContrast.test.ts`:
+
+| Screen | Class | Blur | Notes |
+|---|---|---|---|
+| Dashboard | `.glass-card` + sticky `.glass-bar` | yes, `blur(14px) saturate(1.35)` | the only glass shell: the column scrolls under a sticky header, so the bar has real content to refract |
+| Portfolio, Risk, News, Reports, Settings, Advisor, Markets, Alerts (8) | `.surface-glass` | no, tint only | keep their own internal scroller and static header; blur would be GPU cost with nothing to bend |
+| Admin console, sign-in / register, SuspensionScreen, public price sheet | opaque `var(--card)` | no | built and contrast-checked on paper; the console is light-only by owner decision |
+| Dialogs, drawers, scrims, search dropdown, skeleton, error boundary | opaque `var(--card)` | no | small text over a moving backdrop must stay readable |
+
+**Glass tokens.** Declared twice in `src/styles/theme.css`, once in `:root` and once
+in `.dark`; `--glass-blur` and `--glass-radius` are declared once and inherited by
+both themes.
+
+| Token | Light | Dark |
+|---|---|---|
+| `--glass-surface` (cards) | `rgba(255,255,255,0.66)` | `rgba(20,36,58,0.62)` |
+| `--glass-surface-raised` (header bar) | `rgba(255,255,255,0.7)` | `rgba(23,41,63,0.66)` |
+| `--glass-border` | `rgba(20,36,58,0.16)` | `rgba(215,225,236,0.14)` |
+| `--surface-hairline` (rules drawn on glass) | `rgba(20,36,58,0.18)` | `rgba(215,225,236,0.2)` |
+| `--glass-sheen` (1px inset top edge) | `rgba(255,255,255,0.55)` | `rgba(215,225,236,0.22)` |
+| `--glass-blur` | `14px` | `14px` |
+| `--glass-radius` | `16px` | `16px` |
+| `--glass-shadow` | `0 12px 32px rgba(20,36,58,0.1)` | `0 12px 32px rgba(0,0,0,0.34)` |
+| `--glass-page` (ground) | lavender + mint pastel | slate + low-alpha Emerald Teal |
+
+`.surface-glass` and `.glass-card` share the same background, hairline border, `16px`
+radius, soft shadow, and 1px inset sheen; the only difference is that `.glass-card`
+adds `backdrop-filter: blur(var(--glass-blur)) saturate(1.35)`.
+
+**Mode Gelap (dark).** Both themes are fully functional, as the `## Theme` section
+requires. The dark ground stays on brand hues, slate plus a low-alpha Emerald Teal,
+never the light theme's pastel lavender and mint: a coloured ground behind green and
+red financial figures is how a P&L starts to read as decoration. The dark card is kept
+slightly cloudier than the light one (`0.62` against `0.66`) because clearing a dark
+ground costs luminance instead of buying it.
+
+**Accessibility.** `prefers-reduced-transparency: reduce` falls every glass surface
+back to the opaque `var(--card)` with no blur and no shadow, so a system that asks for
+reduced transparency still reads correctly. Contrast is not asserted here; it is
+enforced by `src/app/test/glassContrast.test.ts`, which composites each card over the
+real ground and holds the binding pairs at AA in both themes (guard floor `4.65`, text
+floor `11px`). The lavender and mint hues are licensed for the background layer only,
+never for text, icons, or accents.
+
+> **Out-of-scope follow-up.** Thirteen in-code comments across ten files still
+> reference the old `docs/DESIGN.md` path, and one names the section "dashboard
+> glassy" rather than its real heading. Repointing them to `docs/adr/design.md` is a
+> code change and was deliberately left out of this document-only edit.
 
 ## Pengecualian terdokumentasi: lembar harga publik (2026-10-21)
 

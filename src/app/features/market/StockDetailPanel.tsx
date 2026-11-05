@@ -7,6 +7,7 @@ import { useTechnicals } from '@/app/features/market/useTechnicals'
 import { ENDPOINTS, USE_LIVE_API, apiFetch, FETCH_TIMEOUT_MS } from '@/app/config/api'
 import { EntrySignalCard } from '@/app/features/signals/EntrySignalCard'
 import { ConsentGate } from '@/app/features/identity/ConsentGate'
+import { overlayScrim, drawerPanelShadow } from '@/app/components/ui/surfaceStyles'
 
 const CandlestickChart = lazy(() =>
   import('@/app/features/market/CandlestickChart').then((m) => ({ default: m.CandlestickChart })),
@@ -140,7 +141,7 @@ export function StockDetailPanel({
       }}
     >
       {/* Backdrop */}
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+      <div style={{ position: 'absolute', inset: 0, background: overlayScrim }} />
 
       {/* Drawer */}
       <div
@@ -151,7 +152,7 @@ export function StockDetailPanel({
           height: '100%',
           background: 'var(--background)',
           borderLeft: '1px solid var(--border)',
-          boxShadow: '-16px 0 40px rgba(9,16,26,0.28)',
+          boxShadow: drawerPanelShadow,
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',

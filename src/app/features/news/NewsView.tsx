@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ExternalLink, RefreshCw, WifiOff } from 'lucide-react'
+import { ExternalLink, Loader2, RefreshCw, WifiOff } from 'lucide-react'
 import { useApp } from '@/app/context/AppContext'
 import type { NewsItem } from '@/app/features/news/useNews'
 
@@ -133,7 +133,7 @@ export function NewsView({ news, loading, isLive, error, retry }: Props) {
             fontSize: 13,
           }}
         >
-          <RefreshCw size={16} style={{ animation: 'spin 1.5s linear infinite' }} />
+          <Loader2 size={16} className="animate-spin motion-reduce:animate-none" />
           {id ? 'Memuat berita…' : 'Loading news…'}
         </div>
       ) : error ? (

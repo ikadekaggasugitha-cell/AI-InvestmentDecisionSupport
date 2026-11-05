@@ -87,7 +87,7 @@ export function ReportsView() {
             }}
           >
             {generating === 'performance' ? (
-              <Loader2 size={13} className="animate-spin" />
+              <Loader2 size={13} className="animate-spin motion-reduce:animate-none" />
             ) : (
               <Plus size={13} />
             )}
@@ -167,7 +167,7 @@ export function ReportsView() {
                   >
                     {isDownloading ? (
                       <>
-                        <Loader2 size={13} className="animate-spin" />
+                        <Loader2 size={13} className="animate-spin motion-reduce:animate-none" />
                         {isId ? 'Mengunduh…' : 'Downloading…'}
                       </>
                     ) : (
