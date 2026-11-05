@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ENDPOINTS, apiFetch } from '@/app/config/api'
+import {
+  alertStyle,
+  buttonStyle,
+  controlStyle as inputStyle,
+  labelStyle,
+  savedStyle,
+  sectionNoteStyle,
+  sectionTitleStyle,
+  statusLineStyle,
+  selectStyle,
+  text,
+} from '@/app/features/admin/consoleStyles'
 
 /**
  * Sets where a manual transfer is paid to.
@@ -61,31 +73,6 @@ type LoadState =
   | { kind: 'ready'; updatedAt: string | null }
   | { kind: 'unavailable' }
   | { kind: 'forbidden' }
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 10px',
-  fontSize: '13px',
-  fontFamily: 'var(--font-mono)',
-  color: 'var(--foreground)',
-  background: 'var(--input-background, #fff)',
-  border: '1px solid var(--control-border)',
-  borderRadius: 'var(--radius)',
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 11,
-  color: 'var(--foreground)',
-  marginBottom: '4px',
-}
-
-const selectStyle: React.CSSProperties = {
-  ...inputStyle,
-  // A select is a control boundary, so it takes the contrast floor like the
-  // inputs beside it rather than the divider token (ADR-0007).
-  fontFamily: 'var(--font-display)',
-}
 
 export function AdminBankAccountsView() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
@@ -214,12 +201,12 @@ export function AdminBankAccountsView() {
   }
 
   if (state.kind === 'loading') {
-    return <p style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Memuat rekening tujuan…</p>
+    return <p style={statusLineStyle}>Memuat rekening tujuan…</p>
   }
 
   if (state.kind === 'forbidden') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+      <div role="alert" style={statusLineStyle}>
         Hanya administrator yang bisa mengubah rekening tujuan. Ini bukan masalah langganan.
       </div>
     )
@@ -227,7 +214,7 @@ export function AdminBankAccountsView() {
 
   if (state.kind === 'unavailable') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+      <div role="alert" style={statusLineStyle}>
         Daftar rekening tidak dapat dimuat. Formulir sengaja dikosongkan, karena menyimpan dadakan
         berarti menimpa daftar yang sedang berlaku.
       </div>
@@ -237,8 +224,8 @@ export function AdminBankAccountsView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
       <div>
-        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Rekening Tujuan</h3>
-        <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
+        <h3 style={sectionTitleStyle}>Rekening Tujuan</h3>
+        <p style={sectionNoteStyle}>
           Satu-satunya tempat daftar ini ditulis. Daftar di bawah yang dibaca publik oleh endpoint
           rekening, pembaruan mengganti seluruh daftar. Rekening yang disembunyikan tetap tersimpan
           di sini dan tidak dikirim ke halaman pembayaran.
@@ -246,17 +233,7 @@ export function AdminBankAccountsView() {
       </div>
 
       {saveError && (
-        <div
-          role="alert"
-          style={{
-            fontSize: 12,
-            color: 'var(--warning)',
-            background: 'var(--warning-bg)',
-            border: '1px solid var(--warning)',
-            borderRadius: 'var(--radius)',
-            padding: '8px 10px',
-          }}
-        >
+        <div role="alert" style={alertStyle('warning')}>
           {saveError === 'network'
             ? 'Server tidak terjangkau. Daftar tidak berubah.'
             : `Permintaan ditolak (${saveError}). Daftar tidak berubah${
@@ -266,7 +243,7 @@ export function AdminBankAccountsView() {
       )}
 
       {savedAt !== null && (
-        <div style={{ fontSize: 11, color: 'var(--gain)' }}>
+        <div style={savedStyle}>
           {rows.some((r) => r.enabled)
             ? 'Tersimpan. Endpoint publik sekarang melaporkan rekening yang ditampilkan.'
             : 'Tersimpan. Semua rekening sedang disembunyikan, jadi endpoint publik mengirim daftar kosong.'}
@@ -274,7 +251,7 @@ export function AdminBankAccountsView() {
       )}
 
       {rows.length === 0 && (
-        <p style={{ fontSize: 12, color: 'var(--muted-foreground)', margin: 0 }}>
+        <p style={{ ...statusLineStyle, margin: 0 }}>
           Belum ada rekening tujuan. Tambahkan satu supaya pembayaran manual punya alamat transfer;
           menyimpan daftar kosong ditolak server.
         </p>
@@ -372,11 +349,11 @@ export function AdminBankAccountsView() {
                     : 'Disembunyikan dari halaman pembayaran. Klik untuk menampilkan.'
                 }
                 style={{
-                  fontSize: 11,
+                  fontSize: text.meta,
                   padding: '6px 10px',
                   minHeight: 32,
                   marginBottom: 1,
-                  color: row.enabled ? 'var(--foreground)' : 'var(--muted-foreground)',
+                  color: row.enabled ? 'var(--foreground)' : 'var(--console-secondary)',
                   background: 'transparent',
                   // The same contrast floor every other control here uses: a
                   // toggle the operator must read at a glance is a control, not
@@ -394,7 +371,7 @@ export function AdminBankAccountsView() {
                 onClick={() => removeRow(row.key)}
                 aria-label={`Hapus rekening ke-${index + 1}`}
                 style={{
-                  fontSize: 11,
+                  fontSize: text.meta,
                   padding: '6px 10px',
                   minHeight: 32,
                   color: 'var(--loss)',
@@ -417,7 +394,7 @@ export function AdminBankAccountsView() {
           type="button"
           onClick={addRow}
           style={{
-            fontSize: 12,
+            fontSize: text.body,
             padding: '7px 12px',
             minHeight: 32,
             color: 'var(--foreground)',
@@ -433,23 +410,12 @@ export function AdminBankAccountsView() {
           type="button"
           onClick={() => void save()}
           disabled={saving}
-          style={{
-            fontSize: 12,
-            padding: '7px 16px',
-            minHeight: 32,
-            fontWeight: 600,
-            color: 'var(--primary-foreground)',
-            background: 'var(--primary)',
-            border: '1px solid var(--primary)',
-            borderRadius: 'var(--radius)',
-            cursor: saving ? 'default' : 'pointer',
-            opacity: saving ? 0.7 : 1,
-          }}
+          style={buttonStyle('primary')}
         >
           {saving ? 'Menyimpan…' : 'Simpan'}
         </button>
         {state.updatedAt && (
-          <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+          <span style={statusLineStyle}>
             Diperbarui {new Date(state.updatedAt).toLocaleString('id-ID')}
           </span>
         )}

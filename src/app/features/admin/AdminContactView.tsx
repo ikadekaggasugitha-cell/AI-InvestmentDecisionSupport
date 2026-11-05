@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ENDPOINTS, apiFetch } from '@/app/config/api'
+import {
+  alertStyle,
+  controlStyle as inputStyle,
+  labelStyle,
+  savedStyle,
+  sectionNoteStyle,
+  sectionTitleStyle,
+  statusLineStyle,
+  text,
+} from '@/app/features/admin/consoleStyles'
 
 /**
  * Sets the support address the public footer publishes.
@@ -36,24 +46,6 @@ type LoadState =
   | { kind: 'ready'; updatedAt: string | null }
   | { kind: 'unavailable' }
   | { kind: 'forbidden' }
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 10px',
-  fontSize: '13px',
-  fontFamily: 'var(--font-mono)',
-  color: 'var(--foreground)',
-  background: 'var(--input-background, #fff)',
-  border: '1px solid var(--control-border)',
-  borderRadius: 'var(--radius)',
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 11,
-  color: 'var(--foreground)',
-  marginBottom: '4px',
-}
 
 export function AdminContactView() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
@@ -126,12 +118,12 @@ export function AdminContactView() {
   }
 
   if (state.kind === 'loading') {
-    return <p style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Memuat kontak…</p>
+    return <p style={statusLineStyle}>Memuat kontak…</p>
   }
 
   if (state.kind === 'forbidden') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+      <div role="alert" style={statusLineStyle}>
         Hanya administrator yang bisa mengubah kontak bantuan. Ini bukan masalah langganan.
       </div>
     )
@@ -139,7 +131,7 @@ export function AdminContactView() {
 
   if (state.kind === 'unavailable') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+      <div role="alert" style={statusLineStyle}>
         Kontak tidak dapat dimuat. Formulir sengaja dikosongkan, karena menyimpan dadakan berarti
         menimpa alamat yang sedang berlaku di footer publik.
       </div>
@@ -154,25 +146,15 @@ export function AdminContactView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
       <div>
-        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Kontak Bantuan</h3>
-        <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
+        <h3 style={sectionTitleStyle}>Kontak Bantuan</h3>
+        <p style={sectionNoteStyle}>
           Satu-satunya tempat alamat ini ditulis. Footer publik membacanya; kalau kosong, baris
           kontak tidak dirender sama sekali, bukan menjadi tautan yang tidak ke mana-mana.
         </p>
       </div>
 
       {saveError && (
-        <div
-          role="alert"
-          style={{
-            fontSize: 12,
-            color: 'var(--warning)',
-            background: 'var(--warning-bg)',
-            border: '1px solid var(--warning)',
-            borderRadius: 'var(--radius)',
-            padding: '8px 10px',
-          }}
-        >
+        <div role="alert" style={alertStyle('warning')}>
           {saveError === 'network'
             ? 'Server tidak terjangkau. Alamat tidak berubah.'
             : `Permintaan ditolak (${saveError}). Alamat tidak berubah${
@@ -182,7 +164,7 @@ export function AdminContactView() {
       )}
 
       {savedAt !== null && (
-        <div style={{ fontSize: 11, color: 'var(--gain)' }}>
+        <div style={savedStyle}>
           {draft.trim() === ''
             ? 'Tersimpan. Footer publik tidak lagi menampilkan alamat kontak.'
             : 'Tersimpan. Endpoint publik sekarang melaporkan alamat ini.'}
@@ -205,7 +187,7 @@ export function AdminContactView() {
           style={inputStyle}
         />
         {draft.trim() === '' && (
-          <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 6 }}>
+          <p style={{ ...statusLineStyle, marginTop: 6 }}>
             {lastKnown.current
               ? 'Kosong — menyimpannya menghapus alamat dari footer.'
               : 'Belum ada alamat yang dipublikasikan.'}
@@ -219,7 +201,7 @@ export function AdminContactView() {
           onClick={() => void save()}
           disabled={saving || unchanged}
           style={{
-            fontSize: 12,
+            fontSize: text.body,
             padding: '7px 16px',
             minHeight: 32,
             fontWeight: 600,
@@ -234,7 +216,7 @@ export function AdminContactView() {
           {saving ? 'Menyimpan…' : clearing ? 'Hapus dari footer' : 'Simpan'}
         </button>
         {state.updatedAt && (
-          <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+          <span style={statusLineStyle}>
             Diperbarui {new Date(state.updatedAt).toLocaleString('id-ID')}
           </span>
         )}

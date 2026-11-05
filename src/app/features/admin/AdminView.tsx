@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { useApp } from '@/app/context/AppContext'
+import { text } from '@/app/features/admin/consoleStyles'
 import { AdminAccountsView, useAdminAccounts } from '@/app/features/admin/AdminAccountsView'
 import { AdminPaymentChannelsView } from '@/app/features/admin/AdminPaymentChannelsView'
 import { AdminSmtpView } from '@/app/features/admin/AdminSmtpView'
@@ -32,12 +33,80 @@ import logoUrl from '@/assets/aidss-logo.svg'
 type AdminTab =
   'dashboard' | 'accounts' | 'transactions' | 'pricing' | 'payments' | 'contact' | 'integrations'
 
+/**
+ * The strip's order, and it is a contract rather than a layout detail: arrow keys
+ * walk this array, so the order here is the order a keyboard reader travels. It
+ * puts the overview first because that is the question an operator arrives with,
+ * and the queue second because it is the daily work.
+ */
+const TAB_IDS: AdminTab[] = [
+  'dashboard',
+  'accounts',
+  'transactions',
+  'pricing',
+  'payments',
+  'contact',
+  'integrations',
+]
+
+/** [Indonesia, English]. Kept beside the ids so adding a tab cannot ship a label in one language only. */
+const TAB_LABELS: Record<AdminTab, [string, string]> = {
+  dashboard: ['Ringkasan', 'Overview'],
+  accounts: ['Akun', 'Accounts'],
+  transactions: ['Antrean', 'Queue'],
+  pricing: ['Harga', 'Pricing'],
+  // Was "Pembayaran". Once a real payment queue exists, a tab called Payments that
+  // opens bank-account settings is not merely vague, it points at the wrong thing.
+  payments: ['Rekening', 'Destinations'],
+  contact: ['Kontak', 'Contact'],
+  integrations: ['Integrasi', 'Integrations'],
+}
+
 export function AdminView() {
   const { locale } = useApp()
   const isId = locale === 'id'
   const [tab, setTab] = useState<AdminTab>('dashboard')
   const accounts = useAdminAccounts()
   const state = accounts.state
+
+  /**
+   * Roving focus for the tablist: arrows walk the strip, Home and End jump to its
+   * ends, and selection follows focus.
+   *
+   * Seven tabs at `tabIndex={-1}` except the selected one is the ARIA pattern, and
+   * it only holds if the arrows move between them. Without this the strip is a set
+   * of seven tab stops the keyboard can reach but not traverse — `Tab` walks it one
+   * press per tab and there is no way to get from the first section to the last
+   * without visiting all seven. Focus is moved explicitly because React re-renders
+   * the strip when `tab` changes; setting the tab alone would leave the caret on a
+   * button that is no longer the selected one.
+   */
+  function moveSelection(next: AdminTab) {
+    setTab(next)
+    document.getElementById(`admin-tab-${next}`)?.focus()
+  }
+
+  function onTabListKeyDown(event: React.KeyboardEvent, from: AdminTab) {
+    const index = TAB_IDS.indexOf(from)
+    switch (event.key) {
+      case 'ArrowRight':
+        event.preventDefault()
+        moveSelection(TAB_IDS[(index + 1) % TAB_IDS.length])
+        break
+      case 'ArrowLeft':
+        event.preventDefault()
+        moveSelection(TAB_IDS[(index - 1 + TAB_IDS.length) % TAB_IDS.length])
+        break
+      case 'Home':
+        event.preventDefault()
+        moveSelection(TAB_IDS[0])
+        break
+      case 'End':
+        event.preventDefault()
+        moveSelection(TAB_IDS[TAB_IDS.length - 1])
+        break
+    }
+  }
 
   return (
     <div className="min-h-0 flex-1" style={{ overflowY: 'auto', padding: 24 }}>
@@ -65,23 +134,34 @@ export function AdminView() {
           }}
         >
           <h1
-            style={{ fontSize: 20, fontWeight: 600, margin: 0, fontFamily: 'var(--font-display)' }}
+            style={{
+              fontSize: text.title,
+              fontWeight: 600,
+              margin: 0,
+              fontFamily: 'var(--font-display)',
+              color: 'var(--console-ink)',
+            }}
           >
             {isId ? 'Konsol operator' : 'Operator console'}
           </h1>
           {state.kind === 'ready' && (
+            /* The provenance is the fact: this person is an operator, and the
+               tag only exists once the admin endpoint has answered 200 to them.
+               Uppercase with wide tracking is not part of that fact — it is the
+               tracked-caps tell, and it reads as a badge rather than a status.
+               Sentence case, no letterspacing, and the same border as every
+               other control edge on this screen. */
             <span
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                letterSpacing: '0.08em',
-                color: 'var(--muted-foreground)',
+                fontSize: text.meta,
+                color: 'var(--console-secondary)',
                 border: '1px solid var(--control-border)',
                 borderRadius: 3,
                 padding: '3px 8px',
               }}
             >
-              OPERATOR ACCESS
+              {isId ? 'Akses operator' : 'Operator access'}
             </span>
           )}
         </div>
@@ -92,9 +172,8 @@ export function AdminView() {
           <>
             {/* Seven tabs, not seven routes. /admin is already an operational tool at
             its own URL with no sidebar entry, so a second URL would add routing and a
-            nav element to solve a problem the page does not have. The overview
-            opens because it is the question an operator arrives with; the queue
-            sits second as the daily work. */}
+            nav element to solve a problem the page does not have. The order the
+            arrows walk is `TAB_IDS`. */}
             <div
               role="tablist"
               aria-label={isId ? 'Bagian admin' : 'Admin sections'}
@@ -109,20 +188,7 @@ export function AdminView() {
                 flexWrap: 'wrap',
               }}
             >
-              {(
-                [
-                  ['dashboard', isId ? 'Ringkasan' : 'Overview'],
-                  ['accounts', isId ? 'Akun' : 'Accounts'],
-                  ['transactions', isId ? 'Antrean' : 'Queue'],
-                  ['pricing', isId ? 'Harga' : 'Pricing'],
-                  // Was "Pembayaran". Once a real payment queue exists, a tab
-                  // called Payments that opens bank-account settings is not
-                  // merely vague, it points at the wrong thing.
-                  ['payments', isId ? 'Rekening' : 'Destinations'],
-                  ['contact', isId ? 'Kontak' : 'Contact'],
-                  ['integrations', isId ? 'Integrasi' : 'Integrations'],
-                ] as [AdminTab, string][]
-              ).map(([id, label]) => (
+              {TAB_IDS.map((id) => (
                 <button
                   key={id}
                   id={`admin-tab-${id}`}
@@ -132,18 +198,24 @@ export function AdminView() {
                   aria-controls={`admin-panel-${id}`}
                   tabIndex={tab === id ? 0 : -1}
                   onClick={() => setTab(id)}
+                  onKeyDown={(event) => onTabListKeyDown(event, id)}
                   style={{
-                    fontSize: 12,
+                    fontSize: text.body,
                     padding: '8px 12px',
+                    minHeight: 32,
                     border: 'none',
-                    borderBottom: `2px solid ${tab === id ? 'var(--primary)' : 'transparent'}`,
+                    // The accent marks selection here and nowhere else on this
+                    // screen; it is not a status colour (see consoleStyles).
+                    borderBottom: `2px solid ${tab === id ? 'var(--console-accent)' : 'transparent'}`,
                     background: 'transparent',
-                    color: tab === id ? 'var(--foreground)' : 'var(--muted-foreground)',
+                    color: tab === id ? 'var(--console-ink)' : 'var(--console-secondary)',
+                    // Weight as well as colour: a selected tab that differs only
+                    // in hue is one a reader with low colour vision does not get.
                     fontWeight: tab === id ? 600 : 400,
                     cursor: 'pointer',
                   }}
                 >
-                  {label}
+                  {TAB_LABELS[id][isId ? 0 : 1]}
                 </button>
               ))}
             </div>
@@ -227,8 +299,8 @@ export function AdminView() {
           <span
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: '11px',
-              color: 'var(--muted-foreground)',
+              fontSize: text.meta,
+              color: 'var(--console-secondary)',
             }}
           >
             {isId ? 'Konsol operator' : 'Operator console'}
@@ -254,7 +326,7 @@ function GateSection({ isId }: { isId: boolean }) {
     <section
       style={{
         background: 'var(--card)',
-        border: '1px solid var(--border)',
+        border: '1px solid var(--control-border)',
         borderRadius: 'var(--radius)',
         padding: 20,
         maxWidth: 560,
@@ -262,11 +334,18 @@ function GateSection({ isId }: { isId: boolean }) {
         width: '100%',
       }}
     >
-      <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
+      <h2 style={{ fontSize: text.heading, fontWeight: 600, margin: 0 }}>
         {isId ? 'Hanya untuk operator' : 'For operators'}
       </h2>
       {/* The server's verdict, kept in its own words. */}
-      <p style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--foreground)', margin: '10px 0 0' }}>
+      <p
+        style={{
+          fontSize: text.control,
+          lineHeight: 1.6,
+          color: 'var(--foreground)',
+          margin: '10px 0 0',
+        }}
+      >
         {isId
           ? 'Hanya administrator yang bisa melihat daftar akun.'
           : 'Only an administrator can see the account list.'}
@@ -279,7 +358,7 @@ function GateSection({ isId }: { isId: boolean }) {
           display: 'flex',
           flexDirection: 'column',
           gap: 8,
-          fontSize: 14,
+          fontSize: text.control,
           color: 'var(--foreground)',
         }}
       >
@@ -296,7 +375,7 @@ function GateSection({ isId }: { isId: boolean }) {
           display: 'inline-block',
           marginTop: 16,
           padding: '8px 14px',
-          fontSize: 14,
+          fontSize: text.control,
           color: 'var(--foreground)',
           border: '1px solid var(--control-border)',
           borderRadius: 'var(--radius)',

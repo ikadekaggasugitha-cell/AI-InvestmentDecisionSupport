@@ -2,6 +2,15 @@ import { useEffect, useState } from 'react'
 
 import { AdminDialogActions, AdminModal } from '@/app/features/admin/AdminModal'
 import {
+  mono,
+  monoCell,
+  rowActionStyle,
+  td,
+  text,
+  textareaStyle,
+  th,
+} from '@/app/features/admin/consoleStyles'
+import {
   usePaymentQueue,
   QUEUE_PAGE_SIZE,
   QUEUE_STATUSES,
@@ -30,28 +39,6 @@ import {
  * `settlement`, `expire`, `deny` and `cancel` are the ledger's vocabulary and a
  * translation layer here would be a second place deciding what they mean.
  */
-
-const th: React.CSSProperties = {
-  padding: '10px 12px',
-  textAlign: 'left' as const,
-  fontSize: 12,
-  color: 'var(--muted-foreground)',
-  borderBottom: '1px solid var(--border)',
-  whiteSpace: 'nowrap',
-}
-
-const td: React.CSSProperties = {
-  padding: '12px',
-  fontSize: 13,
-  color: 'var(--foreground)',
-  borderBottom: '1px solid var(--border)',
-  verticalAlign: 'top',
-}
-
-const mono: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontVariantNumeric: 'tabular-nums',
-}
 
 /** A row is actionable only while it is money that has not become a decision. */
 const ACTIONABLE = new Set(['pending', 'expire'])
@@ -168,8 +155,8 @@ export function AdminTransactionsView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Antrean Pembayaran</h2>
-        <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 4 }}>
+        <h2 style={{ fontSize: text.heading, fontWeight: 600, margin: 0 }}>Antrean Pembayaran</h2>
+        <p style={{ fontSize: text.body, color: 'var(--console-secondary)', marginTop: 4 }}>
           Transfer yang dideklarasikan orang, dan baris gateway. Menyetujui menulis status
           <em> settlement</em> dan masa aktifnya dalam satu transaksi database; menolak meninggalkan
           uangnya utuh dan mencatat alasannya. Kalau instalasi ini punya jalur email, keputusan itu
@@ -191,7 +178,7 @@ export function AdminTransactionsView() {
             aria-pressed={status === value}
             onClick={() => chooseStatus(value)}
             style={{
-              fontSize: 12,
+              fontSize: text.body,
               padding: '5px 10px',
               minHeight: 32,
               color: status === value ? 'var(--primary-foreground)' : 'var(--foreground)',
@@ -212,7 +199,7 @@ export function AdminTransactionsView() {
           onClick={() => void queue.reload(true)}
           style={{
             marginLeft: 'auto',
-            fontSize: 12,
+            fontSize: text.body,
             padding: '5px 10px',
             minHeight: 32,
             color: 'var(--foreground)',
@@ -233,7 +220,7 @@ export function AdminTransactionsView() {
           disabled={queue.exporting}
           aria-label={`Ekspor CSV baris berstatus ${STATUS_LABEL[status]}`}
           style={{
-            fontSize: 12,
+            fontSize: text.body,
             padding: '5px 10px',
             minHeight: 32,
             color: 'var(--foreground)',
@@ -252,7 +239,7 @@ export function AdminTransactionsView() {
         <div
           role="alert"
           style={{
-            fontSize: 12,
+            fontSize: text.body,
             color: 'var(--loss)',
             background: 'var(--loss-bg)',
             padding: '8px 10px',
@@ -269,7 +256,7 @@ export function AdminTransactionsView() {
         <div
           role="status"
           style={{
-            fontSize: 12,
+            fontSize: text.body,
             color: 'var(--gain)',
             background: 'var(--gain-bg)',
             padding: '8px 10px',
@@ -293,7 +280,7 @@ export function AdminTransactionsView() {
         <div
           role="alert"
           style={{
-            fontSize: 12,
+            fontSize: text.body,
             color: 'var(--loss)',
             background: 'var(--loss-bg)',
             padding: '8px 10px',
@@ -302,7 +289,7 @@ export function AdminTransactionsView() {
         >
           {FAILURE_LABEL[queue.failure.failure]} {UNCHANGED}
           {queue.failure.detail && (
-            <span style={{ display: 'block', marginTop: 4, color: 'var(--muted-foreground)' }}>
+            <span style={{ display: 'block', marginTop: 4, color: 'var(--console-secondary)' }}>
               Server: {queue.failure.detail}
             </span>
           )}
@@ -340,7 +327,7 @@ export function AdminTransactionsView() {
           <tbody>
             {queue.loading && (
               <tr>
-                <td colSpan={9} style={{ ...td, color: 'var(--muted-foreground)' }}>
+                <td colSpan={9} style={{ ...td, color: 'var(--console-secondary)' }}>
                   Memuat…
                 </td>
               </tr>
@@ -348,7 +335,7 @@ export function AdminTransactionsView() {
 
             {queue.error && (
               <tr>
-                <td colSpan={9} style={{ ...td, color: 'var(--muted-foreground)' }}>
+                <td colSpan={9} style={{ ...td, color: 'var(--console-secondary)' }}>
                   Antrean tidak dapat dimuat. Ini bukan berarti tidak ada pembayaran menunggu.
                 </td>
               </tr>
@@ -356,7 +343,7 @@ export function AdminTransactionsView() {
 
             {!queue.loading && !queue.error && queue.rows?.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ ...td, color: 'var(--muted-foreground)' }}>
+                <td colSpan={9} style={{ ...td, color: 'var(--console-secondary)' }}>
                   {status === 'pending'
                     ? 'Tidak ada yang menunggu keputusan.'
                     : `Tidak ada baris berstatus ${STATUS_LABEL[status]}.`}
@@ -367,19 +354,45 @@ export function AdminTransactionsView() {
             {rows.map((row) => (
               <tr key={row.id}>
                 <td style={{ ...td, ...mono }}>{row.invoiceCode}</td>
-                <td style={{ ...td, ...mono, textAlign: 'right', fontWeight: 600 }}>
+                <td
+                  style={{
+                    ...td,
+                    // nowrap rather than mono alone: at 390 the column narrowed
+                    // enough to print "Rp" on one line and "44.000" on the next.
+                    // A split figure is not a number an operator can reconcile at
+                    // a glance, and the region already scrolls for this width.
+                    ...monoCell,
+                    textAlign: 'right',
+                    fontWeight: 600,
+                  }}
+                >
                   {formatRp(row.amount)}
                 </td>
                 <td style={{ ...td, ...mono }}>{row.plan}</td>
                 <td style={{ ...td, ...mono }}>{row.paymentGateway}</td>
                 <td style={td}>{row.paymentMethod}</td>
-                <td style={{ ...td, color: 'var(--muted-foreground)' }}>{row.payerEmail ?? '—'}</td>
+                <td style={{ ...td, color: 'var(--console-secondary)' }}>
+                  {row.payerEmail ?? '—'}
+                </td>
                 <td style={{ ...td, ...mono, whiteSpace: 'nowrap' }}>
                   {formatDate(row.createdAt)}
                   {/* The queue's own deadline, and how much of it is left as of
                       the read that put this row on screen. */}
                   {row.expiresAt && (
-                    <div style={{ fontSize: 11, marginTop: 3, color: 'var(--muted-foreground)' }}>
+                    <div
+                      style={{
+                        fontSize: text.meta,
+                        marginTop: 3,
+                        color: 'var(--console-secondary)',
+                        // The cell above stays nowrap so a date reads as one object;
+                        // this line cannot. "sisa 23 j 57 m hitung ulang" is what set
+                        // the column's minimum width, and once the nominal figure
+                        // stopped shrinking too, that minimum pushed `Tolak` 1px past
+                        // the container at 1440. A countdown is allowed to wrap; a
+                        // date is not.
+                        whiteSpace: 'normal',
+                      }}
+                    >
                       tenggat {formatDate(row.expiresAt)}
                       <div>
                         sisa {remainingFrom(row.expiresAt)}{' '}
@@ -387,11 +400,18 @@ export function AdminTransactionsView() {
                           type="button"
                           onClick={() => void queue.reload(true)}
                           style={{
-                            fontSize: 11,
+                            fontSize: text.meta,
                             padding: 0,
                             background: 'none',
                             border: 'none',
-                            color: 'var(--link, var(--primary))',
+                            // `--console-link`, not `--link`. The console inherits
+                            // the app's dark link because that token is deliberately
+                            // not restated in its scope, and on white paper the light
+                            // blue reads 2.29 — below every floor this repo accepts.
+                            // That number is the reason the fork has its own link
+                            // token, so it is the one place naming the token is not
+                            // enough. Measured, not assumed.
+                            color: 'var(--console-link)',
                             textDecoration: 'underline',
                             cursor: 'pointer',
                             fontFamily: 'inherit',
@@ -418,7 +438,7 @@ export function AdminTransactionsView() {
                         // button off the visible area to make room for it.
                         whiteSpace: 'normal',
                         overflowWrap: 'anywhere',
-                        fontSize: 12,
+                        fontSize: text.body,
                         lineHeight: 1.5,
                         fontFamily: 'var(--font-mono)',
                         color: 'var(--foreground)',
@@ -434,9 +454,9 @@ export function AdminTransactionsView() {
                         marginTop: 6,
                         maxWidth: 320,
                         whiteSpace: 'normal',
-                        fontSize: 12,
+                        fontSize: text.body,
                         lineHeight: 1.5,
-                        color: 'var(--muted-foreground)',
+                        color: 'var(--console-secondary)',
                       }}
                     >
                       {row.notes}
@@ -446,17 +466,35 @@ export function AdminTransactionsView() {
                 <td style={{ ...td, ...mono }}>
                   {row.status}
                   {row.status === 'expire' && (
-                    <div style={{ fontSize: 11, marginTop: 3, color: 'var(--muted-foreground)' }}>
+                    <div
+                      style={{
+                        fontSize: text.meta,
+                        marginTop: 3,
+                        color: 'var(--console-secondary)',
+                      }}
+                    >
                       uangnya tetap ada, masih bisa disetujui
                     </div>
                   )}
                   {row.status === 'settlement' && row.approvedAt && (
-                    <div style={{ fontSize: 11, marginTop: 3, color: 'var(--muted-foreground)' }}>
+                    <div
+                      style={{
+                        fontSize: text.meta,
+                        marginTop: 3,
+                        color: 'var(--console-secondary)',
+                      }}
+                    >
                       disetujui {formatDate(row.approvedAt)}
                     </div>
                   )}
                   {row.status === 'settlement' && row.subscriptionId && (
-                    <div style={{ fontSize: 11, marginTop: 3, color: 'var(--muted-foreground)' }}>
+                    <div
+                      style={{
+                        fontSize: text.meta,
+                        marginTop: 3,
+                        color: 'var(--console-secondary)',
+                      }}
+                    >
                       masa aktif {row.subscriptionId.slice(0, 8)}
                     </div>
                   )}
@@ -470,14 +508,8 @@ export function AdminTransactionsView() {
                         onClick={() => setConfirming(row)}
                         aria-label={`Setujui ${row.invoiceCode}`}
                         style={{
-                          fontSize: 11,
-                          padding: '4px 8px',
-                          minHeight: 28,
+                          ...rowActionStyle('confirm'),
                           marginRight: 6,
-                          color: 'var(--primary-foreground)',
-                          background: 'var(--primary)',
-                          border: '1px solid var(--primary)',
-                          borderRadius: 3,
                           cursor: queue.busyId !== null ? 'default' : 'pointer',
                           opacity: queue.busyId !== null ? 0.5 : 1,
                         }}
@@ -490,13 +522,7 @@ export function AdminTransactionsView() {
                         onClick={() => setDenying(row)}
                         aria-label={`Tolak ${row.invoiceCode}`}
                         style={{
-                          fontSize: 11,
-                          padding: '4px 8px',
-                          minHeight: 28,
-                          color: 'var(--loss)',
-                          background: 'transparent',
-                          border: '1px solid var(--loss)',
-                          borderRadius: 3,
+                          ...rowActionStyle('danger'),
                           cursor: queue.busyId !== null ? 'default' : 'pointer',
                           opacity: queue.busyId !== null ? 0.5 : 1,
                         }}
@@ -505,7 +531,7 @@ export function AdminTransactionsView() {
                       </button>
                     </>
                   ) : (
-                    <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+                    <span style={{ fontSize: text.meta, color: 'var(--console-secondary)' }}>
                       {queue.busyId === row.id ? 'Menyimpan…' : 'final'}
                     </span>
                   )}
@@ -526,7 +552,7 @@ export function AdminTransactionsView() {
             onClick={() => pageBy(-QUEUE_PAGE_SIZE)}
             disabled={offset === 0}
             style={{
-              fontSize: 12,
+              fontSize: text.body,
               padding: '5px 10px',
               minHeight: 32,
               color: 'var(--foreground)',
@@ -544,7 +570,7 @@ export function AdminTransactionsView() {
             onClick={() => pageBy(QUEUE_PAGE_SIZE)}
             disabled={!queue.hasMore}
             style={{
-              fontSize: 12,
+              fontSize: text.body,
               padding: '5px 10px',
               minHeight: 32,
               color: 'var(--foreground)',
@@ -557,7 +583,7 @@ export function AdminTransactionsView() {
           >
             Berikutnya
           </button>
-          <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+          <span style={{ fontSize: text.meta, color: 'var(--console-secondary)' }}>
             {offset + 1}–{offset + rows.length}
             {queue.hasMore ? ' (masih ada lagi)' : ''}
           </span>
@@ -596,12 +622,19 @@ function ApproveDialog({
   const [busy, setBusy] = useState(false)
   return (
     <AdminModal labelledBy="approve-title" onDismiss={onCancel}>
-      <h3 id="approve-title" style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
+      <h3 id="approve-title" style={{ fontSize: text.heading, fontWeight: 600, margin: 0 }}>
         Setujui pembayaran {row.invoiceCode}
       </h3>
       {/* What the click actually does, in the order it does it. The length is not
           a choice this screen offers: it comes from the plan on the row. */}
-      <p style={{ fontSize: 13, lineHeight: 1.6, marginTop: 10, color: 'var(--foreground)' }}>
+      <p
+        style={{
+          fontSize: text.control,
+          lineHeight: 1.6,
+          marginTop: 10,
+          color: 'var(--foreground)',
+        }}
+      >
         Ini menulis <em>settlement</em> dan satu masa aktif langganan dalam satu transaksi database,
         lewat penulis yang sama dengan callback gateway. Panjangnya mengikuti paket di baris ini,
         bukan angka yang bisa Anda isi di sini.
@@ -612,14 +645,14 @@ function ApproveDialog({
           display: 'grid',
           gridTemplateColumns: 'auto 1fr',
           gap: '4px 12px',
-          fontSize: 13,
+          fontSize: text.control,
         }}
       >
-        <dt style={{ color: 'var(--muted-foreground)' }}>Nominal</dt>
+        <dt style={{ color: 'var(--console-secondary)' }}>Nominal</dt>
         <dd style={{ ...mono, margin: 0 }}>{formatRp(row.amount)}</dd>
-        <dt style={{ color: 'var(--muted-foreground)' }}>Paket</dt>
+        <dt style={{ color: 'var(--console-secondary)' }}>Paket</dt>
         <dd style={{ ...mono, margin: 0 }}>{row.plan}</dd>
-        <dt style={{ color: 'var(--muted-foreground)' }}>Pembayar</dt>
+        <dt style={{ color: 'var(--console-secondary)' }}>Pembayar</dt>
         <dd style={{ margin: 0 }}>{row.payerEmail ?? '—'}</dd>
       </dl>
       <AdminDialogActions
@@ -659,16 +692,23 @@ function DenyDialog({
 
   return (
     <AdminModal labelledBy="deny-title" onDismiss={onCancel}>
-      <h3 id="deny-title" style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
+      <h3 id="deny-title" style={{ fontSize: text.heading, fontWeight: 600, margin: 0 }}>
         Tolak pembayaran {row.invoiceCode}
       </h3>
-      <p style={{ fontSize: 13, lineHeight: 1.6, marginTop: 10, color: 'var(--foreground)' }}>
+      <p
+        style={{
+          fontSize: text.control,
+          lineHeight: 1.6,
+          marginTop: 10,
+          color: 'var(--foreground)',
+        }}
+      >
         Menolak tidak menyentuh apa pun yang akun sudah punya: yang ditolak adalah bukti ini.
         Alasannya wajib, dan tercatat di barisnya supaya akun bisa membaca mengapa.
       </p>
       <label
         htmlFor="deny-reason"
-        style={{ display: 'block', fontSize: 11, marginTop: 12, marginBottom: 4 }}
+        style={{ display: 'block', fontSize: text.meta, marginTop: 12, marginBottom: 4 }}
       >
         Alasan
       </label>
@@ -679,18 +719,7 @@ function DenyDialog({
         maxLength={1000}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Nomor rekening tujuan tidak cocok dengan mutasi yang kami terima."
-        style={{
-          width: '100%',
-          padding: '8px 10px',
-          fontSize: 13,
-          color: 'var(--foreground)',
-          background: 'var(--input-background, #fff)',
-          border: '1px solid var(--control-border)',
-          borderRadius: 'var(--radius)',
-          boxSizing: 'border-box',
-          fontFamily: 'inherit',
-          resize: 'vertical',
-        }}
+        style={textareaStyle}
       />
       <AdminDialogActions
         confirmLabel="Tolak dengan alasan ini"

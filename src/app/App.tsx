@@ -553,14 +553,22 @@ function AppInner() {
    * client is the authority on who is an administrator, which is not a thing a
    * browser should be.
    */
+  /* The console is light-only, and the class that makes it so is not the theme
+   * toggle. `AppContext` puts `.dark` on `documentElement`, so inheriting the
+   * user's theme here would hand the console dark text tokens over a light
+   * surface. `.admin-console` restates the ramp it renders with (see
+   * src/styles/theme.css), which is why `isDark` is deliberately absent below:
+   * the operator's own theme still governs the rest of the app, and the console
+   * says for itself what it looks like.
+   */
   const adminPage = (
     <div
-      className={isDark ? 'dark' : ''}
+      className="admin-console"
       style={{
         minHeight: '100dvh',
         display: 'flex',
-        background: 'var(--background)',
-        color: 'var(--foreground)',
+        background: 'var(--console-ground)',
+        color: 'var(--console-ink)',
         fontFamily: 'var(--font-sans)',
       }}
     >

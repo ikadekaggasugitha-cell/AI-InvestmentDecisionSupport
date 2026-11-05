@@ -345,6 +345,104 @@
   --public-accent: #7dd3fc;
 }
 
+/* ─── Operator console (own palette, light only) ─────────────────────────
+ *
+ * The console is a scanning surface: dense tables, money states, and an
+ * operator who reads it under time pressure. It is given a palette of its own
+ * rather than the visitor-facing ground, for the same reason and with the same
+ * precedent as the price sheet above — a block whose tokens do not follow the
+ * application's light/dark variants.
+ *
+ * Light-only is a deliberate product decision (owner, 2026-11-04), and the
+ * mechanism is not the one it looks like. `.dark` is applied to
+ * `document.documentElement` by `AppContext`, not to this subtree, so simply
+ * dropping the class on the wrapper would leave the console reading DARK text
+ * tokens over a LIGHT surface: --foreground #d7e1ec on white measures 1,32:1.
+ * The scope below therefore restates every token whose value the console renders
+ * text or semantics with, so the console is light because it says so, not
+ * because the user happens to have the other theme off.
+ *
+ * Two tokens are deliberately NOT restated, and that is a constraint rather than
+ * an oversight:
+ *
+ *  - `--control-border` — src/app/test/contrast.test.ts asserts it is declared
+ *    exactly twice in this file, once per theme, so that a third value cannot
+ *    appear uninvited. Its dark value #6e7c8d measures 3,79:1 against the
+ *    console ground and 4,26:1 against a card, both above the 3:1 floor ADR-0007
+ *    asks of a control edge, so leaving it inherited is safe at any theme.
+ *  - `--link` — same count assertion, and its dark value would fail (#7fb0e0 on
+ *    white is 2,29:1). The console gets its own link token below instead.
+ *
+ * The ground is the constrained number, not a taste call. Every value darker
+ * than #EEF2F6 pushes the semantic --loss #c63b3b below 4,5:1 (at #EBEFF4 it is
+ * 4,45:1), and splitting --loss into a second red in a product whose whole
+ * subject is money is a cost that no surface prettiness pays for. The same
+ * ground squeezes --control-border's headroom to 3,24:1, which is why
+ * contrast.test.ts now holds both floors against this exact ground.
+ */
+:root {
+  --console-ground: #eef2f6;
+  --console-surface: #ffffff;
+  --console-hairline: #dce2ea;
+  /* Ink leads; secondary supports; meta is for stamps and captions only. */
+  --console-ink: #101820;
+  --console-secondary: #4e5b6b;
+  --console-meta: #66737f;
+  /* The brand accent, deepened until it can carry a white label: #0f9d78
+     measures 3,43:1 with white on it, which is precisely why the console used
+     to render its primary actions in navy instead. #0f7a5e is 5,30:1.
+     It is never a status colour — see docs/DESIGN.md, "Konsol operator". */
+  --console-accent: #0f7a5e;
+  --console-accent-ink: #ffffff;
+  --console-accent-quiet: #e4f1eb;
+  --console-link: #2f4e70;
+  /* A selected row or tab: a wash, not a fill. The fill belongs to the one
+     primary action on the screen. */
+  --console-selected: #e4f1eb;
+  --console-focus: #14243a;
+}
+
+.admin-console {
+  color-scheme: light;
+
+  --background: var(--console-ground);
+  --foreground: var(--console-ink);
+  --card: var(--console-surface);
+  --card-foreground: var(--console-ink);
+  --popover: var(--console-surface);
+  --popover-foreground: var(--console-ink);
+  --secondary: #e8edf3;
+  --secondary-foreground: var(--console-secondary);
+  --muted: #e8edf3;
+  --muted-foreground: var(--console-secondary);
+  /* A restated --border, not a restated control border: in the console this
+     token is only ever a divider between rows and sections. The dark theme's
+     rgba(215, 225, 236, 0.12) is a light hairline meant for a dark ground and
+     would all but vanish on white paper. */
+  --border: var(--console-hairline);
+  --input-background: var(--console-surface);
+  --switch-background: #cbd5e1;
+  --destructive: #c63b3b;
+  --destructive-foreground: #ffffff;
+  --accent: var(--console-accent-quiet);
+  --accent-foreground: var(--console-accent);
+  /* The focus ring is drawn on the page ground, so it is bounded by what
+     clears 3:1 there. The dark theme's teal ring is not that. */
+  --ring: var(--console-focus);
+
+  /* Money semantics are NOT forked. Red means the same thing on every screen in
+     this product or it stops meaning anything. --warning is the one exception
+     with a reason: #8b4a04 is 6,06:1 on this ground, so it carries unchanged. */
+  --gain: #14764a;
+  --loss: #c63b3b;
+  --gain-bg: rgba(20, 118, 74, 0.08);
+  --loss-bg: rgba(198, 59, 59, 0.08);
+  --warning: #8b4a04;
+  --warning-bg: rgba(168, 92, 5, 0.1);
+  --neutral: var(--console-secondary);
+  --neutral-bg: rgba(78, 91, 107, 0.08);
+}
+
 /* ─── Glass utility surfaces (dashboard only) ──────────────────────────────
  *
  * One place, so the opacity, blur and shadow of the glass are a single decision

@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ENDPOINTS, apiFetch } from '@/app/config/api'
+import {
+  alertStyle,
+  buttonStyle,
+  checkboxStyle,
+  savedStyle,
+  sectionNoteStyle,
+  sectionTitleStyle,
+  statusLineStyle,
+  text,
+} from '@/app/features/admin/consoleStyles'
 
 /**
  * Chooses which ways to pay online this install offers.
@@ -50,16 +60,6 @@ type LoadState =
   | { kind: 'ready'; server: ChannelsState }
   | { kind: 'unavailable' }
   | { kind: 'forbidden' }
-
-const checkboxStyle: React.CSSProperties = {
-  width: 16,
-  height: 16,
-  accentColor: 'var(--primary)',
-  cursor: 'pointer',
-  // The control boundary applies to the box's own outline too, so it stays
-  // readable against the panel behind it (ADR-0007).
-  border: '1px solid var(--control-border)',
-}
 
 export function AdminPaymentChannelsView() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
@@ -152,12 +152,12 @@ export function AdminPaymentChannelsView() {
   }
 
   if (state.kind === 'loading') {
-    return <p style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Memuat metode bayar…</p>
+    return <p style={statusLineStyle}>Memuat metode bayar…</p>
   }
 
   if (state.kind === 'forbidden') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+      <div role="alert" style={statusLineStyle}>
         Hanya administrator yang bisa memilih metode bayar. Ini bukan masalah langganan.
       </div>
     )
@@ -165,7 +165,7 @@ export function AdminPaymentChannelsView() {
 
   if (state.kind === 'unavailable') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+      <div role="alert" style={statusLineStyle}>
         Daftar metode bayar tidak dapat dimuat. Formulir sengaja dikosongkan, karena menyimpan tanpa
         tahu isi yang berlaku berarti menimpa pilihan yang sedang berjalan.
       </div>
@@ -182,8 +182,8 @@ export function AdminPaymentChannelsView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
       <div>
-        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Metode Pembayaran Online</h3>
-        <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
+        <h3 style={sectionTitleStyle}>Metode Pembayaran Online</h3>
+        <p style={sectionNoteStyle}>
           Daftar ini yang menentukan apa yang ditampilkan halaman bayar, dan apa yang dikirim ke
           gateway saat user membuka halaman itu. Satu-satunya tempat daftar ini ditulis; menyimpan
           mengganti seluruh daftar, bukan menambahkan satu baris.
@@ -193,7 +193,7 @@ export function AdminPaymentChannelsView() {
       {unrestricted ? (
         <div
           style={{
-            fontSize: 12,
+            fontSize: text.body,
             color: 'var(--foreground)',
             background: 'var(--muted)',
             border: '1px solid var(--control-border)',
@@ -202,14 +202,14 @@ export function AdminPaymentChannelsView() {
           }}
         >
           <strong>Belum ada daftar yang disimpan di instalasi ini.</strong>
-          <div style={{ marginTop: 4, color: 'var(--muted-foreground)' }}>
+          <div style={{ marginTop: 4, color: 'var(--console-secondary)' }}>
             Yang menawarkan metode bayar sekarang adalah dashboard gateway sendiri, dan layar ini
             tidak bisa melihat isinya. Menyimpan daftar di sini akan membatasinya persis ke yang
             Anda centang — termasuk menutup metode yang sedang aktif di sana.
           </div>
         </div>
       ) : (
-        <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+        <div style={statusLineStyle}>
           {picked.length === 0
             ? 'Tidak ada metode online yang akan ditawarkan. Membayar online ditutup; transfer ' +
               'langsung ke rekening tetap berjalan.'
@@ -218,17 +218,7 @@ export function AdminPaymentChannelsView() {
       )}
 
       {saveError && (
-        <div
-          role="alert"
-          style={{
-            fontSize: 12,
-            color: 'var(--warning)',
-            background: 'var(--warning-bg)',
-            border: '1px solid var(--warning)',
-            borderRadius: 'var(--radius)',
-            padding: '8px 10px',
-          }}
-        >
+        <div role="alert" style={alertStyle('warning')}>
           {saveError === 'network'
             ? 'Server tidak terjangkau. Daftar tidak berubah.'
             : `Permintaan ditolak (${saveError}). Daftar tidak berubah${
@@ -238,7 +228,7 @@ export function AdminPaymentChannelsView() {
       )}
 
       {savedAt !== null && (
-        <div style={{ fontSize: 11, color: 'var(--gain)' }}>
+        <div style={savedStyle}>
           Tersimpan. Halaman bayar sekarang menawarkan{' '}
           {picked.filter((k) => server.options.find((o) => o.key === k)?.snap).length} metode
           online; tidak ada penyegaran server yang diperlukan.
@@ -275,12 +265,12 @@ export function AdminPaymentChannelsView() {
                 style={checkboxStyle}
               />
               <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                <span style={{ fontSize: 12, color: 'var(--foreground)' }}>{option.label}</span>
+                <span style={{ fontSize: text.body }}>{option.label}</span>
                 <span
                   style={{
-                    fontSize: 11,
+                    fontSize: text.meta,
                     fontFamily: 'var(--font-mono)',
-                    color: 'var(--muted-foreground)',
+                    color: 'var(--console-secondary)',
                   }}
                 >
                   {/* The code that will be sent outward. Shown only to the
@@ -299,34 +289,29 @@ export function AdminPaymentChannelsView() {
       </div>
 
       {offlineCount > 0 && (
-        <p style={{ fontSize: 11, color: 'var(--muted-foreground)', margin: 0 }}>
+        <p style={statusLineStyle}>
           Kanal tanpa kode gateway tidak muncul di pemilih pembayaran online. Ia ada di daftar ini
           supaya pernyataan transfer memakai nama yang sama dengan yang dibaca antrean.
         </p>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        {/* `quiet`, not `primary`. This section and Rekening Tujuan share one tab,
+            so two teal "Simpan" rectangles would sit on the same screen — which is
+            both the accent dose cap failing and a genuine ambiguity, since colour
+            is the only thing distinguishing them. The destination list keeps the
+            accent because a transfer cannot be reconciled without it; a channel is
+            an optional gateway. */}
         <button
           type="button"
           onClick={() => void save()}
           disabled={saving}
-          style={{
-            fontSize: 12,
-            padding: '7px 16px',
-            minHeight: 32,
-            fontWeight: 600,
-            color: 'var(--primary-foreground)',
-            background: 'var(--primary)',
-            border: '1px solid var(--primary)',
-            borderRadius: 'var(--radius)',
-            cursor: saving ? 'default' : 'pointer',
-            opacity: saving ? 0.7 : 1,
-          }}
+          style={buttonStyle('quiet')}
         >
           {saving ? 'Menyimpan…' : 'Simpan'}
         </button>
         {server.updatedAt && (
-          <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+          <span style={statusLineStyle}>
             Diperbarui {new Date(server.updatedAt).toLocaleString('id-ID')}
           </span>
         )}

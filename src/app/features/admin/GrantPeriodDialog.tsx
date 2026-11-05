@@ -1,6 +1,12 @@
 import { useState } from 'react'
 
 import { AdminDialogActions, AdminModal } from '@/app/features/admin/AdminModal'
+import {
+  controlStyle,
+  labelStyle,
+  sectionTitleStyle,
+  text,
+} from '@/app/features/admin/consoleStyles'
 import { ENDPOINTS, apiFetch } from '@/app/config/api'
 
 /**
@@ -82,11 +88,11 @@ export function GrantPeriodDialog({
 
   return (
     <AdminModal labelledBy="grant-title" onDismiss={busy ? () => {} : onCancel}>
-      <h3 id="grant-title" style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
+      <h3 id="grant-title" style={sectionTitleStyle}>
         Beri masa aktif: {accountLabel}
       </h3>
       {currentExpiresAt && (
-        <p style={{ fontSize: 12, color: 'var(--muted-foreground)', margin: '8px 0 0' }}>
+        <p style={{ fontSize: text.body, color: 'var(--console-secondary)', margin: '8px 0 0' }}>
           Sekarang berakhir{' '}
           {new Date(currentExpiresAt).toLocaleDateString('id-ID', {
             day: 'numeric',
@@ -96,7 +102,14 @@ export function GrantPeriodDialog({
           . Memberi periode baru tidak menggeser yang lama; keduanya tercatat.
         </p>
       )}
-      <p style={{ fontSize: 13, lineHeight: 1.6, marginTop: 10, color: 'var(--foreground)' }}>
+      <p
+        style={{
+          fontSize: text.control,
+          lineHeight: 1.6,
+          marginTop: 10,
+          color: 'var(--foreground)',
+        }}
+      >
         Tidak ada pembayaran di jalur ini, jadi mengulang aksinya memberi lagi. Tanggal berakhir
         dihitung server, bukan dari angka di layar ini.
       </p>
@@ -105,7 +118,7 @@ export function GrantPeriodDialog({
         <div
           role="alert"
           style={{
-            fontSize: 12,
+            fontSize: text.body,
             color: 'var(--loss)',
             background: 'var(--loss-bg)',
             padding: '8px 10px',
@@ -117,10 +130,7 @@ export function GrantPeriodDialog({
         </div>
       )}
 
-      <label
-        htmlFor="grant-days"
-        style={{ display: 'block', fontSize: 11, marginTop: 14, marginBottom: 4 }}
-      >
+      <label htmlFor="grant-days" style={{ ...labelStyle, marginTop: 14 }}>
         Jumlah hari
       </label>
       <input
@@ -132,23 +142,10 @@ export function GrantPeriodDialog({
         max={DAYS_MAX}
         step={1}
         onChange={(e) => setDays(e.target.value)}
-        style={{
-          width: 140,
-          padding: '8px 10px',
-          fontSize: 13,
-          fontFamily: 'var(--font-mono)',
-          color: 'var(--foreground)',
-          background: 'var(--input-background, #fff)',
-          border: '1px solid var(--control-border)',
-          borderRadius: 'var(--radius)',
-          boxSizing: 'border-box',
-        }}
+        style={{ ...controlStyle, width: 140 }}
       />
 
-      <label
-        htmlFor="grant-reason"
-        style={{ display: 'block', fontSize: 11, marginTop: 14, marginBottom: 4 }}
-      >
+      <label htmlFor="grant-reason" style={{ ...labelStyle, marginTop: 14 }}>
         Catatan (opsional)
       </label>
       <input
@@ -157,16 +154,7 @@ export function GrantPeriodDialog({
         maxLength={280}
         placeholder="Uji coba untuk pemilik, perpanjangan karena gangguan layanan."
         onChange={(e) => setReason(e.target.value)}
-        style={{
-          width: '100%',
-          padding: '8px 10px',
-          fontSize: 13,
-          color: 'var(--foreground)',
-          background: 'var(--input-background, #fff)',
-          border: '1px solid var(--control-border)',
-          borderRadius: 'var(--radius)',
-          boxSizing: 'border-box',
-        }}
+        style={{ ...controlStyle, fontFamily: 'var(--font-sans)' }}
       />
 
       <AdminDialogActions

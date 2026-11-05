@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { text } from '@/app/features/admin/consoleStyles'
 
 /**
  * The modal shell the admin console's dialogs share.
@@ -104,7 +105,7 @@ export function AdminDialogActions({
         disabled={off}
         onClick={onConfirm}
         style={{
-          fontSize: 12,
+          fontSize: text.body,
           padding: '7px 14px',
           minHeight: 32,
           fontWeight: 600,
@@ -123,7 +124,7 @@ export function AdminDialogActions({
         disabled={busy}
         onClick={onCancel}
         style={{
-          fontSize: 12,
+          fontSize: text.body,
           padding: '7px 14px',
           minHeight: 32,
           color: 'var(--foreground)',

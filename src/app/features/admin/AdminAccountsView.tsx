@@ -3,6 +3,16 @@ import { useCallback, useEffect, useState } from 'react'
 import { GrantPeriodDialog } from '@/app/features/admin/GrantPeriodDialog'
 import { ENDPOINTS, apiFetch } from '@/app/config/api'
 import { useApp } from '@/app/context/AppContext'
+import {
+  mono,
+  monoCell,
+  rowActionStyle,
+  searchStyle,
+  td,
+  tdMeta,
+  text,
+  th,
+} from '@/app/features/admin/consoleStyles'
 
 /**
  * The account list: what the server holds, blocking and unblocking, and granting
@@ -235,31 +245,6 @@ export function useAdminAccounts(): AdminAccountsApi {
   }
 }
 
-const th: React.CSSProperties = {
-  padding: '10px 12px',
-  textAlign: 'left' as const,
-  fontSize: 12,
-  color: 'var(--muted-foreground)',
-  borderBottom: '1px solid var(--border)',
-  whiteSpace: 'nowrap',
-}
-
-const td: React.CSSProperties = {
-  padding: '14px 12px',
-  fontSize: 13,
-  color: 'var(--foreground)',
-  borderBottom: '1px solid var(--border)',
-}
-
-// Dates and periods are set in mono with tabular figures, the way the queue and
-// the footer already print them: two rows whose dates do not line up in columns
-// are two rows an operator has to read one at a time.
-const monoCell: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontVariantNumeric: 'tabular-nums',
-  whiteSpace: 'nowrap',
-}
-
 export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) {
   const { locale } = useApp()
   const isId = locale === 'id'
@@ -282,10 +267,10 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
+        <h2 style={{ fontSize: text.heading, fontWeight: 600, margin: 0 }}>
           {isId ? 'Kelola Akun' : 'Manage Accounts'}
         </h2>
-        <p style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 4 }}>
+        <p style={{ fontSize: text.body, color: 'var(--console-secondary)', marginTop: 4 }}>
           {isId
             ? 'Memblokir berlaku pada request berikutnya. Sesi yang sudah terbit tidak dihapus (ADR-0004).'
             : "A block takes effect on the account's next request. Existing sessions are not deleted (ADR-0004)."}
@@ -296,7 +281,7 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
         <div
           role="alert"
           style={{
-            fontSize: 12,
+            fontSize: text.body,
             color: 'var(--loss)',
             background: 'var(--loss-bg)',
             padding: '8px 10px',
@@ -313,7 +298,7 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <label
           htmlFor="admin-account-search"
-          style={{ fontSize: 11, color: 'var(--muted-foreground)' }}
+          style={{ fontSize: text.meta, color: 'var(--console-secondary)' }}
         >
           {isId ? 'Cari' : 'Search'}
         </label>
@@ -323,19 +308,7 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
           value={accounts.query}
           onChange={(event) => accounts.setQuery(event.target.value)}
           placeholder={isId ? 'Email atau nama' : 'Email or name'}
-          style={{
-            fontSize: 13,
-            padding: '6px 10px',
-            minHeight: 32,
-            width: 240,
-            maxWidth: '100%',
-            color: 'var(--foreground)',
-            background: 'var(--input-background, #fff)',
-            // A control boundary: ADR-0007's floor, not the divider token.
-            border: '1px solid var(--control-border)',
-            borderRadius: 'var(--radius)',
-            boxSizing: 'border-box',
-          }}
+          style={{ ...searchStyle, width: 240, maxWidth: '100%' }}
         />
         <div
           role="group"
@@ -349,7 +322,7 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
               aria-pressed={filter === value}
               onClick={() => accounts.setFilter(value)}
               style={{
-                fontSize: 12,
+                fontSize: text.body,
                 padding: '5px 10px',
                 minHeight: 32,
                 color: filter === value ? 'var(--primary-foreground)' : 'var(--foreground)',
@@ -396,7 +369,7 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
           <tbody>
             {state.kind === 'loading' && (
               <tr>
-                <td colSpan={7} style={{ ...td, color: 'var(--muted-foreground)' }}>
+                <td colSpan={7} style={{ ...td, color: 'var(--console-secondary)' }}>
                   {isId ? 'Memuat…' : 'Loading…'}
                 </td>
               </tr>
@@ -404,7 +377,7 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
 
             {state.kind === 'error' && (
               <tr>
-                <td colSpan={7} style={{ ...td, color: 'var(--muted-foreground)' }}>
+                <td colSpan={7} style={{ ...td, color: 'var(--console-secondary)' }}>
                   {state.message}
                 </td>
               </tr>
@@ -412,7 +385,7 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
 
             {state.kind === 'ready' && rows.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ ...td, color: 'var(--muted-foreground)' }}>
+                <td colSpan={7} style={{ ...td, color: 'var(--console-secondary)' }}>
                   {/* Two different empties. A filtered list with no rows is not an
                       install with no accounts, and reading the second onto the
                       first is how an operator stops looking for someone who is
@@ -431,7 +404,7 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
             {rows.map((account) => (
               <tr key={account.id}>
                 <td style={td}>{account.full_name}</td>
-                <td style={{ ...td, color: 'var(--muted-foreground)' }}>{account.email}</td>
+                <td style={{ ...td, color: 'var(--console-secondary)' }}>{account.email}</td>
                 {/* The number the account gave at signup, from the same statement
                     as the rest of the row. Set in mono without a nowrap, so a long
                     international number wraps inside its cell instead of widening
@@ -439,14 +412,13 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
                 <td
                   style={{
                     ...td,
-                    fontFamily: 'var(--font-mono)',
-                    fontVariantNumeric: 'tabular-nums',
+                    ...mono,
                   }}
                 >
                   {account.phone_number || '—'}
                 </td>
-                <td style={{ ...td, fontFamily: 'var(--font-mono)' }}>{account.role}</td>
-                <td style={{ ...td, color: 'var(--muted-foreground)' }}>
+                <td style={{ ...td, ...mono }}>{account.role}</td>
+                <td style={{ ...td, color: 'var(--console-secondary)' }}>
                   {/* Three states, not two. "Diblokir" alone hides the one fact
                       that decides whether the button in front of the operator is
                       the right one: a lapsed subscription is reopened by paying,
@@ -474,11 +446,8 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
                   {account.blocked && account.blocked_at && (
                     <div
                       style={{
-                        fontSize: 11,
-                        fontFamily: 'var(--font-mono)',
-                        fontVariantNumeric: 'tabular-nums',
-                        color: 'var(--muted-foreground)',
-                        marginTop: 3,
+                        ...tdMeta,
+                        ...mono,
                       }}
                     >
                       {isId ? 'sejak ' : 'since '}
@@ -490,12 +459,24 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
                     </div>
                   )}
                   {account.blocked && account.blocked_reason === 'subscription_expired' && (
-                    <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 3 }}>
+                    <div
+                      style={{
+                        fontSize: text.meta,
+                        color: 'var(--console-secondary)',
+                        marginTop: 3,
+                      }}
+                    >
                       {isId ? 'pembayaran baru membukanya kembali' : 'a new payment reopens it'}
                     </div>
                   )}
                   {account.blocked && account.blocked_reason === 'admin' && (
-                    <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 3 }}>
+                    <div
+                      style={{
+                        fontSize: text.meta,
+                        color: 'var(--console-secondary)',
+                        marginTop: 3,
+                      }}
+                    >
                       {isId
                         ? 'hanya buka blokir di layar ini yang membukanya'
                         : 'only unblocking here reopens it'}
@@ -513,7 +494,7 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
                       { day: 'numeric', month: 'short', year: 'numeric' },
                     )
                   ) : (
-                    <span style={{ color: 'var(--muted-foreground)' }}>
+                    <span style={{ color: 'var(--console-secondary)' }}>
                       {isId ? 'tidak ada langganan' : 'no subscription'}
                     </span>
                   )}
@@ -527,14 +508,8 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
                       isId ? `Beri masa aktif ${account.email}` : `Grant access to ${account.email}`
                     }
                     style={{
-                      fontSize: 11,
-                      padding: '4px 8px',
-                      minHeight: 28,
+                      ...rowActionStyle('quiet'),
                       marginRight: 6,
-                      color: 'var(--foreground)',
-                      background: 'transparent',
-                      border: '1px solid var(--control-border)',
-                      borderRadius: 3,
                       cursor: pending === account.id ? 'default' : 'pointer',
                     }}
                   >
@@ -554,15 +529,10 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
                           : `Block ${account.email}`
                     }
                     style={{
-                      fontSize: 11,
-                      padding: '4px 8px',
-                      minHeight: 28,
-                      color: account.blocked ? 'var(--foreground)' : 'var(--loss)',
-                      background: 'transparent',
-                      // Same floor as the pagination buttons — a button outline is
-                      // a control boundary, not a row divider.
-                      border: `1px solid ${account.blocked ? 'var(--control-border)' : 'var(--loss)'}`,
-                      borderRadius: 3,
+                      // A button outline is a control boundary, not a row divider,
+                      // so both states sit on the 32px floor; a blocked row softens
+                      // to the quiet treatment rather than losing its edge.
+                      ...rowActionStyle(account.blocked ? 'quiet' : 'danger'),
                       cursor: pending !== null ? 'default' : 'pointer',
                       opacity: pending === account.id ? 0.5 : 1,
                     }}
@@ -591,7 +561,7 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
             onClick={() => void accounts.reload(Math.max(0, offset - PAGE_SIZE))}
             disabled={offset === 0}
             style={{
-              fontSize: 12,
+              fontSize: text.body,
               padding: '5px 10px',
               minHeight: 32,
               color: 'var(--foreground)',
@@ -612,7 +582,7 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
             onClick={() => void accounts.reload(offset + PAGE_SIZE)}
             disabled={!page.hasMore}
             style={{
-              fontSize: 12,
+              fontSize: text.body,
               padding: '5px 10px',
               minHeight: 32,
               color: 'var(--foreground)',
@@ -625,7 +595,7 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
           >
             {isId ? 'Berikutnya' : 'Next'}
           </button>
-          <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+          <span style={{ fontSize: text.meta, color: 'var(--console-secondary)' }}>
             {readout.join(' · ')}
           </span>
         </div>

@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ENDPOINTS, apiFetch } from '@/app/config/api'
+import {
+  alertStyle,
+  buttonStyle,
+  controlStyle as inputStyle,
+  helpStyle,
+  labelStyle,
+  savedStyle,
+  sectionNoteStyle,
+  sectionTitleStyle,
+  statusLineStyle,
+  text,
+} from '@/app/features/admin/consoleStyles'
 
 /**
  * The email this install writes from, typed by the operator.
@@ -48,30 +60,6 @@ type LoadState =
   | { kind: 'ready'; form: SmtpForm }
   | { kind: 'unavailable' }
   | { kind: 'forbidden' }
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 10px',
-  fontSize: '13px',
-  fontFamily: 'var(--font-mono)',
-  color: 'var(--foreground)',
-  background: 'var(--input-background, #fff)',
-  border: '1px solid var(--control-border)',
-  borderRadius: 'var(--radius)',
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 11,
-  color: 'var(--foreground)',
-  marginBottom: '4px',
-}
-
-const helpStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: 'var(--muted-foreground)',
-  marginTop: 3,
-}
 
 export function AdminSmtpView() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
@@ -179,14 +167,12 @@ export function AdminSmtpView() {
   }
 
   if (state.kind === 'loading') {
-    return (
-      <p style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Memuat konfigurasi email…</p>
-    )
+    return <p style={statusLineStyle}>Memuat konfigurasi email…</p>
   }
 
   if (state.kind === 'forbidden') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+      <div role="alert" style={statusLineStyle}>
         Hanya administrator yang bisa menyunting konfigurasi email.
       </div>
     )
@@ -194,7 +180,7 @@ export function AdminSmtpView() {
 
   if (state.kind === 'unavailable') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+      <div role="alert" style={statusLineStyle}>
         Konfigurasi email tidak dapat dibaca. Formulir sengaja tidak ditampilkan, karena mengetik ke
         layar yang tidak tahu isinya berarti menimpa sesuatu yang mungkin sedang bekerja.
         <button
@@ -203,7 +189,7 @@ export function AdminSmtpView() {
           style={{
             display: 'block',
             marginTop: 10,
-            fontSize: 12,
+            fontSize: text.body,
             padding: '5px 10px',
             minHeight: 32,
             color: 'var(--foreground)',
@@ -224,8 +210,8 @@ export function AdminSmtpView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
       <div>
-        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Konfigurasi Email</h3>
-        <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
+        <h3 style={sectionTitleStyle}>Konfigurasi Email</h3>
+        <p style={sectionNoteStyle}>
           {form.stored
             ? 'Yang tersimpan di basis data instalasi ini. Mengosongkan satu kolom akan menyerahkannya kembali ke lingkungan deployment.'
             : 'Belum ada yang disimpan di instalasi ini; nilai di bawah datang dari lingkungan deployment. Menyimpan apa pun akan menuliskannya ke basis data.'}
@@ -233,17 +219,7 @@ export function AdminSmtpView() {
       </div>
 
       {saveError && (
-        <div
-          role="alert"
-          style={{
-            fontSize: 12,
-            color: 'var(--warning)',
-            background: 'var(--warning-bg)',
-            border: '1px solid var(--warning)',
-            borderRadius: 'var(--radius)',
-            padding: '8px 10px',
-          }}
-        >
+        <div role="alert" style={alertStyle('warning')}>
           {saveError === 'network'
             ? 'Server tidak terjangkau. Konfigurasi tidak berubah.'
             : `Permintaan ditolak (${saveError}). Konfigurasi tidak berubah${
@@ -253,7 +229,7 @@ export function AdminSmtpView() {
       )}
 
       {savedAt !== null && (
-        <div style={{ fontSize: 11, color: 'var(--gain)' }}>
+        <div style={savedStyle}>
           Tersimpan. Berkas yang sudah ada di antrean memakai konfigurasi ini pada percobaan
           berikutnya; tidak ada proses yang perlu dimulai ulang.
         </div>
@@ -371,29 +347,18 @@ export function AdminSmtpView() {
           type="button"
           onClick={() => void save()}
           disabled={saving}
-          style={{
-            fontSize: 12,
-            padding: '7px 16px',
-            minHeight: 32,
-            fontWeight: 600,
-            color: 'var(--primary-foreground)',
-            background: 'var(--primary)',
-            border: '1px solid var(--primary)',
-            borderRadius: 'var(--radius)',
-            cursor: saving ? 'default' : 'pointer',
-            opacity: saving ? 0.7 : 1,
-          }}
+          style={buttonStyle('primary')}
         >
           {saving ? 'Menyimpan…' : 'Simpan'}
         </button>
         {form.updatedAt && (
-          <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+          <span style={statusLineStyle}>
             Diperbarui {new Date(form.updatedAt).toLocaleString('id-ID')}
           </span>
         )}
       </div>
 
-      <p style={{ fontSize: 11, color: 'var(--muted-foreground)', margin: 0 }}>
+      <p style={statusLineStyle}>
         Password disimpan apa adanya di basis data, bukan di lingkungan. Artinya ia ikut dalam
         setiap cadangan basis data dan terbaca oleh akun yang punya hak baca Postgres. Yang tidak
         berlaku: password tidak pernah ditampilkan di layar ini, tidak pernah dikirim kembali ke
@@ -429,10 +394,10 @@ function Toggle({
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          fontSize: 12,
+          fontSize: text.body,
           padding: '7px 12px',
           minHeight: 32,
-          color: on ? 'var(--foreground)' : 'var(--muted-foreground)',
+          color: on ? 'var(--foreground)' : 'var(--console-secondary)',
           background: 'transparent',
           border: '1px solid var(--control-border)',
           borderRadius: 'var(--radius)',
@@ -446,7 +411,7 @@ function Toggle({
             width: 10,
             height: 10,
             borderRadius: '50%',
-            background: on ? 'var(--gain)' : 'var(--muted-foreground)',
+            background: on ? 'var(--gain)' : 'var(--console-secondary)',
           }}
         />
         {label}

@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ENDPOINTS, apiFetch } from '@/app/config/api'
+import {
+  alertStyle,
+  buttonStyle,
+  labelStyle,
+  controlStyle as inputStyle,
+  statusLineStyle,
+  savedStyle,
+  sectionNoteStyle,
+  sectionTitleStyle,
+} from '@/app/features/admin/consoleStyles'
 
 /**
  * Sets what a subscription costs.
@@ -35,26 +45,6 @@ type LoadState =
   | { kind: 'ready'; pricing: PricingState }
   | { kind: 'unavailable' }
   | { kind: 'forbidden' }
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  fontSize: '14px',
-  fontFamily: 'var(--font-mono)',
-  color: 'var(--foreground)',
-  background: 'var(--input-background, #fff)',
-  // --control-border, not --border: ADR-0007 gives interactive boundaries a
-  // contrast floor that the divider token deliberately sits below.
-  border: '1px solid var(--control-border)',
-  borderRadius: 'var(--radius)',
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 13,
-  color: 'var(--foreground)',
-  marginBottom: '6px',
-}
 
 const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`
 
@@ -176,12 +166,12 @@ export function AdminPricingView() {
   }
 
   if (state.kind === 'loading') {
-    return <p style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Memuat harga…</p>
+    return <p style={statusLineStyle}>Memuat harga…</p>
   }
 
   if (state.kind === 'forbidden') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+      <div role="alert" style={statusLineStyle}>
         Hanya administrator yang bisa mengubah harga. Ini bukan masalah langganan.
       </div>
     )
@@ -189,7 +179,7 @@ export function AdminPricingView() {
 
   if (state.kind === 'unavailable') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+      <div role="alert" style={statusLineStyle}>
         Harga tidak dapat dimuat. Formulir sengaja dikosongkan di sini: kolom kosong terbaca sebagai
         gratis, dan gratis bukan harga yang pernah ditetapkan.
       </div>
@@ -199,25 +189,15 @@ export function AdminPricingView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 460 }}>
       <div>
-        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Harga Langganan</h3>
-        <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
+        <h3 style={sectionTitleStyle}>Harga Langganan</h3>
+        <p style={sectionNoteStyle}>
           Satu-satunya tempat harga ini ditulis. Angka di dokumen tidak mengikat — nilai di bawah
           adalah yang dibaca publik.
         </p>
       </div>
 
       {saveError && (
-        <div
-          role="alert"
-          style={{
-            fontSize: 12,
-            color: 'var(--warning)',
-            background: 'var(--warning-bg)',
-            border: '1px solid var(--warning)',
-            borderRadius: 'var(--radius)',
-            padding: '8px 10px',
-          }}
-        >
+        <div role="alert" style={alertStyle('warning')}>
           {saveError === 'network'
             ? 'Server tidak terjangkau. Harga tidak berubah.'
             : `Permintaan ditolak (${saveError}). Harga tidak berubah.`}
@@ -225,9 +205,7 @@ export function AdminPricingView() {
       )}
 
       {savedAt !== null && (
-        <div style={{ fontSize: 11, color: 'var(--gain)' }}>
-          Tersimpan. Endpoint publik sekarang melaporkan nilai ini.
-        </div>
+        <div style={savedStyle}>Tersimpan. Endpoint publik sekarang melaporkan nilai ini.</div>
       )}
 
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -243,9 +221,7 @@ export function AdminPricingView() {
             onChange={(e) => setWeekly(e.target.value)}
             style={inputStyle}
           />
-          <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
-            Sekarang: {rupiah(state.pricing.weekly)}
-          </p>
+          <p style={sectionNoteStyle}>Sekarang: {rupiah(state.pricing.weekly)}</p>
         </div>
 
         <div style={{ flex: 1, minWidth: 180 }}>
@@ -260,9 +236,7 @@ export function AdminPricingView() {
             onChange={(e) => setMonthly(e.target.value)}
             style={inputStyle}
           />
-          <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
-            Sekarang: {rupiah(state.pricing.monthly)}
-          </p>
+          <p style={sectionNoteStyle}>Sekarang: {rupiah(state.pricing.monthly)}</p>
         </div>
 
         <div style={{ flex: 1, minWidth: 180 }}>
@@ -277,9 +251,7 @@ export function AdminPricingView() {
             onChange={(e) => setAnnual(e.target.value)}
             style={inputStyle}
           />
-          <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
-            Sekarang: {rupiah(state.pricing.annual)}
-          </p>
+          <p style={sectionNoteStyle}>Sekarang: {rupiah(state.pricing.annual)}</p>
         </div>
       </div>
 
@@ -288,23 +260,12 @@ export function AdminPricingView() {
           type="button"
           onClick={() => void save()}
           disabled={saving}
-          style={{
-            fontSize: 12,
-            padding: '8px 16px',
-            minHeight: 36,
-            fontWeight: 600,
-            color: 'var(--primary-foreground)',
-            background: 'var(--primary)',
-            border: '1px solid var(--primary)',
-            borderRadius: 'var(--radius)',
-            cursor: saving ? 'default' : 'pointer',
-            opacity: saving ? 0.7 : 1,
-          }}
+          style={buttonStyle('primary')}
         >
           {saving ? 'Menyimpan…' : 'Simpan'}
         </button>
         {state.pricing.updatedAt && (
-          <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+          <span style={statusLineStyle}>
             Diperbarui {new Date(state.pricing.updatedAt).toLocaleString('id-ID')}
           </span>
         )}

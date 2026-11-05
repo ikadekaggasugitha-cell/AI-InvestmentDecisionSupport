@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ENDPOINTS, apiFetch } from '@/app/config/api'
+import { text } from '@/app/features/admin/consoleStyles'
 
 /**
  * Which integrations this install is wired to. Read-only, on purpose.
@@ -76,12 +77,14 @@ export function AdminIntegrationsView() {
   }, [load])
 
   if (state.kind === 'loading') {
-    return <p style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Memuat integrasi…</p>
+    return (
+      <p style={{ fontSize: text.body, color: 'var(--console-secondary)' }}>Memuat integrasi…</p>
+    )
   }
 
   if (state.kind === 'forbidden') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+      <div role="alert" style={{ fontSize: text.body, color: 'var(--console-secondary)' }}>
         Hanya administrator yang bisa melihat status ini.
       </div>
     )
@@ -89,7 +92,10 @@ export function AdminIntegrationsView() {
 
   if (state.kind === 'unavailable') {
     return (
-      <div role="alert" style={{ fontSize: 12, color: 'var(--muted-foreground)', maxWidth: 560 }}>
+      <div
+        role="alert"
+        style={{ fontSize: text.body, color: 'var(--console-secondary)', maxWidth: 560 }}
+      >
         Status integrasi tidak dapat dibaca. Layar ini sengaja tidak menampilkan &quot;belum
         dikonfigurasi&quot;, karena tidak tahu dan belum dikonfigurasi adalah dua pernyataan yang
         berbeda.
@@ -99,7 +105,7 @@ export function AdminIntegrationsView() {
           style={{
             display: 'block',
             marginTop: 10,
-            fontSize: 12,
+            fontSize: text.body,
             padding: '5px 10px',
             minHeight: 32,
             color: 'var(--foreground)',
@@ -120,8 +126,8 @@ export function AdminIntegrationsView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
       <div>
-        <h3 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Integrasi</h3>
-        <p style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 4 }}>
+        <h3 style={{ fontSize: text.control, fontWeight: 600, margin: 0 }}>Integrasi</h3>
+        <p style={{ fontSize: text.meta, color: 'var(--console-secondary)', marginTop: 4 }}>
           Hanya integrasi yang kode ini baca yang tampil di sini. Tidak ada kolom untuk mengetik
           kunci Midtrans: kredensial gateway tinggal di lingkungan deployment dan nilainya dibaca
           sekali saat aplikasi naik, jadi formulir yang tampak menyimpan tidak akan mengubah apa
@@ -181,7 +187,7 @@ export function AdminIntegrationsView() {
         />
       </div>
 
-      <p style={{ fontSize: 11, color: 'var(--muted-foreground)', margin: 0 }}>
+      <p style={{ fontSize: text.meta, color: 'var(--console-secondary)', margin: 0 }}>
         Nilai kunci tidak pernah dikirim ke layar ini, bahkan sebagian.
       </p>
       {/* Where mail actually goes is the second question, and the first one's
@@ -218,18 +224,18 @@ function Row({
 }) {
   return (
     <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 12, minWidth: 140 }}>{label}</span>
+      <span style={{ fontSize: text.body, minWidth: 140 }}>{label}</span>
       <span
         style={{
           fontFamily: 'var(--font-mono)',
-          fontSize: 12,
+          fontSize: text.body,
           fontWeight: 600,
-          color: tone === 'ok' ? 'var(--gain)' : 'var(--muted-foreground)',
+          color: tone === 'ok' ? 'var(--gain)' : 'var(--console-secondary)',
         }}
       >
         {value}
       </span>
-      <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{note}</span>
+      <span style={{ fontSize: text.meta, color: 'var(--console-secondary)' }}>{note}</span>
     </div>
   )
 }

@@ -698,16 +698,22 @@ blueprint; rencananya di [`tasks/plan-admin-panel.md`](../tasks/plan-admin-panel
   seseorang akan merekonsiliasi terhadapnya. Setiap sel dikutip dan nilai yang
   diawali `= + - @` diberi apostrof — `admin_notes` adalah teks bebas dari
   pembayar, dan spreadsheet mengeksekusi formula.
-- **Hanya-baca untuk kredensial, dan hanya yang ada.** Panel integrasi memakai
-  predikat yang sama dengan jalur checkout (`gateway_configured()` /
+- **Hanya-baca untuk kredensial gateway, dan hanya yang ada.** Panel integrasi
+  memakai predikat yang sama dengan jalur checkout (`gateway_configured()` /
   `gateway_environment()`), supaya keduanya tidak bisa berbeda jawaban. Tidak ada
-  kolom input: `get_settings()` di-cache saat import, jadi formulir apa pun akan
-  tampak menyimpan tanpa mengubah apa pun — itu bohong, bukan fitur separuh
-  jadi. SMTP dan WhatsApp tidak ditampilkan karena keduanya memang tidak ada.
-- **Tiga butir blueprint tidak dibangun dan dikatakan kenapa**: pratinjau bukti
+  kolom input untuk kunci Midtrans: `get_settings()` di-cache saat import, jadi
+  formulir apa pun akan tampak menyimpan tanpa mengubah apa pun — itu bohong,
+  bukan fitur separuh jadi. WhatsApp tetap tidak ditampilkan karena tidak ada
+  field di `Settings` dan tidak ada transport untuknya. **Email tidak lagi masuk
+  aturan ini**: baris `smtp` di `system_settings` bisa disunting operator dan
+  transport membacanya saat mengirim ([ADR-0014](adr/0014-smtp-di-database.md)),
+  dan editornya pintu terpisah dari panel status itu — lihat
+  `Konsol operator: palet sendiri` di bawah.
+- **Butir blueprint yang tidak dibangun dan dikatakan kenapa**: pratinjau bukti
   transfer (`proof_image_url` sengaja kosong, [ADR-0011](adr/0011-satu-penulis-subscriptions.md)),
-  notifikasi saat approve (tidak ada transport email/WA), dan pengaturan kunci.
-  Ditulis di §5.1 dokumen itu sendiri, bukan didiamkan.
+  notifikasi WhatsApp saat approve (tidak ada transportnya), dan pengaturan kunci
+  **gateway** (email sudah bisa, Midtrans tidak). Ditulis di §5.1 dokumen itu
+  sendiri, bukan didiamkan.
 - **Modal mengikuti idiom yang sudah dipakai aplikasi, bukan shadcn.** Tidak ada
   satu pun file di `src/app/features/` mengimpor `components/ui/dialog`;
   `PositionModal.tsx` sudah mengerjakan focus-in, Escape, dan focus-return dengan
@@ -731,6 +737,120 @@ blueprint; rencananya di [`tasks/plan-admin-panel.md`](../tasks/plan-admin-panel
   yang bisa saya buat tanpa kredensial pemilik, dan membuat akun admin atau
   mengeset ulang sandi demi kenyamanan verifikasi adalah efek samping yang bukan
   saya ambil.
+
+## Konsol operator: palet sendiri, terkunci terang (4 November 2026)
+
+Atas permintaan pemilik ("buat design lebih baik untuk admin panel, termasuk
+pemilihan palet warna"). Empat hal ditanyakan dan dijawab yang mengikat irisan
+ini: palet **baru khusus konsol**, cakupan **tujuh tab penuh**, struktur **tetap
+tujuh tab**, dan **konsol terang saja**.
+
+Yang paling menentukan bentuk hasil akhirnya bukan selera, melainkan angka yang
+dihitung lebih dulu dengan rumus luminansi yang sama dipakai
+`src/app/test/contrast.test.ts` — bukan angka yang dikutip dari kebiasaan.
+
+- **Ground dipagari dari dua sisi, dan yang membayar adalah warna merah kita.**
+  Setiap ground lebih gelap dari `#EEF2F6` menjatuhkan `--loss #C63B3B` di bawah
+  4,5:1 (di `#EBEFF4` tinggal 4,45). Membagi `--loss` jadi dua merah di produk
+  yang seluruh isinya uang adalah biaya yang tidak dibayar oleh permukaan yang
+  lebih cantik. Jadi `#EEF2F6` bukan "warna yang dipilih" — itu batas bawah yang
+  tersisa. Dikunci tes: `holds money semantics readable on the console ground`.
+- **Zebra striping ditolak dengan angka, bukan preferensi.** Band `#F6F8FB` di
+  atas card `#FFFFFF` = 1,06. Tidak terlihat. Baris tabel dipisah hairline
+  `--border`.
+- **Hierarki bukan soal hex.** Masalahnya nyata dan terukur: `--muted-foreground`
+  dipakai 88 kali di konsol vs `--foreground` 43 — mayoritas layar adalah teks
+  sekunder, jadi tidak ada yang memimpin. Tapi memperbaiki dengan *mencerahkan*
+  sekunder adalah jalan salah: makin gelap sekunder, makin kecil separasinya
+  terhadap ink (3,03 → 2,34). Yang menyelesaikan adalah **penugasan peran** —
+  nilai yang memutuskan memakai ink, label dan stempel waktu memakai
+  `--console-secondary` — plus satu skala tipografi (`text.meta` 11 s/d
+  `text.lead` 26) mengganti sekitar 60 literal `fontSize` yang tersebar. Setelah
+  lipatan: 0 literal, 77 rujukan skala, 0 pemakaian `--muted-foreground`.
+- **Aksen akhirnya sampai ke konsol, dan karena itu bisa dipakai.** Teal merek
+  `#0F9D78` dengan label putih mengukur 3,43:1 — gagal — dan itulah sebabnya
+  setiap tombol primer konsol selama ini jatuh ke Navy, dan DESIGN.md sudah
+  menuliskan larangannya sendiri ("white-on-teal … about 3.4:1"). `#0F7A5E`
+  mengukur 5,30:1, jadi aksen bisa menjadi aksi primer sungguhan.
+- **Tabrakan hue-nya nyata dan tidak bisa dihindari, jadi dilucuti dengan aturan
+  yang sudah ada.** Teal itu 11° dari `--gain`: di layar uang, "hijau" bisa
+  terbaca dua hal. Biru 1° dari `--slate` (tidak beda dari navy merek), amber 2°
+  dari `--warning`. Satu-satunya hue yang lolos kontras *dan* hue-nya sendiri
+  adalah violet 250°, dan violet bukan arah produk institutional-finance
+  sekaligus tell antisllop. Karena teal tidak bisa dihindari (ia warna merek),
+  tabrakannya dilucuti aturan DESIGN.md yang sudah berlaku — *never communicate
+  gain or loss through color alone* — dengan konsekuensi keras yang kini tertulis:
+  **aksen tidak pernah jadi warna status**, dan ia satu aksi per layar. Aksi baris
+  `Setujui` tetap Navy (`rowActionStyle('confirm')`) karena dua puluh tombol teal
+  di satu layar bukan aksen, itu banjir.
+- **Terang saja bukan soal menghapus satu kelas.** `AppContext` menempel
+  `.dark` di `documentElement`, bukan di subtree konsol, jadi konsol akan mewarisi
+  token teks gelap di atas kertas terang (`--foreground` gelap di atas putih =
+  1,32:1). Blok `.admin-console` di `src/styles/theme.css` menyatakan ulang
+  ramp yang dipakai konsol merender teks dan semantik — mengikuti preseden yang
+  sudah ada di file yang sama untuk lembar harga publik ("token ini tidak
+  mengikuti varian terang/gelap aplikasi").
+- **Dua token sengaja tidak ikut dinyatakan ulang, dan itu bukan kelalaian.**
+  `contrast.test.ts` menuntut `--control-border` dan `--link` masing-masing
+  **tepat dua deklarasi** di theme.css — itu penjaga yang memastikan nilainya
+  diketahui untuk kedua tema. Menimpa keduanya dari scope konsol akan menjatuhkan
+  penjaga itu, dan menyerahkan penjaga demi estetika adalah pertukaran yang salah arah. Untuk `--link` konsol punya
+  tokennya sendiri (`--console-link`);
+  `--control-border` diwarisi saja, dan itu aman karena nilai gelapnya terukur
+  3,79-4,26 pada permukaan terang — di atas lantai 3:1 ADR-0007. Penjaga baru
+  mengunci keduanya: ia menuntut empat token teks ikut dinyatakan **dan**
+  menuntut dua token ini tidak, plus tidak ada satu pun token konsol yang boleh
+  kebetulan sama nilainya dengan nilai gelap.
+- **Satu resep, bukan delapan.** Konsol menyalin resep kontrol-nya sendiri di
+  delapan tempat, dan ia melandai persis seperti dugaan: input harga 14px dan
+  setiap input lain 13px. Semua pindah ke
+  [`src/app/features/admin/consoleStyles.ts`](../src/app/features/admin/consoleStyles.ts),
+  dan namanya (`controlStyle`, `buttonStyle`) dipilih supaya scanner
+  `contrast.test.ts` masih melihatnya. Scanner itu sendiri ternyata buta `.ts` —
+  begitu resep pindah ke modul `.ts`, menunjuk `controlStyle` ke `--border`
+  **lulus** di 23 tesnya. Diukur, tidak disimpulkan; glob-nya kemudian dilebarkan
+  dan mutasinya dipastikan gagal lagi.
+- **Isi layar: `Ringkasan` berhenti menjadi enam kartu setara.** Tell
+  "default dashboard" itu juga tidak jujur pada datanya: pendapatan hari ini dan
+  akun yang sudah berakhir dapat kotak sama besar, dan satu-satunya angka turunan
+  di layar dapat kotak sama besar dengan jumlah langsung. Yang menunggu keputusan
+  operator sekarang memimpin layar (26px, `Buka antrean` satu-satunya aksi
+  aksen), sisanya turun jadi daftar label/nilai rapat. Sekalian menghapus bug
+  lama: grid `auto-fill` sebelumnya membuat track kosong di baris terakhir
+  menampilkan cat `--border` kontainer — slab abu selebar empat kartu yang terbaca
+  sebagai panel yang kehilangan angkanya. Satu kolom dengan hairline per baris
+  tidak punya track untuk dibiarkan kosong.
+- **Lantai 32px untuk semua yang dibidik.** Aksi baris di kedua tabel terukur 28
+  px pada sesi browser; naik ke angka yang sudah dipakai sisa konsol.
+- **Yang tidak diubah, dan alasannya.** Tujuh tab tetap satu URL (keputusan lama,
+  dipin tesnya); nama tab `Rekening` tetap (pernyataan pemilik 2 November);
+  label `Midtrans` di panel integrasi **harus** tetap ada —
+  `src/app/test/noGatewayBrand.test.ts` menuntutnya verbatim, karena yang dilarang
+  menyebut merek pemroses adalah layar payer, bukan konsol yang tugasnya justru
+  menyebut integrasi mana yang terpasang. Teks yang memuat janji kejujuran
+  ("uangnya tetap ada, masih bisa disetujui", "Hanya administrator yang bisa…",
+  "terisi — kosongkan untuk mempertahankan") tidak dibuang demi konsistensi gaya.
+- **Tiga keputusan yang hanya terbukti di peramban, dan sekarang dijaga di sana.**
+  Angka token yang benar tidak menjamin token itu terpakai: `--console-link` lulus
+  tes rasionya sambil satu-satunya tautan di konsol masih membaca `var(--link)` dan
+  terukur **2,29 di atas kertas putih** — nilai tema gelap yang justru jadi alasan
+  token itu dibuat. Penjaganya kini menuntut minimal satu konsumen dan nol file
+  admin yang masih membaca `var(--link)`. Kedua, "satu aksi primer per layar" tidak
+  bisa dijaga per-file karena sebuah layar bisa berisi dua view: tab Rekening
+  memasang dua tombol `Simpan` teal sekaligus, dan penjaganya kini membaca komposisi
+  tab dari `src/app/features/admin/AdminView.tsx`. Ketiga, kolom yang di-pin
+  (`right: 0`) memang membuat tombol aksi selalu terlihat di 390 dan memang
+  memotong angka nominal di belakangnya — dua-duanya terlihat pada screenshot yang
+  sama, dan yang kedua adalah kegagalan yang lebih buruk. Pinnya dilepas; konsekuensi
+  yang belum selesai (baris yang menumpuk di lebar ponsel) dicatat di
+  `tasks/plan-admin-panel.md`, bukan dinyatakan lulus.
+- **Dokumen ini tidak mengarang satu pun angka kontras.** Semua rasio di atas
+  dihitung ulang dari nilai token, dan empat di antaranya kini dijaga otomatis oleh tes:
+  lantai `--loss` di ground, lantai `--control-border` di ground kedua tema,
+  aksen yang harus bisa menampung label putih, dan **satu kegagalan yang
+  dipertahankan sengaja** — `--console-meta` di bawah 4,5 di atas ground, dicatat
+  seperti tes "still fails as a divider colour" yang sudah ada, supaya teks kecil
+  tidak pernah dipindah ke latar itu dengan alasan sudah "cukup kontras".
 
 ## Pengecualian terdokumentasi: glass di view dalam-sesi (2026-11-01, diperluas 2026-11-02)
 

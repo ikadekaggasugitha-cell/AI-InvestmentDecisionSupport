@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
@@ -12,7 +14,7 @@ import { AppProvider } from '@/app/context/AppContext'
  * `AdminTransactionsView.test.tsx`. What belongs here is the wiring only this
  * component owns: the account read is also the probe that decides whether the
  * person in front of the page is an operator, so a 403 must replace the whole
- * console rather than leave a table that looks empty; the `OPERATOR ACCESS` tag
+ * console rather than leave a table that looks empty; the `Akses operator` tag
  * may only be worn after an endpoint has actually answered 200; and every section
  * must be reachable from this one URL, which is the recorded decision about how
  * the console is laid out.
@@ -172,12 +174,12 @@ describe('the gate', () => {
     // The tag is a claim about the server's verdict, so a 403 must leave it off.
     state.list = { status: 403, body: {} }
     await renderAdmin(null)
-    expect(screen.queryByText('OPERATOR ACCESS')).not.toBeInTheDocument()
+    expect(screen.queryByText('Akses operator')).not.toBeInTheDocument()
   })
 
   it('wears the operator tag only after the read has answered 200', async () => {
     await renderAdmin()
-    expect(await screen.findByText('OPERATOR ACCESS')).toBeInTheDocument()
+    expect(await screen.findByText('Akses operator')).toBeInTheDocument()
   })
 
   it('names the console for the person standing outside it', async () => {
@@ -257,6 +259,103 @@ describe('the tab strip', () => {
     // Exactly one tab reports itself selected, whichever tab that is.
     expect(tabs.filter((t) => t.getAttribute('aria-selected') === 'true')).toHaveLength(1)
   })
+
+  it('traverses the strip with arrows, not only with Tab', async () => {
+    // Seven tabs at tabIndex={-1} except the selected one is the ARIA roving
+    // pattern, and it is only honest if the arrows move between them. Without a
+    // keydown handler the strip is a set of seven stops the keyboard can reach but
+    // not travel — there is no way from the first section to the last without
+    // pressing Tab seven times.
+    const user = userEvent.setup()
+    await renderAdmin()
+
+    const selected = () =>
+      screen.getAllByRole('tab').find((t) => t.getAttribute('aria-selected') === 'true')
+        ?.textContent
+    const focused = () => document.activeElement?.textContent
+
+    screen.getByRole('tab', { name: /Ringkasan/i }).focus()
+
+    await user.keyboard('{ArrowRight}')
+    // Selection follows focus rather than waiting for Enter: the panels here each
+    // issue their own read, and an operator who arrow-walks a strip is looking at
+    // each one as they pass, not previewing a target they intend to press.
+    await waitFor(() => expect(selected()).toBe('Akun'))
+    expect(focused()).toBe('Akun')
+
+    await user.keyboard('{ArrowRight}')
+    await waitFor(() => expect(selected()).toBe('Antrean'))
+
+    await user.keyboard('{ArrowLeft}')
+    await waitFor(() => expect(selected()).toBe('Akun'))
+
+    // Home and End, and both ends wrap rather than dead-ending.
+    await user.keyboard('{End}')
+    await waitFor(() => expect(selected()).toBe('Integrasi'))
+    expect(focused()).toBe('Integrasi')
+
+    await user.keyboard('{ArrowRight}')
+    await waitFor(() => expect(selected()).toBe('Ringkasan'))
+
+    await user.keyboard('{ArrowLeft}')
+    await waitFor(() => expect(selected()).toBe('Integrasi'))
+
+    await user.keyboard('{Home}')
+    await waitFor(() => expect(selected()).toBe('Ringkasan'))
+
+    // The roving tabindex survives the walk: one stop in the Tab order, and it is
+    // the selected tab. Seven stops would mean the strip is not a tablist at all.
+    expect(
+      screen.getAllByRole('tab').filter((t) => t.getAttribute('tabindex') === '0'),
+    ).toHaveLength(1)
+    expect(document.activeElement?.getAttribute('aria-selected')).toBe('true')
+  })
+})
+
+/**
+ * The accent dose cap, checked against the shell's real composition.
+ *
+ * "One primary action per screen" cannot be tested one file at a time, because the
+ * screens are not the files: the Rekening panel renders two settings views and the
+ * Integrasi panel renders two more, so a rule counted per module would pass while
+ * the screen showed two teal buttons that both say "Simpan". That is what this
+ * caught. Reading the pairing out of `AdminView.tsx` rather than writing it here
+ * means adding a section to a tab puts that section under the rule immediately.
+ */
+describe('the accent dose cap', () => {
+  it('gives every screen at most one primary action', () => {
+    const shell = readFileSync(resolve(__dirname, 'AdminView.tsx'), 'utf8')
+    const perPanel = new Map<string, string[]>()
+    let panel: string | null = null
+    for (const m of shell.matchAll(/id="admin-panel-([a-z]+)"|<(Admin[A-Za-z]+View)\b/g)) {
+      if (m[1]) {
+        panel = m[1]
+        perPanel.set(panel, [])
+      } else if (panel) {
+        perPanel.get(panel)!.push(m[2])
+      }
+    }
+
+    const offenders: string[] = []
+    for (const [name, views] of perPanel) {
+      const primaries = views.filter((view) =>
+        readFileSync(resolve(__dirname, `${view}.tsx`), 'utf8').includes(`buttonStyle('primary')`),
+      )
+      if (primaries.length > 1) offenders.push(`${name}: ${primaries.join(', ')}`)
+    }
+    expect(offenders).toEqual([])
+    // The guard is only worth having if the walk found the panels. An empty map
+    // would pass the assertion above by inspecting nothing.
+    expect([...perPanel.keys()].sort()).toEqual([
+      'accounts',
+      'contact',
+      'dashboard',
+      'integrations',
+      'payments',
+      'pricing',
+      'transactions',
+    ])
+  })
 })
 
 describe('the overview', () => {
@@ -283,8 +382,11 @@ describe('the overview', () => {
     await renderAdmin('Ringkasan')
     await screen.findByText('Rp 69.000')
 
-    expect(screen.getByText('2 menunggu keputusan')).toBeInTheDocument()
-    expect(screen.getByText(/1 sudah lewat tenggat/)).toBeInTheDocument()
+    // The waiting count leads the screen in its own words; the expired one is a
+    // separate sentence under it, never a sum of the two.
+    expect(screen.getByText('2 transfer di antrean')).toBeInTheDocument()
+    expect(screen.getByText(/1 sudah lewat tenggat, uangnya tetap ada/)).toBeInTheDocument()
+    expect(screen.queryByText(/3 transfer di antrean/)).not.toBeInTheDocument()
   })
 
   it('the queue figure is a way in, not a number to admire', async () => {

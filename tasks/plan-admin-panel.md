@@ -503,3 +503,122 @@ keputusan dan konsekuensi yang pemilik terima, bukan ringkasan diff.
   membandingkan DDL blueprint dengan schema apa adanya, dan migrasi yang tidak
   muncul di schema.sql tidak akan pernah sampai ke stack yang dibangun ulang
   (ADR-0001).
+---
+
+## Increment 2026-11-04 — palet sendiri untuk konsol, terkunci terang
+
+Permintaan pemilik: "buat design lebih baik untuk admin panel atau konsol operator,
+termasuk pemilihan palet warna". Empat hal ditanyakan lebih dulu dan jawabannya
+mengikat: palet **baru khusus konsol**, cakupan **tujuh tab penuh**, struktur tetap
+**tujuh tab**, **konsol terang saja**. Yang dicatat di sini adalah keputusan dan
+angka yang memagari keputusan itu; rincian desain ada di `docs/DESIGN.md`.
+
+- **Paletnya tidak dipilih — dipagari dari dua sisi, lalu sisa ruangannya
+  dipakai.** Ground konsol `#EEF2F6` adalah yang *tergelap* yang masih membuat
+  `--loss #C63B3B` lolos 4,5:1; satu langkah lebih gelap (`#EBEFF4`) jatuh ke
+  4,45 dan itu berarti memecah warna merah di produk yang seluruh isinya uang.
+  Zebra striping juga mati oleh angka, bukan selera: band vs card 1,06.
+- **Hierarki ternyata bukan soal warna, dan nyaris salah diobati.** Masalahnya
+  nyata (`--muted-foreground` 88× vs `--foreground` 43×), tapi refleks pertama —
+  menggelapkan teks sekunder — justru *memperkecil* separasinya terhadap ink
+  (3,03 → 2,34). Yang menyelesaikan: penugasan peran (nilai yang memutuskan
+  memakai ink; label dan stempel waktu turun ke rung sekunder) plus satu skala
+  tipografi mengganti sekitar 60 literal `fontSize`. Terukur setelahnya: 0
+  literal, 77 rujukan skala, 0 pemakaian `--muted-foreground`.
+- **Aksen baru bisa dipakai setelah dibuat lebih dalam, dan tabrakan hue-nya
+  diselesaikan dengan aturan yang sudah ada.** Teal merek 3,43:1 dengan label
+  putih — gagal — itulah sebabnya konsol selama ini memakai Navy untuk semua
+  tombol primer. `#0F7A5E` = 5,30:1. Sisanya tidak ada yang bersih: teal 11°
+  dari `--gain`, biru 1° dari `--slate`, amber 2° dari `--warning`; satu-satunya
+  hue yang sendiri adalah violet, yang bukan arah produk ini. Jadi tabrakan
+  teal-vs-hijau-untung dilucuti larangan DESIGN.md yang sudah berlaku (jangan
+  menyampaikan uang lewat warna saja), dengan konsekuensi yang sekarang tertulis:
+  aksen tidak pernah jadi warna status dan hanya satu aksi per layar — `Setujui`
+  per baris tetap Navy, karena dua puluh tombol teal bukan aksen melainkan banjir.
+- **"Terang saja" bukan satu kelas yang dihapus.** `.dark` dipasang di
+  `documentElement`, bukan di subtree konsol, jadi menghapus kelas pada wrapper
+  akan meninggalkan teks gelap di atas kertas terang (1,32:1). Scope
+  `.admin-console` harus menyatakan ulang ramp-nya sendiri.
+- **Dua token justru sengaja tidak ditimpa, dan itu constraint, bukan kelalaian.**
+  `--control-border` dan `--link` masing-masing harus tetap tepat dua deklarasi di
+  theme.css supaya `contrast.test.ts` bisa menjamin nilai kedua tema diketahui.
+  Control-border gelap terukur masih lolos (3,79-4,26 di permukaan terang), jadi
+  diwarisi; link dapat token sendiri. Penjaga baru menuntut keduanya *absen* dari
+  scope konsol dan melarang token konsol mana pun kebetulan sama dengan nilai
+  gelapnya.
+- **Satu lubang penjaga yang ditemukan oleh mutasi, bukan oleh pembacaan.**
+  Setelah resep kontrol pindah ke `consoleStyles.ts`, menunjuk `controlStyle` ke
+  `--border` **lulus** di 23 tes contrast — glob penjaganya hanya `*.tsx`, jadi ia
+  buta terhadap file yang justru ia ditugasi awasi. Namanya (`controlStyle`,
+  `buttonStyle`) perlu tapi tidak cukup. Glob diperlebar ke `.ts`, dan mutasinya
+  dipastikan gagal lagi. Komentarnya sudah mengklaim penjaga itu melihatnya;
+  klaim itu salah selama satu commit, dan sekarang tertulis sebagai pelajaran.
+- **Konsol berhenti jadi template.** `Ringkasan` tidak lagi enam kartu setara —
+  angka yang menunggu keputusan memimpin, sisanya daftar label/nilai — yang
+  sekalian menghapus bug lama: grid `auto-fit` membuat track kosong baris
+  terakhir menampilkan cat kontainer sebagai slab abu selebar empat kartu. Aksi
+  baris naik dari 28px ke lantai 32px. Tab strip: penanda terpilih pindah dari
+  `--primary` ke aksen, dan **tetap** membedakan dengan bobot, bukan warna saja.
+- **Yang tidak disentuh, dan kenapa.** Tujuh tab satu URL; nama tab `Rekening`;
+  label `Midtrans` di panel Integrasi (guard sesi sebelumnya menuntutnya verbatim
+  — yang dilarang menyebut merek pemroses adalah layar payer); dan seluruh kalimat
+  yang memuat janji kejujuran. Tidak ada tes yang dihapus atau dilemahkan; satu
+  assertion teks (`OPERATOR ACCESS` → `Akses operator`) ikut bergeser karena
+  ornamen uppercase-tracked-nya yang dilepas, bukan maknanya.
+- **Verifikasi**: gate penuh hijau plus browser di 1440 dan 390. Yang diukur di
+  browser, bukan dilihat: computed style konsol saat tema aplikasi gelap (harus
+  tetap terang), lebar tabel vs wadahnya, dan tinggi target aksi baris.
+
+### Yang hanya bisa ditemukan oleh browser (verifikasi 4 November 2026)
+
+Gerbang statis hijau sebelum langkah ini, dan itu tidak cukup. Empat keputusan
+desain baru terbukti salah atau kosong justru di peramban, dan satu syarat gerbang
+tidak bisa dipenuhi seperti yang tertulis:
+
+- **`--console-link` declared, tested, dan tidak dipakai siapa pun.** Angkanya
+  (7,4 terhadap kartu) lulus tes; satu-satunya tautan di konsol masih membaca
+  `var(--link)`, yang di dalam scope konsol jatuh ke nilai tema gelap dan terukur
+  **2,29 di atas kertas putih** — persis cacat yang jadi alasan token itu dibuat.
+  Tes lama hanya menghitung rasio tokennya, jadi ia hijau sambil layarnya tetap salah.
+  Perbaikannya bukan cuma warna: penjaga baru menuntut minimal satu konsumen dan
+  **nol** file admin yang masih membaca `var(--link)`. Mutasi (kembali ke
+  `var(--link)`) dipastikan gagal.
+- **Dua tombol primer di satu layar.** Tab `Rekening` merender `AdminBankAccountsView`
+  dan `AdminPaymentChannelsView` dalam satu tabpanel, dan keduanya menulis
+  `buttonStyle('primary')` — dua persegi teal yang sama-sama berbunyi "Simpan".
+  Aturan "satu aksi primer per layar" tidak bisa dijaga per-file karena layarnya
+  bukan file. Kanal turun ke `quiet`; penjaganya membaca komposisi tab dari
+  `AdminView.tsx`, jadi menambah section ke sebuah tab otomatis masuk aturan.
+- **Angka yang pecah.** `nowrap` pada sel tanggal membuat kolom Deklarasi punya
+  minimum 235px; begitu Nominal ikut `nowrap` agar "Rp 44.000" tidak jadi dua baris,
+  jumlah minimum sembilan kolom melewati wadahnya dan **`Tolak` terpotong 1px di
+  1440** — kelas cacat yang dokumen ini klaim sudah selesai satu jam sebelumnya.
+  Perbaikannya memindahkan `nowrap`: tinggal di tanggal, dilepas dari baris
+  hitungan-mundur yang memang boleh membungkus. Terukur lagi: tabel 1078 vs wadah
+  1080, semua aksi terlihat, nominal utuh, tanggal tidak terbelah.
+- **Column pin dicoba dan dibatalkan.** Untuk memenuhi "aksi baris tetap terlihat
+  tanpa gulir samping" di 390, kolom Aksi di-pin `right: 0`. Secara geometri itu
+  benar-benar bekerja — dan screenshot menunjukkan `Rp 44` / `Rp 252` terpotong,
+  karena sel yang di-pin melayang di atas apa pun yang berada di tepi kanan
+  viewport saat `scrollLeft: 0`. Menyembunyikan nominal supaya tombolnya terlihat
+  adalah kegagalan yang lebih buruk, dan bukan sesuatu yang bisa ditambal dengan
+  padding. Kode pinnya dihapus; yang tersisa adalah alasannya.
+  **Konsekuensi yang harus dibaca pemilik:** di 390 aksi baris Antrean dan Akun
+  masih butuh gulir samping di dalam regionnya (region-nya bisa difokus, jadi
+  keyboard pun bisa menggulirnya). Memenuhinya secara jujur berarti satu baris yang menumpuk di
+  lebar ponsel — perubahan struktur layar, di luar rencana ini, dan dicatat di
+  bawah sebagai kerja yang belum selesai, bukan sebagai lulus.
+- **Navigasi panah tab strip belum pernah ada.** `role="tablist"` dengan roving
+  `tabIndex` tanpa `onKeyDown` = tujuh tab stop yang bisa disentuh keyboard tapi
+  tidak bisa dilalui. Gerbang memintanya, jadi handler-nya ditulis (Arrow/Home/End,
+  wrap di kedua ujung, seleksi mengikuti fokus) plus tes yang berjalan di seluruh
+  strip; melepas handler membuat tes itu gagal, dan itu sudah diverifikasi.
+
+### Kerja yang belum selesai, dinyatakan sebagai belum selesai
+
+- **Baris antrean dan akun yang menumpuk di lebar ponsel.** Ini satu-satunya syarat
+  gerbang yang tidak terpenuhi, dan ia tidak bisa ditutup dengan warna atau token:
+  sembilan kolom yang masing-masing sudah berada di minimum kontennya tidak muat di
+  390 tanpa menyembunyikan sesuatu. Yang dibutuhkan adalah bentuk baris yang berbeda
+  di lebar itu, bukan palet yang berbeda, jadi ia di luar rencana ini dan sengaja
+  tidak dinyatakan lulus.
