@@ -81,7 +81,7 @@ describe('mengisi formulir dari apa yang berlaku', () => {
     await waitFor(() => expect(screen.getByLabelText(/^Host/i)).toHaveValue('env.example.test'))
     expect(screen.getByLabelText(/^Port/i)).toHaveValue('587')
     expect(screen.getByLabelText(/^Alamat Pengirim/i)).toHaveValue('billing@example.test')
-    expect(await screen.findByText(/Belum ada yang disimpan di instalasi ini/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Belum ada yang tersimpan di aplikasi ini/i)).toBeInTheDocument()
   })
 
   it('menandai konfigurasi yang sudah tersimpan', async () => {
@@ -89,7 +89,7 @@ describe('mengisi formulir dari apa yang berlaku', () => {
     render(<AdminSmtpView />)
 
     expect(
-      await screen.findByText(/Yang tersimpan di basis data instalasi ini/i),
+      await screen.findByText(/Yang tersimpan sebagai pengaturan aplikasi ini/i),
     ).toBeInTheDocument()
   })
 })
@@ -99,7 +99,7 @@ describe('password', () => {
     respond(STORED)
     const { container } = render(<AdminSmtpView />)
 
-    await screen.findByRole('switch', { name: /Kirim email dari instalasi ini/i })
+    await screen.findByRole('switch', { name: /Kirim email dari aplikasi ini/i })
     expect(container.textContent).not.toContain(SECRET)
     // The value of every field on the page, scanned rather than assumed.
     for (const input of Array.from(container.querySelectorAll('input'))) {
@@ -175,9 +175,9 @@ describe('menyimpan', () => {
     render(<AdminSmtpView />)
 
     expect(
-      await screen.findByText(/Password disimpan apa adanya di basis data/i),
+      await screen.findByText(/Password disimpan apa adanya di pengaturan aplikasi/i),
     ).toBeInTheDocument()
-    expect(screen.getByText(/cadangan basis data/i)).toBeInTheDocument()
+    expect(screen.getByText(/cadangan aplikasi/i)).toBeInTheDocument()
   })
 
   it('menolak yang server tolak dan tidak mengaku tersimpan', async () => {
@@ -230,7 +230,7 @@ describe('sakelar dan keadaan', () => {
     respond(STORED)
     render(<AdminSmtpView />)
 
-    const send = await screen.findByRole('switch', { name: /Kirim email dari instalasi ini/i })
+    const send = await screen.findByRole('switch', { name: /Kirim email dari aplikasi ini/i })
     expect(send).toHaveAttribute('aria-checked', 'true')
     await userEvent.click(send)
     expect(send).toHaveAttribute('aria-checked', 'false')

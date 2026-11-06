@@ -17,6 +17,8 @@ function makeAuth(overrides: Partial<AuthState> = {}): AuthState {
     signUp: vi.fn(),
     signOut: vi.fn(),
     updateProfile: async () => {},
+    changeEmail: async () => {},
+    changePassword: async () => {},
     ...overrides,
   }
 }

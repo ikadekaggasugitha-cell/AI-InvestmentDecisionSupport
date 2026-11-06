@@ -7,7 +7,6 @@ import {
   labelStyle,
   savedStyle,
   sectionNoteStyle,
-  sectionTitleStyle,
   statusLineStyle,
   text,
 } from '@/app/features/admin/consoleStyles'
@@ -144,12 +143,13 @@ export function AdminContactView() {
   const unchanged = draft === (lastKnown.current ?? '')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h3 style={sectionTitleStyle}>Kontak Bantuan</h3>
+        {/* No section title; the h1 above already says Kontak, so the title
+            only repeated it (owner direction). */}
         <p style={sectionNoteStyle}>
-          Satu-satunya tempat alamat ini ditulis. Footer publik membacanya; kalau kosong, baris
-          kontak tidak dirender sama sekali, bukan menjadi tautan yang tidak ke mana-mana.
+          Alamat kontak yang ditampilkan di footer publik. Jika kosong, bagian kontak tidak
+          ditampilkan sama sekali, bukan menjadi tautan mati.
         </p>
       </div>
 
@@ -157,9 +157,9 @@ export function AdminContactView() {
         <div role="alert" style={alertStyle('warning')}>
           {saveError === 'network'
             ? 'Server tidak terjangkau. Alamat tidak berubah.'
-            : `Permintaan ditolak (${saveError}). Alamat tidak berubah${
-                saveError === '422' ? ' — yang ditulis bukan satu alamat email yang sah.' : '.'
-              }`}
+            : saveError === '422'
+              ? `Permintaan ditolak (${saveError}). Yang ditulis bukan satu alamat email yang sah, alamat tidak berubah.`
+              : `Permintaan ditolak (${saveError}). Alamat tidak berubah.`}
         </div>
       )}
 
@@ -167,7 +167,7 @@ export function AdminContactView() {
         <div style={savedStyle}>
           {draft.trim() === ''
             ? 'Tersimpan. Footer publik tidak lagi menampilkan alamat kontak.'
-            : 'Tersimpan. Endpoint publik sekarang melaporkan alamat ini.'}
+            : 'Tersimpan. Footer publik sekarang menampilkan alamat ini.'}
         </div>
       )}
 
@@ -189,7 +189,7 @@ export function AdminContactView() {
         {draft.trim() === '' && (
           <p style={{ ...statusLineStyle, marginTop: 6 }}>
             {lastKnown.current
-              ? 'Kosong — menyimpannya menghapus alamat dari footer.'
+              ? 'Kosong; menyimpannya menghapus alamat dari footer.'
               : 'Belum ada alamat yang dipublikasikan.'}
           </p>
         )}

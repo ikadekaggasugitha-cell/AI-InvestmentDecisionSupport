@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { ENDPOINTS, apiFetch } from '@/app/config/api'
-import { text } from '@/app/features/admin/consoleStyles'
+import { sectionNoteStyle, text } from '@/app/features/admin/consoleStyles'
 
 /**
  * Which integrations this install is wired to. Read-only, on purpose.
@@ -92,10 +92,7 @@ export function AdminIntegrationsView() {
 
   if (state.kind === 'unavailable') {
     return (
-      <div
-        role="alert"
-        style={{ fontSize: text.body, color: 'var(--console-secondary)', maxWidth: 560 }}
-      >
+      <div role="alert" style={{ fontSize: text.body, color: 'var(--console-secondary)' }}>
         Status integrasi tidak dapat dibaca. Layar ini sengaja tidak menampilkan &quot;belum
         dikonfigurasi&quot;, karena tidak tahu dan belum dikonfigurasi adalah dua pernyataan yang
         berbeda.
@@ -111,7 +108,7 @@ export function AdminIntegrationsView() {
             color: 'var(--foreground)',
             background: 'transparent',
             border: '1px solid var(--control-border)',
-            borderRadius: 3,
+            borderRadius: 'var(--radius)',
             cursor: 'pointer',
           }}
         >
@@ -124,15 +121,16 @@ export function AdminIntegrationsView() {
   const { integrations } = state
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h3 style={{ fontSize: text.control, fontWeight: 600, margin: 0 }}>Integrasi</h3>
-        <p style={{ fontSize: text.meta, color: 'var(--console-secondary)', marginTop: 4 }}>
-          Hanya integrasi yang kode ini baca yang tampil di sini. Tidak ada kolom untuk mengetik
-          kunci Midtrans: kredensial gateway tinggal di lingkungan deployment dan nilainya dibaca
-          sekali saat aplikasi naik, jadi formulir yang tampak menyimpan tidak akan mengubah apa
-          pun. Email berbeda — alamat pengirimnya disunting di bagian berikutnya, dan berlaku pada
-          pengiriman berikutnya tanpa memulai ulang.
+        {/* No section title here: the h1 above already says Integrasi, and
+            this panel's second block keeps its own heading because there the
+            two blocks must tell each other apart (owner direction). */}
+        <p style={sectionNoteStyle}>
+          Status koneksi layanan pembayaran dan email pada aplikasi ini. Kunci Midtrans diatur di
+          konfigurasi server, jadi tidak ada kolom untuk mengetiknya di sini, dan formulir apa pun
+          di layar ini tidak akan mengubahnya. Alamat email pengirim disunting di bagian berikutnya
+          dan berlaku pada pengiriman berikutnya.
         </p>
       </div>
 
@@ -140,7 +138,8 @@ export function AdminIntegrationsView() {
         style={{
           background: 'var(--card)',
           border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
+          borderRadius: 12,
+          boxShadow: 'var(--console-card-shadow)',
           padding: 16,
           display: 'flex',
           flexDirection: 'column',
@@ -154,7 +153,7 @@ export function AdminIntegrationsView() {
           note={
             integrations.midtransConfigured
               ? 'Checkout bisa membuka halaman bayar.'
-              : 'Tanpa kunci, permintaan checkout dijawab 503 dan transfer manual tetap jalan.'
+              : 'Tanpa kunci, halaman bayar Midtrans tidak bisa dibuka; transfer manual tetap berjalan.'
           }
         />
         {/* Which site the money would reach. Sandbox and production look the same
@@ -181,32 +180,34 @@ export function AdminIntegrationsView() {
           tone={integrations.emailConfigured ? 'ok' : 'off'}
           note={
             integrations.emailConfigured
-              ? 'Transfer yang disetujui atau ditolak diantrekan sebagai pesan dan dikirim worker.'
+              ? 'Transfer yang disetujui atau ditolak diantrekan sebagai pesan dan dikirim otomatis.'
               : `Antrean tidak menulis pesan. Yang belum diisi: ${integrations.emailMissing.join(', ') || 'tidak ada'}.`
           }
         />
-      </div>
-
-      <p style={{ fontSize: text.meta, color: 'var(--console-secondary)', margin: 0 }}>
-        Nilai kunci tidak pernah dikirim ke layar ini, bahkan sebagian.
-      </p>
-      {/* Where mail actually goes is the second question, and the first one's
-          answer does not settle it: an install can be "configured" and still be
-          sending from an address nobody chose. */}
-      <div>
+        {/* Where mail actually goes is the second question, and the first one's
+            answer does not settle it: an install can be "configured" and still be
+            sending from an address nobody chose. It lives inside the same sheet
+            as the rows above because the owner asked every status value to start
+            at one x; outside it, this row read 17px adrift of its own table. */}
         <Row
           label="Alamat pengirim kini"
           value={
-            integrations.emailSenderStored ? 'Tersimpan di basis data' : 'Lingkungan deployment'
+            integrations.emailSenderStored
+              ? 'Disimpan di pengaturan aplikasi'
+              : 'Konfigurasi server'
           }
           tone={integrations.emailSenderStored ? 'ok' : 'off'}
           note={
             integrations.emailSenderStored
-              ? 'Ditulis operator lewat layar ini; lingkungan tidak lagi menjawabnya.'
-              : 'Masih datang dari lingkungan deployment. Sunting di bawah untuk memindahkannya.'
+              ? 'Disimpan dari layar ini oleh operator; nilai konfigurasi server tidak lagi dipakai.'
+              : 'Masih memakai nilai konfigurasi server. Sunting di bawah untuk menggantinya.'
           }
         />
       </div>
+
+      <p style={{ fontSize: text.body, color: 'var(--console-secondary)', margin: 0 }}>
+        Nilai kunci tidak pernah dikirim ke layar ini, bahkan sebagian.
+      </p>
     </div>
   )
 }
@@ -222,20 +223,50 @@ function Row({
   note: string
   tone: 'ok' | 'off'
 }) {
+  // A strict two-column grid (owner direction, Nov 2026): the label column is a
+  // fixed 160px so every status value starts at the same x, and the note sits
+  // under the value instead of chasing it across the row.
   return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
-      <span style={{ fontSize: text.body, minWidth: 140 }}>{label}</span>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '160px minmax(0, 1fr)',
+        gap: 16,
+        alignItems: 'start',
+      }}
+    >
       <span
         style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: text.body,
+          fontSize: text.control,
           fontWeight: 600,
-          color: tone === 'ok' ? 'var(--gain)' : 'var(--console-secondary)',
+          color: 'var(--console-ink)',
+          paddingTop: 1,
         }}
       >
-        {value}
+        {label}
       </span>
-      <span style={{ fontSize: text.meta, color: 'var(--console-secondary)' }}>{note}</span>
+      <div style={{ minWidth: 0 }}>
+        <span
+          style={{
+            fontFamily: 'var(--font-console)',
+            fontSize: text.control,
+            fontWeight: 600,
+            color: tone === 'ok' ? 'var(--gain)' : 'var(--console-secondary)',
+          }}
+        >
+          {value}
+        </span>
+        <div
+          style={{
+            fontSize: text.body,
+            color: 'var(--console-secondary)',
+            marginTop: 2,
+            lineHeight: 1.5,
+          }}
+        >
+          {note}
+        </div>
+      </div>
     </div>
   )
 }

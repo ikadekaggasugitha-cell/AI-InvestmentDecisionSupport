@@ -125,7 +125,7 @@ describe('keadaan belum pernah dipilih', () => {
     render(<AdminPaymentChannelsView />)
 
     expect(
-      await screen.findByText(/Belum ada daftar yang disimpan di instalasi ini/i),
+      await screen.findByText(/Belum ada daftar yang disimpan di aplikasi ini/i),
     ).toBeInTheDocument()
     // Said in the banner and again on every box, because the box is where an
     // operator's eye is when they are choosing.

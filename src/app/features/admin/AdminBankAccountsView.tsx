@@ -6,6 +6,7 @@ import {
   buttonStyle,
   controlStyle as inputStyle,
   labelStyle,
+  panelStyle,
   savedStyle,
   sectionNoteStyle,
   sectionTitleStyle,
@@ -222,13 +223,13 @@ export function AdminBankAccountsView() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
         <h3 style={sectionTitleStyle}>Rekening Tujuan</h3>
         <p style={sectionNoteStyle}>
-          Satu-satunya tempat daftar ini ditulis. Daftar di bawah yang dibaca publik oleh endpoint
-          rekening, pembaruan mengganti seluruh daftar. Rekening yang disembunyikan tetap tersimpan
-          di sini dan tidak dikirim ke halaman pembayaran.
+          Rekening tujuan transfer yang ditampilkan di halaman pembayaran. Menyimpan mengganti
+          seluruh daftar. Rekening yang disembunyikan tetap tersimpan di sini dan tidak muncul di
+          halaman pembayaran.
         </p>
       </div>
 
@@ -236,17 +237,17 @@ export function AdminBankAccountsView() {
         <div role="alert" style={alertStyle('warning')}>
           {saveError === 'network'
             ? 'Server tidak terjangkau. Daftar tidak berubah.'
-            : `Permintaan ditolak (${saveError}). Daftar tidak berubah${
-                saveError === '422' ? ' — daftar kosong atau ada isian yang tidak sah.' : '.'
-              }`}
+            : saveError === '422'
+              ? `Permintaan ditolak (${saveError}). Daftar kosong atau ada isian yang tidak sah, jadi tidak tersimpan.`
+              : `Permintaan ditolak (${saveError}). Daftar tidak berubah.`}
         </div>
       )}
 
       {savedAt !== null && (
         <div style={savedStyle}>
           {rows.some((r) => r.enabled)
-            ? 'Tersimpan. Endpoint publik sekarang melaporkan rekening yang ditampilkan.'
-            : 'Tersimpan. Semua rekening sedang disembunyikan, jadi endpoint publik mengirim daftar kosong.'}
+            ? 'Tersimpan. Halaman pembayaran sekarang menampilkan rekening yang dipilih.'
+            : 'Tersimpan. Semua rekening sedang disembunyikan, jadi halaman pembayaran menampilkan daftar kosong.'}
         </div>
       )}
 
@@ -260,130 +261,139 @@ export function AdminBankAccountsView() {
       {rows.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {rows.map((row, index) => (
-            <div
-              key={row.key}
-              style={{
-                display: 'grid',
-                gridTemplateColumns:
-                  'minmax(140px, 1fr) minmax(150px, 1.1fr) minmax(130px, 1fr) auto auto',
-                gap: 8,
-                alignItems: 'end',
-              }}
-            >
-              <div>
-                <label htmlFor={`acct-bank-${row.key}`} style={labelStyle}>
-                  Bank
-                </label>
-                <select
-                  id={`acct-bank-${row.key}`}
-                  value={row.code}
-                  onChange={(e) => {
-                    const code = e.target.value
-                    // Choosing a named bank fills in its display name too, so the
-                    // row the public reads cannot hold a name the operator typed
-                    // while a different bank was selected.
-                    const named = bankOptions.find((o) => o.code === code)
-                    setRows((prev) =>
-                      prev.map((r) =>
-                        r.key === row.key
-                          ? {
-                              ...r,
-                              code,
-                              bank: code === OTHER_CODE ? r.bank : (named?.name ?? r.bank),
-                            }
-                          : r,
-                      ),
-                    )
-                  }}
-                  style={selectStyle}
-                >
-                  {bankOptions.length === 0 && <option value={row.code}>{row.code}</option>}
-                  {bankOptions.map((o) => (
-                    <option key={o.code} value={o.code}>
-                      {o.name}
-                    </option>
-                  ))}
-                </select>
-                {row.code === OTHER_CODE && (
+            <div key={row.key} style={panelStyle}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: 12,
+                  alignItems: 'end',
+                }}
+              >
+                <div>
+                  <label htmlFor={`acct-bank-${row.key}`} style={labelStyle}>
+                    Bank
+                  </label>
+                  <select
+                    id={`acct-bank-${row.key}`}
+                    value={row.code}
+                    onChange={(e) => {
+                      const code = e.target.value
+                      // Choosing a named bank fills in its display name too, so the
+                      // row the public reads cannot hold a name the operator typed
+                      // while a different bank was selected.
+                      const named = bankOptions.find((o) => o.code === code)
+                      setRows((prev) =>
+                        prev.map((r) =>
+                          r.key === row.key
+                            ? {
+                                ...r,
+                                code,
+                                bank: code === OTHER_CODE ? r.bank : (named?.name ?? r.bank),
+                              }
+                            : r,
+                        ),
+                      )
+                    }}
+                    style={selectStyle}
+                  >
+                    {bankOptions.length === 0 && <option value={row.code}>{row.code}</option>}
+                    {bankOptions.map((o) => (
+                      <option key={o.code} value={o.code}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
+                  {row.code === OTHER_CODE && (
+                    <input
+                      aria-label={`Nama bank untuk rekening ke-${index + 1}`}
+                      value={row.bank}
+                      onChange={(e) => editRow(row.key, 'bank', e.target.value)}
+                      placeholder="Tulis nama banknya"
+                      style={{ ...inputStyle, marginTop: 6 }}
+                    />
+                  )}
+                </div>
+                <div>
+                  <label htmlFor={`acct-number-${row.key}`} style={labelStyle}>
+                    Nomor rekening
+                  </label>
                   <input
-                    aria-label={`Nama bank untuk rekening ke-${index + 1}`}
-                    value={row.bank}
-                    onChange={(e) => editRow(row.key, 'bank', e.target.value)}
-                    placeholder="Tulis nama banknya"
-                    style={{ ...inputStyle, marginTop: 6 }}
+                    id={`acct-number-${row.key}`}
+                    value={row.accountNumber}
+                    inputMode="numeric"
+                    onChange={(e) => editRow(row.key, 'accountNumber', e.target.value)}
+                    style={inputStyle}
                   />
-                )}
+                </div>
+                <div>
+                  <label htmlFor={`acct-holder-${row.key}`} style={labelStyle}>
+                    Nama pemilik
+                  </label>
+                  <input
+                    id={`acct-holder-${row.key}`}
+                    value={row.holderName}
+                    onChange={(e) => editRow(row.key, 'holderName', e.target.value)}
+                    style={inputStyle}
+                  />
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'flex-end',
+                    justifyContent: 'flex-end',
+                  }}
+                >
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={row.enabled}
+                    onClick={() => editRow(row.key, 'enabled', !row.enabled)}
+                    aria-label={`Tampilkan rekening ke-${index + 1} ke user`}
+                    title={
+                      row.enabled
+                        ? 'Ditampilkan di halaman pembayaran. Klik untuk menyembunyikan.'
+                        : 'Disembunyikan dari halaman pembayaran. Klik untuk menampilkan.'
+                    }
+                    style={{
+                      fontSize: text.meta,
+                      padding: '6px 10px',
+                      minHeight: 32,
+                      marginBottom: 1,
+                      color: row.enabled ? 'var(--foreground)' : 'var(--console-secondary)',
+                      background: 'transparent',
+                      // The same contrast floor every other control here uses: a
+                      // toggle the operator must read at a glance is a control, not
+                      // a divider.
+                      border: '1px solid var(--control-border)',
+                      borderRadius: 3,
+                      cursor: 'pointer',
+                      opacity: row.enabled ? 1 : 0.65,
+                    }}
+                  >
+                    {row.enabled ? 'Ditampilkan' : 'Disembunyikan'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeRow(row.key)}
+                    aria-label={`Hapus rekening ke-${index + 1}`}
+                    style={{
+                      fontSize: text.meta,
+                      padding: '6px 10px',
+                      minHeight: 32,
+                      color: 'var(--loss)',
+                      background: 'transparent',
+                      border: '1px solid var(--loss)',
+                      borderRadius: 3,
+                      cursor: 'pointer',
+                      marginBottom: 1,
+                    }}
+                  >
+                    Hapus
+                  </button>
+                </div>
               </div>
-              <div>
-                <label htmlFor={`acct-number-${row.key}`} style={labelStyle}>
-                  Nomor rekening
-                </label>
-                <input
-                  id={`acct-number-${row.key}`}
-                  value={row.accountNumber}
-                  inputMode="numeric"
-                  onChange={(e) => editRow(row.key, 'accountNumber', e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-              <div>
-                <label htmlFor={`acct-holder-${row.key}`} style={labelStyle}>
-                  Nama pemilik
-                </label>
-                <input
-                  id={`acct-holder-${row.key}`}
-                  value={row.holderName}
-                  onChange={(e) => editRow(row.key, 'holderName', e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={row.enabled}
-                onClick={() => editRow(row.key, 'enabled', !row.enabled)}
-                aria-label={`Tampilkan rekening ke-${index + 1} ke user`}
-                title={
-                  row.enabled
-                    ? 'Ditampilkan di halaman pembayaran. Klik untuk menyembunyikan.'
-                    : 'Disembunyikan dari halaman pembayaran. Klik untuk menampilkan.'
-                }
-                style={{
-                  fontSize: text.meta,
-                  padding: '6px 10px',
-                  minHeight: 32,
-                  marginBottom: 1,
-                  color: row.enabled ? 'var(--foreground)' : 'var(--console-secondary)',
-                  background: 'transparent',
-                  // The same contrast floor every other control here uses: a
-                  // toggle the operator must read at a glance is a control, not
-                  // a divider.
-                  border: '1px solid var(--control-border)',
-                  borderRadius: 3,
-                  cursor: 'pointer',
-                  opacity: row.enabled ? 1 : 0.65,
-                }}
-              >
-                {row.enabled ? 'Ditampilkan' : 'Disembunyikan'}
-              </button>
-              <button
-                type="button"
-                onClick={() => removeRow(row.key)}
-                aria-label={`Hapus rekening ke-${index + 1}`}
-                style={{
-                  fontSize: text.meta,
-                  padding: '6px 10px',
-                  minHeight: 32,
-                  color: 'var(--loss)',
-                  background: 'transparent',
-                  border: '1px solid var(--loss)',
-                  borderRadius: 3,
-                  cursor: 'pointer',
-                  marginBottom: 1,
-                }}
-              >
-                Hapus
-              </button>
             </div>
           ))}
         </div>

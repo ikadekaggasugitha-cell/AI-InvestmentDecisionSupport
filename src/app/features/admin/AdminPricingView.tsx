@@ -9,7 +9,6 @@ import {
   statusLineStyle,
   savedStyle,
   sectionNoteStyle,
-  sectionTitleStyle,
 } from '@/app/features/admin/consoleStyles'
 
 /**
@@ -187,12 +186,13 @@ export function AdminPricingView() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 460 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h3 style={sectionTitleStyle}>Harga Langganan</h3>
+        {/* No section title; the h1 above already says Harga, so the title
+            only repeated it (owner direction). */}
         <p style={sectionNoteStyle}>
-          Satu-satunya tempat harga ini ditulis. Angka di dokumen tidak mengikat — nilai di bawah
-          adalah yang dibaca publik.
+          Harga inilah yang berlaku dan ditampilkan ke calon pelanggan. Simpan untuk langsung
+          menerapkannya.
         </p>
       </div>
 

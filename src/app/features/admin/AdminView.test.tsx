@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 
 import { AdminView } from '@/app/features/admin/AdminView'
 import { AppProvider } from '@/app/context/AppContext'
+import type { AuthState } from '@/app/features/identity/useAuth'
 
 /**
  * `/admin` — the shell: the gate, the tab strip, and what the strip opens onto.
@@ -97,6 +98,7 @@ vi.mock('@/app/config/api', async (importOriginal) => ({
     adminTransactions: '/v1/admin/transactions',
     adminOverview: '/v1/admin/analytics/overview',
     subscription: '/v1/subscription/current',
+    authMe: '/v1/auth/me',
   },
   apiFetch: vi.fn(async (url: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
@@ -104,6 +106,23 @@ vi.mock('@/app/config/api', async (importOriginal) => ({
 
     if (method !== 'GET') {
       return { ok: true, status: 200, json: async () => ({}) } as unknown as Response
+    }
+
+    // The signed-in operator behind the header chip's popup.
+    if (url === '/v1/auth/me') {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: 'op-1',
+          email: 'operator@local.invalid',
+          full_name: 'Cek Admin Panel',
+          phone_number: '0812000000000',
+          role: 'admin',
+          blocked: false,
+          blockedReason: null,
+        }),
+      } as unknown as Response
     }
 
     let reply: Reply
@@ -138,10 +157,34 @@ vi.mock('@/app/config/api', async (importOriginal) => ({
  * `null` leaves the tabs alone, which is what the gate screen needs: a 403
  * replaces the whole console, tablist included, so there is nothing to click.
  */
+// The one auth instance App would own. The profile popup acts on this object,
+// so the stub is what keeps the shell test about wiring rather than about
+// network calls the popup no longer owns.
+const AUTH: AuthState = {
+  status: 'signed-in',
+  account: {
+    id: 'op-1',
+    email: 'operator@local.invalid',
+    full_name: 'Cek Admin Panel',
+    phone_number: '0812000000000',
+    role: 'admin',
+    blocked: false,
+    blockedReason: null,
+  },
+  error: null,
+  refresh: async () => {},
+  signIn: async () => {},
+  signUp: async () => {},
+  signOut: async () => {},
+  updateProfile: async () => {},
+  changeEmail: async () => {},
+  changePassword: async () => {},
+}
+
 async function renderAdmin(tab: string | null = 'Ringkasan') {
   const utils = render(
     <AppProvider>
-      <AdminView />
+      <AdminView auth={AUTH} />
     </AppProvider>,
   )
   if (tab !== null) {
@@ -157,6 +200,9 @@ beforeEach(() => {
   state.pricing = null
   state.overview = null
   state.queue = null
+  // The new-arrivals dot reads its baseline from storage; each test starts
+  // without one unless it deliberately seeds it.
+  localStorage.removeItem('aidss-admin-queue-seen')
 })
 
 describe('the gate', () => {
@@ -230,7 +276,15 @@ describe('the tab strip', () => {
     await screen.findByText('Siti Rahayu')
 
     await user.click(screen.getByRole('tab', { name: /Antrean/i }))
-    await waitFor(() => expect(screen.getByText('Antrean Pembayaran')).toBeInTheDocument())
+    // The switch is proven by the panel's own content, not by a heading: the
+    // module name now appears once per screen (owner direction), so the queue
+    // opens on its table instead of on a repeated title.
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /Antrean/i })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    )
     expect(screen.queryByText('Siti Rahayu')).not.toBeInTheDocument()
     expect(await screen.findByText('INV-2026-10-01')).toBeInTheDocument()
   })
@@ -341,7 +395,11 @@ describe('the accent dose cap', () => {
       const primaries = views.filter((view) =>
         readFileSync(resolve(__dirname, `${view}.tsx`), 'utf8').includes(`buttonStyle('primary')`),
       )
-      if (primaries.length > 1) offenders.push(`${name}: ${primaries.join(', ')}`)
+      // The Rekening tab hosts two independent settings forms (destinations and
+      // channels), each with its own primary save by owner decision; every other
+      // screen keeps at most one primary action.
+      const cap = name === 'payments' ? 2 : 1
+      if (primaries.length > cap) offenders.push(`${name}: ${primaries.join(', ')}`)
     }
     expect(offenders).toEqual([])
     // The guard is only worth having if the walk found the panels. An empty map
@@ -395,7 +453,9 @@ describe('the overview', () => {
     await screen.findByText('Rp 69.000')
 
     await user.click(screen.getByRole('button', { name: 'Buka antrean' }))
-    expect(await screen.findByText('Antrean Pembayaran')).toBeInTheDocument()
+    // The way in lands on the queue's real rows, not on a title that repeats
+    // the tab label.
+    expect(await screen.findByText('INV-2026-10-01')).toBeInTheDocument()
   })
 
   it('a failed read says so instead of drawing a flat line of zeros', async () => {
@@ -406,5 +466,90 @@ describe('the overview', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/bukan berarti usahanya sepi/i)
     expect(screen.queryByText('Rp 0')).not.toBeInTheDocument()
+  })
+})
+
+/**
+ * The header chip. It used to be a link to the market dashboard and nothing
+ * else; it is now the door into the operator's own account, and the market
+ * page is one choice inside the popup rather than the whole behaviour.
+ */
+describe('the profile chip', () => {
+  it('opens the profile popup over the console', async () => {
+    await renderAdmin()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Buka menu profil' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    // The identity is read from /v1/auth/me, and the two doors are in there.
+    expect(await screen.findByText('operator@local.invalid')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Pengaturan profil/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Halaman Pasar/i })).toHaveAttribute('href', '/')
+  })
+
+  it('is a button with a dialog behind it, not a link that navigates on click', async () => {
+    await renderAdmin()
+    const chip = screen.getByRole('button', { name: 'Buka menu profil' })
+    expect(chip).toHaveAttribute('aria-haspopup', 'dialog')
+  })
+})
+
+/**
+ * The new-arrivals dot. The badge number has always answered "how many are
+ * waiting"; the dot answers the different question the operator actually acts
+ * on: "has anything arrived since I last looked". These tests hold that line,
+ * including the failure where a full queue with nothing new lights the dot
+ * anyway, which would train the operator to ignore it.
+ */
+describe('the new-arrivals dot', () => {
+  it('lights the Antrean tab when more transfers are pending than the operator has seen', async () => {
+    localStorage.setItem('aidss-admin-queue-seen', '0')
+    await renderAdmin()
+    await screen.findByText('Rp 69.000')
+    expect(document.querySelector('[data-queue-new]')).toBeInTheDocument()
+  })
+
+  it('stays dark when the backlog is exactly what the operator already saw', async () => {
+    // Same pendingQueue of 2, baseline of 2: a full queue is not a new queue.
+    localStorage.setItem('aidss-admin-queue-seen', '2')
+    await renderAdmin()
+    await screen.findByText('Rp 69.000')
+    expect(document.querySelector('[data-queue-new]')).not.toBeInTheDocument()
+  })
+
+  it('a first visit counts the current backlog as seen and stores the baseline', async () => {
+    await renderAdmin()
+    await screen.findByText('Rp 69.000')
+    expect(document.querySelector('[data-queue-new]')).not.toBeInTheDocument()
+    expect(localStorage.getItem('aidss-admin-queue-seen')).toBe('2')
+  })
+
+  it('goes out when the queue opens, and the baseline moves with it', async () => {
+    localStorage.setItem('aidss-admin-queue-seen', '0')
+    await renderAdmin()
+    await screen.findByText('Rp 69.000')
+    expect(document.querySelector('[data-queue-new]')).toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: /Antrean/i }))
+    await screen.findByText('INV-2026-10-01')
+    expect(document.querySelector('[data-queue-new]')).not.toBeInTheDocument()
+    expect(localStorage.getItem('aidss-admin-queue-seen')).toBe('2')
+  })
+
+  it('says how many are new in the bell name', async () => {
+    localStorage.setItem('aidss-admin-queue-seen', '0')
+    await renderAdmin()
+    await screen.findByText('Rp 69.000')
+    expect(
+      screen.getByRole('button', { name: 'Buka antrean pembayaran, 2 transfer baru' }),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps the bell name plain when nothing is new', async () => {
+    localStorage.setItem('aidss-admin-queue-seen', '2')
+    await renderAdmin()
+    await screen.findByText('Rp 69.000')
+    expect(screen.getByRole('button', { name: 'Buka antrean pembayaran' })).toBeInTheDocument()
   })
 })

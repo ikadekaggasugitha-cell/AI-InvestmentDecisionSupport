@@ -208,13 +208,13 @@ export function AdminSmtpView() {
   const { form } = state
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
         <h3 style={sectionTitleStyle}>Konfigurasi Email</h3>
         <p style={sectionNoteStyle}>
           {form.stored
-            ? 'Yang tersimpan di basis data instalasi ini. Mengosongkan satu kolom akan menyerahkannya kembali ke lingkungan deployment.'
-            : 'Belum ada yang disimpan di instalasi ini; nilai di bawah datang dari lingkungan deployment. Menyimpan apa pun akan menuliskannya ke basis data.'}
+            ? 'Yang tersimpan sebagai pengaturan aplikasi ini. Mengosongkan satu kolom akan mengembalikan nilainya ke konfigurasi server.'
+            : 'Belum ada yang tersimpan di aplikasi ini; nilai di bawah datang dari konfigurasi server. Menyimpan akan menjadikannya pengaturan aplikasi.'}
         </p>
       </div>
 
@@ -222,9 +222,9 @@ export function AdminSmtpView() {
         <div role="alert" style={alertStyle('warning')}>
           {saveError === 'network'
             ? 'Server tidak terjangkau. Konfigurasi tidak berubah.'
-            : `Permintaan ditolak (${saveError}). Konfigurasi tidak berubah${
-                saveError === '422' ? ' — ada isian yang tidak bisa dipakai server surat.' : '.'
-              }`}
+            : saveError === '422'
+              ? `Permintaan ditolak (${saveError}). Ada isian yang tidak bisa dipakai, konfigurasi tidak berubah.`
+              : `Permintaan ditolak (${saveError}). Konfigurasi tidak berubah.`}
         </div>
       )}
 
@@ -297,14 +297,14 @@ export function AdminSmtpView() {
             // form field is one autofill away from putting it somewhere else.
             autoComplete="new-password"
             placeholder={
-              form.hasPassword ? 'terisi — kosongkan untuk mempertahankan' : 'belum diisi'
+              form.hasPassword ? 'terisi · kosongkan untuk mempertahankan' : 'belum diisi'
             }
             style={inputStyle}
           />
           <p style={helpStyle}>
             {form.hasPassword
               ? 'Kosong untuk mempertahankan yang tersimpan. Menyunting kolom lain tidak menghapus kredensial.'
-              : 'Belum ada password yang tersimpan di instalasi ini.'}
+              : 'Belum ada password yang tersimpan di aplikasi ini.'}
           </p>
         </div>
 
@@ -335,7 +335,7 @@ export function AdminSmtpView() {
         />
         <Toggle
           id="smtp-enabled"
-          label="Kirim email dari instalasi ini"
+          label="Kirim email dari aplikasi ini"
           on={draft.enabled}
           onChange={(next) => setDraft({ ...draft, enabled: next })}
           help="Pintu utamanya. Dengan ini mati, antrean notifikasi tidak menulis pesan apa pun."
@@ -359,10 +359,10 @@ export function AdminSmtpView() {
       </div>
 
       <p style={statusLineStyle}>
-        Password disimpan apa adanya di basis data, bukan di lingkungan. Artinya ia ikut dalam
-        setiap cadangan basis data dan terbaca oleh akun yang punya hak baca Postgres. Yang tidak
-        berlaku: password tidak pernah ditampilkan di layar ini, tidak pernah dikirim kembali ke
-        browser, dan tidak pernah masuk log.
+        Password disimpan apa adanya di pengaturan aplikasi, bukan di konfigurasi server. Artinya ia
+        ikut dalam setiap cadangan aplikasi dan terbaca oleh siapa pun yang punya hak baca ke
+        penyimpanan tersebut. Yang tidak berlaku: password tidak pernah ditampilkan di layar ini,
+        tidak pernah dikirim kembali ke browser, dan tidak pernah masuk log.
       </p>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 
 import { ENDPOINTS, apiFetch } from '@/app/config/api'
 import {
@@ -60,6 +60,24 @@ type LoadState =
   | { kind: 'ready'; server: ChannelsState }
   | { kind: 'unavailable' }
   | { kind: 'forbidden' }
+
+/** A small status pill: green when offered, grey when not, blue when the
+ *  gateway still decides. Colour plus a word, never colour alone. */
+function statusBadge(tone: 'gain' | 'neutral' | 'info'): CSSProperties {
+  const colors = {
+    gain: { background: 'var(--gain-bg)', color: 'var(--gain)' },
+    info: { background: 'var(--console-accent-quiet)', color: 'var(--console-accent)' },
+    neutral: { background: 'var(--neutral-bg)', color: 'var(--console-secondary)' },
+  }[tone]
+  return {
+    ...colors,
+    fontSize: text.meta,
+    fontWeight: 600,
+    padding: '2px 8px',
+    borderRadius: 999,
+    whiteSpace: 'nowrap',
+  }
+}
 
 export function AdminPaymentChannelsView() {
   const [state, setState] = useState<LoadState>({ kind: 'loading' })
@@ -180,13 +198,12 @@ export function AdminPaymentChannelsView() {
   const offlineCount = server.options.filter((o) => !o.snap).length
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 560 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
         <h3 style={sectionTitleStyle}>Metode Pembayaran Online</h3>
         <p style={sectionNoteStyle}>
-          Daftar ini yang menentukan apa yang ditampilkan halaman bayar, dan apa yang dikirim ke
-          gateway saat user membuka halaman itu. Satu-satunya tempat daftar ini ditulis; menyimpan
-          mengganti seluruh daftar, bukan menambahkan satu baris.
+          Kanal yang aktif di sini menentukan apa yang muncul di halaman pembayaran. Menyimpan
+          mengganti seluruh daftar, bukan menambah satu baris.
         </p>
       </div>
 
@@ -201,11 +218,11 @@ export function AdminPaymentChannelsView() {
             padding: '8px 10px',
           }}
         >
-          <strong>Belum ada daftar yang disimpan di instalasi ini.</strong>
+          <strong>Belum ada daftar yang disimpan di aplikasi ini.</strong>
           <div style={{ marginTop: 4, color: 'var(--console-secondary)' }}>
-            Yang menawarkan metode bayar sekarang adalah dashboard gateway sendiri, dan layar ini
-            tidak bisa melihat isinya. Menyimpan daftar di sini akan membatasinya persis ke yang
-            Anda centang — termasuk menutup metode yang sedang aktif di sana.
+            Yang menawarkan metode bayar sekarang adalah daftar kanal di sisi pembayaran, dan layar
+            ini tidak bisa melihat isinya. Menyimpan daftar di sini akan membatasinya persis ke yang
+            Anda centang, termasuk menutup metode yang sedang aktif di sana.
           </div>
         </div>
       ) : (
@@ -221,9 +238,9 @@ export function AdminPaymentChannelsView() {
         <div role="alert" style={alertStyle('warning')}>
           {saveError === 'network'
             ? 'Server tidak terjangkau. Daftar tidak berubah.'
-            : `Permintaan ditolak (${saveError}). Daftar tidak berubah${
-                saveError === '422' ? ' — ada nama kanal yang tidak dikenal server.' : '.'
-              }`}
+            : saveError === '422'
+              ? `Permintaan ditolak (${saveError}). Ada nama kanal yang tidak dikenal, daftar tidak berubah.`
+              : `Permintaan ditolak (${saveError}). Daftar tidak berubah.`}
         </div>
       )}
 
@@ -235,7 +252,16 @@ export function AdminPaymentChannelsView() {
         </div>
       )}
 
-      <div role="group" aria-label="Kanal pembayaran" style={{ display: 'grid', gap: 8 }}>
+      <div
+        role="group"
+        aria-label="Kanal pembayaran"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+          gap: 8,
+          maxWidth: 560,
+        }}
+      >
         {server.options.map((option) => {
           const checked = picked.includes(option.key)
           return (
@@ -243,16 +269,19 @@ export function AdminPaymentChannelsView() {
               key={option.key}
               style={{
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 gap: 10,
-                padding: '8px 10px',
-                border: '1px solid var(--control-border)',
+                padding: '10px 12px',
+                border: `1px solid ${checked ? 'var(--console-accent)' : 'var(--control-border)'}`,
                 borderRadius: 'var(--radius)',
                 cursor: 'pointer',
-                // A declare-only channel reads as something else than a gateway
-                // method, because a tick on it does not put a method on the
-                // payment page and an operator has to be able to see that.
-                background: option.snap ? 'transparent' : 'var(--muted)',
+                // The whole card is the click target (it wraps the checkbox), and a
+                // chosen channel reads at a glance: accent border plus a soft fill.
+                background: checked
+                  ? 'var(--console-accent-quiet)'
+                  : option.snap
+                    ? 'transparent'
+                    : 'var(--muted)',
               }}
             >
               <input
@@ -264,24 +293,49 @@ export function AdminPaymentChannelsView() {
                 }}
                 style={checkboxStyle}
               />
-              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                <span style={{ fontSize: text.body }}>{option.label}</span>
-                <span
-                  style={{
-                    fontSize: text.meta,
-                    fontFamily: 'var(--font-mono)',
-                    color: 'var(--console-secondary)',
-                  }}
-                >
-                  {/* The code that will be sent outward. Shown only to the
-                      operator: it is how they check that what they picked is
-                      what the gateway was told. */}
-                  {option.snap
-                    ? unrestricted
-                      ? `${option.snap} — belum dibatasi, gateway yang memutuskan`
-                      : option.snap
-                    : 'tanpa kode gateway — hanya untuk menyatakan transfer'}
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: text.body, fontWeight: 600 }}>{option.label}</span>
+                  <span
+                    style={statusBadge(
+                      !option.snap
+                        ? 'neutral'
+                        : unrestricted
+                          ? 'info'
+                          : checked
+                            ? 'gain'
+                            : 'neutral',
+                    )}
+                  >
+                    {!option.snap
+                      ? 'Deklarasi'
+                      : unrestricted
+                        ? 'Diatur gateway'
+                        : checked
+                          ? 'Aktif'
+                          : 'Nonaktif'}
+                  </span>
                 </span>
+                <span style={{ fontSize: text.meta, color: 'var(--console-secondary)' }}>
+                  {!option.snap
+                    ? 'Hanya untuk menyatakan transfer; tidak muncul di halaman bayar.'
+                    : unrestricted
+                      ? 'Belum dibatasi; gateway yang memutuskan.'
+                      : checked
+                        ? 'Ditawarkan di halaman bayar.'
+                        : 'Tidak ditawarkan di halaman bayar.'}
+                </span>
+                {option.snap && (
+                  <span
+                    style={{
+                      fontSize: text.meta,
+                      fontFamily: 'var(--font-mono)',
+                      color: 'var(--console-meta)',
+                    }}
+                  >
+                    Kode: <span>{option.snap}</span>
+                  </span>
+                )}
               </span>
             </label>
           )
@@ -296,17 +350,15 @@ export function AdminPaymentChannelsView() {
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        {/* `quiet`, not `primary`. This section and Rekening Tujuan share one tab,
-            so two teal "Simpan" rectangles would sit on the same screen — which is
-            both the accent dose cap failing and a genuine ambiguity, since colour
-            is the only thing distinguishing them. The destination list keeps the
-            accent because a transfer cannot be reconciled without it; a channel is
-            an optional gateway. */}
+        {/* `primary`, matching Rekening Tujuan above. The owner asked for one
+            consistent primary colour across the two independent forms on this tab,
+            so each form keeps its own save and they look the same; the sections are
+            clearly separated, so the two saves are not ambiguous. */}
         <button
           type="button"
           onClick={() => void save()}
           disabled={saving}
-          style={buttonStyle('quiet')}
+          style={buttonStyle('primary')}
         >
           {saving ? 'Menyimpan…' : 'Simpan'}
         </button>

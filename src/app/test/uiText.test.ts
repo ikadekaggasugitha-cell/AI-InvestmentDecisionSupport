@@ -35,9 +35,15 @@ const IN_SCOPE_DIRS = [
   'features/advisor',
   'features/signals',
   'features/market',
+  // The operator console renders to the same human eyes as the rest of the
+  // product. It was exempted here once, and the exemption is what let
+  // implementation narration ("satu pertanyaan ke server", "endpoint publik",
+  // "(ADR-0004)") and prose dashes into its copy unchallenged (owner cleanup,
+  // Nov 2026). The dash and motion rules are not subscriber-app-only rules.
+  'features/admin',
 ]
 
-/** Shared components rendered inside those screens. Admin, public, payment, and
+/** Shared components rendered inside those screens. Public, payment, and
  *  identity surfaces keep their own copy and are out of this pass's scope. */
 const IN_SCOPE_FILES = [
   'components/ViewError.tsx',

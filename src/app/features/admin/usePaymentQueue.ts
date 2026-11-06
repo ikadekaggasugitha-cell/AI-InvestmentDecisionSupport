@@ -159,6 +159,11 @@ export function usePaymentQueue(status: QueueStatus, offset = 0) {
   } | null>(null)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  // A quiet re-read keeps the rows on screen, so `loading` stays false during
+  // it and the refresh button would give no answer to the click. This flag is
+  // the fact the icon spins on: a read is in flight, whether the table shows
+  // rows under it or not.
+  const [refreshing, setRefreshing] = useState(false)
   const inFlight = useRef<AbortController | null>(null)
   // Mirrors `rows` so an action can name the invoice it decided without `rows`
   // becoming a dependency of the callback. The banner appears after a re-read,
@@ -181,6 +186,7 @@ export function usePaymentQueue(status: QueueStatus, offset = 0) {
       const controller = new AbortController()
       inFlight.current = controller
       if (!quiet) setRows(null)
+      setRefreshing(true)
       try {
         const res = await apiFetch(
           `${ENDPOINTS.adminTransactions}?status=${status}&limit=${QUEUE_PAGE_SIZE}&offset=${offset}`,
@@ -202,6 +208,11 @@ export function usePaymentQueue(status: QueueStatus, offset = 0) {
         setError('network')
         if (!quiet) setRows(null)
         return false
+      } finally {
+        // Only the read that still owns the slot may stop the spin: an aborted
+        // predecessor would otherwise clear the flag while its replacement is
+        // still in flight.
+        if (inFlight.current === controller) setRefreshing(false)
       }
     },
     [status, offset],
@@ -342,6 +353,8 @@ export function usePaymentQueue(status: QueueStatus, offset = 0) {
     /** Null until the first read lands; [] is a fact, null is not yet one. */
     rows,
     loading: rows === null && error === null,
+    /** A re-read is in flight, quiet or not. Drives the refresh icon. */
+    refreshing,
     error,
     /** Whether rows exist past this page. Without it a full page reads as the
      *  whole queue, which is the mistake this paging exists to stop. */

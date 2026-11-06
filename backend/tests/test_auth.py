@@ -371,6 +371,78 @@ class TestProfileUpdate:
         ).status_code == 401
 
 
+class TestEmailChange:
+    """POST /v1/auth/change-email. The login identifier, moved on purpose.
+
+    The failure that matters here is the quiet one: an account renamed to an
+    address nobody chose still logs in as itself, so these drive the whole
+    round trip, new address through the login door included.
+    """
+
+    def _client_signed_up(self, secure_client):
+        client = TestClient(secure_client.app)
+        _signup(client)
+        return client
+
+    def test_it_requires_a_session(self, secure_client):
+        resp = secure_client.post(
+            "/v1/auth/change-email",
+            json={"current_password": "x", "new_email": "a@b.id"},
+        )
+        assert resp.status_code == 401
+
+    def test_it_requires_the_current_password(self, secure_client):
+        client = self._client_signed_up(secure_client)
+        resp = client.post(
+            "/v1/auth/change-email",
+            json={"current_password": "salah", "new_email": "ganti@aidss.id"},
+        )
+        assert resp.status_code == 401
+
+    def test_the_new_email_becomes_the_one_that_signs_in(self, secure_client):
+        client = self._client_signed_up(secure_client)
+        resp = client.post(
+            "/v1/auth/change-email",
+            json={"current_password": "s3cret-pass", "new_email": "Ganti@Aidss.ID"},
+        )
+        assert resp.status_code == 200, resp.text
+        # Normalised on the way in, the same shape login will look it up by.
+        assert resp.json()["email"] == "ganti@aidss.id"
+        # This device stays signed in: the session belongs to the account id.
+        assert client.get("/v1/auth/me").status_code == 200
+
+        elsewhere = TestClient(secure_client.app)
+        old = elsewhere.post(
+            "/v1/auth/login", json={"email": "baru@aidss.id", "password": "s3cret-pass"}
+        )
+        assert old.status_code == 401
+        new = elsewhere.post(
+            "/v1/auth/login", json={"email": "ganti@aidss.id", "password": "s3cret-pass"}
+        )
+        assert new.status_code == 200
+
+    def test_an_address_that_belongs_to_someone_else_is_refused(self, secure_client):
+        assert _signup(secure_client, email="punya@aidss.id").status_code == 200
+        client = self._client_signed_up(secure_client)
+        resp = client.post(
+            "/v1/auth/change-email",
+            json={"current_password": "s3cret-pass", "new_email": "punya@aidss.id"},
+        )
+        assert resp.status_code == 409
+        assert "already registered" in resp.json()["detail"]
+
+    @pytest.mark.parametrize("bad", ["bukan-email", "@awal.id", "ujung@"])
+    def test_an_invalid_address_is_rejected_before_any_write(self, secure_client, bad):
+        client = self._client_signed_up(secure_client)
+        resp = client.post(
+            "/v1/auth/change-email",
+            json={"current_password": "s3cret-pass", "new_email": bad},
+        )
+        assert resp.status_code == 422
+        # And the account is still reachable under the address it had.
+        assert client.get("/v1/auth/me").json()["email"] == "baru@aidss.id"
+
+
 class TestCookieAttributes:
     """The cookie is the session. Its attributes are load-bearing, not decoration."""
 

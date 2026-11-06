@@ -42,6 +42,10 @@ export const text = {
   meta: 11,
   body: 12,
   control: 13,
+  /** The explanatory sentence under a section heading. It carries real prose, so
+   *  it sits above `control`; owner direction (Nov 2026): module descriptions were
+   *  tiring at 13px. */
+  desc: 14,
   heading: 15,
   title: 20,
   /** A figure in the overview list — bigger than its label, not than the page. */
@@ -60,11 +64,11 @@ export const sectionTitleStyle: CSSProperties = {
 
 /** The sentence under a heading: what the section writes, and where. */
 export const sectionNoteStyle: CSSProperties = {
-  fontSize: text.body,
+  fontSize: text.desc,
   color: 'var(--console-secondary)',
-  marginTop: 4,
+  marginTop: 5,
   marginBottom: 0,
-  lineHeight: 1.5,
+  lineHeight: 1.6,
 }
 
 export const labelStyle: CSSProperties = {
@@ -76,7 +80,7 @@ export const labelStyle: CSSProperties = {
 
 /** Helper text under a field. On a surface — see the meta-rung test. */
 export const helpStyle: CSSProperties = {
-  fontSize: text.meta,
+  fontSize: text.body,
   color: 'var(--console-meta)',
   marginTop: 3,
   marginBottom: 0,
@@ -85,10 +89,11 @@ export const helpStyle: CSSProperties = {
 
 export const controlStyle: CSSProperties = {
   width: '100%',
+  maxWidth: 480,
   minHeight: 32,
   padding: '6px 10px',
   fontSize: text.control,
-  fontFamily: 'var(--font-mono)',
+  fontFamily: 'var(--font-console)',
   color: 'var(--console-ink)',
   background: 'var(--input-background)',
   border: '1px solid var(--control-border)',
@@ -99,17 +104,18 @@ export const controlStyle: CSSProperties = {
 /** A select is a control, but it is read as text, not typed as code. */
 export const selectStyle: CSSProperties = {
   ...controlStyle,
-  fontFamily: 'var(--font-display)',
+  fontFamily: 'var(--font-console)',
 }
 
 export const searchStyle: CSSProperties = {
   ...controlStyle,
-  fontFamily: 'var(--font-sans)',
+  fontFamily: 'var(--font-console)',
 }
 
 export const textareaStyle: CSSProperties = {
   ...controlStyle,
-  fontFamily: 'var(--font-sans)',
+  maxWidth: 640,
+  fontFamily: 'var(--font-console)',
   lineHeight: 1.5,
   resize: 'vertical',
 }
@@ -147,9 +153,13 @@ export function buttonStyle(variant: ButtonVariant = 'quiet'): CSSProperties {
   if (variant === 'danger') {
     return {
       ...buttonBase,
+      fontWeight: 600,
       color: 'var(--loss)',
-      background: 'transparent',
-      border: '1px solid var(--loss)',
+      // Destructive reads as red text on a soft red wash, not a thin red
+      // outline (owner direction): the outline sat at the same weight as the
+      // quiet buttons and flattened the action hierarchy.
+      background: 'var(--loss-bg)',
+      border: '1px solid transparent',
     }
   }
   return {
@@ -161,7 +171,10 @@ export function buttonStyle(variant: ButtonVariant = 'quiet'): CSSProperties {
 }
 
 /**
- * A row-level action: same tokens as the full-size buttons, at the 32px floor.
+ * A row-level action: same tokens as the full-size buttons, at the 32px floor,
+ * in a compact footprint (12px horizontal, 12px label) so a short action fits
+ * its cell instead of puffing up the row. The radius is the shared `--radius`
+ * (rounded-md), the same corner every other control carries.
  *
  * `confirm` is navy, deliberately, and not the accent. The accent belongs to one
  * action per screen, and a queue has one button per row — teal on every row would
@@ -172,9 +185,9 @@ export function buttonStyle(variant: ButtonVariant = 'quiet'): CSSProperties {
 export function rowActionStyle(tone: 'confirm' | 'quiet' | 'danger' = 'quiet'): CSSProperties {
   const base: CSSProperties = {
     ...buttonStyle(tone === 'confirm' ? 'quiet' : tone),
-    padding: '4px 8px',
+    padding: '6px 12px',
     minHeight: 32,
-    fontSize: text.meta,
+    fontSize: text.body,
   }
   if (tone !== 'confirm') return base
   return {
@@ -250,7 +263,7 @@ export const savedStyle: CSSProperties = {
 }
 
 export const th: CSSProperties = {
-  padding: '10px 12px',
+  padding: '12px',
   textAlign: 'left' as const,
   fontSize: text.body,
   fontWeight: 600,
@@ -260,7 +273,7 @@ export const th: CSSProperties = {
 }
 
 export const td: CSSProperties = {
-  padding: '12px',
+  padding: '14px 12px',
   fontSize: text.control,
   // A table cell holds the values an operator decides on, so it reads in ink.
   // Column labels above are the secondary rung; timestamps inside go to `tdMeta`.
@@ -296,7 +309,7 @@ export const tdMeta: CSSProperties = {
  */
 
 export const mono: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
+  fontFamily: 'var(--font-console)',
   fontVariantNumeric: 'tabular-nums',
 }
 
@@ -325,12 +338,39 @@ export const wrapStyle: CSSProperties = {
   maxWidth: 320,
 }
 
-/** The console panel: solid paper, one hairline, no shadow. */
+/** The console panel: solid paper, one hairline, a rounded corner to match. */
 export const panelStyle: CSSProperties = {
   background: 'var(--card)',
   border: '1px solid var(--border)',
-  borderRadius: 'var(--radius)',
-  padding: '14px 16px',
+  borderRadius: 12,
+  boxShadow: 'var(--console-card-shadow)',
+  padding: '20px 24px',
+}
+
+/**
+ * The right-hand work area as a framed canvas (pairs with the floating sidebar):
+ * one large rounded sheet with a soft shadow, floating on the gradient page so
+ * there is a clear boundary between the app background and the workspace. Its
+ * corner radius sits just above the sidebar's, and the cards inside step down
+ * again, so the rounding reads as one nested family.
+ */
+export const consoleSheetStyle: CSSProperties = {
+  background: 'var(--console-surface)',
+  border: '1px solid var(--border)',
+  borderRadius: 20,
+  boxShadow: 'var(--console-sidebar-shadow)',
+  padding: 24,
+  width: '100%',
+  // 1400, not 1080: with the rail collapsed at 1440 the old cap centred the
+  // sheet with ~140px of dead space between sidebar and workspace. The owner
+  // asked for a tight 16px seam; nav margin (8) + main padding (8) give it, and
+  // this cap is the other half — wide screens still get a readable line length.
+  maxWidth: 1400,
+  margin: '0 auto',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 16,
+  boxSizing: 'border-box',
 }
 
 /** The section a screen opens with, so its title and note read as one block. */
@@ -346,4 +386,185 @@ export const sectionBodyStyle: CSSProperties = {
   flexDirection: 'column',
   gap: 12,
   maxWidth: 560,
+}
+
+/* ── Chrome (referensi/admin-konsol.png) ────────────────────────────────────
+ * The dark header band, the grey icon sidebar, and the card primitives the
+ * shell and overview share. Colors come from the --console-* tokens added in
+ * src/styles/theme.css; nothing here hardcodes a value or a second accent.
+ */
+
+/** The near-black top bar. Light text on it clears AA; controls sit on white. */
+export const consoleHeaderStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 16,
+  minHeight: 56,
+  padding: '0 20px',
+  background: 'var(--console-header-bg)',
+  color: 'var(--console-header-ink)',
+  borderBottom: '1px solid var(--console-header-edge)',
+  flexWrap: 'wrap',
+  // The page scrolls on the body, so the band stays put above the workspace.
+  // The shadow is what makes the layering read when a card scrolls under it:
+  // without it the sheet looks glued to the band's edge (owner direction).
+  position: 'sticky',
+  top: 0,
+  zIndex: 30,
+  flexShrink: 0,
+  boxShadow: '0 1px 2px rgba(20, 36, 58, 0.05), 0 6px 16px rgba(20, 36, 58, 0.06)',
+}
+
+/** A white search pill on the dark band: a real control, readable in both edges. */
+export const headerSearchStyle: CSSProperties = {
+  ...controlStyle,
+  fontFamily: 'var(--font-sans)',
+  background: 'var(--console-surface)',
+  color: 'var(--console-ink)',
+  maxWidth: 440,
+  minWidth: 180,
+}
+
+/** The grey icon sidebar. Width is overridden by the collapse state. */
+export const consoleNavStyle: CSSProperties = {
+  background: 'var(--console-glass-bg)',
+  backdropFilter: 'blur(var(--console-glass-blur)) saturate(1.3)',
+  WebkitBackdropFilter: 'blur(var(--console-glass-blur)) saturate(1.3)',
+  border: '1px solid var(--console-glass-border)',
+  borderRadius: 16,
+  boxShadow: 'var(--console-sidebar-shadow)',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  padding: 8,
+  width: 256,
+  // 8 on every side: with main's 8px padding the rail↔sheet seam lands on the
+  // 16px the owner asked for, in expanded and collapsed mode alike.
+  margin: 8,
+  flexShrink: 0,
+  overflowY: 'auto',
+  // Sticky positioning is set by the shell (it depends on the header height and
+  // the mobile drawer), this is the desktop default: float under the band and
+  // cap the rail to the viewport so a long menu scrolls inside it.
+  alignSelf: 'flex-start',
+}
+
+/**
+ * A sidebar section, modern-minimalist: the active row gets a soft-blue
+ * background and a vertical accent bar on its left edge. The accessible name
+ * stays the label alone (the icon is aria-hidden), which is what the roving-
+ * tabindex keyboard test compares against, so no count badge is rendered inside
+ * this button.
+ */
+export function navItemStyle(active: boolean): CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+    minHeight: 40,
+    padding: '8px 12px',
+    border: 'none',
+    borderLeft: `3px solid ${active ? 'var(--console-nav-active-edge)' : 'transparent'}`,
+    borderRadius: 'var(--radius)',
+    background: active ? 'var(--console-nav-active-bg)' : 'transparent',
+    color: active ? 'var(--console-nav-active-ink)' : 'var(--console-nav-ink)',
+    fontSize: text.control,
+    fontWeight: active ? 700 : 500,
+    textAlign: 'left',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  }
+}
+
+/** The flyout label shown when hovering an icon in compact (icon-only) mode. */
+export const navTooltipStyle: CSSProperties = {
+  position: 'absolute',
+  left: '100%',
+  top: '50%',
+  transform: 'translateY(-50%)',
+  marginLeft: 10,
+  padding: '4px 8px',
+  borderRadius: 6,
+  background: 'var(--console-ink)',
+  color: '#ffffff',
+  fontSize: text.meta,
+  whiteSpace: 'nowrap',
+  boxShadow: 'var(--console-sidebar-shadow)',
+  zIndex: 60,
+  pointerEvents: 'none',
+}
+
+/** A link in the reference's link-blue. */
+export const consoleLinkStyle: CSSProperties = {
+  color: 'var(--console-info)',
+  textDecoration: 'none',
+  fontSize: text.control,
+}
+
+/** The track a metric bar sits in. */
+export const progressTrackStyle: CSSProperties = {
+  height: 8,
+  borderRadius: 4,
+  background: 'var(--console-progress-track)',
+  overflow: 'hidden',
+  width: '100%',
+}
+
+/** The fill of a metric bar. `ratio` is clamped to [0,1]; a 0/0 guard is the caller's. */
+export function progressFillStyle(ratio: number, fill = 'var(--console-info)'): CSSProperties {
+  const pct = Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0)) * 100
+  return { height: '100%', width: `${pct}%`, background: fill, borderRadius: 4 }
+}
+
+/** The white search field that sits on the dark top bar; the icon lives inside. */
+export const headerSearchFieldStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  height: 36,
+  padding: '0 12px',
+  background: 'var(--console-surface)',
+  border: '1px solid var(--console-hairline)',
+  borderRadius: 'var(--radius)',
+  flex: 1,
+  minWidth: 160,
+  maxWidth: 460,
+}
+
+/** A red count badge (the queue count) on the notification bell. */
+export const navBadgeStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: 18,
+  height: 18,
+  padding: '0 5px',
+  borderRadius: 9,
+  background: 'var(--loss)',
+  color: '#ffffff',
+  fontSize: text.meta,
+  fontWeight: 700,
+  fontFamily: 'var(--font-console)',
+  fontVariantNumeric: 'tabular-nums',
+}
+
+/**
+ * A red dot on a tab whose content holds something the operator has not seen
+ * yet. Static, not pulsing: an infinite animation is exactly what the motion
+ * rule reserves `prefers-reduced-motion` for, and a dot does not need to move
+ * to be noticed. It is aria-hidden by design; the new count rides the bell's
+ * accessible name, never the tab label the keyboard test compares against.
+ */
+export const navDotStyle: CSSProperties = {
+  position: 'absolute',
+  top: 10,
+  right: 10,
+  width: 8,
+  height: 8,
+  borderRadius: '50%',
+  background: 'var(--loss)',
+  boxShadow: '0 0 0 2px var(--card)',
+  pointerEvents: 'none',
+  zIndex: 1,
 }

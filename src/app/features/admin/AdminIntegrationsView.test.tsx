@@ -56,7 +56,9 @@ describe('AdminIntegrationsView', () => {
     render(<AdminIntegrationsView />)
 
     expect(await screen.findByText('Belum dikonfigurasi')).toBeInTheDocument()
-    expect(screen.getByText(/permintaan checkout dijawab 503/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/halaman bayar Midtrans tidak bisa dibuka; transfer manual tetap/),
+    ).toBeInTheDocument()
   })
 
   it('offers no field anywhere to type a credential', async () => {

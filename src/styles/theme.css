@@ -381,29 +381,30 @@
  * contrast.test.ts now holds both floors against this exact ground.
  */
 :root {
-  --console-ground: #eef2f6;
+  --console-ground: #ffffff;
   --console-surface: #ffffff;
-  --console-hairline: #dce2ea;
+  --console-hairline: #dcdcdc;
   /* Ink leads; secondary supports; meta is for stamps and captions only. */
-  --console-ink: #101820;
-  --console-secondary: #4e5b6b;
-  --console-meta: #66737f;
+  --console-ink: #1a1a1a;
+  --console-secondary: #4a4a4a;
+  --console-meta: #565b61;
   /* The brand accent, deepened until it can carry a white label: #0f9d78
      measures 3,43:1 with white on it, which is precisely why the console used
      to render its primary actions in navy instead. #0f7a5e is 5,30:1.
      It is never a status colour — see docs/DESIGN.md, "Konsol operator". */
-  --console-accent: #0f7a5e;
+  --console-accent: #0b5fa5;
   --console-accent-ink: #ffffff;
-  --console-accent-quiet: #e4f1eb;
-  --console-link: #2f4e70;
+  --console-accent-quiet: #e7f1fb;
+  --console-link: #0b5fa5;
   /* A selected row or tab: a wash, not a fill. The fill belongs to the one
      primary action on the screen. */
-  --console-selected: #e4f1eb;
-  --console-focus: #14243a;
+  --console-selected: #e7f1fb;
+  --console-focus: #1a1a1a;
 }
 
 .admin-console {
   color-scheme: light;
+  background: var(--console-ground);
 
   --background: var(--console-ground);
   --foreground: var(--console-ink);
@@ -441,6 +442,40 @@
   --warning-bg: rgba(168, 92, 5, 0.1);
   --neutral: var(--console-secondary);
   --neutral-bg: rgba(78, 91, 107, 0.08);
+
+  /* Console chrome, from referensi/admin-konsol.png: a near-black header band,
+     a light-grey icon sidebar, white bordered cards, and one link blue. These
+     are component surfaces, not a dark theme: the content ground stays light,
+     AppContext's .dark still governs the subscriber app only, and no token here
+     repeats a .dark value (contrast.test.ts holds that apart). */
+  --console-header-bg: #ffffff;
+  --console-header-ink: #1a1a1a;
+  --console-header-muted: #565b61;
+  --console-header-edge: #e6e8ec;
+  --console-nav-bg: #ebebeb;
+  --console-nav-ink: #1a1a1a;
+  --console-nav-active-bg: #e8f4fa;
+  --console-nav-active-ink: #0b5fa5;
+  --console-nav-active-edge: #0b5fa5;
+  --console-info: #0b5fa5;
+  --console-card-shadow: none;
+  --console-progress-track: #e6e6e6;
+
+  /* Floating / glass sidebar (owner direction): a detached, rounded, frosted
+     panel that floats on a soft gradient page. The gradient is the backdrop the
+     blur refracts; the content cards stay flat white on top of it. */
+  --console-page: linear-gradient(160deg, #eef2f8 0%, #f6f8fb 45%, #e9f1f7 100%);
+  --console-glass-bg: rgba(255, 255, 255, 0.55);
+  --console-glass-border: rgba(255, 255, 255, 0.7);
+  --console-glass-blur: 14px;
+  /* Two layers, both faint: a 1px seat at the edge and a wide soft lift, so the
+     sidebar and the content sheet float on the page instead of sitting on it
+     (owner direction: elevation reads as "hovering", not as a heavy drop). */
+  --console-sidebar-shadow: 0 1px 2px rgba(20, 36, 58, 0.05), 0 10px 28px rgba(20, 36, 58, 0.1);
+  /* The profile popup's ground: the subscriber dashboard's soft gray, not the
+     console's white paper, so the popup's white cards float the way every
+     other screen's cards do (owner direction). */
+  --console-popup-ground: #f5f7fa;
 }
 
 /* ─── Glass utility surfaces (dashboard only) ──────────────────────────────

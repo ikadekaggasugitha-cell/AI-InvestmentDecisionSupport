@@ -266,7 +266,9 @@ describe('approving', () => {
     // The confirmation names what the click does, including that the length is
     // not this screen's to choose.
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText(/mengikuti paket di baris ini/)).toBeInTheDocument()
+    expect(
+      within(dialog).getByText(/mengaktifkan langganan sesuai paket di baris ini/),
+    ).toBeInTheDocument()
     expect(within(dialog).getByText('Rp 44.000')).toBeInTheDocument()
 
     await user.click(within(dialog).getByRole('button', { name: /Ya, setujui/ }))

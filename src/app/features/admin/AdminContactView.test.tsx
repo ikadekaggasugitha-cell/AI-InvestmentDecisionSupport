@@ -98,7 +98,7 @@ describe('AdminContactView', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Simpan$/ }))
 
     await waitFor(() => expect(emailField()).toHaveValue('support@aidss.id'))
-    expect(screen.getByText(/Endpoint publik sekarang melaporkan alamat ini/i)).toBeInTheDocument()
+    expect(screen.getByText(/Footer publik sekarang menampilkan alamat ini/i)).toBeInTheDocument()
   })
 
   it('a refused address leaves the field on what the server still holds', async () => {

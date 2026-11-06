@@ -1,70 +1,46 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { RotateCw } from 'lucide-react'
 
-import { ENDPOINTS, apiFetch } from '@/app/config/api'
 import {
   buttonStyle,
   helpStyle,
+  panelStyle,
+  progressFillStyle,
+  progressTrackStyle,
   sectionNoteStyle,
-  sectionTitleStyle,
   text,
 } from '@/app/features/admin/consoleStyles'
+import type { OverviewState } from '@/app/features/admin/useAdminOverview'
 
 /**
- * The console's overview: nine figures from one query, no chart.
+ * The console's overview: nine figures from one query, no chart. Presentational —
+ * the read lives in `useAdminOverview` (called once by the shell, which also feeds
+ * the notification badge), so the panel and the badge can never disagree.
  *
  * Nine is what the endpoint answers with; the screen shows six of them as cards,
- * two in the queue strip below, and one inside the run-rate's own formula. The
- * sub-heading used to lead with "sembilan angka", which invited a reader to count
- * six and conclude the panel was missing three.
+ * two in the queue strip below, and one inside the run-rate's own formula.
  *
  * Deliberately not a recharts surface. A line chart over a handful of settled
- * payments is decoration, and `docs/DESIGN.md` sets this product's ENERGY at 1:
- * nothing here should try to impress the person reading it. What an operator
- * needs is the number, the window it covers, and the predicate that produced it.
+ * payments is decoration; what an operator needs is the number, the window it
+ * covers, and the predicate that produced it.
  *
- * Three states are kept apart, because collapsing them is the whole risk of a
- * dashboard:
- *
- *  - **Zeros** are a real answer. An install that has not been paid for is quiet,
- *    and saying so plainly is correct.
+ * Three states are kept apart, because collapsing them is the whole risk:
+ *  - **Zeros** are a real answer (a quiet install), and saying so is correct.
  *  - **A refused read** (403) is not about the business at all.
- *  - **A read that failed** (503, or the server being unreachable) must never be
- *    drawn as a flat line. An operator who sees zeros when the truth is "we could
- *    not ask" stops looking, and that is how a broken database hides for a week.
+ *  - **A read that failed** (503 / unreachable) must never be drawn as zeros.
  *
- * The one figure that is not a direct sum or count is the run-rate, and it says
- * so on its own face: the formula is printed beside it, because a number labelled
- * MRR invites a reader to treat it as money received.
+ * The run-rate is the one derived figure, and its formula is printed beside it so
+ * a reader does not take it for money received.
  */
 
-interface OverviewFigures {
-  revenueToday: number
-  revenueLast30Days: number
-  revenueTotal: number
-  mrrRunRate: number
-  settledLast30Days: number
-  pendingQueue: number
-  expiredQueue: number
-  activeSubscribers: number
-  churnedSubscribers: number
-}
-
-type LoadState =
-  | { kind: 'loading' }
-  | { kind: 'ready'; figures: OverviewFigures }
-  | { kind: 'unavailable' }
-  | { kind: 'forbidden' }
-
 const numberCell: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
+  fontFamily: 'var(--font-console)',
   fontVariantNumeric: 'tabular-nums',
   fontSize: text.figure,
   fontWeight: 600,
   color: 'var(--console-ink)',
   margin: 0,
   // Measured at 390: the label takes the left of the row and the figure the
-  // right, so a narrow screen squeezed "Rp 15.000" into "Rp" over "15.000". A
-  // figure that splits is no longer the number an operator reads; the label
+  // right, so a narrow screen squeezed "Rp 15.000" into two lines. The label
   // wraps instead, which is what labels are for.
   whiteSpace: 'nowrap',
 }
@@ -76,34 +52,20 @@ function rp(n: number): string {
 }
 
 /**
- * How the figures are laid out: one column of label/value rows, read top to
- * bottom.
- *
- * This replaced a three-across grid of six equal cells. That shape is the
- * default dashboard, and here it was also untrue to the data: it put "today's
- * revenue" and "already ended" in boxes of identical weight, and gave the only
- * derived figure on the screen a box the same size as a direct sum.
- *
- * The old grid carried a bug class of its own, recorded so nobody reintroduces
- * either the layout or the bug: the container painted `--border` behind the
- * cells and left a 1px gap to make the hairlines, so a column count that did
- * not divide the cell count left the last row's empty tracks showing that paint
- * — a grey slab the width of four cards that read as a panel which had lost its
- * figures. A single column with a hairline under each row cannot produce an
- * empty track, because there is no track left empty. That is the reason this is
- * a list, not only a preference.
+ * The key figures as a responsive card grid (owner direction): the revenue
+ * numbers read across the top as cards, not down a long list that leaves the
+ * middle of the sheet empty. Each figure is its own bordered card, so there is
+ * no shared painted track to leave an empty slab.
  */
-const figureRowsStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
+const statGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+  gap: 12,
 }
 
-/**
- * The number that leads the screen: one size above the figure rows, and the
- * only place on this screen at it. When everything is large, nothing is.
- */
+/** The number that leads the screen: the only place at this size. */
 const leadCell: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
+  fontFamily: 'var(--font-console)',
   fontVariantNumeric: 'tabular-nums',
   fontSize: text.lead,
   fontWeight: 600,
@@ -112,36 +74,17 @@ const leadCell: React.CSSProperties = {
   lineHeight: 1.2,
 }
 
-export function AdminDashboardView({ onOpenQueue }: { onOpenQueue: () => void }) {
-  const [state, setState] = useState<LoadState>({ kind: 'loading' })
-  const inFlight = useRef<AbortController | null>(null)
-
-  const load = useCallback(async () => {
-    inFlight.current?.abort()
-    const controller = new AbortController()
-    inFlight.current = controller
-    setState({ kind: 'loading' })
-    try {
-      const res = await apiFetch(ENDPOINTS.adminOverview, { signal: controller.signal })
-      if (res.status === 403) {
-        setState({ kind: 'forbidden' })
-        return
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const figures = (await res.json()) as OverviewFigures
-      if (controller.signal.aborted) return
-      setState({ kind: 'ready', figures })
-    } catch {
-      if (controller.signal.aborted) return
-      setState({ kind: 'unavailable' })
-    }
-  }, [])
-
-  useEffect(() => {
-    void load()
-    return () => inFlight.current?.abort()
-  }, [load])
-
+export function AdminDashboardView({
+  state,
+  onReload,
+  refreshing,
+  onOpenQueue,
+}: {
+  state: OverviewState
+  onReload: (opts?: { silent?: boolean }) => void
+  refreshing: boolean
+  onOpenQueue: () => void
+}) {
   if (state.kind === 'loading') {
     return (
       <p style={{ fontSize: text.body, color: 'var(--console-secondary)' }}>Memuat ringkasan…</p>
@@ -158,17 +101,16 @@ export function AdminDashboardView({ onOpenQueue }: { onOpenQueue: () => void })
 
   if (state.kind === 'unavailable') {
     return (
-      <div
-        role="alert"
-        style={{ fontSize: text.body, color: 'var(--console-secondary)', maxWidth: 560 }}
-      >
+      <div role="alert" style={{ fontSize: text.body, color: 'var(--console-secondary)' }}>
         Angka tidak dapat dibaca. Ini bukan berarti usahanya sepi: layar ini sengaja tidak
         menampilkan nol, karena nol adalah jawaban dan bukan kegagalan.
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => void onReload({ silent: true })}
           style={{
-            display: 'block',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
             marginTop: 10,
             fontSize: text.body,
             padding: '5px 10px',
@@ -180,6 +122,13 @@ export function AdminDashboardView({ onOpenQueue }: { onOpenQueue: () => void })
             cursor: 'pointer',
           }}
         >
+          <RotateCw
+            size={14}
+            strokeWidth={1.9}
+            aria-hidden
+            focusable={false}
+            className={refreshing ? 'animate-spin motion-reduce:animate-none' : undefined}
+          />
           Coba lagi
         </button>
       </div>
@@ -188,54 +137,35 @@ export function AdminDashboardView({ onOpenQueue }: { onOpenQueue: () => void })
 
   const f = state.figures
 
-  // Built as a list so the row count is the array's length rather than a number
-  // kept in sync by hand. The queue is deliberately not in it: it is the one
-  // number on this screen an operator can still change, so it is above the list
-  // and larger than everything in it.
-  const figures: { label: string; value: string; note?: string }[] = [
+  const statCards = [
     { label: 'Pendapatan hari ini (WIB)', value: rp(f.revenueToday) },
     { label: '30 hari terakhir', value: rp(f.revenueLast30Days) },
     { label: 'Total terselesaikan', value: rp(f.revenueTotal) },
-    // The only derived figure, and the formula is on its face: without it a
-    // reader would take this for money received.
-    {
-      label: 'Lajur bulanan (MRR)',
-      value: rp(f.mrrRunRate),
-      note: `dinormalkan dari ${f.settledLast30Days} pembayaran terselesaikan 30 hari terakhir · mingguan 7, bulanan 30, tahunan 365 hari`,
-    },
-    {
-      label: 'Langganan aktif',
-      value: f.activeSubscribers.toLocaleString('id-ID'),
-      note: 'akun dengan masa aktif yang masih berjalan',
-    },
-    {
-      label: 'Sudah berakhir',
-      value: f.churnedSubscribers.toLocaleString('id-ID'),
-      note: 'akun yang pernah punya masa aktif dan sekarang tidak',
-    },
+    { label: 'Lajur bulanan (MRR)', value: rp(f.mrrRunRate) },
+    { label: 'Langganan aktif', value: f.activeSubscribers.toLocaleString('id-ID') },
+    { label: 'Sudah berakhir', value: f.churnedSubscribers.toLocaleString('id-ID') },
   ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h2 style={sectionTitleStyle}>Ringkasan</h2>
+        {/* No section title: the sheet's h1 already names this module, and an
+            identical word under it read as a rendering glitch (owner
+            direction). What the section adds is the sentence below, not a
+            second label. */}
         <p style={sectionNoteStyle}>
-          Satu pertanyaan ke server untuk angka-angka di bawah. Uang yang dihitung adalah baris
-          berstatus settlement saja — transfer yang belum diputuskan bukan pendapatan.
+          Angka di bawah hanya menghitung transfer yang sudah disetujui. Transfer yang belum
+          diputuskan belum dihitung sebagai pendapatan.
         </p>
       </div>
 
-      {/* First on the screen and the largest thing on it, because it is the only
-          figure here an operator can still act on. An expired row is kept as a
-          separate count rather than added in: it is still money someone sent, and
-          folding it into the pending number would make the queue look smaller
-          than the money waiting. */}
+      {/* First and largest, because it is the only figure an operator can still
+          act on. The expired count is kept separate: it is still money sent. */}
       <div
         style={{
-          background: 'var(--card)',
+          ...panelStyle,
           border: '1px solid var(--control-border)',
-          borderRadius: 'var(--radius)',
-          padding: 16,
+          padding: 20,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -253,7 +183,7 @@ export function AdminDashboardView({ onOpenQueue }: { onOpenQueue: () => void })
               fontSize: text.meta,
               color: 'var(--console-meta)',
               margin: '4px 0 0',
-              fontFamily: 'var(--font-mono)',
+              fontFamily: 'var(--font-console)',
               fontVariantNumeric: 'tabular-nums',
             }}
           >
@@ -265,17 +195,96 @@ export function AdminDashboardView({ onOpenQueue }: { onOpenQueue: () => void })
         </button>
       </div>
 
-      <div style={figureRowsStyle}>
-        {figures.map((cell, index) => (
-          <Figure key={cell.label} {...cell} last={index === figures.length - 1} />
+      <div style={statGridStyle}>
+        {statCards.map((c) => (
+          <StatCard key={c.label} label={c.label} value={c.value} />
         ))}
       </div>
 
+      <p style={{ ...helpStyle, marginTop: 0 }}>
+        Lajur bulanan (MRR) dinormalkan dari {f.settledLast30Days} pembayaran terselesaikan 30 hari
+        terakhir · mingguan 7, bulanan 30, tahunan 365 hari. Langganan aktif adalah akun dengan masa
+        aktif yang masih berjalan; sudah berakhir adalah akun yang pernah punya masa aktif dan
+        sekarang tidak.
+      </p>
+
+      {/* One honest bar: of the accounts that ever held an active period, the
+          share still active. Both numbers come from the same server read; the
+          denominator is never invented, and a zero denominator shows no bar. */}
+      {f.activeSubscribers + f.churnedSubscribers > 0 && (
+        <div style={panelStyle}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              gap: 16,
+            }}
+          >
+            <p style={{ fontSize: text.control, color: 'var(--console-secondary)', margin: 0 }}>
+              Retensi langganan
+            </p>
+            <p
+              style={{
+                fontFamily: 'var(--font-console)',
+                fontVariantNumeric: 'tabular-nums',
+                fontSize: text.figure,
+                fontWeight: 600,
+                color: 'var(--console-ink)',
+                margin: 0,
+              }}
+            >
+              {Math.round(
+                (f.activeSubscribers / (f.activeSubscribers + f.churnedSubscribers)) * 100,
+              )}
+              %
+            </p>
+          </div>
+          <div
+            style={{ ...progressTrackStyle, marginTop: 10 }}
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(
+              (f.activeSubscribers / (f.activeSubscribers + f.churnedSubscribers)) * 100,
+            )}
+            aria-label="Porsi akun yang masih aktif dari yang pernah berlangganan"
+          >
+            <div
+              style={progressFillStyle(
+                f.activeSubscribers / (f.activeSubscribers + f.churnedSubscribers),
+              )}
+            />
+          </div>
+          <p style={{ ...helpStyle, marginTop: 8 }}>
+            {f.activeSubscribers.toLocaleString('id-ID')} dari{' '}
+            {(f.activeSubscribers + f.churnedSubscribers).toLocaleString('id-ID')} akun yang pernah
+            berlangganan masih aktif
+          </p>
+        </div>
+      )}
+
       <button
         type="button"
-        onClick={() => void load()}
-        style={{ ...buttonStyle('quiet'), alignSelf: 'flex-start' }}
+        onClick={() => void onReload({ silent: true })}
+        style={{
+          ...buttonStyle('quiet'),
+          alignSelf: 'flex-start',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
       >
+        {/* Same glyph, same contract as the queue's reload: the arrow turns
+            only while a read is actually in flight, and the figures underneath
+            stay put instead of flickering to a skeleton. */}
+        <RotateCw
+          size={14}
+          strokeWidth={1.9}
+          aria-hidden
+          focusable={false}
+          className={refreshing ? 'animate-spin motion-reduce:animate-none' : undefined}
+        />
         Muat ulang
       </button>
     </div>
@@ -283,45 +292,16 @@ export function AdminDashboardView({ onOpenQueue }: { onOpenQueue: () => void })
 }
 
 /**
- * One figure row: label left, value right, note under it on the meta rung.
- *
- * A row rather than a card, because these six are read as a column of answers and
- * not compared side by side. The hairline is `--border` — a divider between two
- * rows, which carries no information by its edge; a control border here would
- * make six things look like six things you can click.
+ * One stat card: label on top, the figure below it in tabular type. Cards sit in
+ * a responsive grid so the key numbers read across, not down a long list.
  */
-function Figure({
-  label,
-  value,
-  note,
-  last,
-}: {
-  label: string
-  value: string
-  note?: string
-  /** The final row drops its hairline; the panel below already closes the group. */
-  last?: boolean
-}) {
+function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'baseline',
-        gap: 16,
-        padding: '10px 0',
-        borderBottom: last ? undefined : '1px solid var(--border)',
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <p style={{ fontSize: text.control, color: 'var(--console-secondary)', margin: 0 }}>
-          {label}
-        </p>
-        {note && <p style={{ ...helpStyle, marginTop: 3, maxWidth: 520 }}>{note}</p>}
-      </div>
-      {/* The value is the thing an operator reconciles, so it is the leading
-          colour on the row rather than the muted one the label carries. */}
-      <p style={{ ...numberCell, textAlign: 'right' }}>{value}</p>
+    <div style={panelStyle}>
+      <p style={{ fontSize: text.control, color: 'var(--console-secondary)', margin: 0 }}>
+        {label}
+      </p>
+      <p style={{ ...numberCell, textAlign: 'left', marginTop: 6 }}>{value}</p>
     </div>
   )
 }

@@ -574,7 +574,7 @@ function AppInner() {
     >
       <Suspense fallback={<ViewSkeleton />}>
         <ErrorBoundary key="admin" locale={locale}>
-          <AdminView />
+          <AdminView auth={auth} />
         </ErrorBoundary>
       </Suspense>
     </div>

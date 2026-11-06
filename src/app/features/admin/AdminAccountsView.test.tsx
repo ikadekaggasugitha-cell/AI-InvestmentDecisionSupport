@@ -379,11 +379,13 @@ describe('blocking and unblocking', () => {
     expect(screen.getByRole('cell', { name: 'Aktif' })).toBeInTheDocument()
   })
 
-  it('states that sessions are not deleted', async () => {
-    // ADR-0004. Worth saying on the page itself, because an administrator closing
-    // an account will reasonably assume every device was signed out.
+  it('states that running sessions are not cut off', async () => {
+    // The block's reach is worth saying on the page itself, because an
+    // administrator closing an account will reasonably assume every device was
+    // signed out. The note now says this in operator words (ADR-0004 holds the
+    // mechanism); this test pins the fact, not the phrasing's old internals.
     await renderTable()
-    expect(screen.getByText(/tidak dihapus/i)).toBeInTheDocument()
+    expect(screen.getByText(/Sesi yang sedang berjalan tidak ditutup/i)).toBeInTheDocument()
   })
 })
 

@@ -203,6 +203,8 @@ export const ENDPOINTS = {
   authLogout: `${API_BASE}/v1/auth/logout`,
   authWsTicket: `${API_BASE}/v1/auth/ws-ticket`,
   authChangePassword: `${API_BASE}/v1/auth/change-password`,
+  /** Move the login address itself. The current password travels with it. */
+  authChangeEmail: `${API_BASE}/v1/auth/change-email`,
   /** Gate 2 acceptance. POST records it server-side; GET reads what is recorded. */
   authConsent: `${API_BASE}/v1/auth/consent`,
 } as const

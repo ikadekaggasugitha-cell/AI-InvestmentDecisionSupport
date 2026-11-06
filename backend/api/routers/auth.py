@@ -124,6 +124,27 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=MIN_PASSWORD_LENGTH)
 
 
+class ChangeEmailRequest(BaseModel):
+    """The email moves with the current password attached, not as a profile edit.
+
+    The address is the login identifier, so a live session alone must not be able
+    to shift an account to an address its owner never chose; proving the password
+    is what makes the change the owner's. `UpdateProfileRequest` still refuses
+    email for exactly this reason.
+    """
+
+    current_password: str
+    new_email: str = Field(min_length=3, max_length=accounts_service.EMAIL_MAX)
+
+    @field_validator("new_email")
+    @classmethod
+    def _check_email(cls, value: str) -> str:
+        normalised = accounts_service.normalise_email(value)
+        if "@" not in normalised or normalised.startswith("@") or normalised.endswith("@"):
+            raise ValueError("not a valid email address")
+        return normalised
+
+
 class AccountResponse(BaseModel):
     id: str
     email: str
@@ -315,6 +336,40 @@ async def change_password(
     # that can disagree with it.
     await accounts_service.revoke_all_sessions(user.user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/change-email",
+    response_model=AccountResponse,
+    summary="Change the login email after proving the password",
+)
+async def change_email(body: ChangeEmailRequest, user: CurrentUser) -> AccountResponse:
+    found = await accounts_service.get_account_by_email(user.email)
+    if found is None or not passwords.verify_password(found[1], body.current_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect.",
+        )
+
+    account = await accounts_service.update_email(user.user_id, new_email=body.new_email)
+    if account is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="That email address is already registered.",
+        )
+    # Sessions key on the account id, not the address, so this device stays
+    # signed in and the next sign-in uses the new email. Nothing here mints a
+    # cookie: `update_profile`'s rule that the identifier is not a rename
+    # generalises to "not a rename without the password".
+    return AccountResponse(
+        id=str(account.id),
+        email=account.email,
+        full_name=account.full_name,
+        phone_number=account.phone_number,
+        role=account.role,
+        blocked=account.blocked_at is not None,
+        blockedReason=account.blocked_reason,
+    )
 
 
 async def _start_session(response: Response, account: accounts_service.Account) -> SessionResponse:

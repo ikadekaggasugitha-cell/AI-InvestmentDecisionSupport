@@ -137,6 +137,8 @@ function auth(overrides: Partial<AuthState> = {}): AuthState {
     signUp: async () => {},
     signOut: async () => {},
     updateProfile: async () => {},
+    changeEmail: async () => {},
+    changePassword: async () => {},
     ...overrides,
   }
 }

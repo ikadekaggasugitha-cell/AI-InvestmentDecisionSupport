@@ -562,6 +562,36 @@ class _IdentityPool:
             }
             self.users[email] = row
             return row
+        # Matched before every `FROM users` branch: the change-email statement
+        # carries a `SELECT 1 FROM users ... WHERE` guard and a `WHERE id = $1`,
+        # so both read branches below would answer it as a plain lookup and the
+        # write would silently not happen. Matched on two substrings because the
+        # service writes the UPDATE over three lines, not one.
+        if "UPDATE users" in query and "SET email" in query:
+            # accounts.update_email. The taken-address guard is part of the
+            # statement and the fake enforces it the way the lower(email) index
+            # would: another row on the address matches nothing, and the service
+            # reports that as a conflict rather than a crash. Re-keying the dict
+            # is the whole point: from here the new address is what login finds.
+            target = str(args[0])
+            new_email = args[1].lower()
+            row = None
+            for existing in self.users.values():
+                if str(existing["id"]) == target:
+                    row = existing
+                    break
+            if row is None:
+                return None
+            if new_email != row["email"] and new_email in self.users:
+                return None
+            old_email = row["email"]
+            row["email"] = new_email
+            if old_email != new_email:
+                self.users.pop(old_email, None)
+                self.users[new_email] = row
+            return {k: row[k] for k in
+                    ("id", "email", "full_name", "phone_number", "role",
+                     "blocked_at", "blocked_reason", "created_at")}
         if "FROM users" in query and "lower(email)" in query:
             row = self.users.get(args[0].lower())
             if row is None:

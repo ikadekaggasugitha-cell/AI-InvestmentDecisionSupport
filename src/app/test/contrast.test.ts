@@ -349,19 +349,17 @@ describe('the operator console palette', () => {
   })
 
   /*
-   * Written as a failure on purpose, in the shape of the divider test above.
-   *
-   * #66737f clears AA on a card (4,86:1) and misses it on the ground (4,32:1).
-   * That is not a bug to be brightened away — brightening it breaks the card,
-   * darkening it collapses the difference against --console-secondary, and the
-   * ratio against the ground is the one thing that decides where this rung may
-   * be used. So the constraint is recorded as a number that must keep failing:
-   * meta text lives on surfaces, never on the console ground.
+   * The reference chrome (referensi/admin-konsol.png) makes the console ground
+   * white, the same surface as the cards. The old constraint — meta cleared AA on
+   * a card but deliberately missed it on a gray ground, so meta lived on surfaces
+   * only — was a consequence of that gray ground. With a white ground meta is
+   * readable everywhere it is used, so the guard is now a real AA floor on both
+   * surfaces rather than a number that had to keep failing on one.
    */
-  it('leaves the meta rung readable only on a surface, not on the ground', () => {
+  it('keeps the meta rung readable on the console surfaces', () => {
     const meta = consoleToken('meta')
     expect(contrast(meta, CONSOLE_CARD)).toBeGreaterThanOrEqual(4.5)
-    expect(contrast(meta, CONSOLE_GROUND)).toBeLessThan(4.5)
+    expect(contrast(meta, CONSOLE_GROUND)).toBeGreaterThanOrEqual(4.5)
   })
 
   /*

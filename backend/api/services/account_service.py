@@ -217,8 +217,10 @@ async def update_profile(
 
     Email is not editable here and never will be through this path: it is the
     login identifier and the uniqueness guarantee, so changing it means issuing a
-    new credential rather than renaming a row. Role and blocked_at are not here
-    either, for the same reason: a person does not promote themselves.
+    new credential rather than renaming a row. That credential move has its own
+    door, `update_email`, which only the endpoint that verified the current
+    password calls. Role and blocked_at are not here either, for the same
+    reason: a person does not promote themselves.
 
     Normalises the name's whitespace and rejects an empty one, because a blank
     name is not a name and every screen that shows it would show nothing.
@@ -245,6 +247,41 @@ async def update_profile(
     if row is None:  # pragma: no cover - the session proved this row exists
         raise ValueError("account no longer exists")
     return _to_account(row)
+
+
+async def update_email(account_id: uuid.UUID, *, new_email: str) -> Account | None:
+    """Move an account's login identifier, or return None if the address is taken.
+
+    This is the credential door `update_profile` deliberately is not: the email
+    is what login looks the account up by, so the caller must have proved it
+    holds the current password before reaching here (see the auth router). The
+    taken-address guard sits inside the statement the way `reopen_after_payment`
+    keeps its own; the expression index on lower(email) is the real guarantee, so
+    a race that slips past the guard surfaces as a unique violation and is
+    translated to the same None rather than a crash.
+    """
+    cleaned = normalise_email(new_email)
+    pool = await get_pool()
+    try:
+        row = await pool.fetchrow(
+            """
+            UPDATE users
+               SET email = $2
+             WHERE id = $1
+               AND NOT EXISTS (
+                     SELECT 1 FROM users other
+                      WHERE lower(other.email) = $2
+                        AND other.id <> $1
+                   )
+            RETURNING id, email, full_name, phone_number, role,
+                      blocked_at, blocked_reason, created_at
+            """,
+            str(account_id),
+            cleaned,
+        )
+    except asyncpg.UniqueViolationError:
+        return None
+    return _to_account(row) if row else None
 
 
 async def update_password_hash(account_id: uuid.UUID, password_hash: str) -> None:

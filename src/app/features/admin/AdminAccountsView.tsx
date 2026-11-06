@@ -8,6 +8,7 @@ import {
   monoCell,
   rowActionStyle,
   searchStyle,
+  sectionNoteStyle,
   td,
   tdMeta,
   text,
@@ -267,13 +268,12 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h2 style={{ fontSize: text.heading, fontWeight: 600, margin: 0 }}>
-          {isId ? 'Kelola Akun' : 'Manage Accounts'}
-        </h2>
-        <p style={{ fontSize: text.body, color: 'var(--console-secondary)', marginTop: 4 }}>
+        {/* No section title; the h1 above already says Akun (owner
+            direction). */}
+        <p style={sectionNoteStyle}>
           {isId
-            ? 'Memblokir berlaku pada request berikutnya. Sesi yang sudah terbit tidak dihapus (ADR-0004).'
-            : "A block takes effect on the account's next request. Existing sessions are not deleted (ADR-0004)."}
+            ? 'Pemblokiran mulai berlaku saat akun tersebut memakai aplikasi lagi. Sesi yang sedang berjalan tidak ditutup.'
+            : 'A block takes effect when the account next uses the app. Sessions already open are not closed.'}
         </p>
       </div>
 
@@ -325,9 +325,9 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
                 fontSize: text.body,
                 padding: '5px 10px',
                 minHeight: 32,
-                color: filter === value ? 'var(--primary-foreground)' : 'var(--foreground)',
-                background: filter === value ? 'var(--primary)' : 'transparent',
-                border: `1px solid ${filter === value ? 'var(--primary)' : 'var(--control-border)'}`,
+                color: filter === value ? 'var(--console-accent-ink)' : 'var(--foreground)',
+                background: filter === value ? 'var(--console-accent)' : 'transparent',
+                border: `1px solid ${filter === value ? 'var(--console-accent)' : 'var(--control-border)'}`,
                 borderRadius: 3,
                 cursor: 'pointer',
               }}
@@ -347,7 +347,8 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
         style={{
           background: 'var(--card)',
           border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
+          borderRadius: 12,
+          boxShadow: 'var(--console-card-shadow)',
           overflowX: 'auto',
           // Seven columns do not fit a phone. A scrollable region that cannot
           // take focus cannot be scrolled without a mouse or a thumb, so the
@@ -508,8 +509,11 @@ export function AdminAccountsView({ accounts }: { accounts: AdminAccountsApi }) 
                       isId ? `Beri masa aktif ${account.email}` : `Grant access to ${account.email}`
                     }
                     style={{
-                      ...rowActionStyle('quiet'),
-                      marginRight: 6,
+                      // The constructive action carries the primary fill, so it
+                      // reads first; the block button below answers with the soft
+                      // red wash (owner direction on action hierarchy).
+                      ...rowActionStyle('confirm'),
+                      marginRight: 8,
                       cursor: pending === account.id ? 'default' : 'pointer',
                     }}
                   >

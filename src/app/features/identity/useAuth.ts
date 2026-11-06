@@ -31,6 +31,8 @@ export interface AuthState {
   }) => Promise<void>
   signOut: () => Promise<void>
   updateProfile: (input: { full_name: string; phone_number: string }) => Promise<void>
+  changeEmail: (input: { current_password: string; new_email: string }) => Promise<void>
+  changePassword: (input: { current_password: string; new_password: string }) => Promise<void>
 }
 
 /**
@@ -114,6 +116,37 @@ export function useAuth(): AuthState {
     setError(null)
   }, [])
 
+  const changeEmail = useCallback(
+    async (input: { current_password: string; new_email: string }) => {
+      const res = await apiFetch(ENDPOINTS.authChangeEmail, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!res.ok) throw await readError(res)
+      // The server answers with the moved account; this device keeps its
+      // session because the cookie belongs to the id, not the address.
+      setAccount((await res.json()) as Account)
+      setError(null)
+    },
+    [],
+  )
+
+  const changePassword = useCallback(
+    async (input: { current_password: string; new_password: string }) => {
+      const res = await apiFetch(ENDPOINTS.authChangePassword, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!res.ok) throw await readError(res)
+      // 204 carries the harder fact: the server deleted every session row, so
+      // the caller owns what happens next. It calls signOut on this same
+      // instance, which is the only one whose status the app's gate reads.
+    },
+    [],
+  )
+
   const signOut = useCallback(async () => {
     try {
       await apiFetch(ENDPOINTS.authLogout, { method: 'POST' })
@@ -126,7 +159,18 @@ export function useAuth(): AuthState {
     }
   }, [])
 
-  return { status, account, error, refresh, signIn, signUp, signOut, updateProfile }
+  return {
+    status,
+    account,
+    error,
+    refresh,
+    signIn,
+    signUp,
+    signOut,
+    updateProfile,
+    changeEmail,
+    changePassword,
+  }
 }
 
 /** Turn a non-2xx response into something a person can act on. */

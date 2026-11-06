@@ -1,8 +1,35 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import {
+  Bell,
+  ChevronDown,
+  Globe,
+  Inbox,
+  Landmark,
+  LayoutDashboard,
+  Mail,
+  Menu,
+  PanelLeft,
+  Plug,
+  Tag,
+  User,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
 
 import { useApp } from '@/app/context/AppContext'
-import { text } from '@/app/features/admin/consoleStyles'
+import type { AuthState } from '@/app/features/identity/useAuth'
+import {
+  consoleHeaderStyle,
+  consoleNavStyle,
+  consoleSheetStyle,
+  navBadgeStyle,
+  navDotStyle,
+  navItemStyle,
+  navTooltipStyle,
+  text,
+} from '@/app/features/admin/consoleStyles'
 import { AdminAccountsView, useAdminAccounts } from '@/app/features/admin/AdminAccountsView'
+import { AdminProfilePopup } from '@/app/features/admin/AdminProfilePopup'
 import { AdminPaymentChannelsView } from '@/app/features/admin/AdminPaymentChannelsView'
 import { AdminSmtpView } from '@/app/features/admin/AdminSmtpView'
 import { AdminBankAccountsView } from '@/app/features/admin/AdminBankAccountsView'
@@ -11,34 +38,26 @@ import { AdminDashboardView } from '@/app/features/admin/AdminDashboardView'
 import { AdminIntegrationsView } from '@/app/features/admin/AdminIntegrationsView'
 import { AdminPricingView } from '@/app/features/admin/AdminPricingView'
 import { AdminTransactionsView } from '@/app/features/admin/AdminTransactionsView'
+import { useAdminOverview } from '@/app/features/admin/useAdminOverview'
 import logoUrl from '@/assets/aidss-logo.svg'
 
 /**
- * The console's shell: the operator gate, the tab strip, and the footer.
+ * The console shell. A neutral near-black top bar (logo + notification + operator
+ * identity, no global search), and a floating, frosted-glass icon sidebar that
+ * collapses to icons with hover tooltips. The page sits on a soft gradient so the
+ * glass reads; the content cards stay flat white on top.
  *
- * Reached at its own URL (`/admin`) rather than from the sidebar. That is a
- * deliberate choice and not an omission: this is an operational tool, not a place
- * people live, and a permanent entry in the main navigation would put "manage every
- * account in the system" one click away on every screen. The backend refuses
- * non-admins with 403 regardless — this is about who can *find* the page, not who
- * can use it.
- *
- * The one piece of data the shell owns is the account list's load state, because
- * that read is also the probe that answers "is this person an operator at all":
- * the gate screen and the `OPERATOR ACCESS` tag both hang on it. The list itself,
- * its columns and its row actions live in `AdminAccountsView`, which receives
- * that state rather than issuing a second read.
+ * The chrome changed; the contract did not. The sidebar is still the roving
+ * `role="tablist"` the keyboard test walks, each item is a `role="tab"` whose
+ * accessible name is exactly its label (icons aria-hidden; the queue count lives
+ * on the header bell, never inside a tab), and every panel is still keyed by
+ * `id="admin-panel-<name>"` so the accent dose-cap reads the pairing here. A 403
+ * replaces the whole console, tablist included.
  */
 
 type AdminTab =
   'dashboard' | 'accounts' | 'transactions' | 'pricing' | 'payments' | 'contact' | 'integrations'
 
-/**
- * The strip's order, and it is a contract rather than a layout detail: arrow keys
- * walk this array, so the order here is the order a keyboard reader travels. It
- * puts the overview first because that is the question an operator arrives with,
- * and the queue second because it is the daily work.
- */
 const TAB_IDS: AdminTab[] = [
   'dashboard',
   'accounts',
@@ -49,38 +68,136 @@ const TAB_IDS: AdminTab[] = [
   'integrations',
 ]
 
-/** [Indonesia, English]. Kept beside the ids so adding a tab cannot ship a label in one language only. */
 const TAB_LABELS: Record<AdminTab, [string, string]> = {
   dashboard: ['Ringkasan', 'Overview'],
   accounts: ['Akun', 'Accounts'],
   transactions: ['Antrean', 'Queue'],
   pricing: ['Harga', 'Pricing'],
-  // Was "Pembayaran". Once a real payment queue exists, a tab called Payments that
-  // opens bank-account settings is not merely vague, it points at the wrong thing.
   payments: ['Rekening', 'Destinations'],
   contact: ['Kontak', 'Contact'],
   integrations: ['Integrasi', 'Integrations'],
 }
 
-export function AdminView() {
-  const { locale } = useApp()
+const TAB_ICONS: Record<AdminTab, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  accounts: Users,
+  transactions: Inbox,
+  pricing: Tag,
+  payments: Landmark,
+  contact: Mail,
+  integrations: Plug,
+}
+
+const HEADER_HEIGHT = 56
+
+/**
+ * How often the shell re-asks for the overview quietly. One minute: long enough
+ * that an idle console costs almost nothing, short enough that a transfer
+ * declared while the operator read another tab is announced before they finish
+ * the page they are on.
+ */
+const OVERVIEW_POLL_MS = 60_000
+
+/**
+ * The pending count the operator last saw in the queue, in their own browser.
+ * It is display state, not money: the server stays the authority on the queue,
+ * and clearing this key changes nothing except whether the dot is lit.
+ */
+const QUEUE_SEEN_KEY = 'aidss-admin-queue-seen'
+
+function readQueueSeen(): number | null {
+  const raw = localStorage.getItem(QUEUE_SEEN_KEY)
+  if (raw === null) return null
+  const value = Number(raw)
+  return Number.isInteger(value) && value >= 0 ? value : null
+}
+
+const headerIconButton: React.CSSProperties = {
+  position: 'relative',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 40,
+  height: 40,
+  borderRadius: 'var(--radius)',
+  border: 'none',
+  background: 'transparent',
+  color: 'var(--console-header-ink)',
+  cursor: 'pointer',
+}
+
+const identityLinkStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 8,
+  color: 'var(--console-header-ink)',
+  fontSize: text.control,
+  textDecoration: 'none',
+  whiteSpace: 'nowrap',
+}
+
+/** The same chip, asked to behave as a button: it opens a popup, not a page. */
+const identityChipStyle: React.CSSProperties = {
+  ...identityLinkStyle,
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  minHeight: 40,
+  padding: '0 4px',
+}
+
+export function AdminView({ auth }: { auth: AuthState }) {
+  const { locale, setLocale } = useApp()
   const isId = locale === 'id'
   const [tab, setTab] = useState<AdminTab>('dashboard')
   const accounts = useAdminAccounts()
+  const overview = useAdminOverview(OVERVIEW_POLL_MS)
   const state = accounts.state
 
-  /**
-   * Roving focus for the tablist: arrows walk the strip, Home and End jump to its
-   * ends, and selection follows focus.
-   *
-   * Seven tabs at `tabIndex={-1}` except the selected one is the ARIA pattern, and
-   * it only holds if the arrows move between them. Without this the strip is a set
-   * of seven tab stops the keyboard can reach but not traverse — `Tab` walks it one
-   * press per tab and there is no way to get from the first section to the last
-   * without visiting all seven. Focus is moved explicitly because React re-renders
-   * the strip when `tab` changes; setting the tab alone would leave the caret on a
-   * button that is no longer the selected one.
-   */
+  const [width, setWidth] = useState(() =>
+    typeof window === 'undefined' ? 1280 : window.innerWidth,
+  )
+  const [collapsed, setCollapsed] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [hovered, setHovered] = useState<AdminTab | null>(null)
+
+  useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const isMobile = width < 768
+  const pendingQueue = overview.state.kind === 'ready' ? overview.state.figures.pendingQueue : null
+
+  const [queueSeen, setQueueSeen] = useState<number | null>(() => readQueueSeen())
+
+  // A first read with no stored baseline counts the current backlog as seen:
+  // the dot answers "what arrived since you last looked", not "the queue is
+  // not empty". The number on the bell already says the second thing.
+  useEffect(() => {
+    if (pendingQueue !== null && queueSeen === null) {
+      setQueueSeen(pendingQueue)
+      localStorage.setItem(QUEUE_SEEN_KEY, String(pendingQueue))
+    }
+  }, [pendingQueue, queueSeen])
+
+  // Opening the queue is the act of seeing. The baseline moves to whatever the
+  // server now reports, and it moves in storage too, so a reload does not
+  // resurrect a dot for transfers that were already adjudicated from this
+  // browser.
+  useEffect(() => {
+    if (tab === 'transactions' && pendingQueue !== null && pendingQueue !== queueSeen) {
+      setQueueSeen(pendingQueue)
+      localStorage.setItem(QUEUE_SEEN_KEY, String(pendingQueue))
+    }
+  }, [tab, pendingQueue, queueSeen])
+
+  const newQueue =
+    pendingQueue !== null && queueSeen !== null ? Math.max(0, pendingQueue - queueSeen) : 0
+
   function moveSelection(next: AdminTab) {
     setTab(next)
     document.getElementById(`admin-tab-${next}`)?.focus()
@@ -90,10 +207,12 @@ export function AdminView() {
     const index = TAB_IDS.indexOf(from)
     switch (event.key) {
       case 'ArrowRight':
+      case 'ArrowDown':
         event.preventDefault()
         moveSelection(TAB_IDS[(index + 1) % TAB_IDS.length])
         break
       case 'ArrowLeft':
+      case 'ArrowUp':
         event.preventDefault()
         moveSelection(TAB_IDS[(index - 1 + TAB_IDS.length) % TAB_IDS.length])
         break
@@ -108,121 +227,271 @@ export function AdminView() {
     }
   }
 
-  return (
-    <div className="min-h-0 flex-1" style={{ overflowY: 'auto', padding: 24 }}>
-      <div
-        style={{
-          maxWidth: 1080,
-          width: '100%',
-          margin: '0 auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16,
-        }}
-      >
-        {/* The page names itself once, and the operator's provenance sits on the
-            same row, not above the name like a label. Never worn by a visitor:
-            the tag appears only after the admin endpoint has answered 200 to
-            this person's key. */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            flexWrap: 'wrap',
-          }}
+  function openTab(next: AdminTab) {
+    setTab(next)
+    if (isMobile) setDrawerOpen(false)
+  }
+
+  const header = (
+    <header style={consoleHeaderStyle}>
+      {isMobile && (
+        <button
+          type="button"
+          aria-label={isId ? 'Tampilkan navigasi' : 'Show navigation'}
+          onClick={() => setDrawerOpen((v) => !v)}
+          style={headerIconButton}
         >
-          <h1
-            style={{
-              fontSize: text.title,
-              fontWeight: 600,
-              margin: 0,
-              fontFamily: 'var(--font-display)',
-              color: 'var(--console-ink)',
-            }}
-          >
-            {isId ? 'Konsol operator' : 'Operator console'}
-          </h1>
-          {state.kind === 'ready' && (
-            /* The provenance is the fact: this person is an operator, and the
-               tag only exists once the admin endpoint has answered 200 to them.
-               Uppercase with wide tracking is not part of that fact — it is the
-               tracked-caps tell, and it reads as a badge rather than a status.
-               Sentence case, no letterspacing, and the same border as every
-               other control edge on this screen. */
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: text.meta,
-                color: 'var(--console-secondary)',
-                border: '1px solid var(--control-border)',
-                borderRadius: 3,
-                padding: '3px 8px',
-              }}
-            >
-              {isId ? 'Akses operator' : 'Operator access'}
+          <Menu size={20} strokeWidth={1.9} aria-hidden focusable={false} />
+        </button>
+      )}
+
+      {/* The logo lockup already carries the wordmark; no duplicate text. */}
+      <img src={logoUrl} alt="AIDSS" style={{ height: 30, width: 'auto', display: 'block' }} />
+
+      <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+        <button
+          type="button"
+          aria-label={
+            newQueue > 0
+              ? isId
+                ? `Buka antrean pembayaran, ${newQueue} transfer baru`
+                : `Open the payment queue, ${newQueue} new transfers`
+              : isId
+                ? 'Buka antrean pembayaran'
+                : 'Open the payment queue'
+          }
+          onClick={() => openTab('transactions')}
+          style={headerIconButton}
+        >
+          <Bell size={20} strokeWidth={1.9} aria-hidden focusable={false} />
+          {pendingQueue != null && pendingQueue > 0 && (
+            <span style={{ ...navBadgeStyle, position: 'absolute', top: 2, right: 2 }}>
+              {pendingQueue}
             </span>
           )}
-        </div>
+        </button>
+        {/* The operator's own account. This chip used to be a link straight to
+            the market dashboard, which made it a door with no room behind it:
+            there was no way to ask who is signed in, and no way inside the
+            console to change the operator's own name, address or password. It
+            now opens the profile popup, and the market page is one of the two
+            choices inside it. */}
+        <button
+          type="button"
+          aria-label={isId ? 'Buka menu profil' : 'Open the profile menu'}
+          aria-haspopup="dialog"
+          aria-expanded={profileOpen}
+          onClick={() => setProfileOpen(true)}
+          style={identityChipStyle}
+        >
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              background: 'rgba(0, 0, 0, 0.06)',
+            }}
+          >
+            <User size={16} strokeWidth={1.9} aria-hidden />
+          </span>
+          Operator
+        </button>
+      </div>
+    </header>
+  )
 
-        {state.kind === 'denied' ? (
-          <GateSection isId={isId} />
-        ) : (
+  const nav = (
+    <aside
+      style={{
+        ...consoleNavStyle,
+        overflow: 'visible',
+        width: isMobile ? 256 : collapsed ? 80 : 256,
+        position: isMobile ? 'fixed' : 'sticky',
+        top: isMobile ? HEADER_HEIGHT : HEADER_HEIGHT + 1,
+        bottom: isMobile ? 0 : undefined,
+        left: isMobile ? 0 : undefined,
+        maxHeight: isMobile ? undefined : 'calc(100vh - 73px)',
+        zIndex: isMobile ? 40 : 5,
+        display: isMobile && !drawerOpen ? 'none' : 'flex',
+      }}
+    >
+      {!isMobile && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 2px 8px' }}>
+          <button
+            type="button"
+            aria-label={isId ? 'Ciutkan atau lebarkan menu' : 'Collapse or expand menu'}
+            onClick={() => setCollapsed((v) => !v)}
+            style={{
+              ...headerIconButton,
+              width: 32,
+              height: 32,
+              color: 'var(--console-nav-ink)',
+            }}
+          >
+            <PanelLeft size={18} strokeWidth={1.9} aria-hidden focusable={false} />
+          </button>
+        </div>
+      )}
+
+      <div
+        role="tablist"
+        aria-label={isId ? 'Bagian admin' : 'Admin sections'}
+        aria-orientation="vertical"
+        style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}
+      >
+        {TAB_IDS.map((id) => {
+          const Icon = TAB_ICONS[id]
+          const active = tab === id
+          const label = TAB_LABELS[id][isId ? 0 : 1]
+          return (
+            <span
+              key={id}
+              style={{ position: 'relative', display: 'block' }}
+              onMouseEnter={() => setHovered(id)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              <button
+                id={`admin-tab-${id}`}
+                role="tab"
+                type="button"
+                aria-selected={active}
+                aria-controls={`admin-panel-${id}`}
+                tabIndex={active ? 0 : -1}
+                onClick={() => openTab(id)}
+                onKeyDown={(event) => onTabListKeyDown(event, id)}
+                title={label}
+                style={navItemStyle(active)}
+              >
+                <Icon size={18} strokeWidth={1.9} aria-hidden focusable={false} />
+                {(!collapsed || isMobile) && <span>{label}</span>}
+              </button>
+              {collapsed && !isMobile && hovered === id && (
+                <span style={navTooltipStyle}>{label}</span>
+              )}
+              {id === 'transactions' && newQueue > 0 && tab !== 'transactions' && (
+                // Unseen arrivals ride the tab icon. aria-hidden: the tab's
+                // accessible name must stay exactly its label, which the
+                // keyboard test compares; the count lives on the bell.
+                <span data-queue-new="true" aria-hidden style={navDotStyle} />
+              )}
+            </span>
+          )
+        })}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setLocale(isId ? 'en' : 'id')}
+        style={{
+          ...navItemStyle(false),
+          marginTop: 'auto',
+          minHeight: 44,
+          color: 'var(--console-nav-ink)',
+        }}
+      >
+        <Globe size={18} strokeWidth={1.9} aria-hidden focusable={false} />
+        {(!collapsed || isMobile) && (
           <>
-            {/* Seven tabs, not seven routes. /admin is already an operational tool at
-            its own URL with no sidebar entry, so a second URL would add routing and a
-            nav element to solve a problem the page does not have. The order the
-            arrows walk is `TAB_IDS`. */}
+            <span style={{ flex: 1 }}>{isId ? 'Indonesia' : 'English'}</span>
+            <ChevronDown size={14} strokeWidth={1.9} aria-hidden />
+          </>
+        )}
+      </button>
+    </aside>
+  )
+
+  /* Denied: a doorway, not a console. No tablist, one way back. */
+  if (state.kind === 'denied') {
+    return (
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100dvh',
+          background: 'var(--console-page)',
+        }}
+      >
+        <header style={consoleHeaderStyle}>
+          <img src={logoUrl} alt="AIDSS" style={{ height: 30, width: 'auto', display: 'block' }} />
+        </header>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <GateSection isId={isId} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100dvh',
+        background: 'var(--console-page)',
+      }}
+    >
+      {header}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        {nav}
+        <main style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '16px 8px 8px' }}>
+          <div style={consoleSheetStyle}>
             <div
-              role="tablist"
-              aria-label={isId ? 'Bagian admin' : 'Admin sections'}
               style={{
                 display: 'flex',
-                gap: 4,
-                borderBottom: '1px solid var(--border)',
-                // Seven tabs are wider than a phone. Without wrapping the strip
-                // scrolls inside itself and the last two sections are simply not
-                // there — the operator cannot reach what they cannot see, and a
-                // tab strip is not somewhere a reader expects to scroll.
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
                 flexWrap: 'wrap',
+                marginBottom: 4,
               }}
             >
-              {TAB_IDS.map((id) => (
-                <button
-                  key={id}
-                  id={`admin-tab-${id}`}
-                  role="tab"
-                  type="button"
-                  aria-selected={tab === id}
-                  aria-controls={`admin-panel-${id}`}
-                  tabIndex={tab === id ? 0 : -1}
-                  onClick={() => setTab(id)}
-                  onKeyDown={(event) => onTabListKeyDown(event, id)}
+              {/* The heading names the module the operator is standing in, not
+                  the console as a whole; "Konsol operator" above every tab said
+                  nothing the sidebar had not already said. (owner direction) */}
+              <h1
+                style={{
+                  fontSize: text.title,
+                  fontWeight: 700,
+                  margin: 0,
+                  fontFamily: 'var(--font-console)',
+                  color: 'var(--console-ink)',
+                }}
+              >
+                {TAB_LABELS[tab][isId ? 0 : 1]}
+              </h1>
+              {state.kind === 'ready' && (
+                <span
                   style={{
-                    fontSize: text.body,
-                    padding: '8px 12px',
-                    minHeight: 32,
-                    border: 'none',
-                    // The accent marks selection here and nowhere else on this
-                    // screen; it is not a status colour (see consoleStyles).
-                    borderBottom: `2px solid ${tab === id ? 'var(--console-accent)' : 'transparent'}`,
-                    background: 'transparent',
-                    color: tab === id ? 'var(--console-ink)' : 'var(--console-secondary)',
-                    // Weight as well as colour: a selected tab that differs only
-                    // in hue is one a reader with low colour vision does not get.
-                    fontWeight: tab === id ? 600 : 400,
-                    cursor: 'pointer',
+                    fontFamily: 'var(--font-console)',
+                    fontSize: text.meta,
+                    fontWeight: 600,
+                    color: 'var(--console-accent)',
+                    background: 'var(--console-accent-quiet)',
+                    border: '1px solid transparent',
+                    borderRadius: 999,
+                    padding: '4px 12px',
                   }}
                 >
-                  {TAB_LABELS[id][isId ? 0 : 1]}
-                </button>
-              ))}
+                  {isId ? 'Akses operator' : 'Operator access'}
+                </span>
+              )}
             </div>
 
             {tab === 'dashboard' ? (
               <div id="admin-panel-dashboard" role="tabpanel" aria-labelledby="admin-tab-dashboard">
-                <AdminDashboardView onOpenQueue={() => setTab('transactions')} />
+                <AdminDashboardView
+                  state={overview.state}
+                  refreshing={overview.refreshing}
+                  onReload={overview.reload}
+                  onOpenQueue={() => setTab('transactions')}
+                />
               </div>
             ) : tab === 'transactions' ? (
               <div
@@ -238,9 +507,6 @@ export function AdminView() {
               </div>
             ) : tab === 'payments' ? (
               <div id="admin-panel-payments" role="tabpanel" aria-labelledby="admin-tab-payments">
-                {/* Both halves answer one operator question, "how does a customer
-                    pay me", and they are kept in one place so the two lists a
-                    payment screen reads cannot be maintained apart by accident. */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
                   <AdminBankAccountsView />
                   <AdminPaymentChannelsView />
@@ -257,10 +523,6 @@ export function AdminView() {
                 aria-labelledby="admin-tab-integrations"
               >
                 <AdminIntegrationsView />
-                {/* The editor sits under the status it explains, in the same tab:
-                    "what is wired up" and "what do I change" are one question to
-                    an operator, and answering them two tabs apart is how the two
-                    end up describing different installs. */}
                 <div style={{ marginTop: 24 }}>
                   <AdminSmtpView />
                 </div>
@@ -270,55 +532,25 @@ export function AdminView() {
                 <AdminAccountsView accounts={accounts} />
               </div>
             ) : null}
-          </>
-        )}
 
-        {/* The page's height is its data's height: a short fixture (this one has
-            an account and a blocked admin) ends where it ends, and a full
-            25-row page fills this ground. No spacer and no invented volume to
-            make the canvas look busy. The footer closes the grid at the edge
-            the content reaches. */}
-        <div style={{ height: '32px' }} />
-        <footer
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-            gap: '16px',
-            borderTop: '1px solid var(--border)',
-            paddingTop: '12px',
-          }}
-        >
-          <span className="brand-chip">
-            <img
-              src={logoUrl}
-              alt="AIDSS"
-              style={{ height: 14, width: 'auto', display: 'block' }}
-            />
-          </span>
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: text.meta,
-              color: 'var(--console-secondary)',
-            }}
-          >
-            {isId ? 'Konsol operator' : 'Operator console'}
-          </span>
-        </footer>
+            {profileOpen && <AdminProfilePopup onClose={() => setProfileOpen(false)} auth={auth} />}
+
+            {/* No footer. It carried the AIDSS lockup and the words "Konsol
+                operator" under every tab; the header already shows the logo
+                and the h1 already names the module, so the strip repeated two
+                facts and nothing else (owner direction). */}
+          </div>
+        </main>
       </div>
     </div>
   )
 }
 
 /**
- * The 403 gate. A non-admin who reaches /admin gets a doorway that says who
- * may pass, what is behind it, and one way back, not a table pretending to be
- * empty and not a control for a page that never opens.
+ * The 403 gate. A non-admin who reaches /admin gets a doorway that says who may
+ * pass, what is behind it, and one way back — not a table pretending to be empty.
  */
 function GateSection({ isId }: { isId: boolean }) {
-  // The three things the console actually does, named for the visitor the
-  // server just refused: the same surface an operator would open, described.
   const topics = isId
     ? ['Kontrol akun pengguna', 'Tetapan harga tiga paket', 'Verifikasi pembayaran transfer']
     : ['User account controls', 'The three plan prices', 'Manual transfer verification']
@@ -334,10 +566,9 @@ function GateSection({ isId }: { isId: boolean }) {
         width: '100%',
       }}
     >
-      <h2 style={{ fontSize: text.heading, fontWeight: 600, margin: 0 }}>
+      <h2 style={{ fontSize: text.heading, fontWeight: 700, margin: 0 }}>
         {isId ? 'Hanya untuk operator' : 'For operators'}
       </h2>
-      {/* The server's verdict, kept in its own words. */}
       <p
         style={{
           fontSize: text.control,

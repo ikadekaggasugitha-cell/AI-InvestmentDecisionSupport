@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { RotateCw } from 'lucide-react'
 
 import { AdminDialogActions, AdminModal } from '@/app/features/admin/AdminModal'
 import {
@@ -48,7 +49,11 @@ const STATUS_LABEL: Record<string, string> = {
   expire: 'Kedaluwarsa',
   settlement: 'Selesai',
   deny: 'Ditolak',
-  cancel: 'Batal',
+  // "Batal" read as an action on the filter row, the same word the dialogs use
+  // for "close without doing anything". This chip does nothing of the sort: it
+  // shows rows the gateway already cancelled, so the label is the past-tense
+  // state (owner direction).
+  cancel: 'Dibatalkan',
   all: 'Semua',
 }
 
@@ -155,13 +160,14 @@ export function AdminTransactionsView() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <h2 style={{ fontSize: text.heading, fontWeight: 600, margin: 0 }}>Antrean Pembayaran</h2>
+        {/* No section title; the h1 above already says Antrean (owner
+            direction). */}
         <p style={{ fontSize: text.body, color: 'var(--console-secondary)', marginTop: 4 }}>
-          Transfer yang dideklarasikan orang, dan baris gateway. Menyetujui menulis status
-          <em> settlement</em> dan masa aktifnya dalam satu transaksi database; menolak meninggalkan
-          uangnya utuh dan mencatat alasannya. Kalau instalasi ini punya jalur email, keputusan itu
-          juga mengantrekan surat untuk pembayar — layar ini tidak pernah mengatakan pesannya sudah
-          terkirim, dan status jalurnya ada di tab Integrasi.
+          Daftar ini berisi transfer yang dideklarasikan pembayar dan transaksi yang masuk dari
+          kanal pembayaran. Menyetujui akan menutup baris ini dan mengaktifkan langganan sesuai
+          paketnya. Menolak tidak memindahkan uang dan selalu mencatat alasannya. Jika pengiriman
+          email sedang aktif, keputusan juga mengantrekan pemberitahuan ke pembayar; status
+          pengirimannya dicek di tab Integrasi.
         </p>
       </div>
 
@@ -199,6 +205,9 @@ export function AdminTransactionsView() {
           onClick={() => void queue.reload(true)}
           style={{
             marginLeft: 'auto',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
             fontSize: text.body,
             padding: '5px 10px',
             minHeight: 32,
@@ -209,6 +218,16 @@ export function AdminTransactionsView() {
             cursor: 'pointer',
           }}
         >
+          {/* The standard circular-arrow refresh glyph, spinning only while a
+              read is actually in flight, and never for someone who asked for
+              stillness. */}
+          <RotateCw
+            size={14}
+            strokeWidth={1.9}
+            aria-hidden
+            focusable={false}
+            className={queue.refreshing ? 'animate-spin motion-reduce:animate-none' : undefined}
+          />
           Muat ulang
         </button>
         {/* Exports the whole selected working set, not the page on screen, and
@@ -303,7 +322,8 @@ export function AdminTransactionsView() {
         style={{
           background: 'var(--card)',
           border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
+          borderRadius: 12,
+          boxShadow: 'var(--console-card-shadow)',
           overflowX: 'auto',
           // Nine columns do not fit a phone. A scrollable region that cannot take
           // focus cannot be scrolled without a mouse or a thumb, so the
@@ -509,7 +529,7 @@ export function AdminTransactionsView() {
                         aria-label={`Setujui ${row.invoiceCode}`}
                         style={{
                           ...rowActionStyle('confirm'),
-                          marginRight: 6,
+                          marginRight: 8,
                           cursor: queue.busyId !== null ? 'default' : 'pointer',
                           opacity: queue.busyId !== null ? 0.5 : 1,
                         }}
@@ -625,8 +645,9 @@ function ApproveDialog({
       <h3 id="approve-title" style={{ fontSize: text.heading, fontWeight: 600, margin: 0 }}>
         Setujui pembayaran {row.invoiceCode}
       </h3>
-      {/* What the click actually does, in the order it does it. The length is not
-          a choice this screen offers: it comes from the plan on the row. */}
+      {/* What the click actually does, in the operator's words rather than the
+          writer's. The length is not a choice this screen offers: it comes from
+          the plan on the row. */}
       <p
         style={{
           fontSize: text.control,
@@ -635,9 +656,8 @@ function ApproveDialog({
           color: 'var(--foreground)',
         }}
       >
-        Ini menulis <em>settlement</em> dan satu masa aktif langganan dalam satu transaksi database,
-        lewat penulis yang sama dengan callback gateway. Panjangnya mengikuti paket di baris ini,
-        bukan angka yang bisa Anda isi di sini.
+        Ini menyetujui pembayaran dan mengaktifkan langganan sesuai paket di baris ini. Panjang masa
+        aktif mengikuti paket, bukan angka yang bisa Anda isi di sini.
       </p>
       <dl
         style={{
