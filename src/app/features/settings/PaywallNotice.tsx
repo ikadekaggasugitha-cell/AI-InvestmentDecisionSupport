@@ -1,4 +1,4 @@
-import { Lock } from 'lucide-react'
+import { Lock, Settings2, Sparkles } from 'lucide-react'
 
 import type { Locale } from '@/app/i18n/translations'
 
@@ -18,17 +18,42 @@ interface Props {
   locale?: Locale
   /** Opens Settings, where the subscription status can actually be read. */
   onOpenSettings: () => void
+  /** `/bayar` is the in-app payment screen — gated on the session, not the
+      entitlement, so the account that wants in can actually reach it. R-26
+      barred a buy control only while no path existed; /bayar is that path. */
+  onOpenPay?: () => void
+  /** The labelled preview of the AI Advisor — what the subscription unlocks. */
+  onOpenAdvisor?: () => void
+}
+
+const buttonBase: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  padding: '5px 10px',
+  minHeight: 28,
+  flexShrink: 0,
+  borderRadius: 3,
+  cursor: 'pointer',
 }
 
 /**
  * One banner in the shell, not a modal per view.
  *
  * Every paid panel refusing at once is one fact about the account, and saying it
- * eight times is a different kind of noise from saying it once. It links to
- * Settings because that is the only place the status can be read — it offers no
- * purchase control, because there is no path to purchase yet (R-26).
+ * eight times is a different kind of noise from saying it once. The subscription
+ * case now carries three destinations, quiet to loud: Settings (the status),
+ * the AI Advisor (what the money unlocks), and /bayar (the way out). The
+ * `unknown` case still offers only Settings — offering to charge someone when
+ * the server could not say whether they owe money is not an offer anyone can
+ * act on.
  */
-export function PaywallNotice({ reason = 'subscription', locale = 'id', onOpenSettings }: Props) {
+export function PaywallNotice({
+  reason = 'subscription',
+  locale = 'id',
+  onOpenSettings,
+  onOpenPay,
+  onOpenAdvisor,
+}: Props) {
   const isId = locale === 'id'
 
   const copy: Record<PaywallReason, { title: string; body: string }> = {
@@ -57,39 +82,72 @@ export function PaywallNotice({ reason = 'subscription', locale = 'id', onOpenSe
   return (
     <div
       role="status"
-      className="flex items-center gap-3"
+      className="flex flex-wrap items-center gap-x-3 gap-y-2"
       style={{
         background: 'var(--warning-bg)',
         border: '1px solid var(--warning)',
         borderRadius: 'var(--radius)',
-        padding: '10px 14px',
-        margin: '0 24px 12px',
+        padding: '8px 12px',
+        margin: '0 16px',
       }}
     >
-      <Lock size={14} style={{ color: 'var(--warning)', flexShrink: 0 }} aria-hidden />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>{title}</div>
-        <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 2 }}>{body}</div>
+      <Lock size={13} style={{ color: 'var(--warning)', flexShrink: 0 }} aria-hidden />
+      <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>{title}</span>
+        <span style={{ fontSize: 11, color: 'var(--muted-foreground)', marginLeft: 8 }}>
+          {body}
+        </span>
       </div>
-      <button
-        type="button"
-        onClick={onOpenSettings}
-        style={{
-          fontSize: 11,
-          padding: '5px 10px',
-          minHeight: 28,
-          flexShrink: 0,
-          color: 'var(--foreground)',
-          background: 'transparent',
-          // --control-border, not --border: ADR-0007 gives interactive boundaries a
-          // contrast floor and --border is a divider token that sits below it.
-          border: '1px solid var(--control-border)',
-          borderRadius: 3,
-          cursor: 'pointer',
-        }}
-      >
-        {isId ? 'Pengaturan' : 'Settings'}
-      </button>
+      {/* Only the subscription case gets buy actions: it is the one state where
+          payment can actually be the fix. The `unknown` case gets Settings alone. */}
+      {reason === 'subscription' ? (
+        <>
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="flex items-center gap-1"
+            title={isId ? 'Status langganan di Pengaturan' : 'Subscription status in Settings'}
+            style={{ ...buttonBase, background: 'transparent', border: 'none' }}
+          >
+            <Settings2 size={11} aria-hidden />
+            {isId ? 'Pengaturan' : 'Settings'}
+          </button>
+          {onOpenAdvisor && (
+            <button
+              type="button"
+              onClick={onOpenAdvisor}
+              className="flex items-center gap-1.5"
+              style={{ ...buttonBase, background: 'transparent', border: '1px solid var(--control-border)' }}
+            >
+              <Sparkles size={11} aria-hidden />
+              {isId ? 'Lihat AI Advisor' : 'Preview AI Advisor'}
+            </button>
+          )}
+          {onOpenPay && (
+            <button
+              type="button"
+              onClick={onOpenPay}
+              style={{
+                ...buttonBase,
+                fontWeight: 700,
+                color: 'var(--primary-foreground)',
+                background: 'var(--primary)',
+                border: 'none',
+              }}
+            >
+              {isId ? 'Aktifkan langganan' : 'Subscribe'}
+            </button>
+          )}
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          style={{ ...buttonBase, background: 'transparent', border: '1px solid var(--control-border)' }}
+        >
+          {isId ? 'Pengaturan' : 'Settings'}
+        </button>
+      )}
     </div>
   )
 }

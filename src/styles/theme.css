@@ -542,6 +542,44 @@
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.35);
   }
 
+  /* The market ticker tape. One wide flex strip duplicated in the DOM: the
+     animation walks it left by exactly half its own width, so the seam between
+     the two copies is invisible and the loop never jumps. Pausing on hover is a
+     reading affordance, and reduced-motion halts the walk rather than hiding
+     the tape (the symbols stay in place and the row stays scrollable). */
+  .ticker-tape {
+    overflow: hidden;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .ticker-marquee {
+    display: flex;
+    align-items: center;
+    width: max-content;
+    animation: ticker-scroll 48s linear infinite;
+  }
+
+  @keyframes ticker-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .ticker-tape:hover .ticker-marquee,
+  .ticker-tape:focus-within .ticker-marquee {
+    animation-play-state: paused;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ticker-marquee {
+      animation: none;
+    }
+  }
+
   /* Glass is decoration that carries meaning away: on a system that asks for
      reduced transparency the screen must still work, so it falls back to the
      opaque paper surface every other view already uses. */

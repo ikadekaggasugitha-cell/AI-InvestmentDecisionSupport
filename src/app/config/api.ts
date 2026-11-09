@@ -38,13 +38,26 @@ export const USE_LIVE_API = (import.meta.env.VITE_USE_LIVE_API ?? 'true').toLowe
 export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
 
 /**
- * WebSocket origin derived from API_BASE.
+ * WebSocket origin from API_BASE.
  *
  * A browser on an https:// page cannot open a ws:// socket — it must be wss://.
  * Deriving the scheme instead of hardcoding one means the same build works in
  * local dev and behind TLS.
+ *
+ * API_BASE may be relative ("/api") — the same-origin proxy case. A string
+ * without a scheme contains no "http" to replace and a relative URL throws in
+ * the WebSocket constructor, so the socket never opens and the app stays on
+ * offline_baseline forever. Rebuild the absolute origin from location in that
+ * case; the proxy that makes the cookie same-origin forwards the upgrade.
  */
-const WS_BASE = API_BASE.replace(/^http/, 'ws')
+function deriveWsBase(base: string): string {
+  if (/^https?:/i.test(base)) return base.replace(/^http/i, 'ws')
+  if (typeof location !== 'undefined' && location.host) {
+    return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${base}`
+  }
+  return base
+}
+const WS_BASE = deriveWsBase(API_BASE)
 
 export const ENDPOINTS = {
   /** Signal recommendations with per-factor explanations */
@@ -276,6 +289,17 @@ export const WS_CLOSE_ENTITLEMENT_REQUIRED = 4403
  * subscription cadence alive, and never re-handshake against the closed door.
  */
 export const WS_CLOSE_SUBSCRIPTION_ENDED = 4404
+/**
+ * 1006 is emitted by the browser when the handshake never completed. In
+ * production that is ambiguous between "server down" and "the door answered
+ * NO": Starlette turns a WebSocketException raised before the first accept
+ * into a plain HTTP 403, and every proxy only forwards close frames it
+ * received — a refused upgrade carries none. The consumer must therefore
+ * classify 1006 by asking the subscription route before deciding what to
+ * report, because branding a paywalled session as an outage sends people to
+ * debug the wrong thing.
+ */
+export const WS_CLOSE_ABNORMAL = 1006
 
 // Dedupe: many hooks fire concurrently, so a single expiry would otherwise
 // dispatch a dozen identical events. Latch on the first 401 and release once a

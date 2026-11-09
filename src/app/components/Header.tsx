@@ -4,8 +4,6 @@ import { useApp } from '@/app/context/AppContext'
 import { useTranslation } from '@/app/i18n/translations'
 import type { LiveMarketData } from '@/app/features/market/useLiveMarket'
 import type { ExchangeRateData } from '@/app/features/market/useExchangeRate'
-import { DataFreshnessBadge } from '@/app/components/DataFreshnessBadge'
-
 interface HeaderProps {
   title: string
   subtitle?: string
@@ -73,6 +71,23 @@ const TIER_RAMP_BG: Record<number, string> = {
   2: 'color-mix(in srgb, var(--primary) 8%, var(--card))',
   3: 'transparent',
 }
+
+/* Liquid tape symbols, pinned to the feed's universe where they render. A
+   symbol the backend does not carry never appears as a dead entry. */
+const TAPE_SYMBOLS = [
+  'BBCA',
+  'BBRI',
+  'BMRI',
+  'TLKM',
+  'ASII',
+  'BREN',
+  'ADRO',
+  'ANTM',
+  'UNVR',
+  'ICBP',
+  'EMTK',
+  'MDKA',
+]
 
 interface SearchDropdownProps {
   query: string
@@ -284,7 +299,9 @@ export function Header({
         aria-label={isId ? 'Indeks pasar saham' : 'Market indices'}
         role="region"
       >
-        {/* Market open pulse & Feed status */}
+        {/* Market open pulse. The dot marks the exchange state only — data
+            freshness is reported by the dedicated badge/toast elsewhere so a
+            backend outage never bleeds into the running ticker line. */}
         <div
           className="flex items-center gap-1.5 flex-shrink-0"
           style={{ paddingRight: 12, marginRight: 12, borderRight: '1px solid var(--border)' }}
@@ -325,21 +342,6 @@ export function Header({
                 ? 'Pasar tutup'
                 : 'Market closed'}
           </span>
-          {/* What the prices actually are. "BEI LIVE" above refers to the
-              EXCHANGE being open — not to the data being real time. The feed is
-              delayed, and without this the two read as the same claim.
-
-              `source !== "offline_baseline"` rather than `=== "backend_ws"`: the
-              seeded baseline is a deliberate state, not a failed connection, so
-              it must be allowed to render as SIMULATED rather than OFFLINE. A
-              genuine outage also leaves source on offline_baseline, so it still
-              reads OFFLINE. */}
-          <DataFreshnessBadge
-            freshness={market.freshness}
-            isConnected={market.source !== 'offline_baseline'}
-            locale={isId ? 'id' : 'en'}
-            compact={isMobile}
-          />
         </div>
 
         {/* IHSG live */}
@@ -384,11 +386,61 @@ export function Header({
           </span>
         </div>
 
-        <div style={{ flex: 1 }} />
+        {/* ── Running tape ───────────────────────────────────────────────────── */}
+        <div className="ticker-tape">
+          {/* The second copy is for the seamless loop only; hiding both copies
+              from assistive tech (the whole strip) works because the same facts
+              sit in the KPI cards and the Markets view. */}
+          <div className="ticker-marquee" role="list" aria-label={isId ? 'Harga saham unggulan' : 'Featured stock tape'}>
+            {[0, 1].map((copy) => {
+              const tape = TAPE_SYMBOLS.filter((sym) => market.stocks[sym]).map((sym) => ({
+                sym,
+                st: market.stocks[sym],
+              }))
+              return tape.length > 0 ? (
+                <div key={copy} className="flex items-center" {...(copy === 1 ? { 'aria-hidden': true } : {})}>
+                  {tape.map(({ sym, st }) => (
+                    <div
+                      key={`${copy}-${sym}`}
+                      role="listitem"
+                      className="flex items-center gap-1.5 flex-shrink-0"
+                      style={{
+                        fontSize: 11,
+                        fontFamily: 'var(--font-mono)',
+                        padding: '0 14px',
+                        borderRight: '1px solid var(--border)',
+                      }}
+                    >
+                      <span style={{ fontWeight: 700, color: 'var(--foreground)' }}>{sym}</span>
+                      <span style={{ color: 'var(--muted-foreground)' }}>
+                        {st.price.toLocaleString('id-ID')}
+                      </span>
+                      <span
+                        className="flex items-center gap-0.5"
+                        style={{
+                          color:
+                            st.changePct === 0
+                              ? 'var(--muted-foreground)'
+                              : st.changePct > 0
+                                ? 'var(--gain)'
+                                : 'var(--loss)',
+                        }}
+                      >
+                        {st.changePct > 0 ? <ChevronUp size={9} /> : <ChevronDown size={9} />}
+                        {Math.abs(st.changePct).toFixed(2)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null
+            })}
+          </div>
+        </div>
 
-        {/* USD/IDR */}
+        {/* ── FX ────────────────────────────────────────────────────────────── */}
         <div
           className="flex items-center gap-2 flex-shrink-0"
+          style={{ paddingLeft: 12, marginLeft: 12, borderLeft: '1px solid var(--border)' }}
           aria-label={`USD IDR ${fx.usdIdr.toLocaleString('id-ID')} ${fx.changePct >= 0 ? 'naik' : 'turun'} ${Math.abs(fx.changePct).toFixed(3)} persen`}
         >
           <span
@@ -464,7 +516,7 @@ export function Header({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {/* Search — from lg up. Below that the width is spent on the view's
               own controls; Markets has its own filter. */}
           <div

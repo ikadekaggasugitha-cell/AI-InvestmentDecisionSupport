@@ -162,6 +162,21 @@ function AppInner() {
     })
   }, [t])
 
+  // Backend outage toast — keeps the running market ticker clean by surfacing
+  // connection failures as a dismissible alert rather than inline text.
+  const { source, freshness } = market
+  useEffect(() => {
+    const down = source === 'offline_baseline' && freshness.streamRefused === null
+    if (down) {
+      toast.error(t('backend_unreachable_title'), {
+        description: t('backend_unreachable_desc'),
+        id: 'backend-unreachable',
+      })
+    } else {
+      toast.dismiss('backend-unreachable')
+    }
+  }, [source, freshness.streamRefused, t])
+
   /* Destructured once so the effect below can depend on the callback itself:
      the exhaustive-deps rule wants the exact function, not a property of the
      per-render hook object. markAllRead is useCallback-stable (it changes
@@ -433,8 +448,17 @@ function AppInner() {
         />
         {/* One banner for the whole app, not one per panel. Every paid view
             refusing at once is one fact about the account; saying it eight times
-            is noise that hides the one thing worth reading. */}
-        {locked && <PaywallNotice locale={locale} onOpenSettings={() => setView('settings')} />}
+            is noise that hides the one thing worth reading. The subscription
+            case carries the real escalations: status (Settings), what it unlocks
+            (AI Advisor preview), and the way out (/bayar). */}
+        {locked && (
+          <PaywallNotice
+            locale={locale}
+            onOpenSettings={() => setView('settings')}
+            onOpenPay={() => navigate('/bayar')}
+            onOpenAdvisor={() => setView('advisor')}
+          />
+        )}
         {/* `unknown` gets its own line rather than nothing. A server that will
             not answer is not the same as an account with no subscription, and
             silently showing nothing there is the claim that they are the same. */}
@@ -537,7 +561,7 @@ function AppInner() {
           )}
         </Suspense>
       </div>
-      <Toaster theme={isDark ? 'dark' : 'light'} position="top-right" richColors />
+      <Toaster theme={isDark ? 'dark' : 'light'} position="bottom-right" richColors />
     </div>
   )
 

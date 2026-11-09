@@ -1,4 +1,4 @@
-import { useMemo, useCallback, type ElementType } from 'react'
+import { useMemo, useCallback, useState, type ElementType } from 'react'
 import {
   AreaChart,
   Area,
@@ -7,6 +7,11 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
 } from 'recharts'
 import {
   TrendingUp,
@@ -19,7 +24,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '@/app/context/AppContext'
 import { useTranslation } from '@/app/i18n/translations'
-import { SECTOR_ALLOCATION, RECENT_TRANSACTIONS } from '@/app/data/idxData'
+import { SECTOR_ALLOCATION, RECENT_TRANSACTIONS, IDX_STOCKS } from '@/app/data/idxData'
 import type { AlertItem } from '@/app/features/reports/AlertsView'
 import { fmtIdr, fmtAmount } from '@/app/utils/formatting'
 import type { PortfolioHolding, Transaction } from '@/app/features/portfolio/usePortfolio'
@@ -33,6 +38,8 @@ interface Props {
   transactions: Transaction[]
   /** Open a stock in Markets (holding/transaction rows are drill-downs). */
   onSelectSymbol?: (symbol: string) => void
+  /** Open the AI Advisor view from a signal row. */
+  onOpenAIAdvisor?: () => void
   /**
    * The live alert feed, owned by useAlerts in App. This panel used to render
    * the bundled ALERTS_DATA seed directly with no live/simulated marker, so the
@@ -64,12 +71,59 @@ const ALERT_COLORS: Record<string, string> = {
   low: 'var(--neutral)',
 }
 
+/* Category hues for the sector donut, matching PortfolioView's ramp so the
+   same weight list reads the same colour on both screens. */
+const sectorColor = (index: number) =>
+  index < 5
+    ? (
+        [
+          'var(--chart-1)',
+          'var(--chart-2)',
+          'var(--chart-3)',
+          'var(--chart-4)',
+          'var(--chart-5)',
+        ] as const
+      )[index]
+    : 'var(--muted)'
+
+/* A tiny trend line inside the KPI cards. Flat series stay grey, so they
+   do not read as movement. */
+function Sparkline({
+  data,
+  width = 88,
+  height = 28,
+}: {
+  data: number[]
+  width?: number
+  height?: number
+}) {
+  const normalized = useMemo(() => data.map((v, i) => ({ v, i })), [data])
+  const first = data[0]
+  const flat = data.length === 0 || data.every((v) => v === first)
+  const up = flat ? undefined : data[data.length - 1] >= first
+  // Fixed width/height on the chart itself. ResponsiveContainer with fixed
+  // numbers is a div with no room to respond in and recharts warns on it.
+  return (
+    <LineChart width={width} height={height} data={normalized} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+      <Line
+        type="monotone"
+        dataKey="v"
+        stroke={flat ? 'var(--muted-foreground)' : up ? 'var(--gain)' : 'var(--loss)'}
+        strokeWidth={1.4}
+        dot={false}
+        isAnimationActive={false}
+      />
+    </LineChart>
+  )
+}
+
 export function DashboardView({
   market,
   fx,
   holdings,
   transactions,
   onSelectSymbol,
+  onOpenAIAdvisor,
   alerts,
   alertsIsLive,
   onOpenPortfolio,
@@ -78,6 +132,7 @@ export function DashboardView({
   const { locale } = useApp()
   const { t } = useTranslation(locale)
   const isId = locale === 'id'
+  const [activeSector, setActiveSector] = useState<string | null>(null)
 
   const fmt = useCallback(
     (n: number) => fmtAmount(n, fx.showUsd, fx.usdIdr),
@@ -86,7 +141,6 @@ export function DashboardView({
 
   const stocks = useMemo(() => Object.values(market.stocks), [market.stocks])
   const chartData = useMemo(() => market.intradayChart, [market.intradayChart])
-
   /* Portfolio value from live holdings */
   const portfolioValue = useMemo(
     () =>
@@ -123,15 +177,22 @@ export function DashboardView({
     return best
   }, [stocks])
 
-  /* The seed's sector weights describe the market's structure. The list needs
-     no per-slice colour at all: the bar list prints ink on the largest row and
-     grey behind it, so the chart's one hue stays with the intraday curve. */
+  /* Sector weights with the stocks that compose each slice, for the hover
+     list. Symbols come from the real universe, not invented examples. */
   const sectorData = useMemo(
     () =>
-      SECTOR_ALLOCATION.map((s) => ({
-        name: isId ? s.name : s.nameEn,
-        value: s.value,
-      })),
+      [...SECTOR_ALLOCATION]
+        .sort((a, b) => b.value - a.value)
+        .map((s, i) => ({
+          name: isId ? s.name : s.nameEn,
+          value: s.value,
+          color: sectorColor(i),
+          symbols: IDX_STOCKS.filter((st) =>
+            isId ? st.sector === s.name : st.sectorEn === s.nameEn,
+          )
+            .slice(0, 3)
+            .map((st) => st.symbol),
+        })),
     [isId],
   )
 
@@ -177,6 +238,25 @@ export function DashboardView({
     }))
   }, [transactions, isId, txIsSample])
 
+  /* Sparklines reuse the tick history each stock already carries. They
+     are trends of real feed data, never invented points, so an empty or
+     flat history prints the grey line rather than a shape. */
+  const portfolioSpark = useMemo(() => {
+    const series = holdings.map((h) => ({
+      lots: h.lots,
+      history: market.stocks[h.symbol]?.history ?? [],
+    }))
+    const nonEmpty = series.filter((s) => s.history.length > 0)
+    if (!nonEmpty.length) return []
+    const min = Math.min(...nonEmpty.map((s) => s.history.length))
+    return Array.from({ length: min }, (_, i) =>
+      Math.round(nonEmpty.reduce((sum, s) => sum + s.lots * 100 * s.history[i], 0)),
+    )
+  }, [holdings, market.stocks])
+  const ihsgSpark = useMemo(() => chartData.map((p) => p.ihsg), [chartData])
+  const pnlSpark = portfolioSpark
+  const topGainerSpark = topGainer?.history ?? []
+
   const cards: Array<{
     label: string
     value: string
@@ -184,6 +264,7 @@ export function DashboardView({
     color: string
     signed?: boolean
     lead?: boolean
+    spark: number[]
   }> = [
     /* Nilai portofolio is the screen's answer figure, so it prints ~1.3× its
        siblings instead of matching them (the icon chips are gone: none of the
@@ -194,6 +275,7 @@ export function DashboardView({
       sub: `${t('dash_cost_basis')}: ${fmt(costBasis)}`,
       color: 'var(--muted-foreground)',
       lead: true,
+      spark: portfolioSpark,
     },
     {
       label: t('dash_daily_pnl'),
@@ -204,6 +286,7 @@ export function DashboardView({
       color:
         dailyPnL > 0 ? 'var(--gain)' : dailyPnL < 0 ? 'var(--loss)' : 'var(--muted-foreground)',
       signed: dailyPnL === 0 ? undefined : dailyPnL > 0,
+      spark: pnlSpark,
     },
     {
       label: t('dash_ihsg'),
@@ -219,6 +302,7 @@ export function DashboardView({
             ? 'var(--loss)'
             : 'var(--muted-foreground)',
       signed: market.ihsg.changePct === 0 ? undefined : market.ihsg.changePct > 0,
+      spark: ihsgSpark,
     },
     {
       label: t('dash_top_gainer'),
@@ -230,65 +314,111 @@ export function DashboardView({
          chevron — flat is neither up nor down. */
       color: topGainer && topGainer.changePct > 0 ? 'var(--gain)' : 'var(--muted-foreground)',
       signed: topGainer && topGainer.changePct > 0 ? true : undefined,
+      spark: topGainerSpark,
     },
   ]
 
-  /* The sector list renders in both feed states — beside the chart with data,
-     full-width under the slim notice without — so it lives as one element.
-     Six parts exceed the ring budget (three to five slices): the bar list
-     ranks them and reads without hue. */
+  /* Donut on the left, legend on the right. Hovering a slice dims the
+     others and shows its top stocks, so colour is never the only carrier. */
+  const active = activeSector ? sectorData.find((s) => s.name === activeSector) : null
   const sectorCard = (
     <div className="p-5 glass-card">
       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)', marginBottom: 2 }}>
         {t('dash_sector_alloc')}
       </div>
       <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 12 }}>
-        {isId ? 'Berdasarkan bobot' : 'By weight'}
+        {active
+          ? `${active.name} ${active.value.toFixed(1)}%${active.symbols.length ? ` · ${active.symbols.join(', ')}` : ''}`
+          : isId
+            ? 'Berdasarkan bobot'
+            : 'By weight'}
       </div>
-      <div className="flex flex-col gap-2.5">
-        {[...sectorData]
-          .sort((a, b) => b.value - a.value)
-          .map((s, i, arr) => {
-            const topValue = arr[0].value > 0 ? arr[0].value : 1
-            return (
-              <div key={s.name}>
-                <div className="flex items-baseline justify-between">
-                  <span
-                    style={{
-                      fontSize: 13,
-                      color: i === 0 ? 'var(--foreground)' : 'var(--muted-foreground)',
-                    }}
-                  >
-                    {s.name}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 13,
-                      color: 'var(--foreground)',
-                      fontFamily: 'var(--font-mono)',
-                    }}
-                  >
-                    {s.value.toFixed(1)}%
-                  </span>
-                </div>
-                {/* Proportional to the largest row and capped at 88%, so the
-                  trail never reads as a full-width rule; a zero share draws
-                  no bar rather than a fake sliver. */}
-                <div
-                  style={{ height: 6, borderRadius: 3, background: 'var(--muted)', marginTop: 4 }}
-                >
-                  <div
-                    style={{
-                      height: '100%',
-                      borderRadius: 3,
-                      background: i === 0 ? 'var(--foreground)' : 'var(--neutral)',
-                      width: s.value > 0 ? `${Math.max((s.value / topValue) * 88, 1.5)}%` : '0%',
-                    }}
-                  />
-                </div>
-              </div>
-            )
-          })}
+      <div className="flex items-center gap-4">
+        {/* Fixed 110×110 canvas: the card sizes the slot, so a container that
+            "responds" has nothing to respond to and recharts warns on it. */}
+        <PieChart width={110} height={110}>
+            <Pie
+              data={sectorData}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              innerRadius={34}
+              outerRadius={50}
+              paddingAngle={2}
+              stroke="var(--card)"
+              strokeWidth={2}
+              isAnimationActive={false}
+              onMouseEnter={(_, i) => setActiveSector(sectorData[i]?.name ?? null)}
+              onMouseLeave={() => setActiveSector(null)}
+            >
+              {sectorData.map((s) => (
+                <Cell
+                  key={s.name}
+                  fill={s.color}
+                  stroke="var(--card)"
+                  fillOpacity={!activeSector || activeSector === s.name ? 1 : 0.35}
+                />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{
+                background: 'var(--popover)',
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                fontSize: 12,
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--foreground)',
+              }}
+              formatter={(v: number, name: string) => [`${v.toFixed(1)}%`, name]}
+            />
+          </PieChart>
+        <div className="flex flex-col gap-1.5" style={{ flex: 1, minWidth: 0 }}>
+          {sectorData.map((s) => (
+            <button
+              key={s.name}
+              type="button"
+              onMouseEnter={() => setActiveSector(s.name)}
+              onMouseLeave={() => setActiveSector(null)}
+              onFocus={() => setActiveSector(s.name)}
+              onBlur={() => setActiveSector(null)}
+              className="flex items-center gap-2 text-left"
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+              aria-label={`${s.name} ${s.value.toFixed(1)}%${s.symbols.length ? ` ${s.symbols.join(', ')}` : ''}`}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: s.color,
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 12,
+                  color: 'var(--foreground)',
+                  flex: 1,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {s.name}
+              </span>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontFamily: 'var(--font-mono)',
+                  color: 'var(--muted-foreground)',
+                }}
+              >
+                {s.value.toFixed(1)}%
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -298,16 +428,19 @@ export function DashboardView({
       className={
         glass
           ? // The shell column scrolls; this view grows to its content so the
-            // sticky glass bar above has cards passing beneath it.
-            'flex flex-col gap-6 p-6 [&>*]:shrink-0'
-          : 'min-h-0 flex-1 overflow-y-auto p-6 flex flex-col gap-6 [&>*]:shrink-0'
+            // sticky glass bar above has cards passing beneath it. Compressed
+            // rhythm (gap-4/p-5): the alerts row is the dashboard's core value,
+            // and the tighter the rows above it, the sooner it enters the
+            // viewport.
+            'flex flex-col gap-4 p-5 [&>*]:shrink-0'
+          : 'min-h-0 flex-1 overflow-y-auto p-5 flex flex-col gap-4 [&>*]:shrink-0'
       }
     >
       {/* KPI row. Icon chips are gone: the KPI's ink is the identity, the
           value is the key number, and the label stays quiet above them. */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
-          <div key={card.label} className="p-6 glass-card">
+          <div key={card.label} className="p-5 glass-card">
             <div style={{ fontSize: 13, color: 'var(--muted-foreground)', marginBottom: 8 }}>
               {card.label}
             </div>
@@ -322,6 +455,11 @@ export function DashboardView({
             >
               {card.value}
             </div>
+            {card.spark.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <Sparkline data={card.spark} width={120} height={24} />
+              </div>
+            )}
             <div
               className="flex items-center gap-1 mt-1.5"
               style={{ fontSize: 12, color: card.color, fontFamily: 'var(--font-mono)' }}
@@ -359,7 +497,7 @@ export function DashboardView({
             <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 16 }}>
               {t('dash_intraday_sub')}
             </div>
-            <ResponsiveContainer width="100%" height={196}>
+            <ResponsiveContainer width="100%" height={168}>
               <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
                 <CartesianGrid vertical={false} stroke="var(--border)" />
                 <XAxis
@@ -372,6 +510,17 @@ export function DashboardView({
                   axisLine={false}
                   tickLine={false}
                   interval="preserveStartEnd"
+                  /* Vendor tick clocks repeat one minute for whole bursts of
+                     quotes, so the floor fills with identical stamps. Blank the
+                     ones that repeat the previous minute; the ends and each new
+                     minute keep their ink. */
+                  tickFormatter={(t: string, i: number) =>
+                    i === 0 ||
+                    i === chartData.length - 1 ||
+                    chartData[i]?.time !== chartData[i - 1]?.time
+                      ? t
+                      : ''
+                  }
                 />
                 <YAxis
                   tick={{
@@ -640,10 +789,15 @@ export function DashboardView({
           </div>
           <div className="flex flex-col gap-2">
             {/* Top 5 of the live feed. Provenance is stated because the seed
-                alerts are shaped exactly like real ones. */}
+                alerts are shaped exactly like real ones. Each row carries a
+                type chip so the list can be scanned by kind at a distance — the
+                chip takes the severity ink, the label stays the alert's kind. */}
             {alerts.slice(0, 5).map((alert) => {
               const Icon = ALERT_ICONS[alert.type] ?? AlertCircle
               const color = ALERT_COLORS[alert.severity] ?? 'var(--muted-foreground)'
+              const typeLabels: Record<string, string> = isId
+                ? { signal: 'Sinyal', risk: 'Risiko', macro: 'Makro', rebalance: 'Rebalancing' }
+                : { signal: 'Signal', risk: 'Risk', macro: 'Macro', rebalance: 'Rebalance' }
               return (
                 <div
                   key={alert.key}
@@ -651,8 +805,25 @@ export function DashboardView({
                   style={{ background: 'var(--muted)' }}
                 >
                   <Icon size={12} style={{ color, flexShrink: 0, marginTop: 2 }} />
-                  <div>
-                    <div style={{ fontSize: 12, color: 'var(--foreground)', lineHeight: 1.45 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: 700,
+                          color,
+                          border: `1px solid ${color}40`,
+                          background: 'var(--card)',
+                          padding: '0 5px',
+                          borderRadius: 2,
+                          lineHeight: '15px',
+                        }}
+                      >
+                        {typeLabels[alert.type] ?? alert.type}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--foreground)', lineHeight: 1.45, marginTop: 2 }}>
                       {isId ? alert.msgId : alert.msgEn}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 2 }}>

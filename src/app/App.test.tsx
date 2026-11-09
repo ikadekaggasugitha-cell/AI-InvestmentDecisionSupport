@@ -207,7 +207,10 @@ describe('the paywall banner', () => {
 
     // Asserted on the rendered text, not on a role that nothing sets on this view.
     expect(document.body.textContent).not.toMatch(/Mode simulasi/i)
-    expect(screen.getByText(/langganan/i)).toBeInTheDocument()
+    // The banner's own body carries the subscription sentence; the upgrade
+    // buttons also mention it, so the assertion is scoped to the status body.
+    const bannerBody = document.querySelector('[role="status"]')
+    expect(bannerBody?.textContent).toMatch(/Langganan Anda belum aktif/)
   })
 
   it('says the status is unknown rather than claiming a subscription problem', async () => {
@@ -228,10 +231,11 @@ describe('the paywall banner', () => {
     render(<App />)
 
     await screen.findByText(/Analisis berbayar tidak aktif/i)
-    // Scoped to the banner: the sidebar carries a settings entry too, and this
-    // asserts the banner's own affordance rather than that two buttons exist.
+    // Scoped to the banner's Settings affordance by name: this change adds the
+    // AI Advisor preview and the payment escalation next to it, so a nameless
+    // "the first button" would be a rope to a tie.
     const banner = screen.getByRole('status')
-    await userEvent.click(within(banner).getByRole('button'))
+    await userEvent.click(within(banner).getByRole('button', { name: /pengaturan/i }))
 
     await waitFor(() => expect(screen.getByText(/Langganan & Tagihan/i)).toBeInTheDocument())
   })

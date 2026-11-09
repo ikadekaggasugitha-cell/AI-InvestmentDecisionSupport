@@ -5,6 +5,7 @@ import {
   WS_CLOSE_AUTH_REFUSED,
   WS_CLOSE_ENTITLEMENT_REQUIRED,
   WS_CLOSE_SUBSCRIPTION_ENDED,
+  WS_CLOSE_ABNORMAL,
   apiFetch,
   signalAuthExpired,
   signalPaywalled,
@@ -305,6 +306,29 @@ export function useLiveMarket(): LiveMarketData {
       reconnectTimeout = setTimeout(() => void connectWs(), SUBSCRIPTION_RETRY_MS)
     }
 
+    /* One subscription lookup per 30 s, not per reconnect attempt: the backoff
+       ramp fires classify more often than the source of truth changes. */
+    let lastClassifyAt = 0
+    async function classifyAbnormalClose() {
+      if (isUnmounted || Date.now() - lastClassifyAt < 30_000) return
+      lastClassifyAt = Date.now()
+      try {
+        const res = await apiFetch(ENDPOINTS.subscription)
+        if (!res.ok) return // cannot classify — keep the outage story
+        const body = (await res.json()) as { active?: boolean }
+        if (body.active === false) {
+          // A live server with an inactive subscription: the door, not the road.
+          setData((prev) => ({
+            ...prev,
+            freshness: { ...prev.freshness, streamRefused: 'entitlement' },
+          }))
+          signalPaywalled()
+        }
+      } catch {
+        /* unreachable while classifying — the outage classification stands */
+      }
+    }
+
     async function connectWs() {
       if (isUnmounted) return
       try {
@@ -337,10 +361,21 @@ export function useLiveMarket(): LiveMarketData {
                 const nextStocks = { ...prev.stocks }
                 const priceMap: Record<string, number> = {}
 
+                /* The first snapshot after the labelled seed does not append to
+                   the seed's own price trail: the two series come from
+                   different universes (an offline baseline price sits far from
+                   the real quote) and stitching them draws a fake cliff in
+                   every sparkline. The live trail starts at the live price. */
+                const isLiveNamespace = prev.source === 'backend_ws'
+
                 Object.keys(snapshot.stocks || {}).forEach((sym) => {
                   const s = snapshot.stocks[sym]
                   const old = prev.stocks[sym]
-                  const newHist = old ? [...old.history.slice(-59), s.price] : [s.price]
+                  const newHist = old
+                    ? isLiveNamespace
+                      ? [...old.history.slice(-59), s.price]
+                      : [s.price]
+                    : [s.price]
                   nextStocks[sym] = {
                     ...s,
                     history: newHist,
@@ -448,6 +483,18 @@ export function useLiveMarket(): LiveMarketData {
             // below used to catch this and re-handshake against the closed
             // door on that ramp, forever.
             scheduleSubscriptionRetry()
+            return
+          }
+          if (event.code === WS_CLOSE_ABNORMAL) {
+            // The handshake never completed, which the browser can only report
+            // as "abnormal". Server down and door-refused look identical here,
+            // so ask the subscription route (the same credentials everything
+            // else fetches with) and classify once: an inactive account is a
+            // paywall refusal, everything else keeps the outage story. Throttled
+            // to one query per 30 s — the reconnect loop re-lands here on every
+            // backoff.
+            void classifyAbnormalClose()
+            scheduleReconnect()
             return
           }
           scheduleReconnect()

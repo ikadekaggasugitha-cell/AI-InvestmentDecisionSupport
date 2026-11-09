@@ -21,6 +21,9 @@ const translations = {
     /* Header */
     header_search: 'Cari saham, pasar...',
     header_updated: 'Diperbarui',
+    backend_unreachable_title: 'Server tidak dapat dijangkau',
+    backend_unreachable_desc:
+      'Koneksi backend terputus. Data yang ditampilkan adalah data terakhir yang diketahui.',
 
     /* Dashboard */
     /* Sentence case, not Title Case: label ink is quieter than the figure. */
@@ -272,6 +275,9 @@ const translations = {
     /* Header */
     header_search: 'Search stock, market...',
     header_updated: 'Updated',
+    backend_unreachable_title: 'Server tidak dapat dijangkau',
+    backend_unreachable_desc:
+      'Koneksi backend terputus. Data yang ditampilkan adalah data terakhir yang diketahui.',
 
     /* Dashboard */
     /* Sentence case, not Title Case: label ink is quieter than the figure. */

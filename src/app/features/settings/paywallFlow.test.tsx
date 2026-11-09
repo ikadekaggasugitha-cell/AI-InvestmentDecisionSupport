@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 
 import { AppProvider, useApp } from '@/app/context/AppContext'
 import { PaywallNotice } from '@/app/features/settings/PaywallNotice'
@@ -68,9 +69,10 @@ describe('a refusal, with the gate actually firing', () => {
     expect(within(screen.getByRole('status')).queryByText(/tidak terjangkau/i)).toBeNull()
   })
 
-  it('offers no control that pretends there is a way to buy, today', () => {
-    // Payments are Phase 2. A Buy button with nothing behind it is worse than
-    // its absence — R-26, recorded in SettingsView.
+  it('keeps the banner quiet about payment until a real path is handed to it', () => {
+    // /bayar is the payment path now, but it must arrive as a handled
+    // navigation. A shell rendering this banner without the handler gets the
+    // status affordances only — no button that looks live with nothing behind it.
     respond(200, { active: false })
     render(
       <AppProvider>
@@ -79,8 +81,22 @@ describe('a refusal, with the gate actually firing', () => {
     )
 
     const banner = screen.getByRole('status')
-    expect(within(banner).queryByRole('button', { name: /beli|buy|upgrade/i })).toBeNull()
-    expect(within(banner).getByRole('button')).toBeInTheDocument()
+    expect(within(banner).queryByRole('button', { name: /langganan|subscribe|ai advisor/i })).toBeNull()
+    expect(within(banner).getByRole('button', { name: /pengaturan/i })).toBeInTheDocument()
+  })
+
+  it('exposes the real escalations when the shell hands them over', async () => {
+    respond(200, { active: false })
+    const onOpenPay = vi.fn()
+    render(
+      <AppProvider>
+        <PaywallNotice onOpenSettings={() => {}} onOpenPay={onOpenPay} />
+      </AppProvider>,
+    )
+
+    const banner = screen.getByRole('status')
+    await userEvent.click(within(banner).getByRole('button', { name: /^aktifkan|^subscribe/i }))
+    expect(onOpenPay).toHaveBeenCalledTimes(1)
   })
 
   it('shows nothing once a subscription exists', async () => {
